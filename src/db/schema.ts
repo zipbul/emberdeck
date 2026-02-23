@@ -96,3 +96,21 @@ export const cardFts = sqliteTable('card_fts', {
   summary: text('summary'),
   body: text('body'),
 });
+
+export const codeLink = sqliteTable(
+  'code_link',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    cardKey: text('card_key')
+      .notNull()
+      .references(() => card.key, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    kind: text('kind').notNull(),
+    file: text('file').notNull(),
+    symbol: text('symbol').notNull(),
+  },
+  (table) => [
+    index('idx_code_link_card').on(table.cardKey),
+    index('idx_code_link_symbol').on(table.symbol),
+    index('idx_code_link_file').on(table.file),
+  ],
+);

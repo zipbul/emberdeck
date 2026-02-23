@@ -21,6 +21,14 @@ export interface RelationRow {
   metaJson: string | null;
 }
 
+export interface CodeLinkRow {
+  id: number;
+  cardKey: string;
+  kind: string;
+  file: string;
+  symbol: string;
+}
+
 export interface CardListFilter {
   status?: CardStatus;
 }
@@ -51,5 +59,14 @@ export interface ClassificationRepository {
   replaceTags(cardKey: string, names: string[]): void;
   findKeywordsByCard(cardKey: string): string[];
   findTagsByCard(cardKey: string): string[];
+  deleteByCardKey(cardKey: string): void;
+}
+
+export interface CodeLinkRepository {
+  /** 카드의 codeLink 목록을 전부 교체. */
+  replaceForCard(cardKey: string, links: import('../card/types').CodeLink[]): void;
+  findByCardKey(cardKey: string): CodeLinkRow[];
+  /** symbol 이름으로 조회. filePath 지정 시 해당 파일로 필터. */
+  findBySymbol(symbolName: string, filePath?: string): CodeLinkRow[];
   deleteByCardKey(cardKey: string): void;
 }

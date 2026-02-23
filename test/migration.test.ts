@@ -29,10 +29,10 @@ describe('migration', () => {
     closeDb(db);
   });
 
-  it('should create all 7 emberdeck tables after migration when createEmberdeckDb is called with :memory:', () => {
+  it('should create all 8 emberdeck tables after migration when createEmberdeckDb is called with :memory:', () => {
     // Arrange
     const db = createEmberdeckDb(':memory:');
-    const expected = ['card', 'keyword', 'tag', 'card_keyword', 'card_tag', 'card_relation', 'card_fts'];
+    const expected = ['card', 'keyword', 'tag', 'card_keyword', 'card_tag', 'card_relation', 'card_fts', 'code_link'];
     // Act
     const rows = db.$client
       .prepare("SELECT name FROM sqlite_master WHERE type='table' OR type='shadow' OR type='virtual'")
