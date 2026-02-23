@@ -11,6 +11,7 @@ import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
+import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
 
 export interface RenameCardResult {
@@ -53,14 +54,16 @@ export async function renameCard(
     const cardRepo = new DrizzleCardRepository(tx as EmberdeckDb);
     const relationRepo = new DrizzleRelationRepository(tx as EmberdeckDb);
     const classRepo = new DrizzleClassificationRepository(tx as EmberdeckDb);
+    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as EmberdeckDb);
 
-    // 기존 관계/분류 백업
+    // 기존 관계/분류/코드링크 백업
     const oldRelations = relationRepo
       .findByCardKey(oldKey)
       .filter((r) => !r.isReverse)
       .map((r) => ({ type: r.type, target: r.dstCardKey }));
     const oldKeywords = classRepo.findKeywordsByCard(oldKey);
     const oldTags = classRepo.findTagsByCard(oldKey);
+    const oldCodeLinks = codeLinkRepo.findByCardKey(oldKey);
 
     cardRepo.deleteByKey(oldKey); // cascade 삭제
 
@@ -80,6 +83,11 @@ export async function renameCard(
     if (oldRelations.length > 0) relationRepo.replaceForCard(newFullKey, oldRelations);
     if (oldKeywords.length > 0) classRepo.replaceKeywords(newFullKey, oldKeywords);
     if (oldTags.length > 0) classRepo.replaceTags(newFullKey, oldTags);
+    if (oldCodeLinks.length > 0)
+      codeLinkRepo.replaceForCard(
+        newFullKey,
+        oldCodeLinks.map((l) => ({ kind: l.kind, file: l.file, symbol: l.symbol })),
+      );
   });
 
   return { oldFilePath, newFilePath, newFullKey, card };

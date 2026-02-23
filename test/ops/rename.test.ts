@@ -293,4 +293,88 @@ describe('renameCard', () => {
     expect(tc.ctx.cardRepo.findByKey('db-verify-old')).toBeNull();
     expect(tc.ctx.cardRepo.findByKey('db-verify-new')).not.toBeNull();
   });
+
+  // ── codeLink Preservation ─────────────────────────────────────────────
+
+  it('should preserve single codeLink under new key when rename succeeds', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-single-old', summary: 'CL single' });
+    await updateCard(tc.ctx, 'cl-single-old', {
+      codeLinks: [{ kind: 'function', file: 'src/foo.ts', symbol: 'myFn' }],
+    });
+    // Act
+    await renameCard(tc.ctx, 'cl-single-old', 'cl-single-new');
+    // Assert
+    const oldLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-single-old');
+    expect(oldLinks).toHaveLength(0);
+    const newLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-single-new');
+    expect(newLinks).toHaveLength(1);
+    expect(newLinks[0].kind).toBe('function');
+    expect(newLinks[0].file).toBe('src/foo.ts');
+    expect(newLinks[0].symbol).toBe('myFn');
+  });
+
+  it('should preserve all codeLinks under new key when card has multiple codeLinks', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-multi-old', summary: 'CL multi' });
+    await updateCard(tc.ctx, 'cl-multi-old', {
+      codeLinks: [
+        { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
+        { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
+        { kind: 'function', file: 'src/c.ts', symbol: 'fnC' },
+      ],
+    });
+    // Act
+    await renameCard(tc.ctx, 'cl-multi-old', 'cl-multi-new');
+    // Assert
+    expect(tc.ctx.codeLinkRepo.findByCardKey('cl-multi-old')).toHaveLength(0);
+    const newLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-multi-new');
+    expect(newLinks).toHaveLength(3);
+    expect(newLinks.some((l) => l.symbol === 'fnA')).toBe(true);
+    expect(newLinks.some((l) => l.symbol === 'ClassB')).toBe(true);
+    expect(newLinks.some((l) => l.symbol === 'fnC')).toBe(true);
+  });
+
+  it('should preserve codeLinks along with relations, keywords, and tags simultaneously after rename', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-all-src', summary: 'All src' });
+    await createCard(tc.ctx, { slug: 'cl-all-dst', summary: 'All dst' });
+    await updateCard(tc.ctx, 'cl-all-src', {
+      relations: [{ type: 'depends-on', target: 'cl-all-dst' }],
+      keywords: ['kw-cl'],
+      tags: ['tg-cl'],
+      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'xFn' }],
+    });
+    // Act
+    await renameCard(tc.ctx, 'cl-all-src', 'cl-all-new');
+    // Assert
+    const rel = tc.ctx.relationRepo.findByCardKey('cl-all-new');
+    expect(rel.some((r) => !r.isReverse && r.dstCardKey === 'cl-all-dst')).toBe(true);
+    expect(tc.ctx.classificationRepo.findKeywordsByCard('cl-all-new')).toContain('kw-cl');
+    expect(tc.ctx.classificationRepo.findTagsByCard('cl-all-new')).toContain('tg-cl');
+    const links = tc.ctx.codeLinkRepo.findByCardKey('cl-all-new');
+    expect(links).toHaveLength(1);
+    expect(links[0].symbol).toBe('xFn');
+  });
+
+  it('should preserve codeLinks after chained rename A→B→C', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-chain-a', summary: 'Chain A' });
+    await updateCard(tc.ctx, 'cl-chain-a', {
+      codeLinks: [{ kind: 'function', file: 'src/chain.ts', symbol: 'chainFn' }],
+    });
+    await renameCard(tc.ctx, 'cl-chain-a', 'cl-chain-b');
+    // Act
+    await renameCard(tc.ctx, 'cl-chain-b', 'cl-chain-c');
+    // Assert
+    expect(tc.ctx.codeLinkRepo.findByCardKey('cl-chain-a')).toHaveLength(0);
+    expect(tc.ctx.codeLinkRepo.findByCardKey('cl-chain-b')).toHaveLength(0);
+    const finalLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-chain-c');
+    expect(finalLinks).toHaveLength(1);
+    expect(finalLinks[0].symbol).toBe('chainFn');
+  });
 });
