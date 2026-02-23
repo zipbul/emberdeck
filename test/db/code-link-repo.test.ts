@@ -275,4 +275,19 @@ describe('DrizzleCodeLinkRepository', () => {
     // Act / Assert
     expect(() => repo.deleteByCardKey('idempotent/test')).not.toThrow();
   });
+
+  // 19. [NE] non-FK re-throw
+  it('should re-throw non-FK error when insert throws a non-FOREIGN-KEY error in replaceForCard', () => {
+    // Arrange
+    const nonFkError = new Error('disk I/O error');
+    const fakeDb = {
+      delete: () => ({ where: () => ({ run: () => {} }) }),
+      insert: () => ({ values: () => ({ run: () => { throw nonFkError; } }) }),
+    } as unknown as EmberdeckDb;
+    const testRepo = new DrizzleCodeLinkRepository(fakeDb);
+    // Act & Assert
+    expect(() =>
+      testRepo.replaceForCard('my-card', [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }]),
+    ).toThrow('disk I/O error');
+  });
 });

@@ -35,8 +35,10 @@ export class DrizzleRelationRepository implements RelationRepository {
             isReverse: true,
           })
           .run();
-      } catch {
-        // 대상 카드 미존재 → FK violation → 해당 relation만 스킵 (정상)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
+        // FK violation: 대상 카드 미존재 → 해당 relation만 스킵 (정상)
       }
     }
   }

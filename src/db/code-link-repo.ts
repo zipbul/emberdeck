@@ -18,8 +18,10 @@ export class DrizzleCodeLinkRepository implements CodeLinkRepository {
           .insert(codeLink)
           .values({ cardKey, kind: link.kind, file: link.file, symbol: link.symbol })
           .run();
-      } catch {
-        // 대상 카드 미존재 → FK violation → 해당 link만 스킵
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
+        // FK violation: 대상 카드 미존재 → 해당 link만 스킵
       }
     }
   }

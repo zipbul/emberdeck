@@ -204,4 +204,19 @@ describe('DrizzleRelationRepository', () => {
     expect(rows.some((r) => r.dstCardKey === 'exists-dst')).toBe(true);
     expect(rows.every((r) => r.dstCardKey !== 'no-exists-dst')).toBe(true);
   });
+
+  // NE — non-FK re-throw
+  it('should re-throw non-FK error when insert throws a non-FOREIGN-KEY error in replaceForCard', () => {
+    // Arrange
+    const nonFkError = new Error('disk I/O error');
+    const fakeDb = {
+      delete: () => ({ where: () => ({ run: () => {} }) }),
+      insert: () => ({ values: () => ({ run: () => { throw nonFkError; } }) }),
+    } as unknown as EmberdeckDb;
+    const testRepo = new DrizzleRelationRepository(fakeDb);
+    // Act & Assert
+    expect(() =>
+      testRepo.replaceForCard('src', [{ type: 'depends-on', target: 'dst' }]),
+    ).toThrow('disk I/O error');
+  });
 });
