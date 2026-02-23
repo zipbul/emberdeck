@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { parseCardMarkdown, serializeCardMarkdown } from './markdown';
 import { CardValidationError } from './errors';
-import type { CardFrontmatter } from './types';
+import type { CardFrontmatter, CodeLink } from './types';
 
 // ---- Helpers ----
 
@@ -325,6 +325,203 @@ describe('parseCardMarkdown', () => {
     expect(() => parseCardMarkdown('--- \nkey: k\nsummary: s\nstatus: draft\n---\n')).toThrow(
       CardValidationError,
     );
+  });
+});
+
+// ── codeLinks parsing ─────────────────────────────────────────────────────
+
+describe('parseCardMarkdown — codeLinks', () => {
+  // 1. [HP] 단일 유효 codeLink
+  it('should parse codeLinks when single valid codeLink given', () => {
+    // Arrange
+    const md = makeMarkdown({
+      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' }],
+    });
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.codeLinks).toEqual([
+      { kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' },
+    ]);
+  });
+
+  // 2. [HP] 복수 codeLinks
+  it('should parse all codeLinks when multiple valid codeLinks given', () => {
+    // Arrange
+    const links = [
+      { kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' },
+      { kind: 'class', file: 'src/auth/TokenService.ts', symbol: 'TokenService' },
+    ];
+    const md = makeMarkdown({ codeLinks: links });
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.codeLinks).toEqual(links);
+  });
+
+  // 3. [HP] codeLinks 미지정 → undefined
+  it('should return undefined codeLinks when codeLinks field absent', () => {
+    // Arrange
+    const md = makeMarkdown();
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.codeLinks).toBeUndefined();
+  });
+
+  // 4. [HP] codeLinks: null → undefined
+  it('should return undefined codeLinks when codeLinks is null in YAML', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: null\n---\n`;
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.codeLinks).toBeUndefined();
+  });
+
+  // 5. [ED] codeLinks: [] → 빈 배열
+  it('should return empty array codeLinks when codeLinks is empty array', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: []\n---\n`;
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.codeLinks).toEqual([]);
+  });
+
+  // 6. [NE] codeLinks가 숫자 → throw
+  it('should throw CardValidationError when codeLinks is a number', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: 42\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+
+  // 7. [NE] codeLinks가 비배열 객체 → throw
+  it('should throw CardValidationError when codeLinks is a non-array object', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  kind: function\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+
+  // 8. [NE] 아이템이 null → throw
+  it('should throw CardValidationError when codeLinks item is null', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - null\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+
+  // 9. [NE] 아이템 kind가 빈 문자열 → throw
+  it('should throw CardValidationError when codeLinks item kind is empty string', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: ''\n    file: src/a.ts\n    symbol: foo\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+
+  // 10. [NE] 아이템 kind 키 없음 → throw
+  it('should throw CardValidationError when codeLinks item is missing kind', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - file: src/a.ts\n    symbol: foo\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+
+  // 11. [NE] 아이템 file이 빈 문자열 → throw
+  it('should throw CardValidationError when codeLinks item file is empty string', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: ''\n    symbol: foo\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+
+  // 12. [NE] 아이템 symbol이 빈 문자열 → throw
+  it('should throw CardValidationError when codeLinks item symbol is empty string', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: ''\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+
+  // 13. [HP] codeLinks와 relations 동시 존재
+  it('should parse both codeLinks and relations when both fields given', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\nrelations:\n  - type: depends-on\n    target: other\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n---\n`;
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.relations).toEqual([{ type: 'depends-on', target: 'other' }]);
+    expect(result.frontmatter.codeLinks).toEqual([{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }]);
+  });
+
+  // 14. [HP] 순서 보존
+  it('should preserve codeLinks order when multiple codeLinks given', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: alpha\n  - kind: class\n    file: src/b.ts\n    symbol: beta\n---\n`;
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.codeLinks?.[0].symbol).toBe('alpha');
+    expect(result.frontmatter.codeLinks?.[1].symbol).toBe('beta');
+  });
+
+  // 15. [CO] 첫 아이템 유효, 두 번째 아이템 kind='' → throw
+  it('should throw CardValidationError when second codeLinks item has empty kind', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n  - kind: ''\n    file: src/b.ts\n    symbol: bar\n---\n`;
+    // Act / Assert
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
+});
+
+// ── codeLinks serialization ──────────────────────────────────────────────────
+
+describe('serializeCardMarkdown — codeLinks', () => {
+  // 16. [HP] codeLinks 있는 frontmatter → YAML에 codeLinks 포함
+  it('should include codeLinks in YAML when codeLinks present in frontmatter', () => {
+    // Arrange
+    const fm: CardFrontmatter = {
+      key: 'k',
+      summary: 's',
+      status: 'draft',
+      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' }],
+    };
+    // Act
+    const result = serializeCardMarkdown(fm, '');
+    // Assert
+    expect(result).toContain('codeLinks');
+    expect(result).toContain('refreshToken');
+  });
+
+  // 17. [HP] codeLinks 없는 frontmatter → YAML에 codeLinks 없음
+  it('should not include codeLinks in YAML when codeLinks absent from frontmatter', () => {
+    // Arrange
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft' };
+    // Act
+    const result = serializeCardMarkdown(fm, '');
+    // Assert
+    expect(result).not.toContain('codeLinks');
+  });
+
+  // 18. [HP] round-trip: parse→serialize codeLinks 값 보존
+  it('should preserve codeLinks after round-trip parse then serialize then parse', () => {
+    // Arrange
+    const original: CardFrontmatter = {
+      key: 'auth/token',
+      summary: 'Token spec',
+      status: 'implementing',
+      codeLinks: [
+        { kind: 'function', file: 'src/auth/token.ts', symbol: 'refreshToken' },
+        { kind: 'class', file: 'src/auth/TokenService.ts', symbol: 'TokenService' },
+      ],
+    };
+    // Act
+    const serialized = serializeCardMarkdown(original, 'body');
+    const reparsed = parseCardMarkdown(serialized);
+    // Assert
+    expect(reparsed.frontmatter.codeLinks).toEqual(original.codeLinks);
   });
 });
 

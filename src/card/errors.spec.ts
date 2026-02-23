@@ -5,6 +5,7 @@ import {
   CardAlreadyExistsError,
   CardRenameSamePathError,
   RelationTypeError,
+  GildashNotConfiguredError,
 } from './errors';
 
 // ── CardValidationError ──────────────────────────────────────────────────────
@@ -167,5 +168,51 @@ describe('RelationTypeError', () => {
   it('should be catchable as RelationTypeError when thrown', () => {
     // Arrange / Act / Assert
     expect(() => { throw new RelationTypeError('x', ['a']); }).toThrow(RelationTypeError);
+  });
+});
+
+// ── GildashNotConfiguredError ─────────────────────────────────────────────────
+
+describe('GildashNotConfiguredError', () => {
+  // 19. [HP] message 정확한 문자열
+  it('should set correct message when constructed', () => {
+    // Arrange / Act
+    const err = new GildashNotConfiguredError();
+    // Assert
+    expect(err.message).toBe(
+      'gildash is not configured: set projectRoot in EmberdeckOptions',
+    );
+  });
+
+  // 20. [HP] name 확인
+  it('should set name to GildashNotConfiguredError when constructed', () => {
+    // Arrange / Act
+    const err = new GildashNotConfiguredError();
+    // Assert
+    expect(err.name).toBe('GildashNotConfiguredError');
+  });
+
+  // 21. [HP] instanceof Error
+  it('should be instanceof Error when constructed', () => {
+    // Arrange / Act
+    const err = new GildashNotConfiguredError();
+    // Assert
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  // 22. [HP] instanceof GildashNotConfiguredError
+  it('should be instanceof GildashNotConfiguredError when constructed', () => {
+    // Arrange / Act
+    const err = new GildashNotConfiguredError();
+    // Assert
+    expect(err).toBeInstanceOf(GildashNotConfiguredError);
+  });
+
+  // 23. [HP] throw 후 catch 가능
+  it('should be catchable as GildashNotConfiguredError when thrown', () => {
+    // Arrange / Act / Assert
+    expect(() => {
+      throw new GildashNotConfiguredError();
+    }).toThrow(GildashNotConfiguredError);
   });
 });

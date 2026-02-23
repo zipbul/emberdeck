@@ -34,3 +34,10 @@ export class RelationTypeError extends Error {
     this.name = 'RelationTypeError';
   }
 }
+
+export class GildashNotConfiguredError extends Error {
+  constructor() {
+    super('gildash is not configured: set projectRoot in EmberdeckOptions');
+    this.name = 'GildashNotConfiguredError';
+  }
+}

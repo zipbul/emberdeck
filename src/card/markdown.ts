@@ -1,4 +1,4 @@
-import type { CardFile, CardFrontmatter, CardRelation, CardStatus } from './types';
+import type { CardFile, CardFrontmatter, CardRelation, CardStatus, CodeLink } from './types';
 import { CardValidationError } from './errors';
 
 function normalizeNewlines(text: string): string {
@@ -58,6 +58,27 @@ function normalizeTags(value: unknown): string[] | undefined {
     out.push(item);
   }
 
+  return out;
+}
+
+function normalizeCodeLinks(value: unknown): CodeLink[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) {
+    throw new CardValidationError('Invalid frontmatter field: codeLinks');
+  }
+
+  const out: CodeLink[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') {
+      throw new CardValidationError('Invalid frontmatter field: codeLinks');
+    }
+    const cl = item as Record<string, unknown>;
+    out.push({
+      kind: asString(cl.kind, 'codeLinks[].kind'),
+      file: asString(cl.file, 'codeLinks[].file'),
+      symbol: asString(cl.symbol, 'codeLinks[].symbol'),
+    });
+  }
   return out;
 }
 
@@ -121,6 +142,11 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
   const relations = normalizeRelations(fm['relations']);
   if (relations !== undefined) {
     out.relations = relations;
+  }
+
+  const codeLinks = normalizeCodeLinks(fm['codeLinks']);
+  if (codeLinks !== undefined) {
+    out.codeLinks = codeLinks;
   }
 
   return out;
