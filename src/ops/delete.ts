@@ -2,7 +2,6 @@ import type { EmberdeckContext } from '../config';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
 import { deleteCardFile } from '../fs/writer';
-import { DrizzleCardRepository } from '../db/card-repo';
 
 export async function deleteCard(
   ctx: EmberdeckContext,
@@ -16,11 +15,10 @@ export async function deleteCard(
     throw new CardNotFoundError(key);
   }
 
+  // DB 먼저 삭제(FK cascade로 relation, keyword, tag 매핑 자동 삭제) 후 파일 삭제
+  // 이순서로 DB 실패 시 파일 유지 → syncCardFromFile로 복구 가능
+  ctx.cardRepo.deleteByKey(key);
   await deleteCardFile(filePath);
-
-  // FK cascade로 relation, keyword, tag 매핑 자동 삭제
-  const cardRepo = new DrizzleCardRepository(ctx.db);
-  cardRepo.deleteByKey(key);
 
   return { filePath };
 }
