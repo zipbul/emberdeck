@@ -153,14 +153,15 @@ describe('searchCards', () => {
     await tc?.cleanup();
   });
 
-  it('should return empty array since FTS5 is not configured', async () => {
+  it('should return matching card when FTS query matches card summary', async () => {
     // Arrange
     tc = await createTestContext();
     await createCard(tc.ctx, { slug: 'srch-card', summary: 'Search me' });
     // Act
     const rows = searchCards(tc.ctx, 'Search');
     // Assert
-    expect(rows).toHaveLength(0);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].key).toBe('srch-card');
   });
 });
 

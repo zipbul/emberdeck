@@ -51,9 +51,19 @@ export class DrizzleCardRepository implements CardRepository {
     return this.db.select().from(card).all() as CardRow[];
   }
 
-  search(_query: string): CardRow[] {
-    // FTS5 MATCH. cardFts 가상 테이블은 수동 마이그레이션 후 사용 가능.
-    // 초기 구현: FTS 미설정 시 빈 배열 반환.
-    return [];
+  search(query: string): CardRow[] {
+    if (!query) return [];
+    return this.db.$client
+      .prepare(
+        `SELECT c.key, c.summary, c.status,
+                c.constraints_json AS constraintsJson,
+                c.body,
+                c.file_path AS filePath,
+                c.updated_at AS updatedAt
+         FROM card c
+         JOIN card_fts f ON c.rowid = f.rowid
+         WHERE card_fts MATCH ?`,
+      )
+      .all(query) as CardRow[];
   }
 }

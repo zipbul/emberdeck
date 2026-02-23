@@ -9,7 +9,6 @@ import {
 export const card = sqliteTable(
   'card',
   {
-    rowid: integer('rowid'),
     key: text('key').primaryKey(),
     summary: text('summary').notNull(),
     status: text('status').notNull(),
@@ -89,9 +88,8 @@ export const cardRelation = sqliteTable(
   ],
 );
 
-/** FTS5 가상 테이블 매핑. 실제 생성은 수동 마이그레이션 SQL. */
+/** FTS5 가상 테이블 매핑. 실제 생성/동기화는 마이그레이션 SQL + 트리거. */
 export const cardFts = sqliteTable('card_fts', {
-  rowid: integer('rowid'),
   key: text('key'),
   summary: text('summary'),
   body: text('body'),

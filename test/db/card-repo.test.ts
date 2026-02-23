@@ -128,13 +128,64 @@ describe('DrizzleCardRepository', () => {
     expect(result[0]?.key).toBe('p/d');
   });
 
-  it('should return empty array when search is called (FTS not configured)', () => {
+  it('should return empty array when query does not match any card', () => {
     // Arrange
     repo.upsert(makeRow({ key: 's/x' }));
     // Act
-    const result = repo.search('any query');
+    const result = repo.search('zzz_no_match_zzz');
     // Assert
     expect(result).toEqual([]);
+  });
+
+  it('should return matching card when summary contains the search query', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'fts/summary', summary: 'authentication design', filePath: '/fts/summary.card.md' }));
+    // Act
+    const result = repo.search('authentication');
+    // Assert
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('fts/summary');
+  });
+
+  it('should return matching card when body contains the search query', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'fts/body', summary: 'unrelated', body: 'token refresh logic', filePath: '/fts/body.card.md' }));
+    // Act
+    const result = repo.search('refresh');
+    // Assert
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('fts/body');
+  });
+
+  it('should return only the matching card when multiple cards exist', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'fts/match', summary: 'pagination spec', filePath: '/fts/match.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/other', summary: 'sorting spec', filePath: '/fts/other.card.md' }));
+    // Act
+    const result = repo.search('pagination');
+    // Assert
+    expect(result).toHaveLength(1);
+    expect(result[0].key).toBe('fts/match');
+  });
+
+  it('should not return card after it has been deleted', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'fts/del', summary: 'ephemeral card', filePath: '/fts/del.card.md' }));
+    expect(repo.search('ephemeral')).toHaveLength(1);
+    // Act
+    repo.deleteByKey('fts/del');
+    // Assert
+    expect(repo.search('ephemeral')).toHaveLength(0);
+  });
+
+  it('should return card with updated summary after upsert is called again', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'fts/upd', summary: 'original summary', filePath: '/fts/upd.card.md' }));
+    // Act
+    repo.upsert(makeRow({ key: 'fts/upd', summary: 'revised summary', filePath: '/fts/upd.card.md' }));
+    // Assert
+    expect(repo.search('revised')).toHaveLength(1);
+    expect(repo.search('original')).toHaveLength(0);
   });
 
   // NE
