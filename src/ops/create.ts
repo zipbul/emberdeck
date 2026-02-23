@@ -21,6 +21,7 @@ export interface CreateCardInput {
   tags?: string[];
   relations?: CardRelation[];
   codeLinks?: CodeLink[];
+  constraints?: unknown;
 }
 
 export interface CreateCardResult {
@@ -54,6 +55,7 @@ export async function createCard(
     key: fullKey,
     summary: input.summary,
     status: 'draft' as const,
+    ...(input.constraints !== undefined ? { constraints: input.constraints } : {}),
     ...(input.keywords && input.keywords.length > 0 ? { keywords: input.keywords } : {}),
     ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
     ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
@@ -77,7 +79,7 @@ export async function createCard(
       key: fullKey,
       summary: input.summary,
       status: 'draft',
-      constraintsJson: null,
+      constraintsJson: input.constraints !== undefined ? JSON.stringify(input.constraints) : null,
       body,
       filePath,
       updatedAt: now,

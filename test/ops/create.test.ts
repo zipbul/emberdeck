@@ -321,4 +321,27 @@ describe('createCard — codeLinks', () => {
     // Assert
     expect(tc.ctx.codeLinkRepo.findByCardKey('cr-emptycl')).toHaveLength(0);
   });
+
+  // ── Constraints ────────────────────────────────────────────────────────
+
+  it('should store constraints as JSON in DB when constraints object is provided', async () => {
+    // Arrange
+    tc = await createTestContext();
+    const constraints = { maxLength: 100, required: true };
+    // Act
+    await createCard(tc.ctx, { slug: 'cst-card', summary: 'Cst', constraints });
+    // Assert
+    const row = tc.ctx.cardRepo.findByKey('cst-card');
+    expect(row?.constraintsJson).toBe(JSON.stringify(constraints));
+  });
+
+  it('should set constraintsJson to null in DB when constraints is not provided', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // Act
+    await createCard(tc.ctx, { slug: 'no-cst-card', summary: 'No cst' });
+    // Assert
+    const row = tc.ctx.cardRepo.findByKey('no-cst-card');
+    expect(row?.constraintsJson).toBeNull();
+  });
 });
