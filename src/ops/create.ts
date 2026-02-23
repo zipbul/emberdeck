@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { CardRelation, CardFile } from '../card/types';
+import type { CardRelation, CardFile, CodeLink } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
 import { CardAlreadyExistsError, RelationTypeError } from '../card/errors';
@@ -10,6 +10,7 @@ import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
+import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
 
 export interface CreateCardInput {
@@ -19,6 +20,7 @@ export interface CreateCardInput {
   keywords?: string[];
   tags?: string[];
   relations?: CardRelation[];
+  codeLinks?: CodeLink[];
 }
 
 export interface CreateCardResult {
@@ -55,6 +57,7 @@ export async function createCard(
     ...(input.keywords && input.keywords.length > 0 ? { keywords: input.keywords } : {}),
     ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
     ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
+    ...(input.codeLinks && input.codeLinks.length > 0 ? { codeLinks: input.codeLinks } : {}),
   };
 
   const body = input.body ?? '';
@@ -68,6 +71,7 @@ export async function createCard(
     const cardRepo = new DrizzleCardRepository(tx as EmberdeckDb);
     const relationRepo = new DrizzleRelationRepository(tx as EmberdeckDb);
     const classRepo = new DrizzleClassificationRepository(tx as EmberdeckDb);
+    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as EmberdeckDb);
 
     const row: CardRow = {
       key: fullKey,
@@ -88,6 +92,9 @@ export async function createCard(
     }
     if (input.tags && input.tags.length > 0) {
       classRepo.replaceTags(fullKey, input.tags);
+    }
+    if (input.codeLinks && input.codeLinks.length > 0) {
+      codeLinkRepo.replaceForCard(fullKey, input.codeLinks);
     }
   });
 

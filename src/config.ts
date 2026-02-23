@@ -1,5 +1,6 @@
+import type { Gildash } from '@zipbul/gildash';
 import type { EmberdeckDb } from './db/connection';
-import type { CardRepository, RelationRepository, ClassificationRepository } from './db/repository';
+import type { CardRepository, RelationRepository, ClassificationRepository, CodeLinkRepository } from './db/repository';
 
 export const DEFAULT_RELATION_TYPES = [
   'depends-on',
@@ -18,6 +19,10 @@ export interface EmberdeckOptions {
   dbPath: string;
   /** 허용 관계 타입. 미지정 시 DEFAULT_RELATION_TYPES 사용 */
   allowedRelationTypes?: readonly string[];
+  /** gildash 활성화용 프로젝트 루트 절대 경로. 미지정 시 코드 링크 기능 비활성 */
+  projectRoot?: string;
+  /** gildash ignore 패턴. 기본값: ['node_modules', 'dist', '.zipbul'] */
+  gildashIgnore?: string[];
 }
 
 export interface EmberdeckContext {
@@ -26,5 +31,8 @@ export interface EmberdeckContext {
   cardRepo: CardRepository;
   relationRepo: RelationRepository;
   classificationRepo: ClassificationRepository;
+  codeLinkRepo: CodeLinkRepository;
   allowedRelationTypes: readonly string[];
+  /** gildash 인스턴스. projectRoot 미설정 또는 초기화 실패 시 undefined */
+  gildash?: Gildash;
 }

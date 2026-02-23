@@ -179,3 +179,58 @@ describe('removeCardByFile', () => {
   });
 });
 
+describe('syncCardFromFile — codeLinks', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should persist codeLinks to DB when syncing a file with codeLinks in frontmatter', async () => {
+    // Arrange
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      {
+        key: 'sync-cl',
+        summary: 'CL',
+        status: 'draft',
+        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
+      },
+      '',
+    );
+    const filePath = join(tc.cardsDir, 'sync-cl.card.md');
+    await writeFile(filePath, content, 'utf-8');
+    // Act
+    await syncCardFromFile(tc.ctx, filePath);
+    // Assert
+    const links = tc.ctx.codeLinkRepo.findByCardKey('sync-cl');
+    expect(links).toHaveLength(1);
+    expect(links[0]!.symbol).toBe('myFunc');
+  });
+
+  it('should clear codeLinks from DB when syncing same file without codeLinks', async () => {
+    // Arrange
+    tc = await createTestContext();
+    const filePath = join(tc.cardsDir, 'sync-cl-rm.card.md');
+    const contentWith = serializeCardMarkdown(
+      {
+        key: 'sync-cl-rm',
+        summary: 'CL RM',
+        status: 'draft',
+        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
+      },
+      '',
+    );
+    await writeFile(filePath, contentWith, 'utf-8');
+    await syncCardFromFile(tc.ctx, filePath);
+    // Act: sync without codeLinks
+    const contentWithout = serializeCardMarkdown(
+      { key: 'sync-cl-rm', summary: 'CL RM', status: 'draft' },
+      '',
+    );
+    await writeFile(filePath, contentWithout, 'utf-8');
+    await syncCardFromFile(tc.ctx, filePath);
+    // Assert
+    expect(tc.ctx.codeLinkRepo.findByCardKey('sync-cl-rm')).toHaveLength(0);
+  });
+});

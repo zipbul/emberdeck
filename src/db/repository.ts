@@ -68,5 +68,7 @@ export interface CodeLinkRepository {
   findByCardKey(cardKey: string): CodeLinkRow[];
   /** symbol 이름으로 조회. filePath 지정 시 해당 파일로 필터. */
   findBySymbol(symbolName: string, filePath?: string): CodeLinkRow[];
+  /** 특정 파일 경로를 참조하는 모든 code link 조회. */
+  findByFile(filePath: string): CodeLinkRow[];
   deleteByCardKey(cardKey: string): void;
 }

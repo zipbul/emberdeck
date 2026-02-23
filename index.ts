@@ -4,7 +4,7 @@ export type { EmberdeckOptions, EmberdeckContext } from './src/config';
 export { DEFAULT_RELATION_TYPES } from './src/config';
 
 // ---- Types ----
-export type { CardStatus, CardRelation, CardFrontmatter, CardFile } from './src/card/types';
+export type { CardStatus, CardRelation, CardFrontmatter, CardFile, CodeLink } from './src/card/types';
 export {
   CardKeyError,
   CardValidationError,
@@ -12,6 +12,7 @@ export {
   CardAlreadyExistsError,
   CardRenameSamePathError,
   RelationTypeError,
+  GildashNotConfiguredError,
 } from './src/card/errors';
 
 // ---- Operations ----
@@ -24,16 +25,26 @@ export {
 } from './src/ops/update';
 export { deleteCard } from './src/ops/delete';
 export { renameCard, type RenameCardResult } from './src/ops/rename';
-export { getCard, listCards, searchCards, listCardRelations } from './src/ops/query';
+export { getCard, listCards, searchCards, listCardRelations, getCardContext, type CardContext } from './src/ops/query';
 export { syncCardFromFile, removeCardByFile } from './src/ops/sync';
+export {
+  resolveCardCodeLinks,
+  findCardsBySymbol,
+  findAffectedCards,
+  validateCodeLinks,
+  type ResolvedCodeLink,
+  type BrokenLink,
+} from './src/ops/link';
 
 // ---- Repository interfaces (테스트/목킹용) ----
 export type {
   CardRepository,
   RelationRepository,
   ClassificationRepository,
+  CodeLinkRepository,
   CardRow,
   RelationRow,
+  CodeLinkRow,
 } from './src/db/repository';
 
 // ---- Pure utilities (CLI에서 키 검증만 필요할 때) ----

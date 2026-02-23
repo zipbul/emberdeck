@@ -1,5 +1,5 @@
 import type { EmberdeckContext } from '../config';
-import type { CardFile, CardFrontmatter, CardRelation, CardStatus } from '../card/types';
+import type { CardFile, CardFrontmatter, CardRelation, CardStatus, CodeLink } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError, RelationTypeError } from '../card/errors';
@@ -8,6 +8,7 @@ import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
+import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
 
 export interface UpdateCardFields {
@@ -17,6 +18,7 @@ export interface UpdateCardFields {
   tags?: string[] | null;
   constraints?: unknown;
   relations?: CardRelation[] | null;
+  codeLinks?: CodeLink[] | null;
 }
 
 export interface UpdateCardResult {
@@ -64,6 +66,10 @@ export async function updateCard(
     if (fields.relations === null || fields.relations.length === 0) delete next.relations;
     else next.relations = fields.relations;
   }
+  if (fields.codeLinks !== undefined) {
+    if (fields.codeLinks === null || fields.codeLinks.length === 0) delete next.codeLinks;
+    else next.codeLinks = fields.codeLinks;
+  }
 
   const nextBody = fields.body !== undefined ? fields.body : current.body;
   const card: CardFile = { filePath, frontmatter: next, body: nextBody };
@@ -75,6 +81,7 @@ export async function updateCard(
     const cardRepo = new DrizzleCardRepository(tx as EmberdeckDb);
     const relationRepo = new DrizzleRelationRepository(tx as EmberdeckDb);
     const classRepo = new DrizzleClassificationRepository(tx as EmberdeckDb);
+    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as EmberdeckDb);
 
     const row: CardRow = {
       key,
@@ -90,6 +97,7 @@ export async function updateCard(
     if (fields.relations !== undefined) relationRepo.replaceForCard(key, next.relations ?? []);
     if (fields.keywords !== undefined) classRepo.replaceKeywords(key, next.keywords ?? []);
     if (fields.tags !== undefined) classRepo.replaceTags(key, next.tags ?? []);
+    if (fields.codeLinks !== undefined) codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
   });
 
   return { filePath, card };

@@ -280,3 +280,45 @@ describe('createCard', () => {
     );
   });
 });
+
+describe('createCard — codeLinks', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should persist codeLinks to DB when creating card with codeLinks', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // Act
+    await createCard(tc.ctx, {
+      slug: 'cr-cl',
+      summary: 'CL',
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
+    });
+    // Assert
+    const links = tc.ctx.codeLinkRepo.findByCardKey('cr-cl');
+    expect(links).toHaveLength(1);
+    expect(links[0]!.symbol).toBe('myFunc');
+    expect(links[0]!.file).toBe('src/a.ts');
+  });
+
+  it('should not persist any codeLinks when creating card without codeLinks', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // Act
+    await createCard(tc.ctx, { slug: 'cr-nocl', summary: 'No CL' });
+    // Assert
+    expect(tc.ctx.codeLinkRepo.findByCardKey('cr-nocl')).toHaveLength(0);
+  });
+
+  it('should not persist any codeLinks when creating card with empty codeLinks array', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // Act
+    await createCard(tc.ctx, { slug: 'cr-emptycl', summary: 'Empty CL', codeLinks: [] });
+    // Assert
+    expect(tc.ctx.codeLinkRepo.findByCardKey('cr-emptycl')).toHaveLength(0);
+  });
+});

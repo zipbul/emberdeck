@@ -17,7 +17,7 @@ export async function createTestContext(
   const cardsDir = join(tmpDir, 'cards');
   await mkdir(cardsDir, { recursive: true });
 
-  const ctx = setupEmberdeck({
+  const ctx = await setupEmberdeck({
     cardsDir,
     dbPath: ':memory:',
     allowedRelationTypes: options?.allowedRelationTypes,
@@ -27,7 +27,7 @@ export async function createTestContext(
     ctx,
     cardsDir,
     cleanup: async () => {
-      teardownEmberdeck(ctx);
+      await teardownEmberdeck(ctx);
       await rm(tmpDir, { recursive: true, force: true });
     },
   };

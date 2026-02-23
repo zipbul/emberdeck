@@ -4,6 +4,38 @@ import type { CardRow, RelationRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
+import { resolveCardCodeLinks, type ResolvedCodeLink } from './link';
+
+export interface CardContext {
+  card: CardFile;
+  codeLinks: ResolvedCodeLink[];
+  upstreamCards: CardRow[];
+  downstreamCards: CardRow[];
+}
+
+export async function getCardContext(ctx: EmberdeckContext, fullKey: string): Promise<CardContext> {
+  const key = parseFullKey(fullKey);
+  const filePath = buildCardPath(ctx.cardsDir, key);
+  if (!(await Bun.file(filePath).exists())) throw new CardNotFoundError(key);
+  const card = await readCardFile(filePath);
+
+  let codeLinks: ResolvedCodeLink[] = [];
+  if (ctx.gildash) {
+    codeLinks = await resolveCardCodeLinks(ctx, fullKey);
+  }
+
+  const relations = ctx.relationRepo.findByCardKey(key);
+  const upstreamCards = relations
+    .filter((r) => r.isReverse)
+    .map((r) => ctx.cardRepo.findByKey(r.dstCardKey))
+    .filter((r): r is CardRow => r !== null);
+  const downstreamCards = relations
+    .filter((r) => !r.isReverse)
+    .map((r) => ctx.cardRepo.findByKey(r.dstCardKey))
+    .filter((r): r is CardRow => r !== null);
+
+  return { card, codeLinks, upstreamCards, downstreamCards };
+}
 
 export async function getCard(ctx: EmberdeckContext, fullKey: string): Promise<CardFile> {
   const key = parseFullKey(fullKey);

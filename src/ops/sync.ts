@@ -5,6 +5,7 @@ import { readCardFile } from '../fs/reader';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
+import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
 
 /**
@@ -32,11 +33,13 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     const cardRepo = new DrizzleCardRepository(tx as EmberdeckDb);
     const relationRepo = new DrizzleRelationRepository(tx as EmberdeckDb);
     const classRepo = new DrizzleClassificationRepository(tx as EmberdeckDb);
+    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as EmberdeckDb);
 
     cardRepo.upsert(row);
     relationRepo.replaceForCard(key, cardFile.frontmatter.relations ?? []);
     classRepo.replaceKeywords(key, cardFile.frontmatter.keywords ?? []);
     classRepo.replaceTags(key, cardFile.frontmatter.tags ?? []);
+    codeLinkRepo.replaceForCard(key, cardFile.frontmatter.codeLinks ?? []);
   });
 }
 

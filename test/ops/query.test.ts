@@ -1,7 +1,8 @@
-import { describe, it, expect, afterEach } from 'bun:test';
+import { describe, it, expect, afterEach, mock } from 'bun:test';
 
 import { createCard, updateCard, updateCardStatus, getCard, listCards, searchCards, listCardRelations } from '../../index';
 import { CardKeyError, CardNotFoundError } from '../../index';
+import { getCardContext } from '../../src/ops/query';
 import { createTestContext, type TestContext } from '../helpers';
 
 describe('getCard', () => {
@@ -200,5 +201,114 @@ describe('listCardRelations', () => {
     tc = await createTestContext();
     // Act & Assert
     expect(() => listCardRelations(tc.ctx, '')).toThrow(CardKeyError);
+  });
+});
+
+describe('getCardContext', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should return empty codeLinks, upstream, downstream for isolated card when gildash not configured', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'gctx-a', summary: 'A' });
+    // Act
+    const result = await getCardContext(tc.ctx, 'gctx-a');
+    // Assert
+    expect(result.card.frontmatter.key).toBe('gctx-a');
+    expect(result.codeLinks).toHaveLength(0);
+    expect(result.upstreamCards).toHaveLength(0);
+    expect(result.downstreamCards).toHaveLength(0);
+  });
+
+  it('should include downstreamCards when card has outgoing depends-on relation', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'gctx-src', summary: 'Src' });
+    await createCard(tc.ctx, { slug: 'gctx-dst', summary: 'Dst' });
+    await updateCard(tc.ctx, 'gctx-src', { relations: [{ type: 'depends-on', target: 'gctx-dst' }] });
+    // Act
+    const result = await getCardContext(tc.ctx, 'gctx-src');
+    // Assert
+    expect(result.downstreamCards.some((r) => r.key === 'gctx-dst')).toBe(true);
+    expect(result.upstreamCards).toHaveLength(0);
+  });
+
+  it('should include upstreamCards when another card depends-on this card', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'gctx-dep', summary: 'Dep' });
+    await createCard(tc.ctx, { slug: 'gctx-tgt', summary: 'Tgt' });
+    await updateCard(tc.ctx, 'gctx-dep', { relations: [{ type: 'depends-on', target: 'gctx-tgt' }] });
+    // Act
+    const result = await getCardContext(tc.ctx, 'gctx-tgt');
+    // Assert
+    expect(result.upstreamCards.some((r) => r.key === 'gctx-dep')).toBe(true);
+    expect(result.downstreamCards).toHaveLength(0);
+  });
+
+  it('should return both upstreamCards and downstreamCards when card is in middle of chain', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // upstream(gctx-up) → gctx-mid → gctx-dn(downstream)
+    // Create leaf first so FK doesn't fail, then middle, then root
+    await createCard(tc.ctx, { slug: 'gctx-dn', summary: 'Dn' });
+    await createCard(tc.ctx, {
+      slug: 'gctx-mid',
+      summary: 'Mid',
+      relations: [{ type: 'depends-on', target: 'gctx-dn' }],
+    });
+    await createCard(tc.ctx, {
+      slug: 'gctx-up',
+      summary: 'Up',
+      relations: [{ type: 'depends-on', target: 'gctx-mid' }],
+    });
+    // Act
+    const result = await getCardContext(tc.ctx, 'gctx-mid');
+    // Assert
+    expect(result.upstreamCards.some((r) => r.key === 'gctx-up')).toBe(true);
+    expect(result.downstreamCards.some((r) => r.key === 'gctx-dn')).toBe(true);
+  });
+
+  it('should return resolvedCodeLinks when gildash is configured and codeLinks exist', async () => {
+    // Arrange
+    tc = await createTestContext();
+    const mockSymbol = {
+      id: '1', name: 'myFunc', filePath: 'src/a.ts', kind: 'function' as any,
+      span: { start: 0, end: 10 }, isExported: true, signature: 'myFunc()', fingerprint: 'abc', detail: '',
+    };
+    tc.ctx.gildash = { searchSymbols: mock(() => [mockSymbol]), close: mock(async () => {}) } as any;
+    await createCard(tc.ctx, {
+      slug: 'gctx-cl', summary: 'CL', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
+    });
+    // Act
+    const result = await getCardContext(tc.ctx, 'gctx-cl');
+    // Assert
+    expect(result.codeLinks).toHaveLength(1);
+    expect(result.codeLinks[0]!.link.symbol).toBe('myFunc');
+    expect(result.codeLinks[0]!.symbol).not.toBeNull();
+  });
+
+  it('should throw CardNotFoundError when card file does not exist', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // Act & Assert
+    expect(getCardContext(tc.ctx, 'ghost-card')).rejects.toBeInstanceOf(CardNotFoundError);
+  });
+
+  it('should return empty codeLinks when gildash is not configured even if frontmatter has codeLinks', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'gctx-nogil', summary: 'No gildash', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
+    });
+    // ctx.gildash is undefined by default
+    // Act
+    const result = await getCardContext(tc.ctx, 'gctx-nogil');
+    // Assert
+    expect(result.codeLinks).toHaveLength(0);
   });
 });

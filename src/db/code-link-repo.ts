@@ -47,6 +47,14 @@ export class DrizzleCodeLinkRepository implements CodeLinkRepository {
       .all() as CodeLinkRow[];
   }
 
+  findByFile(filePath: string): CodeLinkRow[] {
+    return this.db
+      .select()
+      .from(codeLink)
+      .where(eq(codeLink.file, filePath))
+      .all() as CodeLinkRow[];
+  }
+
   deleteByCardKey(cardKey: string): void {
     this.db.delete(codeLink).where(eq(codeLink.cardKey, cardKey)).run();
   }

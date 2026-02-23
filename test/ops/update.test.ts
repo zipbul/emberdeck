@@ -348,3 +348,54 @@ describe('updateCard', () => {
     expect(tc.ctx.cardRepo.findByKey('idp-upd')?.summary).toBe('Same summary');
   });
 });
+
+describe('updateCard — codeLinks', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should persist codeLinks to DB when updating card with codeLinks field', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'upd-cl', summary: 'CL' });
+    // Act
+    await updateCard(tc.ctx, 'upd-cl', { codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
+    // Assert
+    const links = tc.ctx.codeLinkRepo.findByCardKey('upd-cl');
+    expect(links).toHaveLength(1);
+    expect(links[0]!.symbol).toBe('myFunc');
+  });
+
+  it('should remove codeLinks from DB when updating with codeLinks: null', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'upd-cl-null', summary: 'CL Null', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
+    // Act
+    await updateCard(tc.ctx, 'upd-cl-null', { codeLinks: null });
+    // Assert
+    expect(tc.ctx.codeLinkRepo.findByCardKey('upd-cl-null')).toHaveLength(0);
+  });
+
+  it('should remove codeLinks from DB when updating with empty codeLinks array', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'upd-cl-empty', summary: 'CL Empty', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
+    // Act
+    await updateCard(tc.ctx, 'upd-cl-empty', { codeLinks: [] });
+    // Assert
+    expect(tc.ctx.codeLinkRepo.findByCardKey('upd-cl-empty')).toHaveLength(0);
+  });
+
+  it('should not modify codeLinks in DB when updating without codeLinks field', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'upd-cl-skip', summary: 'CL Skip', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
+    // Act
+    await updateCard(tc.ctx, 'upd-cl-skip', { summary: 'Updated summary' });
+    // Assert
+    const links = tc.ctx.codeLinkRepo.findByCardKey('upd-cl-skip');
+    expect(links).toHaveLength(1);
+  });
+});
