@@ -3,6 +3,7 @@ import type { CardFile, CardFrontmatter, CardRelation, CardStatus, CodeLink } fr
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError, RelationTypeError } from '../card/errors';
+import { validateCardInput } from '../card/validation';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
@@ -64,6 +65,14 @@ export async function updateCard(
   fullKey: string,
   fields: UpdateCardFields,
 ): Promise<UpdateCardResult> {
+  validateCardInput({
+    summary: fields.summary,
+    body: fields.body,
+    keywords: fields.keywords ?? undefined,
+    tags: fields.tags ?? undefined,
+    relations: fields.relations ?? undefined,
+    codeLinks: fields.codeLinks ?? undefined,
+  });
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 

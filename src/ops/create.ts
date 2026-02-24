@@ -6,6 +6,7 @@ import type { CardRelation, CardFile, CodeLink } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
 import { CardAlreadyExistsError, RelationTypeError } from '../card/errors';
+import { validateCardInput } from '../card/validation';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
@@ -71,6 +72,14 @@ export async function createCard(
   ctx: EmberdeckContext,
   input: CreateCardInput,
 ): Promise<CreateCardResult> {
+  validateCardInput({
+    summary: input.summary,
+    body: input.body,
+    keywords: input.keywords,
+    tags: input.tags,
+    relations: input.relations,
+    codeLinks: input.codeLinks,
+  });
   const slug = normalizeSlug(input.slug);
   const fullKey = slug;
   const filePath = buildCardPath(ctx.cardsDir, slug);
