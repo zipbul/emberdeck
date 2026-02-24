@@ -12,6 +12,7 @@ import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
+import { withCardLock, withRetry, safeWriteOperation } from './safe';
 
 export interface CreateCardInput {
   slug: string;
@@ -38,67 +39,79 @@ export async function createCard(
   const fullKey = slug;
   const filePath = buildCardPath(ctx.cardsDir, slug);
 
-  if (input.relations) {
-    for (const rel of input.relations) {
-      if (!ctx.allowedRelationTypes.includes(rel.type)) {
-        throw new RelationTypeError(rel.type, ctx.allowedRelationTypes);
+  return withCardLock(ctx, fullKey, () =>
+    withRetry(async () => {
+      if (input.relations) {
+        for (const rel of input.relations) {
+          if (!ctx.allowedRelationTypes.includes(rel.type)) {
+            throw new RelationTypeError(rel.type, ctx.allowedRelationTypes);
+          }
+        }
       }
-    }
-  }
 
-  const exists = await Bun.file(filePath).exists();
-  if (exists) {
-    throw new CardAlreadyExistsError(fullKey);
-  }
+      const exists = await Bun.file(filePath).exists();
+      if (exists) {
+        throw new CardAlreadyExistsError(fullKey);
+      }
 
-  const frontmatter = {
-    key: fullKey,
-    summary: input.summary,
-    status: 'draft' as const,
-    ...(input.constraints !== undefined ? { constraints: input.constraints } : {}),
-    ...(input.keywords && input.keywords.length > 0 ? { keywords: input.keywords } : {}),
-    ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
-    ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
-    ...(input.codeLinks && input.codeLinks.length > 0 ? { codeLinks: input.codeLinks } : {}),
-  };
+      const frontmatter = {
+        key: fullKey,
+        summary: input.summary,
+        status: 'draft' as const,
+        ...(input.constraints !== undefined ? { constraints: input.constraints } : {}),
+        ...(input.keywords && input.keywords.length > 0 ? { keywords: input.keywords } : {}),
+        ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
+        ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
+        ...(input.codeLinks && input.codeLinks.length > 0 ? { codeLinks: input.codeLinks } : {}),
+      };
 
-  const body = input.body ?? '';
-  const card: CardFile = { filePath, frontmatter, body };
+      const body = input.body ?? '';
+      const card: CardFile = { filePath, frontmatter, body };
 
-  const now = new Date().toISOString();
-  ctx.db.transaction((tx) => {
-    const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
-    const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
-    const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
-    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
+      const now = new Date().toISOString();
 
-    const row: CardRow = {
-      key: fullKey,
-      summary: input.summary,
-      status: 'draft',
-      constraintsJson: input.constraints !== undefined ? JSON.stringify(input.constraints) : null,
-      body,
-      filePath,
-      updatedAt: now,
-    };
+      return safeWriteOperation({
+        dbAction: () => {
+          ctx.db.transaction((tx) => {
+            const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
+            const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
+            const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
+            const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
 
-    cardRepo.upsert(row);
-    if (input.relations && input.relations.length > 0) {
-      relationRepo.replaceForCard(fullKey, input.relations);
-    }
-    if (input.keywords && input.keywords.length > 0) {
-      classRepo.replaceKeywords(fullKey, input.keywords);
-    }
-    if (input.tags && input.tags.length > 0) {
-      classRepo.replaceTags(fullKey, input.tags);
-    }
-    if (input.codeLinks && input.codeLinks.length > 0) {
-      codeLinkRepo.replaceForCard(fullKey, input.codeLinks);
-    }
-  });
+            const row: CardRow = {
+              key: fullKey,
+              summary: input.summary,
+              status: 'draft',
+              constraintsJson: input.constraints !== undefined ? JSON.stringify(input.constraints) : null,
+              body,
+              filePath,
+              updatedAt: now,
+            };
 
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeCardFile(filePath, card);
-
-  return { filePath, fullKey, card };
+            cardRepo.upsert(row);
+            if (input.relations && input.relations.length > 0) {
+              relationRepo.replaceForCard(fullKey, input.relations);
+            }
+            if (input.keywords && input.keywords.length > 0) {
+              classRepo.replaceKeywords(fullKey, input.keywords);
+            }
+            if (input.tags && input.tags.length > 0) {
+              classRepo.replaceTags(fullKey, input.tags);
+            }
+            if (input.codeLinks && input.codeLinks.length > 0) {
+              codeLinkRepo.replaceForCard(fullKey, input.codeLinks);
+            }
+          });
+          return { filePath, fullKey, card } as CreateCardResult;
+        },
+        fileAction: async () => {
+          await mkdir(dirname(filePath), { recursive: true });
+          await writeCardFile(filePath, card);
+        },
+        compensate: () => {
+          ctx.cardRepo.deleteByKey(fullKey);
+        },
+      });
+    }),
+  );
 }

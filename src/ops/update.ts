@@ -10,6 +10,8 @@ import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
+import { withCardLock, withRetry, safeWriteOperation } from './safe';
+import { syncCardFromFile } from './sync';
 
 export interface UpdateCardFields {
   summary?: string;
@@ -34,73 +36,85 @@ export async function updateCard(
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 
-  if (!(await Bun.file(filePath).exists())) {
-    throw new CardNotFoundError(key);
-  }
-
-  const current = await readCardFile(filePath);
-  if (current.frontmatter.key !== key) {
-    throw new CardNotFoundError(key);
-  }
-
-  if (fields.relations && fields.relations !== null) {
-    for (const rel of fields.relations) {
-      if (!ctx.allowedRelationTypes.includes(rel.type)) {
-        throw new RelationTypeError(rel.type, ctx.allowedRelationTypes);
+  return withCardLock(ctx, key, () =>
+    withRetry(async () => {
+      if (!(await Bun.file(filePath).exists())) {
+        throw new CardNotFoundError(key);
       }
-    }
-  }
 
-  const next: CardFrontmatter = { ...current.frontmatter };
-  if (fields.summary !== undefined) next.summary = fields.summary;
-  if (fields.keywords !== undefined) {
-    if (fields.keywords === null || fields.keywords.length === 0) delete next.keywords;
-    else next.keywords = fields.keywords;
-  }
-  if (fields.tags !== undefined) {
-    if (fields.tags === null || fields.tags.length === 0) delete next.tags;
-    else next.tags = fields.tags;
-  }
-  if (fields.constraints !== undefined) next.constraints = fields.constraints;
-  if (fields.relations !== undefined) {
-    if (fields.relations === null || fields.relations.length === 0) delete next.relations;
-    else next.relations = fields.relations;
-  }
-  if (fields.codeLinks !== undefined) {
-    if (fields.codeLinks === null || fields.codeLinks.length === 0) delete next.codeLinks;
-    else next.codeLinks = fields.codeLinks;
-  }
+      const current = await readCardFile(filePath);
+      if (current.frontmatter.key !== key) {
+        throw new CardNotFoundError(key);
+      }
 
-  const nextBody = fields.body !== undefined ? fields.body : current.body;
-  const card: CardFile = { filePath, frontmatter: next, body: nextBody };
+      if (fields.relations && fields.relations !== null) {
+        for (const rel of fields.relations) {
+          if (!ctx.allowedRelationTypes.includes(rel.type)) {
+            throw new RelationTypeError(rel.type, ctx.allowedRelationTypes);
+          }
+        }
+      }
 
-  const now = new Date().toISOString();
-  ctx.db.transaction((tx) => {
-    const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
-    const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
-    const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
-    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
+      const next: CardFrontmatter = { ...current.frontmatter };
+      if (fields.summary !== undefined) next.summary = fields.summary;
+      if (fields.keywords !== undefined) {
+        if (fields.keywords === null || fields.keywords.length === 0) delete next.keywords;
+        else next.keywords = fields.keywords;
+      }
+      if (fields.tags !== undefined) {
+        if (fields.tags === null || fields.tags.length === 0) delete next.tags;
+        else next.tags = fields.tags;
+      }
+      if (fields.constraints !== undefined) next.constraints = fields.constraints;
+      if (fields.relations !== undefined) {
+        if (fields.relations === null || fields.relations.length === 0) delete next.relations;
+        else next.relations = fields.relations;
+      }
+      if (fields.codeLinks !== undefined) {
+        if (fields.codeLinks === null || fields.codeLinks.length === 0) delete next.codeLinks;
+        else next.codeLinks = fields.codeLinks;
+      }
 
-    const row: CardRow = {
-      key,
-      summary: next.summary,
-      status: next.status,
-      constraintsJson: next.constraints ? JSON.stringify(next.constraints) : null,
-      body: nextBody,
-      filePath,
-      updatedAt: now,
-    };
-    cardRepo.upsert(row);
+      const nextBody = fields.body !== undefined ? fields.body : current.body;
+      const card: CardFile = { filePath, frontmatter: next, body: nextBody };
 
-    if (fields.relations !== undefined) relationRepo.replaceForCard(key, next.relations ?? []);
-    if (fields.keywords !== undefined) classRepo.replaceKeywords(key, next.keywords ?? []);
-    if (fields.tags !== undefined) classRepo.replaceTags(key, next.tags ?? []);
-    if (fields.codeLinks !== undefined) codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
-  });
+      const now = new Date().toISOString();
 
-  await writeCardFile(filePath, card);
+      return safeWriteOperation({
+        dbAction: () => {
+          ctx.db.transaction((tx) => {
+            const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
+            const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
+            const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
+            const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
 
-  return { filePath, card };
+            const row: CardRow = {
+              key,
+              summary: next.summary,
+              status: next.status,
+              constraintsJson: next.constraints ? JSON.stringify(next.constraints) : null,
+              body: nextBody,
+              filePath,
+              updatedAt: now,
+            };
+            cardRepo.upsert(row);
+
+            if (fields.relations !== undefined) relationRepo.replaceForCard(key, next.relations ?? []);
+            if (fields.keywords !== undefined) classRepo.replaceKeywords(key, next.keywords ?? []);
+            if (fields.tags !== undefined) classRepo.replaceTags(key, next.tags ?? []);
+            if (fields.codeLinks !== undefined) codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
+          });
+          return { filePath, card } as UpdateCardResult;
+        },
+        fileAction: async () => {
+          await writeCardFile(filePath, card);
+        },
+        compensate: async () => {
+          await syncCardFromFile(ctx, filePath);
+        },
+      });
+    }),
+  );
 }
 
 export async function updateCardStatus(
@@ -111,39 +125,51 @@ export async function updateCardStatus(
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 
-  if (!(await Bun.file(filePath).exists())) {
-    throw new CardNotFoundError(key);
-  }
+  return withCardLock(ctx, key, () =>
+    withRetry(async () => {
+      if (!(await Bun.file(filePath).exists())) {
+        throw new CardNotFoundError(key);
+      }
 
-  const current = await readCardFile(filePath);
-  if (current.frontmatter.key !== key) {
-    throw new CardNotFoundError(key);
-  }
+      const current = await readCardFile(filePath);
+      if (current.frontmatter.key !== key) {
+        throw new CardNotFoundError(key);
+      }
 
-  const card: CardFile = {
-    filePath,
-    frontmatter: { ...current.frontmatter, status },
-    body: current.body,
-  };
-
-  const now = new Date().toISOString();
-  const existing = ctx.cardRepo.findByKey(key);
-  const row: CardRow = existing
-    ? { ...existing, status, updatedAt: now }
-    : {
-        key,
-        summary: current.frontmatter.summary,
-        status,
-        constraintsJson: current.frontmatter.constraints
-          ? JSON.stringify(current.frontmatter.constraints)
-          : null,
-        body: current.body,
+      const card: CardFile = {
         filePath,
-        updatedAt: now,
+        frontmatter: { ...current.frontmatter, status },
+        body: current.body,
       };
-  ctx.cardRepo.upsert(row);
 
-  await writeCardFile(filePath, card);
+      const now = new Date().toISOString();
 
-  return { filePath, card };
+      return safeWriteOperation({
+        dbAction: () => {
+          const existing = ctx.cardRepo.findByKey(key);
+          const row: CardRow = existing
+            ? { ...existing, status, updatedAt: now }
+            : {
+                key,
+                summary: current.frontmatter.summary,
+                status,
+                constraintsJson: current.frontmatter.constraints
+                  ? JSON.stringify(current.frontmatter.constraints)
+                  : null,
+                body: current.body,
+                filePath,
+                updatedAt: now,
+              };
+          ctx.cardRepo.upsert(row);
+          return { filePath, card } as UpdateCardResult;
+        },
+        fileAction: async () => {
+          await writeCardFile(filePath, card);
+        },
+        compensate: async () => {
+          await syncCardFromFile(ctx, filePath);
+        },
+      });
+    }),
+  );
 }
