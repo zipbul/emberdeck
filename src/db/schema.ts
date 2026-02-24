@@ -3,6 +3,7 @@ import {
   text,
   integer,
   index,
+  uniqueIndex,
   primaryKey,
 } from 'drizzle-orm/sqlite-core';
 
@@ -85,6 +86,7 @@ export const cardRelation = sqliteTable(
     index('idx_card_relation_src').on(table.srcCardKey),
     index('idx_card_relation_dst').on(table.dstCardKey),
     index('idx_card_relation_type').on(table.type),
+    uniqueIndex('uq_card_relation').on(table.type, table.srcCardKey, table.dstCardKey),
   ],
 );
 
@@ -110,5 +112,6 @@ export const codeLink = sqliteTable(
     index('idx_code_link_card').on(table.cardKey),
     index('idx_code_link_symbol').on(table.symbol),
     index('idx_code_link_file').on(table.file),
+    uniqueIndex('uq_code_link').on(table.cardKey, table.kind, table.file, table.symbol),
   ],
 );

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { createEmberdeckDb, closeDb } from '../../src/db/connection';
 import { DrizzleCardRepository } from '../../src/db/card-repo';
 import { DrizzleRelationRepository } from '../../src/db/relation-repo';
+import { cardRelation } from '../../src/db/schema';
 import type { EmberdeckDb } from '../../src/db/connection';
 import type { CardRow } from '../../src/db/repository';
 
@@ -218,6 +219,18 @@ describe('DrizzleRelationRepository', () => {
     expect(() =>
       testRepo.replaceForCard('src', [{ type: 'depends-on', target: 'dst' }]),
     ).toThrow('disk I/O error');
+  });
+
+  // NE — UNIQUE constraint
+  it('should throw UNIQUE constraint error when duplicate (type, src_card_key, dst_card_key) is inserted directly', () => {
+    // Arrange
+    insertCard('src-u');
+    insertCard('dst-u');
+    db.insert(cardRelation).values({ type: 'depends-on', srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run();
+    // Act & Assert
+    expect(() =>
+      db.insert(cardRelation).values({ type: 'depends-on', srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run(),
+    ).toThrow();
   });
 
   // NE — FK violation warn
