@@ -562,7 +562,7 @@ FTS5용으로 선언되었으나, 어디서도 값이 설정되지 않아 역할
 | **입력 크기 제한/방어** | 매우 큰 body, 수백 개의 relations/codeLinks 등에 대한 validation 제한 없음 | 중간 | 미착수 |
 | **배치 처리 / 성능 최적화** | 배치 insert, lazy loading, 캐싱 등 미적용 | 중간 | 미착수 |
 | ~~**실패 시 rollback/retry 메커니즘**~~ | `withRetry` (SQLITE_BUSY 지수 백오프) + `safeWriteOperation` (DB→파일 compensation) | 높음 | ✅ `1c9ae0c` |
-| **기존 ops에 safe 래퍼 적용** | create/update/delete/rename에 `withRetry`/`withCardLock`/`safeWriteOperation` 실제 적용 | 높음 | 미착수 |
+| ~~**기존 ops에 safe 래퍼 적용**~~ | create/update/delete/rename에 `withRetry`/`withCardLock`/`safeWriteOperation` 실제 적용 + concurrency 테스트 5건 | 높음 | ✅ `e4dc4c2` |
 | ~~**로깅/관측 가능성(Observability)**~~ | — | — | 제거 (불필요) |
 
 ### 9.3 API 성숙도
@@ -595,7 +595,7 @@ FTS5용으로 선언되었으나, 어디서도 값이 설정되지 않아 역할
     └─ concurrency 대응 + rollback/retry 유틸리티            [완료] Opus
 
  Phase 3: 프로덕션 준비
-    └─ 기존 ops에 safe 래퍼 적용 (create/update/delete/rename) [Opus]
+    └─ 기존 ops에 safe 래퍼 적용 (create/update/delete/rename) [완료] Opus `e4dc4c2`
     └─ MCP 레이어 (setMcpServer + tool handlers)               [Opus]
     └─ 입력 방어 (크기 제한/validation)                        [Sonnet]
     └─ API 문서화 (JSDoc + MCP tool description)               [Sonnet]
