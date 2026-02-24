@@ -78,10 +78,10 @@ export async function updateCard(
 
   const now = new Date().toISOString();
   ctx.db.transaction((tx) => {
-    const cardRepo = new DrizzleCardRepository(tx as EmberdeckDb);
-    const relationRepo = new DrizzleRelationRepository(tx as EmberdeckDb);
-    const classRepo = new DrizzleClassificationRepository(tx as EmberdeckDb);
-    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as EmberdeckDb);
+    const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
+    const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
+    const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
+    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
 
     const row: CardRow = {
       key,
@@ -128,10 +128,9 @@ export async function updateCardStatus(
   await writeCardFile(filePath, card);
 
   const now = new Date().toISOString();
-  const cardRepo = new DrizzleCardRepository(ctx.db);
-  const existing = cardRepo.findByKey(key);
+  const existing = ctx.cardRepo.findByKey(key);
   if (existing) {
-    cardRepo.upsert({ ...existing, status, updatedAt: now });
+    ctx.cardRepo.upsert({ ...existing, status, updatedAt: now });
   }
 
   return { filePath, card };

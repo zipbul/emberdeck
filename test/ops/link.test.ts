@@ -14,7 +14,7 @@ import {
   findCardsBySymbol,
   findAffectedCards,
   validateCodeLinks,
-} from '../../src/ops/link';
+} from '../../index';
 
 // ---- Setup ----
 

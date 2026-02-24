@@ -70,10 +70,10 @@ export async function createCard(
 
   const now = new Date().toISOString();
   ctx.db.transaction((tx) => {
-    const cardRepo = new DrizzleCardRepository(tx as EmberdeckDb);
-    const relationRepo = new DrizzleRelationRepository(tx as EmberdeckDb);
-    const classRepo = new DrizzleClassificationRepository(tx as EmberdeckDb);
-    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as EmberdeckDb);
+    const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
+    const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
+    const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
+    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
 
     const row: CardRow = {
       key: fullKey,

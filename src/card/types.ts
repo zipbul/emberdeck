@@ -25,7 +25,7 @@ export interface CardFrontmatter {
   status: CardStatus;
   tags?: string[];
   keywords?: string[];
-  constraints?: unknown;
+  constraints?: Record<string, unknown>;
   relations?: CardRelation[];
   codeLinks?: CodeLink[];
 }
