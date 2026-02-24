@@ -179,7 +179,9 @@ export function parseCardMarkdown(markdown: string): CardFile {
   try {
     doc = Bun.YAML.parse(yamlText);
   } catch (err) {
-    throw err;
+    throw new CardValidationError(
+      `YAML parse error: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 
   if (Array.isArray(doc)) {

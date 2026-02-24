@@ -326,6 +326,12 @@ describe('parseCardMarkdown', () => {
       CardValidationError,
     );
   });
+
+  it('should throw CardValidationError when YAML frontmatter is syntactically invalid', () => {
+    // Bun.YAML.parse 실패(예: `key: [[`) 시 네이티브 에러 대신 CardValidationError throw
+    const md = '---\nkey: [[\n---\nbody';
+    expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
+  });
 });
 
 // ── codeLinks parsing ─────────────────────────────────────────────────────
