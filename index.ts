@@ -78,6 +78,9 @@ export { parseCardMarkdown, serializeCardMarkdown } from './src/card/markdown';
 // ---- DB (CLI 통합용) ----
 export { migrateEmberdeck, type EmberdeckDb } from './src/db/connection';
 
+// ---- MCP (optional — @modelcontextprotocol/sdk 설치 시 사용 가능) ----
+export { registerEmberdeckTools } from './src/mcp/tools';
+
 // ---- Safe operations (concurrency / rollback) ----
 export {
   withRetry,
