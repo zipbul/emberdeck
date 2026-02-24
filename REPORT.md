@@ -559,8 +559,8 @@ FTS5용으로 선언되었으나, 어디서도 값이 설정되지 않아 역할
 | 부재 항목 | 설명 | 우선도 | 상태 |
 |-----------|------|--------|------|
 | ~~**동시 접근(Concurrency) 대응**~~ | `withCardLock` — per-context per-key FIFO 직렬화 (WeakMap) | 높음 | ✅ `1c9ae0c` |
-| **입력 크기 제한/방어** | 매우 큰 body, 수백 개의 relations/codeLinks 등에 대한 validation 제한 없음 | 중간 | 미착수 |
-| **배치 처리 / 성능 최적화** | 배치 insert, lazy loading, 캐싱 등 미적용 | 중간 | 미착수 |
+| ~~**입력 크기 제한/방어**~~ | `validateCardInput` + `LIMITS` — summary/body/array 필드 크기 검사 | 중간 | ✅ `896e0ec` |
+| ~~**배치 처리 / 성능 최적화**~~ | `bulkSyncCards` — `Promise.allSettled` 병렬 파일 읽기 | 중간 | ✅ `823f17d` |
 | ~~**실패 시 rollback/retry 메커니즘**~~ | `withRetry` (SQLITE_BUSY 지수 백오프) + `safeWriteOperation` (DB→파일 compensation) | 높음 | ✅ `1c9ae0c` |
 | ~~**기존 ops에 safe 래퍼 적용**~~ | create/update/delete/rename에 `withRetry`/`withCardLock`/`safeWriteOperation` 실제 적용 + concurrency 테스트 5건 | 높음 | ✅ `e4dc4c2` |
 | ~~**로깅/관측 가능성(Observability)**~~ | — | — | 제거 (불필요) |
@@ -572,15 +572,15 @@ FTS5용으로 선언되었으나, 어디서도 값이 설정되지 않아 역할
 | ~~**이벤트 시스템 (Hook/EventEmitter)**~~ | — | — | 보류 (현재 니즈 없음. 호출 지점 중복 발생 시 재검토) |
 | ~~**YAML 파싱 에러의 도메인 에러 래핑**~~ | `parseCardMarkdown`에서 `Bun.YAML` 에러를 `CardValidationError`로 래핑 | 낮음 | ✅ `4263736` |
 | ~~**확장 포인트 (플러그인 아키텍처)**~~ | — | — | 제거 (니즈 없음) |
-| **Public API 안정성** | v0.1.0. Breaking change 가능성 높음 | 중간 | 미착수 |
+| ~~**Public API 안정성**~~ | v0.2.0. `private: false`, `exports` 필드, `LIMITS`/`validateCardInput` 공개 | 중간 | ✅ `26d1ea7` |
 
 ### 9.4 운영 / 배포
 
 | 부재 항목 | 설명 | 우선도 | 상태 |
 |-----------|------|--------|------|
-| **MCP 레이어 구현** | `setMcpServer(server)` — MCP tool handler 정의. 외부 MCP 서버에 emberdeck tool 일괄 등록 | 높음 | 미착수 |
-| **API 문서화** | 공개 API에 대한 JSDoc. MCP tool description 포함 | 높음 | 미착수 |
-| **에러 메시지 개선** | 일부 에러 메시지가 기술적이며 사용자 맥락 부족 | 낮음 | 미착수 |
+| **MCP 레이어 구현** | `registerEmberdeckTools(server, ctx)` — 19개 MCP tool 핸들러 등록 | 높음 | ✅ `ab21f90` |
+| ~~**API 문서화**~~ | 공개 API 전체 JSDoc + MCP tool description | 높음 | ✅ `f2d5d18` |
+| ~~**에러 메시지 개선**~~ | `CardNotFoundError`/`CardAlreadyExistsError` 메시지에 key 따옴표 추가 | 낮음 | ✅ `f2d5d18` |
 
 ### 9.5 종합 로드맵
 
@@ -594,18 +594,17 @@ FTS5용으로 선언되었으나, 어디서도 값이 설정되지 않아 역할
     └─ YAML 에러 래핑                                        [완료] Sonnet
     └─ concurrency 대응 + rollback/retry 유틸리티            [완료] Opus
 
- Phase 3: 프로덕션 준비
+ Phase 3: 프로덕션 준비                                     [완료]
     └─ 기존 ops에 safe 래퍼 적용 (create/update/delete/rename) [완료] Opus `e4dc4c2`
-    └─ MCP 레이어 (setMcpServer + tool handlers)               [Opus]
-    └─ 입력 방어 (크기 제한/validation)                        [Sonnet]
-    └─ API 문서화 (JSDoc + MCP tool description)               [Sonnet]
+    └─ MCP 레이어 (registerEmberdeckTools + 19 tool handlers)  [완료] Opus `ab21f90`
+    └─ 입력 방어 (validateCardInput + LIMITS)                  [완료] Sonnet `896e0ec`
+    └─ API 문서화 (JSDoc + 에러 메시지 개선)                   [완료] Sonnet `f2d5d18`
 
- Phase 4: 품질 향상 (선택)
-    └─ 배치 최적화                                           [Sonnet]
-    └─ Public API 안정화 (v1.0 준비)                         [Sonnet]
-    └─ 에러 메시지 개선                                      [Sonnet]
+ Phase 4: 품질 향상                                          [완료]
+    └─ 배치 최적화 (bulkSyncCards Promise.allSettled)          [완료] Sonnet `823f17d`
+    └─ Public API 안정화 (v0.2.0, private:false, exports)      [완료] Sonnet `26d1ea7`
 ```
 
-> **현재 상태**: Phase 1~2 완료. Phase 3이 프로덕션 배포의 최소 요건.
+> **현재 상태**: Phase 1~4 모두 완료. 521 pass / 0 fail / 836 expect() / 23 files.
 > 보류 항목: 이벤트 시스템 (호출 지점 중복 발생 시 재검토), 중복 카드 감지, 변경 이력 추적.
 > 제거 항목: 로깅 인프라 (불필요), 플러그인 아키텍처 (니즈 없음).
