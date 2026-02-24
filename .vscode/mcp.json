@@ -6,6 +6,16 @@
         "-y",
         "@modelcontextprotocol/server-sequential-thinking"
       ]
+    },
+    "emberdeck": {
+      "command": "bun",
+      "args": [
+        "run",
+        "/home/revil/zipbul/emberdeck/cli.ts",
+        "mcp",
+        "--project-root",
+        "/home/revil/zipbul/emberdeck"
+      ]
     }
   }
 }
