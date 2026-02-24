@@ -41,7 +41,7 @@ describe('CardNotFoundError', () => {
     // Arrange / Act
     const err = new CardNotFoundError('my-card');
     // Assert
-    expect(err.message).toBe('Card not found: my-card');
+    expect(err.message).toBe('Card not found: "my-card"');
     expect(err.name).toBe('CardNotFoundError');
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(CardNotFoundError);
@@ -51,7 +51,7 @@ describe('CardNotFoundError', () => {
     // Arrange / Act
     const err = new CardNotFoundError('');
     // Assert
-    expect(err.message).toBe('Card not found: ');
+    expect(err.message).toBe('Card not found: ""');
   });
 
   it('should include nested key in message when nested slug given', () => {
@@ -82,7 +82,7 @@ describe('CardAlreadyExistsError', () => {
     // Arrange / Act
     const err = new CardAlreadyExistsError('existing-card');
     // Assert
-    expect(err.message).toBe('Card already exists: existing-card');
+    expect(err.message).toBe('Card already exists: "existing-card"');
     expect(err.name).toBe('CardAlreadyExistsError');
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(CardAlreadyExistsError);
@@ -92,7 +92,7 @@ describe('CardAlreadyExistsError', () => {
     // Arrange / Act
     const err = new CardAlreadyExistsError('');
     // Assert
-    expect(err.message).toBe('Card already exists: ');
+    expect(err.message).toBe('Card already exists: ""');
   });
 
   it('should be catchable as CardAlreadyExistsError when thrown', () => {

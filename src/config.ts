@@ -12,6 +12,9 @@ export const DEFAULT_RELATION_TYPES = [
 
 export type DefaultRelationType = (typeof DEFAULT_RELATION_TYPES)[number];
 
+/**
+ * `setupEmberdeck()`에 전달하는 초기화 옵션.
+ */
 export interface EmberdeckOptions {
   /** 카드 .card.md 파일이 저장되는 절대 경로 디렉토리 */
   cardsDir: string;
@@ -25,6 +28,14 @@ export interface EmberdeckOptions {
   gildashIgnore?: string[];
 }
 
+/**
+ * `setupEmberdeck()`이 반환하는 런타임 컨텍스트.
+ * 모든 ops 함수의 첫 번째 파라미터로 전달된다.
+ *
+ * @example
+ * const ctx = await setupEmberdeck({ cardsDir: './cards', dbPath: './cards.db' });
+ * await createCard(ctx, { slug: 'auth-token', summary: 'JWT 토큰 관리' });
+ */
 export interface EmberdeckContext {
   cardsDir: string;
   db: EmberdeckDb;

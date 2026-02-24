@@ -14,23 +14,59 @@ import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
 import { withCardLock, withRetry, safeWriteOperation } from './safe';
 
+/**
+ * `createCard`에 전달하는 입력 파라미터.
+ */
 export interface CreateCardInput {
+  /** 카드 파일명이 될 slug. 영문/숫자/하이픈/언더스코어/점/슬래시만 허용. */
   slug: string;
+  /** 카드 한줄 요약 (필수). */
   summary: string;
+  /** 마크다운 본문 (선택). */
   body?: string;
+  /** 검색용 키워드 목록 (선택). */
   keywords?: string[];
+  /** 분류용 태그 목록 (선택). */
   tags?: string[];
+  /** 다른 카드와의 관계 목록 (선택). 각 type은 allowedRelationTypes에 있어야 한다. */
   relations?: CardRelation[];
+  /** 소스 코드 심볼 참조 목록 (선택). projectRoot 설정 시 gildash로 검증 가능. */
   codeLinks?: CodeLink[];
+  /** 자유 형식 제약 조건 (선택). JSON 직렬화 가능해야 한다. */
   constraints?: unknown;
 }
 
+/**
+ * `createCard` 성공 시 반환되는 결과.
+ */
 export interface CreateCardResult {
+  /** 새로 생성된 카드 파일의 절대 경로. */
   filePath: string;
+  /** 생성된 카드의 fullKey (= 정규화된 slug). */
   fullKey: string;
+  /** 생성된 카드의 전체 데이터 (frontmatter + body). */
   card: CardFile;
 }
 
+/**
+ * 새 설계 카드를 생성한다.
+ *
+ * 1. slug를 정규화하고 파일 경로를 계산한다.
+ * 2. 관계 타입 유효성 검증 후 동일 key 중복 여부를 확인한다.
+ * 3. DB 트랜잭션(카드·관계·분류·코드링크)과 파일 쓰기를 원자적으로 실행한다.
+ * 4. 파일 쓰기 실패 시 DB를 롤백한다 (`safeWriteOperation`).
+ *
+ * 동일 ctx + key에 대한 동시 호출은 FIFO로 직렬화된다 (`withCardLock`).
+ * SQLite BUSY 에러 시 지수 백오프로 재시도된다 (`withRetry`).
+ *
+ * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
+ * @param input - 생성할 카드 데이터.
+ * @returns 생성 결과 (filePath, fullKey, card).
+ * @throws {CardKeyError} slug가 유효하지 않을 때.
+ * @throws {RelationTypeError} 허용되지 않는 관계 타입을 사용할 때.
+ * @throws {CardAlreadyExistsError} 동일한 key의 카드가 이미 존재할 때.
+ * @throws {CompensationError} DB 성공 후 파일 쓰기 실패 + 보상 실패 시.
+ */
 export async function createCard(
   ctx: EmberdeckContext,
   input: CreateCardInput,

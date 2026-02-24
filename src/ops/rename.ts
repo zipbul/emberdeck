@@ -15,13 +15,40 @@ import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import type { EmberdeckDb } from '../db/connection';
 import { withCardLock, withRetry } from './safe';
 
+/**
+ * `renameCard` 성공 시 반환되는 결과.
+ */
 export interface RenameCardResult {
+  /** 이전 카드 파일의 절대 경로. */
   oldFilePath: string;
+  /** 새 카드 파일의 절대 경로. */
   newFilePath: string;
+  /** 새 fullKey (= 새 정규화된 newSlug). */
   newFullKey: string;
+  /** 새 카드 데이터 (frontmatter 업데이트된 상태). */
   card: CardFile;
 }
 
+/**
+ * 카드의 slug(이름)을 변경한다.
+ *
+ * 1. 소스 파일을 새 경로로 이동한다 (OS rename).
+ * 2. frontmatter의 key 필드를 새 key로 갱신한다.
+ * 3. DB 트랜잭션에서 이전 row를 삭제하고 새 key로 재삽입한다.
+ *    (relations, keywords, tags, codeLinks 모두 보존)
+ * 4. DB TX 실패 시 파일을 원래대로 복원한다.
+ *
+ * 데드락 방지를 위해 두 키를 알파벳 순 직렬화한다.
+ *
+ * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
+ * @param fullKey - 이름을 바꿀 원본 fullKey.
+ * @param newSlug - 새 slug.
+ * @returns rename 결과.
+ * @throws {CardKeyError} 어느 slug이라도 유효하지 않을 때.
+ * @throws {CardRenameSamePathError} 원본과 대상이 같을 때.
+ * @throws {CardNotFoundError} 원본 카드가 없었을 때.
+ * @throws {CardAlreadyExistsError} 새 key의 카드가 이미 존재할 때.
+ */
 export async function renameCard(
   ctx: EmberdeckContext,
   fullKey: string,
