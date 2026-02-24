@@ -469,8 +469,8 @@ describe('parseCardMarkdown — codeLinks', () => {
     // Act
     const result = parseCardMarkdown(md);
     // Assert
-    expect(result.frontmatter.codeLinks?.[0].symbol).toBe('alpha');
-    expect(result.frontmatter.codeLinks?.[1].symbol).toBe('beta');
+    expect(result.frontmatter.codeLinks![0]!.symbol).toBe('alpha');
+    expect(result.frontmatter.codeLinks![1]!.symbol).toBe('beta');
   });
 
   // 15. [CO] 첫 아이템 유효, 두 번째 아이템 kind='' → throw

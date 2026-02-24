@@ -310,9 +310,9 @@ describe('renameCard', () => {
     expect(oldLinks).toHaveLength(0);
     const newLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-single-new');
     expect(newLinks).toHaveLength(1);
-    expect(newLinks[0].kind).toBe('function');
-    expect(newLinks[0].file).toBe('src/foo.ts');
-    expect(newLinks[0].symbol).toBe('myFn');
+    expect(newLinks[0]!.kind).toBe('function');
+    expect(newLinks[0]!.file).toBe('src/foo.ts');
+    expect(newLinks[0]!.symbol).toBe('myFn');
   });
 
   it('should preserve all codeLinks under new key when card has multiple codeLinks', async () => {
@@ -357,7 +357,7 @@ describe('renameCard', () => {
     expect(tc.ctx.classificationRepo.findTagsByCard('cl-all-new')).toContain('tg-cl');
     const links = tc.ctx.codeLinkRepo.findByCardKey('cl-all-new');
     expect(links).toHaveLength(1);
-    expect(links[0].symbol).toBe('xFn');
+    expect(links[0]!.symbol).toBe('xFn');
   });
 
   it('should preserve codeLinks after chained rename A→B→C', async () => {
@@ -375,6 +375,6 @@ describe('renameCard', () => {
     expect(tc.ctx.codeLinkRepo.findByCardKey('cl-chain-b')).toHaveLength(0);
     const finalLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-chain-c');
     expect(finalLinks).toHaveLength(1);
-    expect(finalLinks[0].symbol).toBe('chainFn');
+    expect(finalLinks[0]!.symbol).toBe('chainFn');
   });
 });

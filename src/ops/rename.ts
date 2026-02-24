@@ -12,7 +12,7 @@ import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
-import type { EmberdeckDb } from '../db/connection';
+import { txDb } from '../db/connection';
 import { withCardLock, withRetry } from './safe';
 
 /**
@@ -64,7 +64,7 @@ export async function renameCard(
   if (oldFilePath === newFilePath) throw new CardRenameSamePathError();
 
   // 양쪽 키 모두 lock (oldKey 먼저, 알파벳 순 정렬로 데드락 방지)
-  const [firstKey, secondKey] = [oldKey, newFullKey].sort();
+  const [firstKey, secondKey] = [oldKey, newFullKey].sort() as [string, string];
   return withCardLock(ctx, firstKey, () =>
     withCardLock(ctx, secondKey, () =>
       withRetry(async () => {
@@ -85,10 +85,11 @@ export async function renameCard(
         const now = new Date().toISOString();
         try {
           ctx.db.transaction((tx) => {
-            const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
-            const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
-            const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
-            const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
+            const d = txDb(tx);
+            const cardRepo = new DrizzleCardRepository(d);
+            const relationRepo = new DrizzleRelationRepository(d);
+            const classRepo = new DrizzleClassificationRepository(d);
+            const codeLinkRepo = new DrizzleCodeLinkRepository(d);
 
             // 기존 관계/분류/코드링크 백업
             const oldRelations = relationRepo

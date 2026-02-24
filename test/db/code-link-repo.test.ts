@@ -51,10 +51,10 @@ describe('DrizzleCodeLinkRepository', () => {
     const result = repo.findByCardKey('auth/token');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].cardKey).toBe('auth/token');
-    expect(result[0].kind).toBe('function');
-    expect(result[0].file).toBe('src/auth/token.ts');
-    expect(result[0].symbol).toBe('refreshToken');
+    expect(result[0]!.cardKey).toBe('auth/token');
+    expect(result[0]!.kind).toBe('function');
+    expect(result[0]!.file).toBe('src/auth/token.ts');
+    expect(result[0]!.symbol).toBe('refreshToken');
   });
 
   // 2. [HP] replaceForCard: 복수 links → 모두 반환
@@ -87,7 +87,7 @@ describe('DrizzleCodeLinkRepository', () => {
     const result = repo.findByCardKey('auth/token');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].symbol).toBe('NewClass');
+    expect(result[0]!.symbol).toBe('NewClass');
   });
 
   // 4. [ED] replaceForCard: 빈 배열 → []
@@ -125,7 +125,7 @@ describe('DrizzleCodeLinkRepository', () => {
     const result = repo.findByCardKey('spec/design');
     // Assert
     expect(result.length).toBeGreaterThan(0);
-    expect(result[0].symbol).toBe('IDesign');
+    expect(result[0]!.symbol).toBe('IDesign');
   });
 
   // 7. [HP] findByCardKey: 미존재 카드 → []
@@ -167,7 +167,7 @@ describe('DrizzleCodeLinkRepository', () => {
     const result = repo.findBySymbol('myFn', 'src/auth.ts');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].file).toBe('src/auth.ts');
+    expect(result[0]!.file).toBe('src/auth.ts');
   });
 
   // 10. [HP] findBySymbol: symbolName + filePath 지정, 해당 파일 없음 → []
@@ -208,7 +208,7 @@ describe('DrizzleCodeLinkRepository', () => {
     const result = repo.findBySymbol('fn', 'src/a.ts');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].file).toBe('src/a.ts');
+    expect(result[0]!.file).toBe('src/a.ts');
   });
 
   // 13. [HP] deleteByCardKey: 존재하는 링크 삭제 → []
@@ -263,8 +263,8 @@ describe('DrizzleCodeLinkRepository', () => {
     // Act / Assert
     expect(repo.findByCardKey('spec/one')).toHaveLength(1);
     expect(repo.findByCardKey('spec/two')).toHaveLength(1);
-    expect(repo.findByCardKey('spec/one')[0].symbol).toBe('fnA');
-    expect(repo.findByCardKey('spec/two')[0].symbol).toBe('ClassB');
+    expect(repo.findByCardKey('spec/one')[0]!.symbol).toBe('fnA');
+    expect(repo.findByCardKey('spec/two')[0]!.symbol).toBe('ClassB');
   });
 
   // 18. [ID] deleteByCardKey 두 번 → 에러 없음

@@ -53,8 +53,8 @@ export interface CardFrontmatter {
   tags?: string[];
   /** 검색용 키워드 목록. */
   keywords?: string[];
-  /** 자유 형식 제약 조건 맵. 스키마 미지정. */
-  constraints?: Record<string, unknown>;
+  /** 자유 형식 제약 조건. 스키마 미지정. */
+  constraints?: unknown;
   /** 다른 카드와의 관계 목록. */
   relations?: CardRelation[];
   /** 소스 코드 심볼 참조 목록. */

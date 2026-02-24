@@ -170,7 +170,7 @@ describe('searchCards', () => {
     const rows = searchCards(tc.ctx, 'Search');
     // Assert
     expect(rows).toHaveLength(1);
-    expect(rows[0].key).toBe('srch-card');
+    expect(rows[0]!.key).toBe('srch-card');
   });
 });
 

@@ -6,9 +6,8 @@ import { err } from '@zipbul/result';
 
 import { createTestContext, type TestContext } from '../helpers';
 import { writeCardFile } from '../../src/fs/writer';
-import { buildCardPath, normalizeSlug } from '../../src/card/card-key';
-import type { CardFile, CodeLink } from '../../src/card/types';
-import type { CardRow } from '../../src/db/repository';
+import { buildCardPath, normalizeSlug } from '../../index';
+import type { CardFile, CodeLink, CardRow } from '../../index';
 import {
   resolveCardCodeLinks,
   findCardsBySymbol,
@@ -97,8 +96,8 @@ describe('ops/link', () => {
     const result = await resolveCardCodeLinks(tc.ctx, 'auth/token');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].link).toEqual(link);
-    expect(result[0].symbol).toBe(fakeSymbol);
+    expect(result[0]!.link).toEqual(link);
+    expect(result[0]!.symbol).toBe(fakeSymbol);
   });
 
   // 2. [HP] resolveCardCodeLinks: codeLinks undefined in frontmatter → []
@@ -131,8 +130,8 @@ describe('ops/link', () => {
     const result = await resolveCardCodeLinks(tc.ctx, 'auth/token');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].link).toEqual(link);
-    expect(result[0].symbol).toBeNull();
+    expect(result[0]!.link).toEqual(link);
+    expect(result[0]!.symbol).toBeNull();
   });
 
   // 5. [HP] resolveCardCodeLinks: symbol not in results → {link, symbol: null}
@@ -145,7 +144,7 @@ describe('ops/link', () => {
     // Act
     const result = await resolveCardCodeLinks(tc.ctx, 'auth/token');
     // Assert
-    expect(result[0].symbol).toBeNull();
+    expect(result[0]!.symbol).toBeNull();
   });
 
   // 6. [HP] findCardsBySymbol: no filePath → all cards with that symbol
@@ -175,7 +174,7 @@ describe('ops/link', () => {
     const result = findCardsBySymbol(tc.ctx, 'fn', 'src/a.ts');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('spec/a');
+    expect(result[0]!.key).toBe('spec/a');
   });
 
   // 8. [HP] findCardsBySymbol: multiple links same card → deduplicated
@@ -190,7 +189,7 @@ describe('ops/link', () => {
     const result = findCardsBySymbol(tc.ctx, 'fn');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('spec/a');
+    expect(result[0]!.key).toBe('spec/a');
   });
 
   // 9. [HP] findAffectedCards: 1 file, 1 card → that card
@@ -204,7 +203,7 @@ describe('ops/link', () => {
     const result = await findAffectedCards(tc.ctx, ['src/auth.ts']);
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('spec/a');
+    expect(result[0]!.key).toBe('spec/a');
   });
 
   // 10. [HP] findAffectedCards: 2 files same card → dedup (1 card returned)
@@ -219,7 +218,7 @@ describe('ops/link', () => {
     const result = await findAffectedCards(tc.ctx, ['src/a.ts', 'src/b.ts']);
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('spec/a');
+    expect(result[0]!.key).toBe('spec/a');
   });
 
   // 11. [HP] validateCodeLinks: all valid → []
@@ -244,8 +243,8 @@ describe('ops/link', () => {
     const result = await validateCodeLinks(tc.ctx, 'auth/token');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].link).toEqual(link);
-    expect(result[0].reason).toBe('symbol-not-found');
+    expect(result[0]!.link).toEqual(link);
+    expect(result[0]!.reason).toBe('symbol-not-found');
   });
 
   // 13. [NE] resolveCardCodeLinks: gildash undefined → GildashNotConfiguredError
@@ -367,7 +366,7 @@ describe('ops/link', () => {
     const result = await validateCodeLinks(tc.ctx, 'auth/token');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].reason).toBe('file-not-indexed');
+    expect(result[0]!.reason).toBe('file-not-indexed');
   });
 
   // 24. [ST] DB state set up manually → findCardsBySymbol returns correct result
@@ -381,7 +380,7 @@ describe('ops/link', () => {
     const result = findCardsBySymbol(tc.ctx, 'FeatureService');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('spec/feature');
+    expect(result[0]!.key).toBe('spec/feature');
   });
 
   // 25. [ID] validateCodeLinks twice → identical result

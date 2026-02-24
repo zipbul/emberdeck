@@ -756,7 +756,7 @@ describe('exportCardToFile', () => {
     const parsed = parseCardMarkdown(text);
     // Assert
     expect(parsed.frontmatter.codeLinks).toHaveLength(1);
-    expect(parsed.frontmatter.codeLinks![0].symbol).toBe('Bar');
+    expect(parsed.frontmatter.codeLinks![0]!.symbol).toBe('Bar');
   });
 
   // [HP-6] constraintsJson → constraints 포함

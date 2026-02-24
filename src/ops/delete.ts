@@ -35,6 +35,8 @@ export async function deleteCard(
         dbAction: () => {
           // DB 먼저 삭제(FK cascade로 relation, keyword, tag 매핑 자동 삭제)
           ctx.cardRepo.deleteByKey(key);
+          // cascade 후 매핑만 삭제되고 keyword/tag 자체는 남을 수 있으므로 정리
+          ctx.classificationRepo.pruneOrphans();
           return { filePath };
         },
         fileAction: async () => {

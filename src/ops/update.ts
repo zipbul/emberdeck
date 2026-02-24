@@ -10,7 +10,7 @@ import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
-import type { EmberdeckDb } from '../db/connection';
+import { txDb } from '../db/connection';
 import { withCardLock, withRetry, safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 
@@ -123,10 +123,11 @@ export async function updateCard(
       return safeWriteOperation({
         dbAction: () => {
           ctx.db.transaction((tx) => {
-            const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
-            const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
-            const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
-            const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
+            const d = txDb(tx);
+            const cardRepo = new DrizzleCardRepository(d);
+            const relationRepo = new DrizzleRelationRepository(d);
+            const classRepo = new DrizzleClassificationRepository(d);
+            const codeLinkRepo = new DrizzleCodeLinkRepository(d);
 
             const row: CardRow = {
               key,

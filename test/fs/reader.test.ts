@@ -15,7 +15,7 @@ describe('readCardFile', () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_MARKDOWN),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act
     const result = await readCardFile('/cards/test/card.card.md');
     // Assert
@@ -30,7 +30,7 @@ describe('readCardFile', () => {
     const filePath = '/cards/test/card.card.md';
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_MARKDOWN),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act
     const result = await readCardFile(filePath);
     // Assert
@@ -43,7 +43,7 @@ describe('readCardFile', () => {
     const filePath = '/cards/test/card.card.md';
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_MARKDOWN),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act
     await readCardFile(filePath);
     // Assert
@@ -58,7 +58,7 @@ describe('readCardFile', () => {
     const error = new Error('read error');
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => { throw error; }),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act / Assert
     await expect(readCardFile('/cards/missing.card.md')).rejects.toThrow('read error');
     fileSpy.mockRestore();
@@ -68,7 +68,7 @@ describe('readCardFile', () => {
     // Arrange: text without --- frontmatter triggers CardValidationError
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => 'no frontmatter at all'),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act / Assert
     await expect(readCardFile('/cards/bad.card.md')).rejects.toThrow();
     fileSpy.mockRestore();
@@ -78,7 +78,7 @@ describe('readCardFile', () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_MARKDOWN),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act
     await readCardFile('');
     // Assert
@@ -91,7 +91,7 @@ describe('readCardFile', () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_MARKDOWN),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act
     await readCardFile('a');
     // Assert
@@ -104,7 +104,7 @@ describe('readCardFile', () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_MARKDOWN),
-    } as ReturnType<typeof Bun.file>);
+    } as unknown as ReturnType<typeof Bun.file>);
     // Act
     const first = await readCardFile('/cards/x.card.md');
     const second = await readCardFile('/cards/x.card.md');

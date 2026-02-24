@@ -48,3 +48,12 @@ export function migrateEmberdeck(db: EmberdeckDb): void {
 export function closeDb(db: EmberdeckDb): void {
   db.$client.close();
 }
+
+/**
+ * 트랜잭션 객체를 EmberdeckDb로 캐스팅하는 헬퍼.
+ * drizzle-orm의 트랜잭션 타입과 EmberdeckDb가 정확히 일치하지 않아
+ * `as unknown as EmberdeckDb` 패턴이 필요한데, 이 함수로 캐스팅을 한 곳에 집중시킨다.
+ */
+export function txDb(tx: unknown): EmberdeckDb {
+  return tx as EmberdeckDb;
+}

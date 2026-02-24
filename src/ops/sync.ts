@@ -12,7 +12,7 @@ import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
-import type { EmberdeckDb } from '../db/connection';
+import { txDb } from '../db/connection';
 
 export interface BulkSyncResult {
   synced: number;
@@ -47,10 +47,11 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
   };
 
   ctx.db.transaction((tx) => {
-    const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
-    const relationRepo = new DrizzleRelationRepository(tx as unknown as EmberdeckDb);
-    const classRepo = new DrizzleClassificationRepository(tx as unknown as EmberdeckDb);
-    const codeLinkRepo = new DrizzleCodeLinkRepository(tx as unknown as EmberdeckDb);
+    const d = txDb(tx);
+    const cardRepo = new DrizzleCardRepository(d);
+    const relationRepo = new DrizzleRelationRepository(d);
+    const classRepo = new DrizzleClassificationRepository(d);
+    const codeLinkRepo = new DrizzleCodeLinkRepository(d);
 
     cardRepo.upsert(row);
     relationRepo.replaceForCard(key, cardFile.frontmatter.relations ?? []);
@@ -85,11 +86,11 @@ export async function bulkSyncCards(
   const errors: BulkSyncResult['errors'] = [];
 
   for (let i = 0; i < results.length; i++) {
-    const result = results[i];
+    const result = results[i]!;
     if (result.status === 'fulfilled') {
       synced++;
     } else {
-      errors.push({ filePath: cardFiles[i], error: result.reason });
+      errors.push({ filePath: cardFiles[i]!, error: result.reason });
     }
   }
 

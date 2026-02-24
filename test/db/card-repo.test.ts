@@ -144,7 +144,7 @@ describe('DrizzleCardRepository', () => {
     const result = repo.search('authentication');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('fts/summary');
+    expect(result[0]!.key).toBe('fts/summary');
   });
 
   it('should return matching card when body contains the search query', () => {
@@ -154,7 +154,7 @@ describe('DrizzleCardRepository', () => {
     const result = repo.search('refresh');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('fts/body');
+    expect(result[0]!.key).toBe('fts/body');
   });
 
   it('should return only the matching card when multiple cards exist', () => {
@@ -165,7 +165,7 @@ describe('DrizzleCardRepository', () => {
     const result = repo.search('pagination');
     // Assert
     expect(result).toHaveLength(1);
-    expect(result[0].key).toBe('fts/match');
+    expect(result[0]!.key).toBe('fts/match');
   });
 
   it('should not return card after it has been deleted', () => {

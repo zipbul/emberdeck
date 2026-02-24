@@ -135,7 +135,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '/proj', gildashIgnore: ignorePatterns });
     // Assert
     expect(mockGildashOpen).toHaveBeenCalledTimes(1);
-    const calledWith = mockGildashOpen.mock.calls[0][0] as Record<string, unknown>;
+    const calledWith = mockGildashOpen.mock.calls[0]![0] as Record<string, unknown>;
     expect(calledWith.projectRoot).toBe('/proj');
     expect(calledWith.ignorePatterns).toEqual(ignorePatterns);
     await teardownEmberdeck(ctx);
