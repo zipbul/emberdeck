@@ -5,6 +5,9 @@ import type { EmberdeckContext } from '../config';
 import type { CardRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
+import { serializeCardMarkdown } from '../card/markdown';
+import { CardNotFoundError } from '../card/errors';
+import type { CardFrontmatter, CardStatus } from '../card/types';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
@@ -112,6 +115,43 @@ export async function validateCards(
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   return { staleDbRows, orphanFiles, keyMismatches };
+}
+
+/**
+ * DB 상태를 기준으로 카드 파일을 재생성(역방향 동기화).
+ * DB row + relations + keywords + tags + codeLinks → frontmatter 구성 → Bun.write.
+ * @returns 작성된 파일 절대 경로
+ */
+export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
+  const key = parseFullKey(fullKey);
+  const row = ctx.cardRepo.findByKey(key);
+  if (!row) throw new CardNotFoundError(key);
+
+  const relations = ctx.relationRepo
+    .findByCardKey(key)
+    .filter((r) => !r.isReverse)
+    .map((r) => ({ type: r.type, target: r.dstCardKey }));
+
+  const keywords = ctx.classificationRepo.findKeywordsByCard(key);
+  const tags = ctx.classificationRepo.findTagsByCard(key);
+  const codeLinks = ctx.codeLinkRepo
+    .findByCardKey(key)
+    .map((r) => ({ kind: r.kind, file: r.file, symbol: r.symbol }));
+
+  const fm: CardFrontmatter = {
+    key: row.key,
+    summary: row.summary,
+    status: row.status as CardStatus,
+    ...(row.constraintsJson ? { constraints: JSON.parse(row.constraintsJson) as Record<string, unknown> } : {}),
+    ...(relations.length ? { relations } : {}),
+    ...(keywords.length ? { keywords } : {}),
+    ...(tags.length ? { tags } : {}),
+    ...(codeLinks.length ? { codeLinks } : {}),
+  };
+
+  const content = serializeCardMarkdown(fm, row.body ?? '');
+  await Bun.write(row.filePath, content);
+  return row.filePath;
 }
 
 /**

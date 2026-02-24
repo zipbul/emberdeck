@@ -36,3 +36,28 @@ export interface EmberdeckContext {
   /** gildash 인스턴스. projectRoot 미설정 또는 초기화 실패 시 undefined */
   gildash?: Gildash;
 }
+
+/**
+ * ctx의 허용 관계 타입 목록에 새 타입을 추가.
+ * 이미 존재하면 무시 (중복 방지).
+ */
+export function addRelationType(ctx: EmberdeckContext, type: string): void {
+  if (!ctx.allowedRelationTypes.includes(type)) {
+    ctx.allowedRelationTypes = [...ctx.allowedRelationTypes, type];
+  }
+}
+
+/**
+ * ctx의 허용 관계 타입 목록에서 타입 제거.
+ * 존재하지 않으면 무해.
+ */
+export function removeRelationType(ctx: EmberdeckContext, type: string): void {
+  ctx.allowedRelationTypes = ctx.allowedRelationTypes.filter((t) => t !== type);
+}
+
+/**
+ * ctx의 현재 허용 관계 타입 목록 반환.
+ */
+export function listRelationTypes(ctx: EmberdeckContext): readonly string[] {
+  return ctx.allowedRelationTypes;
+}

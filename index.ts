@@ -1,7 +1,12 @@
 // ---- Setup ----
 export { setupEmberdeck, teardownEmberdeck } from './src/setup';
 export type { EmberdeckOptions, EmberdeckContext } from './src/config';
-export { DEFAULT_RELATION_TYPES } from './src/config';
+export {
+  DEFAULT_RELATION_TYPES,
+  addRelationType,
+  removeRelationType,
+  listRelationTypes,
+} from './src/config';
 
 // ---- Types ----
 export type { CardStatus, CardRelation, CardFrontmatter, CardFile, CodeLink } from './src/card/types';
@@ -41,6 +46,7 @@ export {
   removeCardByFile,
   bulkSyncCards,
   validateCards,
+  exportCardToFile,
   type BulkSyncResult,
   type CardValidationResult,
 } from './src/ops/sync';

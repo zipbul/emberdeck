@@ -8,8 +8,12 @@ import {
   removeCardByFile,
   bulkSyncCards,
   validateCards,
+  exportCardToFile,
   serializeCardMarkdown,
+  parseCardMarkdown,
   listCards,
+  CardKeyError,
+  CardNotFoundError,
 } from '../../index';
 import { createTestContext, type TestContext } from '../helpers';
 
@@ -652,5 +656,195 @@ describe('validateCards', () => {
     const r1 = await validateCards(tc.ctx);
     const r2 = await validateCards(tc.ctx);
     expect(r1.keyMismatches.length).toBe(r2.keyMismatches.length);
+  });
+});
+
+describe('exportCardToFile', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  // [HP-1] 모든 필드 있는 카드 → round-trip 검증
+  it('should restore all front-matter fields when round-tripping through DB and file', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-rt-tgt', summary: 'Target card' });
+    const { filePath } = await createCard(tc.ctx, {
+      slug: 'exp-rt-src',
+      summary: 'Round-trip source',
+      body: 'body content',
+      keywords: ['kw1'],
+      tags: ['tag1'],
+      relations: [{ type: 'depends-on', target: 'exp-rt-tgt' }],
+      codeLinks: [{ kind: 'function', file: 'src/foo.ts', symbol: 'foo' }],
+      constraints: { maxSize: 100 },
+    });
+    // Act
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-rt-src');
+    // Assert
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    expect(exportedPath).toBe(filePath);
+    expect(parsed.frontmatter.key).toBe('exp-rt-src');
+    expect(parsed.frontmatter.summary).toBe('Round-trip source');
+    expect(parsed.body).toContain('body content');
+    expect(parsed.frontmatter.keywords).toContain('kw1');
+    expect(parsed.frontmatter.tags).toContain('tag1');
+    expect(parsed.frontmatter.relations).toHaveLength(1);
+    expect(parsed.frontmatter.codeLinks).toHaveLength(1);
+  });
+
+  // [HP-2] forward relation(isReverse=false)만 frontmatter.relations에 포함
+  it('should include only forward (non-reverse) relations in the exported file', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-fwd-tgt', summary: 'Target' });
+    await createCard(tc.ctx, {
+      slug: 'exp-fwd-src',
+      summary: 'Source',
+      relations: [{ type: 'depends-on', target: 'exp-fwd-tgt' }],
+    });
+    // Act
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-fwd-src');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert: only forward relation is present
+    expect(parsed.frontmatter.relations).toHaveLength(1);
+    expect(parsed.frontmatter.relations![0]).toEqual({ type: 'depends-on', target: 'exp-fwd-tgt' });
+  });
+
+  // [HP-3] keywords 포함
+  it('should include keywords in the exported file when card has keywords', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-kw', summary: 'KW card', keywords: ['alpha', 'beta'] });
+    // Act
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-kw');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert
+    expect(parsed.frontmatter.keywords).toEqual(expect.arrayContaining(['alpha', 'beta']));
+  });
+
+  // [HP-4] tags 포함
+  it('should include tags in the exported file when card has tags', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-tag', summary: 'Tag card', tags: ['release', 'v2'] });
+    // Act
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-tag');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert
+    expect(parsed.frontmatter.tags).toEqual(expect.arrayContaining(['release', 'v2']));
+  });
+
+  // [HP-5] codeLinks 포함
+  it('should include codeLinks in the exported file when card has code links', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'exp-cl',
+      summary: 'CL card',
+      codeLinks: [{ kind: 'class', file: 'src/bar.ts', symbol: 'Bar' }],
+    });
+    // Act
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-cl');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert
+    expect(parsed.frontmatter.codeLinks).toHaveLength(1);
+    expect(parsed.frontmatter.codeLinks![0].symbol).toBe('Bar');
+  });
+
+  // [HP-6] constraintsJson → constraints 포함
+  it('should include constraints in the exported file when card has constraintsJson', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'exp-con',
+      summary: 'Constraint card',
+      constraints: { maxRetries: 3 },
+    });
+    // Act
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-con');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert
+    expect(parsed.frontmatter.constraints).toBeDefined();
+    expect((parsed.frontmatter.constraints as Record<string, unknown>).maxRetries).toBe(3);
+  });
+
+  // [HP-7] body 내용 보존 + row.filePath 반환
+  it('should preserve the card body and return the correct file path', async () => {
+    // Arrange
+    tc = await createTestContext();
+    const expected = '## Details\n\nSome notes here.';
+    const { filePath } = await createCard(tc.ctx, {
+      slug: 'exp-body',
+      summary: 'Body card',
+      body: expected,
+    });
+    // Act
+    const returnedPath = await exportCardToFile(tc.ctx, 'exp-body');
+    const text = await Bun.file(returnedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert
+    expect(returnedPath).toBe(filePath);
+    expect(parsed.body).toContain('## Details');
+  });
+
+  // [NE-8] 잘못된 fullKey → CardKeyError
+  it('should throw CardKeyError when the key format is invalid', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // Act & Assert
+    expect(() => exportCardToFile(tc.ctx, '!!bad key!!')).toThrow(CardKeyError);
+  });
+
+  // [NE-9] 존재하지 않는 키 → CardNotFoundError
+  it('should throw CardNotFoundError when card does not exist in DB', async () => {
+    // Arrange
+    tc = await createTestContext();
+    // Act & Assert
+    await expect(exportCardToFile(tc.ctx, 'no-such-card')).rejects.toThrow(CardNotFoundError);
+  });
+
+  // [ED-10] isReverse=true relation만 → frontmatter.relations 없음
+  it('should omit relations field when card only has incoming (reverse) relations', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-rev-tgt', summary: 'Reverse target' });
+    await createCard(tc.ctx, {
+      slug: 'exp-rev-src',
+      summary: 'Reverse source',
+      relations: [{ type: 'depends-on', target: 'exp-rev-tgt' }],
+    });
+    // Act: export the target card which only has a reverse mirror row
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-rev-tgt');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert: no relations in frontmatter (reverse rows filtered out)
+    expect(parsed.frontmatter.relations).toBeUndefined();
+  });
+
+  // [CO-11] constraintsJson null + 빈 배열들 → 최소 frontmatter
+  it('should export minimal front-matter with no optional fields when all are empty', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-min', summary: 'Minimal card' });
+    // Act
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-min');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    // Assert: no optional fields
+    expect(parsed.frontmatter.key).toBe('exp-min');
+    expect(parsed.frontmatter.relations).toBeUndefined();
+    expect(parsed.frontmatter.keywords).toBeUndefined();
+    expect(parsed.frontmatter.tags).toBeUndefined();
+    expect(parsed.frontmatter.codeLinks).toBeUndefined();
+    expect(parsed.frontmatter.constraints).toBeUndefined();
   });
 });
