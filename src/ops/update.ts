@@ -74,8 +74,6 @@ export async function updateCard(
   const nextBody = fields.body !== undefined ? fields.body : current.body;
   const card: CardFile = { filePath, frontmatter: next, body: nextBody };
 
-  await writeCardFile(filePath, card);
-
   const now = new Date().toISOString();
   ctx.db.transaction((tx) => {
     const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
@@ -99,6 +97,8 @@ export async function updateCard(
     if (fields.tags !== undefined) classRepo.replaceTags(key, next.tags ?? []);
     if (fields.codeLinks !== undefined) codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
   });
+
+  await writeCardFile(filePath, card);
 
   return { filePath, card };
 }
@@ -125,13 +125,14 @@ export async function updateCardStatus(
     frontmatter: { ...current.frontmatter, status },
     body: current.body,
   };
-  await writeCardFile(filePath, card);
 
   const now = new Date().toISOString();
   const existing = ctx.cardRepo.findByKey(key);
   if (existing) {
     ctx.cardRepo.upsert({ ...existing, status, updatedAt: now });
   }
+
+  await writeCardFile(filePath, card);
 
   return { filePath, card };
 }

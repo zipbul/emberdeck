@@ -65,9 +65,6 @@ export async function createCard(
   const body = input.body ?? '';
   const card: CardFile = { filePath, frontmatter, body };
 
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeCardFile(filePath, card);
-
   const now = new Date().toISOString();
   ctx.db.transaction((tx) => {
     const cardRepo = new DrizzleCardRepository(tx as unknown as EmberdeckDb);
@@ -99,6 +96,9 @@ export async function createCard(
       codeLinkRepo.replaceForCard(fullKey, input.codeLinks);
     }
   });
+
+  await mkdir(dirname(filePath), { recursive: true });
+  await writeCardFile(filePath, card);
 
   return { filePath, fullKey, card };
 }
