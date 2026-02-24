@@ -1,8 +1,16 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, unlink, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { createCard, syncCardFromFile, removeCardByFile, serializeCardMarkdown, listCards } from '../../index';
+import {
+  createCard,
+  syncCardFromFile,
+  removeCardByFile,
+  bulkSyncCards,
+  validateCards,
+  serializeCardMarkdown,
+  listCards,
+} from '../../index';
 import { createTestContext, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string, body = '') {
@@ -232,5 +240,417 @@ describe('syncCardFromFile — codeLinks', () => {
     await syncCardFromFile(tc.ctx, filePath);
     // Assert
     expect(tc.ctx.codeLinkRepo.findByCardKey('sync-cl-rm')).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bulkSyncCards
+// ---------------------------------------------------------------------------
+
+describe('bulkSyncCards', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  // [HP-1] 3개 .card.md → synced=3, errors=[]
+  it('should return synced=3 and empty errors when directory has 3 card files', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'bulk-a', 'A');
+    await writeTestCardFile(tc.cardsDir, 'bulk-b', 'B');
+    await writeTestCardFile(tc.cardsDir, 'bulk-c', 'C');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(3);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  // [HP-2] dirPath 인자 지정 → 해당 경로 스캔
+  it('should scan specified dirPath instead of ctx.cardsDir', async () => {
+    tc = await createTestContext();
+    const altDir = join(tc.cardsDir, 'sub');
+    await mkdir(altDir);
+    await writeTestCardFile(altDir, 'bulk-sub', 'Sub');
+    const result = await bulkSyncCards(tc.ctx, altDir);
+    expect(result.synced).toBe(1);
+    expect(tc.ctx.cardRepo.findByKey('bulk-sub')).not.toBeNull();
+  });
+
+  // [HP-3] dirPath 미전달 → ctx.cardsDir 사용
+  it('should default to ctx.cardsDir when dirPath is not provided', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'bulk-def', 'Default');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(1);
+    expect(tc.ctx.cardRepo.findByKey('bulk-def')).not.toBeNull();
+  });
+
+  // [HP-4] relations 있는 파일 → DB relations 동기화
+  it('should sync relations to DB when card file contains relations', async () => {
+    tc = await createTestContext();
+    // createCard으로 dst를 DB에 미리 삽입 (FK 보장)
+    await createCard(tc.ctx, { slug: 'bulk-rel-dst', summary: 'Dst' });
+    const src = serializeCardMarkdown(
+      { key: 'bulk-rel-src', summary: 'Src', status: 'draft', relations: [{ type: 'depends-on', target: 'bulk-rel-dst' }] },
+      '',
+    );
+    await writeFile(join(tc.cardsDir, 'bulk-rel-src.card.md'), src, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const rels = tc.ctx.relationRepo.findByCardKey('bulk-rel-src');
+    expect(rels.some((r) => !r.isReverse && r.dstCardKey === 'bulk-rel-dst')).toBe(true);
+  });
+
+  // [HP-5] keywords+tags 있는 파일 → DB 분류 동기화
+  it('should sync keywords and tags to DB when card file contains classification', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      { key: 'bulk-cls', summary: 'Cls', status: 'draft', keywords: ['kw1'], tags: ['tag1'] },
+      '',
+    );
+    await writeFile(join(tc.cardsDir, 'bulk-cls.card.md'), content, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    expect(tc.ctx.classificationRepo.findKeywordsByCard('bulk-cls')).toContain('kw1');
+    expect(tc.ctx.classificationRepo.findTagsByCard('bulk-cls')).toContain('tag1');
+  });
+
+  // [HP-6] codeLinks 있는 파일 → DB code links 동기화
+  it('should sync codeLinks to DB when card file contains codeLinks', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      { key: 'bulk-cl', summary: 'CL', status: 'draft', codeLinks: [{ kind: 'function', file: 'a.ts', symbol: 'fn' }] },
+      '',
+    );
+    await writeFile(join(tc.cardsDir, 'bulk-cl.card.md'), content, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    expect(tc.ctx.codeLinkRepo.findByCardKey('bulk-cl')).toHaveLength(1);
+  });
+
+  // [HP-7] 이미 DB에 있는 파일 → upsert (중복 없음)
+  it('should upsert existing DB row without creating duplicates', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'bulk-upsert', summary: 'Original' });
+    await writeTestCardFile(tc.cardsDir, 'bulk-upsert', 'Updated by bulk');
+    await bulkSyncCards(tc.ctx);
+    const rows = listCards(tc.ctx).filter((r) => r.key === 'bulk-upsert');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.summary).toBe('Updated by bulk');
+  });
+
+  // [HP-8] constraints 있는 파일 → constraintsJson 저장
+  it('should store constraintsJson when card file contains constraints', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      { key: 'bulk-con', summary: 'Con', status: 'draft', constraints: { maxItems: 5 } },
+      '',
+    );
+    await writeFile(join(tc.cardsDir, 'bulk-con.card.md'), content, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const row = tc.ctx.cardRepo.findByKey('bulk-con');
+    expect(row?.constraintsJson).not.toBeNull();
+    expect(JSON.parse(row!.constraintsJson!)).toEqual({ maxItems: 5 });
+  });
+
+  // [NE-1] 1개 파일 실패 → errors에 수집, 나머지 처리
+  it('should collect failing file in errors and continue processing remaining files', async () => {
+    tc = await createTestContext();
+    await writeFile(join(tc.cardsDir, 'bad.card.md'), 'NOT VALID FRONTMATTER AT ALL', 'utf-8');
+    await writeTestCardFile(tc.cardsDir, 'bulk-good', 'Good');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.errors).toHaveLength(1);
+    expect(result.synced).toBe(1);
+    expect(tc.ctx.cardRepo.findByKey('bulk-good')).not.toBeNull();
+  });
+
+  // [NE-2] 전체 파일 실패 → synced=0, errors=[전부]
+  it('should return synced=0 and all files in errors when all files fail', async () => {
+    tc = await createTestContext();
+    await writeFile(join(tc.cardsDir, 'bad1.card.md'), 'INVALID', 'utf-8');
+    await writeFile(join(tc.cardsDir, 'bad2.card.md'), 'INVALID', 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(0);
+    expect(result.errors).toHaveLength(2);
+  });
+
+  // [NE-3] dirPath가 존재하지 않음 → throw propagate
+  it('should throw when dirPath does not exist', async () => {
+    tc = await createTestContext();
+    await expect(bulkSyncCards(tc.ctx, '/nonexistent/path/xyz')).rejects.toThrow();
+  });
+
+  // [ED-1] 빈 디렉토리 → synced=0, errors=[]
+  it('should return synced=0 and empty errors for an empty directory', async () => {
+    tc = await createTestContext();
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(0);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  // [ED-2] .card.md 아닌 파일만 있음 → synced=0
+  it('should return synced=0 when directory has no .card.md files', async () => {
+    tc = await createTestContext();
+    await writeFile(join(tc.cardsDir, 'readme.md'), '# readme', 'utf-8');
+    await writeFile(join(tc.cardsDir, 'notes.txt'), 'notes', 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(0);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  // [ED-3] 1개 파일만 있고 그것이 실패 → synced=0, errors=[1개]
+  it('should return synced=0 and one error when the only file fails', async () => {
+    tc = await createTestContext();
+    await writeFile(join(tc.cardsDir, 'only.card.md'), 'BAD CONTENT', 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(0);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]!.filePath).toContain('only.card.md');
+  });
+
+  // [CO-1] 파일 절반 실패 → synced=N/2, errors=N/2
+  it('should correctly partition synced and errors when half of files fail', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'bulk-ok1', 'Ok1');
+    await writeTestCardFile(tc.cardsDir, 'bulk-ok2', 'Ok2');
+    await writeFile(join(tc.cardsDir, 'fail1.card.md'), 'BAD', 'utf-8');
+    await writeFile(join(tc.cardsDir, 'fail2.card.md'), 'BAD', 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(2);
+    expect(result.errors).toHaveLength(2);
+  });
+
+  // [ST-1] 동일 dir 2회 호출 → 두 번째도 synced 동일, DB rows 중복 없음
+  it('should produce same synced count and no duplicate rows when called twice', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'bulk-2x', 'Twice');
+    const r1 = await bulkSyncCards(tc.ctx);
+    const r2 = await bulkSyncCards(tc.ctx);
+    expect(r1.synced).toBe(1);
+    expect(r2.synced).toBe(1);
+    expect(listCards(tc.ctx).filter((r) => r.key === 'bulk-2x')).toHaveLength(1);
+  });
+
+  // [ID-1] 반복 호출 → relation/keyword rows 중복 없음
+  it('should not create duplicate relation rows when called multiple times', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'bulk-id-dst', summary: 'Dst' });
+    const content = serializeCardMarkdown(
+      { key: 'bulk-id-src', summary: 'Src', status: 'draft', relations: [{ type: 'depends-on', target: 'bulk-id-dst' }] },
+      '',
+    );
+    await writeFile(join(tc.cardsDir, 'bulk-id-src.card.md'), content, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    await bulkSyncCards(tc.ctx);
+    const rels = tc.ctx.relationRepo.findByCardKey('bulk-id-src').filter((r) => !r.isReverse);
+    expect(rels).toHaveLength(1);
+  });
+
+  // [OR-1] 첫 번째 파일 실패해도 후속 파일 처리 계속
+  it('should continue processing when the first file in the directory fails', async () => {
+    tc = await createTestContext();
+    // 'aaa' sorts before 'zzz'
+    await writeFile(join(tc.cardsDir, 'aaa.card.md'), 'INVALID', 'utf-8');
+    await writeTestCardFile(tc.cardsDir, 'zzz-ok', 'Ok');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(tc.ctx.cardRepo.findByKey('zzz-ok')).not.toBeNull();
+  });
+
+  // [OR-2] 비연속 실패 (1번, 3번) → errors 정확히 수집
+  it('should collect non-contiguous failures accurately', async () => {
+    tc = await createTestContext();
+    await writeFile(join(tc.cardsDir, 'a-fail.card.md'), 'BAD', 'utf-8');
+    await writeTestCardFile(tc.cardsDir, 'b-pass', 'Pass');
+    await writeFile(join(tc.cardsDir, 'c-fail.card.md'), 'BAD', 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.synced).toBe(1);
+    expect(result.errors).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateCards
+// ---------------------------------------------------------------------------
+
+describe('validateCards', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  // [HP-1] 파일과 DB 완전 일치 → 모두 빈 배열
+  it('should return all empty arrays when files and DB rows are perfectly in sync', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'val-sync', summary: 'S' });
+    const result = await validateCards(tc.ctx);
+    expect(result.staleDbRows).toHaveLength(0);
+    expect(result.orphanFiles).toHaveLength(0);
+    expect(result.keyMismatches).toHaveLength(0);
+  });
+
+  // [NE-1] stale DB row (파일 없음) → staleDbRows에 포함
+  it('should report DB row as stale when its file has been deleted', async () => {
+    tc = await createTestContext();
+    const { filePath } = await createCard(tc.ctx, { slug: 'val-stale', summary: 'Stale' });
+    await unlink(filePath);
+    const result = await validateCards(tc.ctx);
+    expect(result.staleDbRows.some((r) => r.key === 'val-stale')).toBe(true);
+  });
+
+  // [NE-2] orphan file (DB row 없음) → orphanFiles에 포함
+  it('should report file as orphan when no corresponding DB row exists', async () => {
+    tc = await createTestContext();
+    const orphanPath = join(tc.cardsDir, 'orphan.card.md');
+    await writeFile(
+      orphanPath,
+      serializeCardMarkdown({ key: 'orphan', summary: 'O', status: 'draft' }, ''),
+      'utf-8',
+    );
+    const result = await validateCards(tc.ctx);
+    expect(result.orphanFiles).toContain(orphanPath);
+  });
+
+  // [NE-3] key mismatch → keyMismatches에 포함
+  it('should report key mismatch when row key does not match filename-derived key', async () => {
+    tc = await createTestContext();
+    // file name 'mismatch-file.card.md' but frontmatter key 'different-key'
+    const fp = join(tc.cardsDir, 'mismatch-file.card.md');
+    await writeFile(
+      fp,
+      serializeCardMarkdown({ key: 'different-key', summary: 'M', status: 'draft' }, ''),
+      'utf-8',
+    );
+    await syncCardFromFile(tc.ctx, fp);
+    const result = await validateCards(tc.ctx);
+    expect(result.keyMismatches.some((m) => m.row.key === 'different-key' && m.expectedKey === 'mismatch-file')).toBe(true);
+  });
+
+  // [ED-1] DB 비어있고 파일도 없음 → 모두 빈 배열
+  it('should return all empty arrays when DB is empty and directory is empty', async () => {
+    tc = await createTestContext();
+    const result = await validateCards(tc.ctx);
+    expect(result.staleDbRows).toHaveLength(0);
+    expect(result.orphanFiles).toHaveLength(0);
+    expect(result.keyMismatches).toHaveLength(0);
+  });
+
+  // [ED-2] DB 비어있고 파일 1개 → orphanFiles=[1개]
+  it('should report single orphan file when DB is empty but one file exists', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'solo-orphan', 'Orphan');
+    const result = await validateCards(tc.ctx);
+    expect(result.orphanFiles).toHaveLength(1);
+    expect(result.staleDbRows).toHaveLength(0);
+  });
+
+  // [ED-3] DB row 1개고 파일 없음 → staleDbRows=[1개]
+  it('should report single stale DB row when one row exists but its file is gone', async () => {
+    tc = await createTestContext();
+    const { filePath } = await createCard(tc.ctx, { slug: 'solo-stale', summary: 'Stale' });
+    await unlink(filePath);
+    const result = await validateCards(tc.ctx);
+    expect(result.staleDbRows).toHaveLength(1);
+    expect(result.orphanFiles).toHaveLength(0);
+  });
+
+  // [ED-4] stale+orphan+mismatch 동시 발생 → 각각 수집
+  it('should detect stale, orphan, and mismatch issues simultaneously', async () => {
+    tc = await createTestContext();
+    // stale
+    const { filePath: stalePath } = await createCard(tc.ctx, { slug: 'sim-stale', summary: 'Stale' });
+    await unlink(stalePath);
+    // orphan
+    await writeTestCardFile(tc.cardsDir, 'sim-orphan', 'Orphan');
+    // mismatch
+    const mmPath = join(tc.cardsDir, 'sim-file.card.md');
+    await writeFile(mmPath, serializeCardMarkdown({ key: 'sim-diff', summary: 'Mm', status: 'draft' }, ''), 'utf-8');
+    await syncCardFromFile(tc.ctx, mmPath);
+    const result = await validateCards(tc.ctx);
+    expect(result.staleDbRows.some((r) => r.key === 'sim-stale')).toBe(true);
+    expect(result.orphanFiles.some((f) => f.includes('sim-orphan'))).toBe(true);
+    expect(result.keyMismatches.some((m) => m.expectedKey === 'sim-file')).toBe(true);
+  });
+
+  // [CO-1] 여러 stale+여러 orphan+여러 mismatch 동시
+  it('should handle multiple stale rows, orphan files, and mismatches simultaneously', async () => {
+    tc = await createTestContext();
+    const { filePath: s1 } = await createCard(tc.ctx, { slug: 'co-stale1', summary: 'S1' });
+    const { filePath: s2 } = await createCard(tc.ctx, { slug: 'co-stale2', summary: 'S2' });
+    await unlink(s1);
+    await unlink(s2);
+    await writeTestCardFile(tc.cardsDir, 'co-orphan1', 'O1');
+    await writeTestCardFile(tc.cardsDir, 'co-orphan2', 'O2');
+    const mm1 = join(tc.cardsDir, 'co-file1.card.md');
+    const mm2 = join(tc.cardsDir, 'co-file2.card.md');
+    await writeFile(mm1, serializeCardMarkdown({ key: 'co-diff1', summary: 'M1', status: 'draft' }, ''), 'utf-8');
+    await writeFile(mm2, serializeCardMarkdown({ key: 'co-diff2', summary: 'M2', status: 'draft' }, ''), 'utf-8');
+    await syncCardFromFile(tc.ctx, mm1);
+    await syncCardFromFile(tc.ctx, mm2);
+    const result = await validateCards(tc.ctx);
+    expect(result.staleDbRows).toHaveLength(2);
+    expect(result.orphanFiles).toHaveLength(2);
+    expect(result.keyMismatches).toHaveLength(2);
+  });
+
+  // [CO-2] orphanFiles는 .card.md 파일만 포함 (다른 확장자 제외)
+  it('should not include non-.card.md files in orphanFiles', async () => {
+    tc = await createTestContext();
+    await writeFile(join(tc.cardsDir, 'readme.md'), '# readme', 'utf-8');
+    await writeFile(join(tc.cardsDir, 'notes.txt'), 'notes', 'utf-8');
+    const result = await validateCards(tc.ctx);
+    expect(result.orphanFiles).toHaveLength(0);
+  });
+
+  // [ST-1] validateCards → bulkSyncCards → validateCards: 두 번째 validate orphans=0
+  it('should report no orphans after bulkSyncCards resolves the orphan files', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'st-orphan', 'Orphan');
+    const before = await validateCards(tc.ctx);
+    expect(before.orphanFiles).toHaveLength(1);
+    await bulkSyncCards(tc.ctx);
+    const after = await validateCards(tc.ctx);
+    expect(after.orphanFiles).toHaveLength(0);
+  });
+
+  // [ST-2] validateCards는 DB/파일 수정 안 함 (read-only)
+  it('should not modify DB or files — validateCards is read-only', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'ro-orphan', 'Orphan');
+    await validateCards(tc.ctx);
+    // DB should still not have the row
+    expect(tc.ctx.cardRepo.findByKey('ro-orphan')).toBeNull();
+  });
+
+  // [ST-3] bulkSyncCards N파일 → validateCards → orphans=0, stale=0
+  it('should show no stale or orphan issues after bulkSync on a dir with N files', async () => {
+    tc = await createTestContext();
+    await writeTestCardFile(tc.cardsDir, 'sync-v1', 'V1');
+    await writeTestCardFile(tc.cardsDir, 'sync-v2', 'V2');
+    await writeTestCardFile(tc.cardsDir, 'sync-v3', 'V3');
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    expect(result.staleDbRows).toHaveLength(0);
+    expect(result.orphanFiles).toHaveLength(0);
+  });
+
+  // [ID-1] validateCards 반복 호출 → 동일 결과
+  it('should return identical results when called twice without any changes', async () => {
+    tc = await createTestContext();
+    const { filePath } = await createCard(tc.ctx, { slug: 'id-val', summary: 'Id' });
+    await unlink(filePath);
+    const r1 = await validateCards(tc.ctx);
+    const r2 = await validateCards(tc.ctx);
+    expect(r1.staleDbRows.map((r) => r.key)).toEqual(r2.staleDbRows.map((r) => r.key));
+  });
+
+  // [ID-2] mismatch 있어도 validate 재호출 결과 동일 (수정 없으므로)
+  it('should return the same keyMismatches on repeated calls', async () => {
+    tc = await createTestContext();
+    const mmPath = join(tc.cardsDir, 'id-file.card.md');
+    await writeFile(mmPath, serializeCardMarkdown({ key: 'id-diff', summary: 'D', status: 'draft' }, ''), 'utf-8');
+    await syncCardFromFile(tc.ctx, mmPath);
+    const r1 = await validateCards(tc.ctx);
+    const r2 = await validateCards(tc.ctx);
+    expect(r1.keyMismatches.length).toBe(r2.keyMismatches.length);
   });
 });

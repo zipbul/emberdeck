@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
 import type { RelationRepository, RelationRow } from './repository';
@@ -8,9 +8,18 @@ export class DrizzleRelationRepository implements RelationRepository {
   constructor(private db: EmberdeckDb) {}
 
   replaceForCard(cardKey: string, relations: { type: string; target: string }[]): void {
-    // 1. 이 카드가 src 또는 dst인 모든 관계 삭제
-    this.db.delete(cardRelation).where(eq(cardRelation.srcCardKey, cardKey)).run();
-    this.db.delete(cardRelation).where(eq(cardRelation.dstCardKey, cardKey)).run();
+    // 이 카드가 소유한 관계만 삭제:
+    //   - 정방향(isReverse=false): 이 카드가 선언한 relation
+    //   - 역방향 mirror(isReverse=true, dstCardKey=cardKey): 이 카드 선언의 자동 역방향
+    // 다른 카드가 선언한 forward relation(dstCardKey=cardKey, isReverse=false)은 건드리지 않음
+    this.db
+      .delete(cardRelation)
+      .where(and(eq(cardRelation.srcCardKey, cardKey), eq(cardRelation.isReverse, false)))
+      .run();
+    this.db
+      .delete(cardRelation)
+      .where(and(eq(cardRelation.dstCardKey, cardKey), eq(cardRelation.isReverse, true)))
+      .run();
 
     // 2. 새 관계 삽입 (정방향 + 역방향)
     // FK 방어: 대상 카드 미존재 시 FK 위반 → 스킵

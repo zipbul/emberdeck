@@ -26,7 +26,14 @@ export {
 export { deleteCard } from './src/ops/delete';
 export { renameCard, type RenameCardResult } from './src/ops/rename';
 export { getCard, listCards, searchCards, listCardRelations, getCardContext, type CardContext } from './src/ops/query';
-export { syncCardFromFile, removeCardByFile } from './src/ops/sync';
+export {
+  syncCardFromFile,
+  removeCardByFile,
+  bulkSyncCards,
+  validateCards,
+  type BulkSyncResult,
+  type CardValidationResult,
+} from './src/ops/sync';
 export {
   resolveCardCodeLinks,
   findCardsBySymbol,
