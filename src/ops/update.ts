@@ -128,9 +128,20 @@ export async function updateCardStatus(
 
   const now = new Date().toISOString();
   const existing = ctx.cardRepo.findByKey(key);
-  if (existing) {
-    ctx.cardRepo.upsert({ ...existing, status, updatedAt: now });
-  }
+  const row: CardRow = existing
+    ? { ...existing, status, updatedAt: now }
+    : {
+        key,
+        summary: current.frontmatter.summary,
+        status,
+        constraintsJson: current.frontmatter.constraints
+          ? JSON.stringify(current.frontmatter.constraints)
+          : null,
+        body: current.body,
+        filePath,
+        updatedAt: now,
+      };
+  ctx.cardRepo.upsert(row);
 
   await writeCardFile(filePath, card);
 

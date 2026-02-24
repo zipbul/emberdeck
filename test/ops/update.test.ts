@@ -296,7 +296,7 @@ describe('updateCard', () => {
     expect(tc.ctx.relationRepo.findByCardKey('all-null-src')).toHaveLength(0);
   });
 
-  it('should update file only when updateCardStatus is called while DB row is missing', async () => {
+  it('should update DB row and file when updateCardStatus is called while DB row is missing', async () => {
     // Arrange
     tc = await createTestContext();
     await createCard(tc.ctx, { slug: 'st-no-db', summary: 'No DB' });
@@ -305,6 +305,29 @@ describe('updateCard', () => {
     const result = await updateCardStatus(tc.ctx, 'st-no-db', 'accepted');
     // Assert
     expect(result.card.frontmatter.status).toBe('accepted');
+    const row = tc.ctx.cardRepo.findByKey('st-no-db');
+    expect(row).toBeDefined();
+    expect(row?.status).toBe('accepted');
+    expect(row?.key).toBe('st-no-db');
+    expect(row?.summary).toBe('No DB');
+  });
+
+  it('should upsert row with constraintsJson from file when updateCardStatus called with no DB row and constraints exist', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'st-constraints-no-db',
+      summary: 'With Constraints',
+      constraints: { maxSize: 10 },
+    });
+    tc.ctx.cardRepo.deleteByKey('st-constraints-no-db');
+    // Act
+    await updateCardStatus(tc.ctx, 'st-constraints-no-db', 'accepted');
+    // Assert
+    const row = tc.ctx.cardRepo.findByKey('st-constraints-no-db');
+    expect(row).toBeDefined();
+    expect(row?.status).toBe('accepted');
+    expect(row?.constraintsJson).toBe(JSON.stringify({ maxSize: 10 }));
   });
 
   // ── State Transition ──────────────────────────────────────────────────
