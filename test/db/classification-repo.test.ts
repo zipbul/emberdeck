@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { createEmberdeckDb, closeDb } from '../../src/db/connection';
 import { DrizzleCardRepository } from '../../src/db/card-repo';
 import { DrizzleClassificationRepository } from '../../src/db/classification-repo';
+import { keyword, tag } from '../../src/db/schema';
 import type { EmberdeckDb } from '../../src/db/connection';
 import type { CardRow } from '../../src/db/repository';
 
@@ -164,5 +165,76 @@ describe('DrizzleClassificationRepository', () => {
     // Assert
     const result = repo.findKeywordsByCard('st1');
     expect(result).toEqual(['c']);
+  });
+
+  // pruneOrphans
+
+  // 1. [HP] 사용 중인 keyword는 prune 오 후에도 유지
+  it('should retain keyword row when it is still referenced by a card mapping', () => {
+    // Arrange
+    insertCard('pk-a');
+    repo.replaceKeywords('pk-a', ['typescript']);
+    // Act
+    repo.pruneOrphans();
+    // Assert — keyword는 여전히 존재여야 함
+    const rows = db.select({ name: keyword.name }).from(keyword).all();
+    expect(rows.map((r) => r.name)).toContain('typescript');
+  });
+
+  // 2. [NE] orphan keyword 삭제
+  it('should remove keyword row when no card_keyword mapping references it', () => {
+    // Arrange: keyword row를 직접삽입 (replaceKeywords 후 매핑 제거)
+    insertCard('pk-b');
+    repo.replaceKeywords('pk-b', ['orphan-kw']);
+    repo.replaceKeywords('pk-b', []); // 매핑 제거 → orphan 남음
+    // Act
+    repo.pruneOrphans();
+    // Assert
+    const rows = db.select({ name: keyword.name }).from(keyword).all();
+    expect(rows.map((r) => r.name)).not.toContain('orphan-kw');
+  });
+
+  // 3. [NE] orphan tag 삭제
+  it('should remove tag row when no card_tag mapping references it', () => {
+    // Arrange
+    insertCard('pk-c');
+    repo.replaceTags('pk-c', ['orphan-tag']);
+    repo.replaceTags('pk-c', []); // 매핑 제거 → orphan
+    // Act
+    repo.pruneOrphans();
+    // Assert
+    const rows = db.select({ name: tag.name }).from(tag).all();
+    expect(rows.map((r) => r.name)).not.toContain('orphan-tag');
+  });
+
+  // 4. [ST] replaceKeywords로 old keyword 매핑 제거 후 pruneOrphans
+  it('should delete keyword row that became orphan after keywords were replaced', () => {
+    // Arrange
+    insertCard('pk-d');
+    repo.replaceKeywords('pk-d', ['old-kw', 'kept-kw']);
+    repo.replaceKeywords('pk-d', ['kept-kw']); // old-kw orphan
+    // Act
+    repo.pruneOrphans();
+    // Assert
+    const rows = db.select({ name: keyword.name }).from(keyword).all();
+    const names = rows.map((r) => r.name);
+    expect(names).not.toContain('old-kw');
+    expect(names).toContain('kept-kw');
+  });
+
+  // 5. [ST] 카드 삭제 후 pruneOrphans → keyword/tag row 삭제
+  it('should delete keyword and tag rows that became orphan after card is deleted', () => {
+    // Arrange
+    insertCard('pk-e');
+    repo.replaceKeywords('pk-e', ['kw-del']);
+    repo.replaceTags('pk-e', ['tag-del']);
+    cardRepo.deleteByKey('pk-e'); // CASCADE로 card_keyword/tag 매핑 제거, keyword/tag row 잔류
+    // Act
+    repo.pruneOrphans();
+    // Assert
+    const kwRows = db.select({ name: keyword.name }).from(keyword).all();
+    const tagRows = db.select({ name: tag.name }).from(tag).all();
+    expect(kwRows.map((r) => r.name)).not.toContain('kw-del');
+    expect(tagRows.map((r) => r.name)).not.toContain('tag-del');
   });
 });

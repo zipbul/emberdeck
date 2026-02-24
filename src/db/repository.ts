@@ -60,6 +60,8 @@ export interface ClassificationRepository {
   findKeywordsByCard(cardKey: string): string[];
   findTagsByCard(cardKey: string): string[];
   deleteByCardKey(cardKey: string): void;
+  /** 아무 카드에도 연결되지 않은 keyword/tag row를 삭제. */
+  pruneOrphans(): void;
 }
 
 export interface CodeLinkRepository {

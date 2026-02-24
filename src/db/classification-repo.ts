@@ -69,4 +69,11 @@ export class DrizzleClassificationRepository implements ClassificationRepository
     this.db.delete(cardKeyword).where(eq(cardKeyword.cardKey, cardKey)).run();
     this.db.delete(cardTag).where(eq(cardTag.cardKey, cardKey)).run();
   }
+
+  pruneOrphans(): void {
+    this.db.$client.run(
+      'DELETE FROM keyword WHERE id NOT IN (SELECT keyword_id FROM card_keyword)',
+    );
+    this.db.$client.run('DELETE FROM tag WHERE id NOT IN (SELECT tag_id FROM card_tag)');
+  }
 }
