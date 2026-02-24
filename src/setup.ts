@@ -12,14 +12,18 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
 
   let gildash: Gildash | undefined;
   if (options.projectRoot) {
-    const result = await Gildash.open({
-      projectRoot: options.projectRoot,
-      ignorePatterns: options.gildashIgnore,
-    });
-    if (isErr(result)) {
+    try {
+      const result = await Gildash.open({
+        projectRoot: options.projectRoot,
+        ignorePatterns: options.gildashIgnore,
+      });
+      if (isErr(result)) {
+        gildash = undefined;
+      } else {
+        gildash = result;
+      }
+    } catch {
       gildash = undefined;
-    } else {
-      gildash = result;
     }
   }
 

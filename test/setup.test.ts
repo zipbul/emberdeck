@@ -216,4 +216,26 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     // Act / Assert
     await expect(teardownEmberdeck(ctx)).resolves.toBeUndefined();
   });
+
+  // 17. [NE] Gildash.open throws(reject) → setupEmberdeck이 throw하지 않고 gildash=undefined 반환
+  it('should set gildash to undefined and not throw when Gildash.open rejects with an error', async () => {
+    // Arrange
+    mockGildashOpen.mockImplementation(async () => { throw new Error('open failed unexpectedly'); });
+    // Act / Assert
+    const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '/proj' });
+    expect(ctx.gildash).toBeUndefined();
+    await teardownEmberdeck(ctx);
+  });
+
+  // 18. [CO] Gildash.open throws + cardRepo/codeLinkRepo 정상 제공
+  it('should still provide cardRepo and codeLinkRepo when Gildash.open throws', async () => {
+    // Arrange
+    mockGildashOpen.mockImplementation(async () => { throw new Error('unexpected'); });
+    // Act
+    const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '/proj' });
+    // Assert
+    expect(ctx.cardRepo).toBeDefined();
+    expect(ctx.codeLinkRepo).toBeDefined();
+    await teardownEmberdeck(ctx);
+  });
 });
