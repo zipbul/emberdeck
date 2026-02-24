@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
 import { createEmberdeckDb, closeDb } from '../../src/db/connection';
 import { DrizzleCardRepository } from '../../src/db/card-repo';
 import { DrizzleRelationRepository } from '../../src/db/relation-repo';
@@ -218,5 +218,18 @@ describe('DrizzleRelationRepository', () => {
     expect(() =>
       testRepo.replaceForCard('src', [{ type: 'depends-on', target: 'dst' }]),
     ).toThrow('disk I/O error');
+  });
+
+  // NE — FK violation warn
+  it('should call console.warn when FK violation occurs in replaceForCard', () => {
+    // Arrange
+    const warnSpy = spyOn(console, 'warn');
+    insertCard('warn-src');
+    // Act
+    repo.replaceForCard('warn-src', [{ type: 'depends-on', target: 'nonexistent-dst' }]);
+    // Assert
+    expect(warnSpy).toHaveBeenCalled();
+    // Cleanup
+    warnSpy.mockRestore();
   });
 });
