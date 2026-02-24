@@ -18,6 +18,7 @@ export {
   CardRenameSamePathError,
   RelationTypeError,
   GildashNotConfiguredError,
+  CompensationError,
 } from './src/card/errors';
 
 // ---- Operations ----
@@ -76,3 +77,12 @@ export { parseCardMarkdown, serializeCardMarkdown } from './src/card/markdown';
 
 // ---- DB (CLI 통합용) ----
 export { migrateEmberdeck, type EmberdeckDb } from './src/db/connection';
+
+// ---- Safe operations (concurrency / rollback) ----
+export {
+  withRetry,
+  withCardLock,
+  safeWriteOperation,
+  type RetryOptions,
+  type SafeWriteOptions,
+} from './src/ops/safe';

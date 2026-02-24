@@ -41,3 +41,13 @@ export class GildashNotConfiguredError extends Error {
     this.name = 'GildashNotConfiguredError';
   }
 }
+
+export class CompensationError extends Error {
+  constructor(
+    public readonly originalError: unknown,
+    public readonly compensationError: unknown,
+  ) {
+    super('Compensation failed after operation error');
+    this.name = 'CompensationError';
+  }
+}
