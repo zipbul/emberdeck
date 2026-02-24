@@ -1,9 +1,14 @@
 {
   "name": "emberdeck",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "private": false,
   "type": "module",
   "module": "index.ts",
+  "exports": {
+    ".": {
+      "import": "./index.ts"
+    }
+  },
   "scripts": {
     "test": "bun test",
     "drizzle:generate": "bunx drizzle-kit generate --config drizzle.config.ts",

@@ -74,6 +74,8 @@ export type {
 // ---- Pure utilities (CLI에서 키 검증만 필요할 때) ----
 export { normalizeSlug, parseFullKey, buildCardPath } from './src/card/card-key';
 export { parseCardMarkdown, serializeCardMarkdown } from './src/card/markdown';
+export { validateCardInput, LIMITS } from './src/card/validation';
+export type { ValidationInput } from './src/card/validation';
 
 // ---- DB (CLI 통합용) ----
 export { migrateEmberdeck, type EmberdeckDb } from './src/db/connection';
