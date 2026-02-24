@@ -544,66 +544,68 @@ FTS5용으로 선언되었으나, 어디서도 값이 설정되지 않아 역할
 
 ### 9.1 기능 완성도
 
-| 부재 항목 | 설명 | 우선도 | 담당 모델 |
-|-----------|------|--------|----------|
-| **벌크 동기화(bulk sync)** | 현재 `syncCardFromFile`은 단일 파일만 처리. 카드 디렉토리 전체 스캔 → DB 일괄 동기화 기능 없음 | 높음 | Sonnet |
-| **역방향 동기화 (DB → 파일)** | 현재 파일→DB 방향만 존재. DB 측 변경을 파일로 내보내는 경로 없음 | 중간 | Sonnet |
-| **재귀적 관계 그래프 탐색** | 현재 1-depth 관계만 조회 가능. transitive closure(재귀 탐색) 미지원 | 중간 | Sonnet |
-| **카드 파일-DB 일관성 검증(validate)** | 전체 카드의 파일↔DB 불일치를 일괄 검출하는 기능 없음 | 높음 | Sonnet |
-| **관계 타입 동적 관리 API** | `allowedRelationTypes`를 런타임에 추가/삭제/조회하는 API 없음 | 낮음 | Sonnet |
-| **중복 카드 감지** | 동일/유사 내용의 카드를 감지하는 메커니즘 없음 | 낮음 | Sonnet |
-| **변경 이력 추적** | 카드 변경 이력이 코드 내에서 관리되지 않음 (Git에 전적으로 의존) | 낮음 | Sonnet |
+| 부재 항목 | 설명 | 우선도 | 상태 |
+|-----------|------|--------|------|
+| ~~**벌크 동기화(bulk sync)**~~ | `bulkSyncCards` — 카드 디렉토리 전체 스캔 → DB 일괄 동기화 | 높음 | ✅ `b63c7a6` |
+| ~~**역방향 동기화 (DB → 파일)**~~ | `exportCardToFile` — DB → 파일 내보내기 | 중간 | ✅ `a0bc3a1` |
+| ~~**재귀적 관계 그래프 탐색**~~ | `getRelationGraph` — BFS transitive closure 탐색 | 중간 | ✅ `fe2a069` |
+| ~~**카드 파일-DB 일관성 검증(validate)**~~ | `validateCards` — 파일↔DB 불일치 일괄 검출 | 높음 | ✅ `b63c7a6` |
+| ~~**관계 타입 동적 관리 API**~~ | `addRelationType`/`removeRelationType`/`listRelationTypes` | 낮음 | ✅ `a0bc3a1` |
+| **중복 카드 감지** | 동일/유사 내용의 카드를 감지하는 메커니즘 없음 | 낮음 | 보류 |
+| **변경 이력 추적** | 카드 변경 이력이 코드 내에서 관리되지 않음 (Git에 전적으로 의존) | 낮음 | 보류 |
 
 ### 9.2 시스템 견고성
 
-| 부재 항목 | 설명 | 우선도 | 담당 모델 |
-|-----------|------|--------|----------|
-| **동시 접근(Concurrency) 대응** | WAL 모드는 설정되어 있지만, 복수 프로세스가 동시에 같은 카드를 수정하는 시나리오에 대한 방어/잠금 로직 없음 | 높음 | Opus |
-| **입력 크기 제한/방어** | 매우 큰 body, 수백 개의 relations/codeLinks 등에 대한 validation 제한 없음. OOM 또는 성능 저하 가능 | 중간 | Sonnet |
-| **배치 처리 / 성능 최적화** | 배치 insert, lazy loading, 캐싱 등 미적용. 카드 수 증가 시 병목 가능 | 중간 | Sonnet |
-| **실패 시 rollback/retry 메커니즘** | 파일-DB 불일치 발생 후 자동 복구(compensation) 로직 없음 | 높음 | Opus |
-| **로깅/관측 가능성(Observability)** | 로깅 인프라 전무. 디버깅/모니터링 불가 | 중간 | Opus |
+| 부재 항목 | 설명 | 우선도 | 상태 |
+|-----------|------|--------|------|
+| ~~**동시 접근(Concurrency) 대응**~~ | `withCardLock` — per-context per-key FIFO 직렬화 (WeakMap) | 높음 | ✅ `1c9ae0c` |
+| **입력 크기 제한/방어** | 매우 큰 body, 수백 개의 relations/codeLinks 등에 대한 validation 제한 없음 | 중간 | 미착수 |
+| **배치 처리 / 성능 최적화** | 배치 insert, lazy loading, 캐싱 등 미적용 | 중간 | 미착수 |
+| ~~**실패 시 rollback/retry 메커니즘**~~ | `withRetry` (SQLITE_BUSY 지수 백오프) + `safeWriteOperation` (DB→파일 compensation) | 높음 | ✅ `1c9ae0c` |
+| **기존 ops에 safe 래퍼 적용** | create/update/delete/rename에 `withRetry`/`withCardLock`/`safeWriteOperation` 실제 적용 | 높음 | 미착수 |
+| ~~**로깅/관측 가능성(Observability)**~~ | — | — | 제거 (불필요) |
 
 ### 9.3 API 성숙도
 
-| 부재 항목 | 설명 | 우선도 | 담당 모델 |
-|-----------|------|--------|----------|
-| **이벤트 시스템 (Hook/EventEmitter)** | 카드 CRUD 이벤트를 외부에서 구독할 수 없음. 플러그인/확장 불가 | 중간 | Opus |
-| **YAML 파싱 에러의 도메인 에러 래핑** | YAML 파싱 실패 시 `Bun.YAML` 네이티브 에러가 그대로 전파. `CardValidationError`로 래핑되지 않음 | 낮음 | Sonnet |
-| **확장 포인트 (플러그인 아키텍처)** | 미들웨어/훅 시스템 없음. 커스텀 로직 삽입 불가 | 낮음 | Opus |
-| **Public API 안정성** | v0.1.0. Breaking change 가능성 높으며, 변경 영향 추적 체계 없음 | 중간 | Sonnet |
+| 부재 항목 | 설명 | 우선도 | 상태 |
+|-----------|------|--------|------|
+| ~~**이벤트 시스템 (Hook/EventEmitter)**~~ | — | — | 보류 (현재 니즈 없음. 호출 지점 중복 발생 시 재검토) |
+| ~~**YAML 파싱 에러의 도메인 에러 래핑**~~ | `parseCardMarkdown`에서 `Bun.YAML` 에러를 `CardValidationError`로 래핑 | 낮음 | ✅ `4263736` |
+| ~~**확장 포인트 (플러그인 아키텍처)**~~ | — | — | 제거 (니즈 없음) |
+| **Public API 안정성** | v0.1.0. Breaking change 가능성 높음 | 중간 | 미착수 |
 
 ### 9.4 운영 / 배포
 
-| 부재 항목 | 설명 | 우선도 | 담당 모델 |
-|-----------|------|--------|----------|
-| **API 문서화** | 공개 API에 대한 JSDoc/문서 사이트 없음 | 높음 | Sonnet |
-| **사용 가이드 / 예제 코드** | 라이브러리 사용법을 보여주는 가이드/예제 없음 | 중간 | Sonnet |
-| **에러 메시지 개선** | 일부 에러 메시지가 기술적이며 사용자 맥락 부족 | 낮음 | Sonnet |
+| 부재 항목 | 설명 | 우선도 | 상태 |
+|-----------|------|--------|------|
+| **MCP 레이어 구현** | `setMcpServer(server)` — MCP tool handler 정의. 외부 MCP 서버에 emberdeck tool 일괄 등록 | 높음 | 미착수 |
+| **API 문서화** | 공개 API에 대한 JSDoc. MCP tool description 포함 | 높음 | 미착수 |
+| **에러 메시지 개선** | 일부 에러 메시지가 기술적이며 사용자 맥락 부족 | 낮음 | 미착수 |
 
 ### 9.5 종합 로드맵
 
 ```
  Phase 1: 코드 결함 수정 (섹션 3~8)                          [완료]
     └─ 현재 코드의 정확성 확보
-    └─ BUG-1 → BUG-3 → DESIGN-2 → DESIGN-4 순서
 
- Phase 2: 핵심 기능 보완
-    └─ bulk sync + validate (파일-DB 일관성의 근본 해결)      [Sonnet]
-    └─ FTS5 search 구현 (BUG-2/BUG-3 수정 후)               [완료]
-    └─ concurrency 대응 + rollback/retry 메커니즘            [Opus]
+ Phase 2: 핵심 기능 보완                                     [완료]
+    └─ bulk sync + validate + exportCardToFile               [완료] Sonnet
+    └─ getRelationGraph (BFS) + 관계 타입 API                [완료] Sonnet
+    └─ YAML 에러 래핑                                        [완료] Sonnet
+    └─ concurrency 대응 + rollback/retry 유틸리티            [완료] Opus
 
- Phase 3: 확장성/성숙도
-    └─ 이벤트 시스템 + 관계 그래프 탐색                      [Opus / Sonnet]
-    └─ 로깅 인프라                                           [Opus]
-    └─ API 문서화 + 가이드                                   [Sonnet]
+ Phase 3: 프로덕션 준비
+    └─ 기존 ops에 safe 래퍼 적용 (create/update/delete/rename) [Opus]
+    └─ MCP 레이어 (setMcpServer + tool handlers)               [Opus]
+    └─ 입력 방어 (크기 제한/validation)                        [Sonnet]
+    └─ API 문서화 (JSDoc + MCP tool description)               [Sonnet]
 
- Phase 4: 프로덕션 안정화
-    └─ 입력 방어 + 성능 최적화                               [Sonnet]
-    └─ 플러그인 아키텍처 (이벤트 시스템 완성 후)             [Opus]
+ Phase 4: 품질 향상 (선택)
+    └─ 배치 최적화                                           [Sonnet]
     └─ Public API 안정화 (v1.0 준비)                         [Sonnet]
+    └─ 에러 메시지 개선                                      [Sonnet]
 ```
 
-> **결론**: 섹션 3~8의 코드 결함 수정은 **Phase 1**에 해당한다.
-> 완벽한 시스템이 되려면 Phase 1~4를 순차적으로 진행해야 하며,
-> 특히 Phase 2의 bulk sync + validate + concurrency가 프로덕션 배포의 최소 요건이다.
+> **현재 상태**: Phase 1~2 완료. Phase 3이 프로덕션 배포의 최소 요건.
+> 보류 항목: 이벤트 시스템 (호출 지점 중복 발생 시 재검토), 중복 카드 감지, 변경 이력 추적.
+> 제거 항목: 로깅 인프라 (불필요), 플러그인 아키텍처 (니즈 없음).
