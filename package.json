@@ -13,12 +13,14 @@
     }
   },
   "scripts": {
+    "build": "bun build index.ts cli.ts --outdir dist --target bun --format esm --packages external --sourcemap=linked --production && bunx tsc -p tsconfig.build.json && cp -r drizzle dist/migrations",
+    "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
     "drizzle:generate": "bunx drizzle-kit generate --config drizzle.config.ts",
     "drizzle:migrate": "bunx drizzle-kit migrate --config drizzle.config.ts"
   },
   "dependencies": {
-    "@zipbul/gildash": "^0.3.1",
+    "@zipbul/gildash": "^0.5.1",
     "@zipbul/result": "^0.0.3",
     "drizzle-orm": "^0.45.1"
   },

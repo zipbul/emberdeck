@@ -9,12 +9,11 @@
     },
     "emberdeck": {
       "command": "bun",
+      "cwd": "${workspaceFolder}/dist",
       "args": [
         "run",
-        "/home/revil/zipbul/emberdeck/cli.ts",
+        "cli.js",
         "mcp",
-        "--project-root",
-        "/home/revil/zipbul/emberdeck"
       ]
     }
   }

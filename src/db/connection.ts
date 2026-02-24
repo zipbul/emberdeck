@@ -2,19 +2,21 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
 import { Database } from 'bun:sqlite';
 import { resolve } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 import * as schema from './schema';
+import { findPackageRoot } from '../fs/package-root';
 
 export type EmberdeckDb = ReturnType<typeof drizzle<typeof schema>>;
 
-/**
- * 마이그레이션 폴더 절대 경로.
- * import.meta.dirname = src/db/ → ../../drizzle = packages/emberdeck/drizzle/
- */
 function getMigrationsFolder(): string {
-  return resolve(import.meta.dirname, '../../drizzle');
+  const root = findPackageRoot(import.meta.dirname);
+  const candidates = [resolve(root, 'drizzle'), resolve(root, 'migrations')];
+  for (const c of candidates) {
+    if (existsSync(resolve(c, 'meta/_journal.json'))) return c;
+  }
+  throw new Error(`emberdeck: migrations folder not found under ${root}`);
 }
 
 function configurePragmas(db: EmberdeckDb): void {

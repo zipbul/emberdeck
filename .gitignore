@@ -1,3 +1,4 @@
 node_modules
-.emberdeck/
-.zipbul/
+.emberdeck/*
+!.emberdeck/cards/
+dist

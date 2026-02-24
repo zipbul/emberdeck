@@ -18,6 +18,7 @@
 
 import { resolve, dirname } from 'node:path';
 import { err, isErr } from '@zipbul/result';
+import { findPackageRoot } from './fs/package-root';
 import type { Result, Err } from '@zipbul/result';
 import { DEFAULT_RELATION_TYPES } from './config';
 
@@ -322,7 +323,7 @@ export async function loadConfigFromPath(
 export async function loadConfig(
   cwd?: string,
 ): Promise<Result<EmberdeckFileConfig, ConfigError>> {
-  const baseDir = cwd ?? process.cwd();
+  const baseDir = cwd ?? findPackageRoot(process.cwd());
 
   for (const name of CONFIG_FILE_NAMES) {
     const candidate = resolve(baseDir, name);
