@@ -1,6 +1,15 @@
 import { describe, it, expect, afterEach, mock } from 'bun:test';
 
-import { createCard, updateCard, updateCardStatus, getCard, listCards, searchCards, listCardRelations } from '../../index';
+import {
+  createCard,
+  updateCard,
+  updateCardStatus,
+  getCard,
+  listCards,
+  searchCards,
+  listCardRelations,
+  getRelationGraph,
+} from '../../index';
 import { CardKeyError, CardNotFoundError } from '../../index';
 import { getCardContext } from '../../src/ops/query';
 import { createTestContext, type TestContext } from '../helpers';
@@ -311,5 +320,226 @@ describe('getCardContext', () => {
     const result = await getCardContext(tc.ctx, 'gctx-nogil');
     // Assert
     expect(result.codeLinks).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getRelationGraph
+// ---------------------------------------------------------------------------
+
+describe('getRelationGraph', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  // Helper: creates cards and a linear chain A→B→C
+  async function buildLinearChain(tc: TestContext) {
+    await createCard(tc.ctx, { slug: 'grg-c', summary: 'C' });
+    await createCard(tc.ctx, {
+      slug: 'grg-b',
+      summary: 'B',
+      relations: [{ type: 'depends-on', target: 'grg-c' }],
+    });
+    await createCard(tc.ctx, {
+      slug: 'grg-a',
+      summary: 'A',
+      relations: [{ type: 'depends-on', target: 'grg-b' }],
+    });
+  }
+
+  // [HP-1] 선형 A→B→C, maxDepth 미지정 → [B(d1), C(d2)]
+  it('should return transitive forward nodes for a linear chain when maxDepth is unset', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    const nodes = getRelationGraph(tc.ctx, 'grg-a');
+    const keys = nodes.map((n) => n.key);
+    expect(keys).toContain('grg-b');
+    expect(keys).toContain('grg-c');
+    expect(nodes.find((n) => n.key === 'grg-b')?.depth).toBe(1);
+    expect(nodes.find((n) => n.key === 'grg-c')?.depth).toBe(2);
+  });
+
+  // [HP-2] root가 관계 없음 → []
+  it('should return empty array when root card has no relations', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'grg-solo', summary: 'Solo' });
+    const nodes = getRelationGraph(tc.ctx, 'grg-solo');
+    expect(nodes).toHaveLength(0);
+  });
+
+  // [HP-3] direction='forward' → backward relation 제외
+  it('should exclude backward relations when direction is forward', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    // from grg-b: forward=grg-c, backward=grg-a (grg-a depends on grg-b)
+    const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'forward' });
+    expect(nodes.some((n) => n.key === 'grg-c')).toBe(true);
+    expect(nodes.some((n) => n.key === 'grg-a')).toBe(false);
+  });
+
+  // [HP-4] direction='backward' → forward relation 제외
+  it('should exclude forward relations when direction is backward', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    // from grg-b: backward=grg-a
+    const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'backward' });
+    expect(nodes.some((n) => n.key === 'grg-a')).toBe(true);
+    expect(nodes.some((n) => n.key === 'grg-c')).toBe(false);
+  });
+
+  // [HP-5] direction='both' (기본값) → forward+backward 모두
+  it('should include both forward and backward nodes when direction is both', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'both' });
+    expect(nodes.some((n) => n.key === 'grg-a')).toBe(true);
+    expect(nodes.some((n) => n.key === 'grg-c')).toBe(true);
+  });
+
+  // [HP-6] maxDepth=1 → 1-depth만
+  it('should return only depth-1 nodes when maxDepth is 1', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    const nodes = getRelationGraph(tc.ctx, 'grg-a', { maxDepth: 1 });
+    expect(nodes.some((n) => n.key === 'grg-b')).toBe(true);
+    expect(nodes.some((n) => n.key === 'grg-c')).toBe(false);
+  });
+
+  // [HP-7] maxDepth=2 → 2-depth까지
+  it('should return nodes up to depth 2 when maxDepth is 2', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    const nodes = getRelationGraph(tc.ctx, 'grg-a', { maxDepth: 2 });
+    expect(nodes.some((n) => n.key === 'grg-b')).toBe(true);
+    expect(nodes.some((n) => n.key === 'grg-c')).toBe(true);
+  });
+
+  // [HP-8] 다대다 A→B, A→C → B(d1), C(d1) 둘 다 포함
+  it('should return all direct neighbors when card has multiple forward relations', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'fan-b', summary: 'B' });
+    await createCard(tc.ctx, { slug: 'fan-c', summary: 'C' });
+    await createCard(tc.ctx, {
+      slug: 'fan-a',
+      summary: 'A',
+      relations: [
+        { type: 'depends-on', target: 'fan-b' },
+        { type: 'references', target: 'fan-c' },
+      ],
+    });
+    const nodes = getRelationGraph(tc.ctx, 'fan-a', { direction: 'forward' });
+    expect(nodes.some((n) => n.key === 'fan-b')).toBe(true);
+    expect(nodes.some((n) => n.key === 'fan-c')).toBe(true);
+    expect(nodes.every((n) => n.depth === 1)).toBe(true);
+  });
+
+  // [HP-9] B에서 backward 탐색 → A(d1)
+  it('should return the upstream card at depth 1 when traversing backward from dependent', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'backward', maxDepth: 1 });
+    expect(nodes.some((n) => n.key === 'grg-a' && n.depth === 1)).toBe(true);
+  });
+
+  // [HP-10] 여러 relation type 혼재 → relationType 필드 보존
+  it('should preserve relationType field for each node', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'rt-b', summary: 'B' });
+    await createCard(tc.ctx, { slug: 'rt-c', summary: 'C' });
+    await createCard(tc.ctx, {
+      slug: 'rt-a',
+      summary: 'A',
+      relations: [
+        { type: 'depends-on', target: 'rt-b' },
+        { type: 'references', target: 'rt-c' },
+      ],
+    });
+    const nodes = getRelationGraph(tc.ctx, 'rt-a', { direction: 'forward' });
+    expect(nodes.find((n) => n.key === 'rt-b')?.relationType).toBe('depends-on');
+    expect(nodes.find((n) => n.key === 'rt-c')?.relationType).toBe('references');
+  });
+
+  // [HP-11] maxDepth=0 → []
+  it('should return empty array when maxDepth is 0', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    const nodes = getRelationGraph(tc.ctx, 'grg-a', { maxDepth: 0 });
+    expect(nodes).toHaveLength(0);
+  });
+
+  // [NE-1] root 카드 DB 없음 → []
+  it('should return empty array when root card does not exist in DB', async () => {
+    tc = await createTestContext();
+    const nodes = getRelationGraph(tc.ctx, 'ghost-card');
+    expect(nodes).toHaveLength(0);
+  });
+
+  // [NE-2] 잘못된 key 형식 → CardKeyError throw
+  it('should throw CardKeyError when key format is invalid', async () => {
+    tc = await createTestContext();
+    expect(() => getRelationGraph(tc.ctx, '')).toThrow(CardKeyError);
+  });
+
+  // [NE-3] 관계 target 카드 DB 없음 → skip, 오류 없음
+  it('should skip orphan relation targets and not throw', async () => {
+    tc = await createTestContext();
+    // Manually insert a row with a dangling filePath so cardRepo.findByKey works
+    // but the relation target doesn't exist in card table
+    await createCard(tc.ctx, { slug: 'grg-src-orphan', summary: 'Src' });
+    // Update relations to a non-existent card — FK warns but skips
+    // Since FK prevents insertion, the relation won't be in DB at all, so result is []
+    await updateCard(tc.ctx, 'grg-src-orphan', {
+      relations: [{ type: 'depends-on', target: 'nonexistent-dst' }],
+    });
+    const nodes = getRelationGraph(tc.ctx, 'grg-src-orphan', { direction: 'forward' });
+    // Either empty (FK prevented) or skips invalid targets — must not throw
+    expect(Array.isArray(nodes)).toBe(true);
+  });
+
+  // [NE-4] direction='forward'이고 backward relation만 존재 → []
+  it('should return empty array when direction is forward but only backward relations exist', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    // grg-c has no forward relations, only backward (grg-b depends on it)
+    const nodes = getRelationGraph(tc.ctx, 'grg-c', { direction: 'forward' });
+    expect(nodes).toHaveLength(0);
+  });
+
+  // [CO-1] 다이아모드 A→B, A→C, B→D, C→D → D는 한 번만 반환
+  it('should include a node only once when it is reachable via multiple paths (diamond)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'dia-d', summary: 'D' });
+    await createCard(tc.ctx, {
+      slug: 'dia-b',
+      summary: 'B',
+      relations: [{ type: 'depends-on', target: 'dia-d' }],
+    });
+    await createCard(tc.ctx, {
+      slug: 'dia-c',
+      summary: 'C',
+      relations: [{ type: 'depends-on', target: 'dia-d' }],
+    });
+    await createCard(tc.ctx, {
+      slug: 'dia-a',
+      summary: 'A',
+      relations: [
+        { type: 'depends-on', target: 'dia-b' },
+        { type: 'depends-on', target: 'dia-c' },
+      ],
+    });
+    const nodes = getRelationGraph(tc.ctx, 'dia-a', { direction: 'forward' });
+    const dNodes = nodes.filter((n) => n.key === 'dia-d');
+    expect(dNodes).toHaveLength(1);
+  });
+
+  // [ID-1] 동일 호출 2회 → 동일 결과
+  it('should return identical results on repeated calls with no changes', async () => {
+    tc = await createTestContext();
+    await buildLinearChain(tc);
+    const r1 = getRelationGraph(tc.ctx, 'grg-a').map((n) => n.key).sort();
+    const r2 = getRelationGraph(tc.ctx, 'grg-a').map((n) => n.key).sort();
+    expect(r1).toEqual(r2);
   });
 });

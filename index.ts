@@ -25,7 +25,17 @@ export {
 } from './src/ops/update';
 export { deleteCard } from './src/ops/delete';
 export { renameCard, type RenameCardResult } from './src/ops/rename';
-export { getCard, listCards, searchCards, listCardRelations, getCardContext, type CardContext } from './src/ops/query';
+export {
+  getCard,
+  listCards,
+  searchCards,
+  listCardRelations,
+  getCardContext,
+  getRelationGraph,
+  type CardContext,
+  type RelationGraphNode,
+  type RelationGraphOptions,
+} from './src/ops/query';
 export {
   syncCardFromFile,
   removeCardByFile,

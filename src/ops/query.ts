@@ -6,6 +6,64 @@ import { CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { resolveCardCodeLinks, type ResolvedCodeLink } from './link';
 
+export interface RelationGraphNode {
+  key: string;
+  depth: number;
+  relationType: string;
+  direction: 'forward' | 'backward';
+}
+
+export interface RelationGraphOptions {
+  maxDepth?: number;
+  direction?: 'forward' | 'backward' | 'both';
+}
+
+export function getRelationGraph(
+  ctx: EmberdeckContext,
+  fullKey: string,
+  options?: RelationGraphOptions,
+): RelationGraphNode[] {
+  const rootKey = parseFullKey(fullKey);
+  const maxDepth = options?.maxDepth ?? Infinity;
+  const direction = options?.direction ?? 'both';
+
+  if (!ctx.cardRepo.existsByKey(rootKey)) return [];
+
+  const result: RelationGraphNode[] = [];
+  const visited = new Set<string>([rootKey]);
+  // Queue: [cardKey, depth]
+  const queue: Array<[string, number]> = [[rootKey, 0]];
+
+  while (queue.length > 0) {
+    const [currentKey, currentDepth] = queue.shift()!;
+    if (currentDepth >= maxDepth) continue;
+
+    const relations = ctx.relationRepo.findByCardKey(currentKey);
+
+    for (const rel of relations) {
+      const isForward = !rel.isReverse;
+      const isBackward = rel.isReverse;
+      if (direction === 'forward' && !isForward) continue;
+      if (direction === 'backward' && !isBackward) continue;
+
+      const neighborKey = rel.dstCardKey;
+      if (visited.has(neighborKey)) continue;
+      if (!ctx.cardRepo.existsByKey(neighborKey)) continue;
+
+      visited.add(neighborKey);
+      result.push({
+        key: neighborKey,
+        depth: currentDepth + 1,
+        relationType: rel.type,
+        direction: isForward ? 'forward' : 'backward',
+      });
+      queue.push([neighborKey, currentDepth + 1]);
+    }
+  }
+
+  return result;
+}
+
 export interface CardContext {
   card: CardFile;
   codeLinks: ResolvedCodeLink[];
