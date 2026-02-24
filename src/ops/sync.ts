@@ -62,6 +62,9 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
 
 /**
  * cardsDir(또는 dirPath) 전체를 스캔하여 모든 .card.md 파일을 DB에 일괄 동기화.
+ *
+ * 파일 읽기를 `Promise.allSettled`로 병렬 실행하여 I/O 대기 시간을 최소화한다.
+ * 각 파일의 DB 쓰기는 `syncCardFromFile` 내부의 트랜잭션으로 원자성이 보장된다.
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,
@@ -69,17 +72,24 @@ export async function bulkSyncCards(
 ): Promise<BulkSyncResult> {
   const targetDir = dirPath ?? ctx.cardsDir;
   const entries = await readdir(targetDir, { withFileTypes: true });
+
+  const cardFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.card.md'))
+    .map((entry) => join(targetDir, entry.name));
+
+  const results = await Promise.allSettled(
+    cardFiles.map((filePath) => syncCardFromFile(ctx, filePath)),
+  );
+
   let synced = 0;
   const errors: BulkSyncResult['errors'] = [];
 
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.card.md')) continue;
-    const filePath = join(targetDir, entry.name);
-    try {
-      await syncCardFromFile(ctx, filePath);
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === 'fulfilled') {
       synced++;
-    } catch (e) {
-      errors.push({ filePath, error: e });
+    } else {
+      errors.push({ filePath: cardFiles[i], error: result.reason });
     }
   }
 
