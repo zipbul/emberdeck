@@ -1,6 +1,6 @@
 import type { Gildash } from '@zipbul/gildash';
 import type { EmberdeckDb } from './db/connection';
-import type { CardRepository, RelationRepository, ClassificationRepository, CodeLinkRepository } from './db/repository';
+import type { CardRepository, RelationRepository, ClassificationRepository, CodeLinkRepository, ChangelogRepository } from './db/repository';
 
 export const DEFAULT_RELATION_TYPES = [
   'depends-on',
@@ -43,6 +43,7 @@ export interface EmberdeckContext {
   relationRepo: RelationRepository;
   classificationRepo: ClassificationRepository;
   codeLinkRepo: CodeLinkRepository;
+  changelogRepo: ChangelogRepository;
   allowedRelationTypes: readonly string[];
   /** Gildash instance. undefined when projectRoot is not set or initialization fails */
   gildash?: Gildash;

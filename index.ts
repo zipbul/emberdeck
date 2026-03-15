@@ -9,7 +9,16 @@ export {
 } from './src/config';
 
 // ---- Types ----
-export type { CardStatus, CardRelation, CardFrontmatter, CardFile, CodeLink } from './src/card/types';
+export type {
+  CardStatus,
+  CardType,
+  CardPriority,
+  AcceptanceCriterion,
+  CardRelation,
+  CardFrontmatter,
+  CardFile,
+  CodeLink,
+} from './src/card/types';
 export {
   CardKeyError,
   CardValidationError,
@@ -60,28 +69,38 @@ export {
   type ResolvedCodeLink,
   type BrokenLink,
 } from './src/ops/link';
+export {
+  verifyAcceptance,
+  listUnverified,
+  getCardHistory,
+  type VerifyAcceptanceResult,
+  type UnverifiedCard,
+} from './src/ops/acceptance';
 
-// ---- Repository interfaces (테스트/목킹용) ----
+// ---- Repository interfaces (for testing/mocking) ----
 export type {
   CardRepository,
   RelationRepository,
   ClassificationRepository,
   CodeLinkRepository,
+  ChangelogRepository,
   CardRow,
   RelationRow,
   CodeLinkRow,
+  ChangelogRow,
+  CardListFilter,
 } from './src/db/repository';
 
-// ---- Pure utilities (CLI에서 키 검증만 필요할 때) ----
+// ---- Pure utilities ----
 export { normalizeSlug, parseFullKey, buildCardPath } from './src/card/card-key';
 export { parseCardMarkdown, serializeCardMarkdown } from './src/card/markdown';
 export { validateCardInput, LIMITS } from './src/card/validation';
 export type { ValidationInput } from './src/card/validation';
 
-// ---- DB (CLI 통합용) ----
+// ---- DB (CLI integration) ----
 export { migrateEmberdeck, type EmberdeckDb } from './src/db/connection';
 
-// ---- MCP (optional — @modelcontextprotocol/sdk 설치 시 사용 가능) ----
+// ---- MCP (optional — available when @modelcontextprotocol/sdk is installed) ----
 export { registerEmberdeckTools } from './src/mcp/tools';
 
 // ---- Safe operations (concurrency / rollback) ----

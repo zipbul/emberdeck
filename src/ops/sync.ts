@@ -7,7 +7,7 @@ import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
 import { serializeCardMarkdown } from '../card/markdown';
 import { CardNotFoundError } from '../card/errors';
-import type { CardFrontmatter, CardStatus } from '../card/types';
+import type { CardFrontmatter, CardStatus, CardType, CardPriority, AcceptanceCriterion } from '../card/types';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
@@ -38,6 +38,11 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     key,
     summary: cardFile.frontmatter.summary,
     status: cardFile.frontmatter.status,
+    type: cardFile.frontmatter.type ?? null,
+    priority: cardFile.frontmatter.priority ?? null,
+    acceptanceJson: cardFile.frontmatter.acceptance
+      ? JSON.stringify(cardFile.frontmatter.acceptance)
+      : null,
     constraintsJson: cardFile.frontmatter.constraints
       ? JSON.stringify(cardFile.frontmatter.constraints)
       : null,
@@ -153,6 +158,9 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
     key: row.key,
     summary: row.summary,
     status: row.status as CardStatus,
+    ...(row.type ? { type: row.type as CardType } : {}),
+    ...(row.priority ? { priority: row.priority as CardPriority } : {}),
+    ...(row.acceptanceJson ? { acceptance: JSON.parse(row.acceptanceJson) as AcceptanceCriterion[] } : {}),
     ...(row.constraintsJson ? { constraints: JSON.parse(row.constraintsJson) as Record<string, unknown> } : {}),
     ...(relations.length ? { relations } : {}),
     ...(keywords.length ? { keywords } : {}),

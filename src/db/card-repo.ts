@@ -1,8 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, desc, asc, sql } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
 import type { CardRepository, CardRow, CardListFilter } from './repository';
 import { card } from './schema';
+
+const PRIORITY_ORDER = ['critical', 'high', 'medium', 'low'];
 
 export class DrizzleCardRepository implements CardRepository {
   constructor(private db: EmberdeckDb) {}
@@ -26,6 +28,9 @@ export class DrizzleCardRepository implements CardRepository {
         set: {
           summary: row.summary,
           status: row.status,
+          type: row.type,
+          priority: row.priority,
+          acceptanceJson: row.acceptanceJson,
           constraintsJson: row.constraintsJson,
           body: row.body,
           filePath: row.filePath,
@@ -45,8 +50,30 @@ export class DrizzleCardRepository implements CardRepository {
   }
 
   list(filter?: CardListFilter): CardRow[] {
-    if (filter?.status) {
-      return this.db.select().from(card).where(eq(card.status, filter.status)).all() as CardRow[];
+    const conditions = [];
+    if (filter?.status) conditions.push(eq(card.status, filter.status));
+    if (filter?.type) conditions.push(eq(card.type, filter.type));
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    if (filter?.sortBy === 'priority') {
+      // Sort by priority order: critical > high > medium > low, nulls last
+      const priorityCase = sql`CASE ${card.priority} ${PRIORITY_ORDER.map((p, i) => sql`WHEN ${p} THEN ${i}`).reduce((a, b) => sql`${a} ${b}`)} ELSE 999 END`;
+      if (where) {
+        return this.db.select().from(card).where(where).orderBy(asc(priorityCase)).all() as CardRow[];
+      }
+      return this.db.select().from(card).orderBy(asc(priorityCase)).all() as CardRow[];
+    }
+
+    if (filter?.sortBy === 'updated_at') {
+      if (where) {
+        return this.db.select().from(card).where(where).orderBy(desc(card.updatedAt)).all() as CardRow[];
+      }
+      return this.db.select().from(card).orderBy(desc(card.updatedAt)).all() as CardRow[];
+    }
+
+    if (where) {
+      return this.db.select().from(card).where(where).all() as CardRow[];
     }
     return this.db.select().from(card).all() as CardRow[];
   }
@@ -56,6 +83,8 @@ export class DrizzleCardRepository implements CardRepository {
     return this.db.$client
       .prepare(
         `SELECT c.key, c.summary, c.status,
+                c.type, c.priority,
+                c.acceptance_json AS acceptanceJson,
                 c.constraints_json AS constraintsJson,
                 c.body,
                 c.file_path AS filePath,

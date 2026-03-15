@@ -43,6 +43,11 @@ import {
   findAffectedCards,
   validateCodeLinks,
 } from '../ops/link';
+import {
+  verifyAcceptance,
+  listUnverified,
+  getCardHistory,
+} from '../ops/acceptance';
 
 // ---- Helpers ----
 
@@ -60,6 +65,13 @@ function fail(err: unknown) {
 const relationSchema = z.object({ type: z.string(), target: z.string() });
 const codeLinkSchema = z.object({ kind: z.string(), file: z.string(), symbol: z.string() });
 const statusEnum = z.enum(['draft', 'accepted', 'implementing', 'implemented', 'deprecated']);
+const cardTypeEnum = z.enum(['feature', 'bug', 'refactor', 'spike', 'decision']);
+const priorityEnum = z.enum(['critical', 'high', 'medium', 'low']);
+const acceptanceSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  verified: z.boolean().optional().default(false),
+});
 
 // ---- McpServer Type ----
 
@@ -91,6 +103,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       inputSchema: {
         slug: z.string().describe('Card slug used as filename (e.g. "auth-token")'),
         summary: z.string().describe('One-line summary of the card'),
+        type: cardTypeEnum.optional().describe('Card type (feature/bug/refactor/spike/decision)'),
+        priority: priorityEnum.optional().describe('Priority (critical/high/medium/low)'),
+        acceptance: z.array(acceptanceSchema).optional().describe('Acceptance criteria [{id, description, verified}]'),
         body: z.string().optional().describe('Markdown body'),
         keywords: z.array(z.string()).optional().describe('Keyword list for search'),
         tags: z.array(z.string()).optional().describe('Tag list for classification'),
@@ -102,6 +117,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: {
       slug: string;
       summary: string;
+      type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
+      priority?: 'critical' | 'high' | 'medium' | 'low';
+      acceptance?: Array<{ id: string; description: string; verified?: boolean }>;
       body?: string;
       keywords?: string[];
       tags?: string[];
@@ -130,6 +148,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         cards: z.array(z.object({
           slug: z.string().describe('Card slug (e.g. "auth-token")'),
           summary: z.string().describe('One-line summary'),
+          type: cardTypeEnum.optional().describe('Card type'),
+          priority: priorityEnum.optional().describe('Priority'),
+          acceptance: z.array(acceptanceSchema).optional().describe('Acceptance criteria'),
           body: z.string().optional().describe('Markdown body'),
           keywords: z.array(z.string()).optional().describe('Keywords'),
           tags: z.array(z.string()).optional().describe('Tags'),
@@ -189,6 +210,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       inputSchema: {
         key: z.string().describe('Card key'),
         summary: z.string().optional().describe('New summary'),
+        type: cardTypeEnum.nullable().optional().describe('Card type (null to remove)'),
+        priority: priorityEnum.nullable().optional().describe('Priority (null to remove)'),
+        acceptance: z.array(acceptanceSchema).nullable().optional().describe('Acceptance criteria (null to remove)'),
         body: z.string().optional().describe('New body'),
         keywords: z.array(z.string()).nullable().optional().describe('Keywords (null to remove)'),
         tags: z.array(z.string()).nullable().optional().describe('Tags (null to remove)'),
@@ -200,6 +224,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: {
       key: string;
       summary?: string;
+      type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision' | null;
+      priority?: 'critical' | 'high' | 'medium' | 'low' | null;
+      acceptance?: Array<{ id: string; description: string; verified?: boolean }> | null;
       body?: string;
       keywords?: string[] | null;
       tags?: string[] | null;
@@ -289,12 +316,21 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         'Use at session start to see what specs exist, or to find cards in a specific lifecycle stage.',
       inputSchema: {
         status: statusEnum.optional().describe('Filter by status (optional)'),
+        type: cardTypeEnum.optional().describe('Filter by card type (optional)'),
+        sortBy: z.enum(['priority', 'updated_at']).optional().describe('Sort order (optional)'),
       },
     },
-    async (args: { status?: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated' }) => {
+    async (args: {
+      status?: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated';
+      type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
+      sortBy?: 'priority' | 'updated_at';
+    }) => {
       try {
-        const filter = args.status ? { status: args.status } : undefined;
-        const result = listCards(ctx, filter);
+        const filter: Record<string, unknown> = {};
+        if (args.status) filter.status = args.status;
+        if (args.type) filter.type = args.type;
+        if (args.sortBy) filter.sortBy = args.sortBy;
+        const result = listCards(ctx, Object.keys(filter).length > 0 ? filter as any : undefined);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -545,6 +581,69 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: { key: string }) => {
       try {
         const result = await validateCodeLinks(ctx, args.key);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // ── Acceptance & History ──
+
+  server.registerTool(
+    'emberdeck_verify_acceptance',
+    {
+      description:
+        'Mark one or more acceptance criteria as verified (or unverified). ' +
+        'Use after implementing and testing a criterion to track verification progress.',
+      inputSchema: {
+        key: z.string().describe('Card key'),
+        criterionIds: z.union([z.string(), z.array(z.string())]).describe('Criterion ID(s) to update'),
+        verified: z.boolean().optional().describe('Verified status (default: true)'),
+      },
+    },
+    async (args: { key: string; criterionIds: string | string[]; verified?: boolean }) => {
+      try {
+        const result = await verifyAcceptance(ctx, args.key, args.criterionIds, args.verified ?? true);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_list_unverified',
+    {
+      description:
+        'List all cards with unverified acceptance criteria. ' +
+        'Use at session start to find specs that still need verification, or before a release.',
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const result = listUnverified(ctx);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_get_card_history',
+    {
+      description:
+        'Get the changelog history for a card (field changes with timestamps and actors). ' +
+        'Use to understand why a spec changed or to review recent modifications.',
+      inputSchema: {
+        key: z.string().describe('Card key'),
+        limit: z.number().optional().describe('Max entries to return (default: 100)'),
+      },
+    },
+    async (args: { key: string; limit?: number }) => {
+      try {
+        const result = getCardHistory(ctx, args.key, args.limit);
         return ok(result);
       } catch (err) {
         return fail(err);

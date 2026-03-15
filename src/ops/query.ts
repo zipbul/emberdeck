@@ -1,6 +1,6 @@
 import type { EmberdeckContext } from '../config';
 import type { CardFile, CardStatus } from '../card/types';
-import type { CardRow, RelationRow } from '../db/repository';
+import type { CardRow, CardListFilter, RelationRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
@@ -117,10 +117,10 @@ export async function getCard(ctx: EmberdeckContext, fullKey: string): Promise<C
  * Lists cards from the DB.
  *
  * @param ctx - Context created by `setupEmberdeck()`.
- * @param filter - Optional filter. Filters by `status`.
+ * @param filter - Optional filter. Supports status, type, and sortBy (priority | updated_at).
  * @returns Array of DB rows (no file reads, lightweight query).
  */
-export function listCards(ctx: EmberdeckContext, filter?: { status?: CardStatus }): CardRow[] {
+export function listCards(ctx: EmberdeckContext, filter?: CardListFilter): CardRow[] {
   return ctx.cardRepo.list(filter);
 }
 

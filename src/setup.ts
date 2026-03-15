@@ -5,6 +5,7 @@ import { DrizzleCardRepository } from './db/card-repo';
 import { DrizzleRelationRepository } from './db/relation-repo';
 import { DrizzleClassificationRepository } from './db/classification-repo';
 import { DrizzleCodeLinkRepository } from './db/code-link-repo';
+import { DrizzleChangelogRepository } from './db/changelog-repo';
 import { DEFAULT_RELATION_TYPES, type EmberdeckContext, type EmberdeckOptions } from './config';
 
 /**
@@ -45,6 +46,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
     relationRepo: new DrizzleRelationRepository(db),
     classificationRepo: new DrizzleClassificationRepository(db),
     codeLinkRepo: new DrizzleCodeLinkRepository(db),
+    changelogRepo: new DrizzleChangelogRepository(db),
     allowedRelationTypes: options.allowedRelationTypes ?? [...DEFAULT_RELATION_TYPES],
     gildash,
   };

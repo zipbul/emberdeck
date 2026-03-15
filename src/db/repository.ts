@@ -6,10 +6,23 @@ export interface CardRow {
   key: string;
   summary: string;
   status: string;
+  type: string | null;
+  priority: string | null;
+  acceptanceJson: string | null;
   constraintsJson: string | null;
   body: string | null;
   filePath: string;
   updatedAt: string;
+}
+
+export interface ChangelogRow {
+  id: number;
+  cardKey: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  changedAt: string;
+  changedBy: string;
 }
 
 export interface RelationRow {
@@ -31,6 +44,8 @@ export interface CodeLinkRow {
 
 export interface CardListFilter {
   status?: CardStatus;
+  type?: string;
+  sortBy?: 'priority' | 'updated_at';
 }
 
 // ---- Repository interfaces ----
@@ -62,6 +77,11 @@ export interface ClassificationRepository {
   deleteByCardKey(cardKey: string): void;
   /** Delete keyword/tag rows not linked to any card. */
   pruneOrphans(): void;
+}
+
+export interface ChangelogRepository {
+  insert(entry: Omit<ChangelogRow, 'id'>): void;
+  findByCardKey(cardKey: string, limit?: number): ChangelogRow[];
 }
 
 export interface CodeLinkRepository {

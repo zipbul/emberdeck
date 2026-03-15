@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { CardRelation, CardFile, CodeLink } from '../card/types';
+import type { CardRelation, CardFile, CodeLink, CardType, CardPriority, AcceptanceCriterion } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
 import { CardAlreadyExistsError, RelationTypeError } from '../card/errors';
@@ -23,6 +23,12 @@ export interface CreateCardInput {
   slug: string;
   /** One-line summary of the card (required). */
   summary: string;
+  /** Card type (optional). */
+  type?: CardType;
+  /** Card priority (optional). */
+  priority?: CardPriority;
+  /** Acceptance criteria (optional). */
+  acceptance?: AcceptanceCriterion[];
   /** Markdown body (optional). */
   body?: string;
   /** List of keywords for search (optional). */
@@ -103,6 +109,9 @@ export async function createCard(
         key: fullKey,
         summary: input.summary,
         status: 'draft' as const,
+        ...(input.type ? { type: input.type } : {}),
+        ...(input.priority ? { priority: input.priority } : {}),
+        ...(input.acceptance && input.acceptance.length > 0 ? { acceptance: input.acceptance } : {}),
         ...(input.constraints !== undefined ? { constraints: input.constraints } : {}),
         ...(input.keywords && input.keywords.length > 0 ? { keywords: input.keywords } : {}),
         ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
@@ -128,6 +137,11 @@ export async function createCard(
               key: fullKey,
               summary: input.summary,
               status: 'draft',
+              type: input.type ?? null,
+              priority: input.priority ?? null,
+              acceptanceJson: input.acceptance && input.acceptance.length > 0
+                ? JSON.stringify(input.acceptance)
+                : null,
               constraintsJson: input.constraints !== undefined ? JSON.stringify(input.constraints) : null,
               body,
               filePath,

@@ -15,6 +15,28 @@ export type CardStatus =
   | 'deprecated';
 
 /**
+ * Card type classifying the nature of the spec.
+ */
+export type CardType = 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
+
+/**
+ * Card priority for work ordering.
+ */
+export type CardPriority = 'critical' | 'high' | 'medium' | 'low';
+
+/**
+ * A single acceptance criterion within a card.
+ */
+export interface AcceptanceCriterion {
+  /** Unique identifier within the card (e.g. "ac-1"). */
+  id: string;
+  /** Human-readable description of the criterion. */
+  description: string;
+  /** Whether this criterion has been verified. */
+  verified: boolean;
+}
+
+/**
  * A unidirectional relation record between cards.
  * Reverse relations are auto-generated in the DB and are not directly represented by this interface.
  */
@@ -49,6 +71,12 @@ export interface CardFrontmatter {
   summary: string;
   /** Current lifecycle status of the card. */
   status: CardStatus;
+  /** Card type (feature, bug, refactor, spike, decision). */
+  type?: CardType;
+  /** Card priority (critical, high, medium, low). */
+  priority?: CardPriority;
+  /** Acceptance criteria checklist. */
+  acceptance?: AcceptanceCriterion[];
   /** List of tags for categorization. */
   tags?: string[];
   /** List of keywords for search. */

@@ -1,4 +1,13 @@
-import type { CardFile, CardFrontmatter, CardRelation, CardStatus, CodeLink } from './types';
+import type {
+  CardFile,
+  CardFrontmatter,
+  CardRelation,
+  CardStatus,
+  CardType,
+  CardPriority,
+  AcceptanceCriterion,
+  CodeLink,
+} from './types';
 import { CardValidationError } from './errors';
 
 function normalizeNewlines(text: string): string {
@@ -82,6 +91,46 @@ function normalizeCodeLinks(value: unknown): CodeLink[] | undefined {
   return out;
 }
 
+const VALID_CARD_TYPES = ['feature', 'bug', 'refactor', 'spike', 'decision'];
+const VALID_PRIORITIES = ['critical', 'high', 'medium', 'low'];
+
+function normalizeCardType(value: unknown): CardType | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== 'string' || !VALID_CARD_TYPES.includes(value)) {
+    throw new CardValidationError(`Invalid frontmatter field: type (expected one of: ${VALID_CARD_TYPES.join(', ')})`);
+  }
+  return value as CardType;
+}
+
+function normalizeCardPriority(value: unknown): CardPriority | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== 'string' || !VALID_PRIORITIES.includes(value)) {
+    throw new CardValidationError(`Invalid frontmatter field: priority (expected one of: ${VALID_PRIORITIES.join(', ')})`);
+  }
+  return value as CardPriority;
+}
+
+function normalizeAcceptance(value: unknown): AcceptanceCriterion[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) {
+    throw new CardValidationError('Invalid frontmatter field: acceptance');
+  }
+
+  const out: AcceptanceCriterion[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') {
+      throw new CardValidationError('Invalid frontmatter field: acceptance');
+    }
+    const ac = item as Record<string, unknown>;
+    out.push({
+      id: asString(ac.id, 'acceptance[].id'),
+      description: asString(ac.description, 'acceptance[].description'),
+      verified: ac.verified === true,
+    });
+  }
+  return out;
+}
+
 function normalizeRelations(value: unknown): CardRelation[] | undefined {
   if (value == null) return undefined;
   if (!Array.isArray(value)) {
@@ -110,10 +159,6 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
 
   const fm = doc as Record<string, unknown>;
 
-  if (fm['type'] !== undefined) {
-    throw new CardValidationError('Invalid frontmatter field: type');
-  }
-
   const status = fm['status'];
   if (!isCardStatus(status)) {
     throw new CardValidationError('Invalid frontmatter field: status');
@@ -124,6 +169,15 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
     summary: asString(fm['summary'], 'summary'),
     status,
   };
+
+  const cardType = normalizeCardType(fm['type']);
+  if (cardType !== undefined) out.type = cardType;
+
+  const priority = normalizeCardPriority(fm['priority']);
+  if (priority !== undefined) out.priority = priority;
+
+  const acceptance = normalizeAcceptance(fm['acceptance']);
+  if (acceptance !== undefined) out.acceptance = acceptance;
 
   const tags = normalizeTags(fm['tags']);
   if (tags !== undefined) {

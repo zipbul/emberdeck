@@ -13,6 +13,9 @@ export const card = sqliteTable(
     key: text('key').primaryKey(),
     summary: text('summary').notNull(),
     status: text('status').notNull(),
+    type: text('type'),
+    priority: text('priority'),
+    acceptanceJson: text('acceptance_json'),
     constraintsJson: text('constraints_json'),
     body: text('body'),
     filePath: text('file_path').notNull(),
@@ -21,6 +24,8 @@ export const card = sqliteTable(
   (table) => [
     index('idx_card_status').on(table.status),
     index('idx_card_file_path').on(table.filePath),
+    index('idx_card_type').on(table.type),
+    index('idx_card_priority').on(table.priority),
   ],
 );
 
@@ -96,6 +101,25 @@ export const cardFts = sqliteTable('card_fts', {
   summary: text('summary'),
   body: text('body'),
 });
+
+export const cardChangelog = sqliteTable(
+  'card_changelog',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    cardKey: text('card_key')
+      .notNull()
+      .references(() => card.key, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    field: text('field').notNull(),
+    oldValue: text('old_value'),
+    newValue: text('new_value'),
+    changedAt: text('changed_at').notNull(),
+    changedBy: text('changed_by').notNull(),
+  },
+  (table) => [
+    index('idx_changelog_card').on(table.cardKey),
+    index('idx_changelog_changed_at').on(table.changedAt),
+  ],
+);
 
 export const codeLink = sqliteTable(
   'code_link',
