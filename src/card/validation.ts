@@ -1,29 +1,29 @@
 import { CardValidationError } from './errors';
 
 /**
- * `validateCardInput`이 적용하는 필드별 최대 크기 상수.
- * 연산 계층(create, update)과 테스트에서 공유된다.
+ * Per-field maximum size constants applied by `validateCardInput`.
+ * Shared across the operation layer (create, update) and tests.
  */
 export const LIMITS = {
-  /** summary 최대 길이 (문자 수) */
+  /** Maximum length of summary (character count) */
   SUMMARY_MAX: 500,
-  /** body 최대 길이 (문자 수) */
+  /** Maximum length of body (character count) */
   BODY_MAX: 100_000,
-  /** 배열 필드(keywords, tags, relations, codeLinks) 최대 항목 수 */
+  /** Maximum item count for array fields (keywords, tags, relations, codeLinks) */
   ARRAY_MAX: 100,
-  /** keywords/tags 개별 항목 최대 길이 */
+  /** Maximum length of individual keywords/tags items */
   ITEM_MAX: 100,
-  /** relations[].target 최대 길이 */
+  /** Maximum length of relations[].target */
   RELATION_TARGET_MAX: 200,
-  /** codeLinks[].symbol 최대 길이 */
+  /** Maximum length of codeLinks[].symbol */
   CODE_LINK_SYMBOL_MAX: 200,
-  /** codeLinks[].file 최대 길이 */
+  /** Maximum length of codeLinks[].file */
   CODE_LINK_FILE_MAX: 500,
 } as const;
 
 /**
- * `validateCardInput`에 전달하는 입력 인터페이스.
- * 필드가 `undefined`이면 해당 필드 검사를 건너뛴다.
+ * Input interface passed to `validateCardInput`.
+ * If a field is `undefined`, validation for that field is skipped.
  */
 export interface ValidationInput {
   summary?: string;
@@ -35,13 +35,13 @@ export interface ValidationInput {
 }
 
 /**
- * 카드 입력값의 크기 제한을 검사한다.
- * 위반 시 {@link CardValidationError}를 throw한다.
- * 필드 순서대로 검사(summary → body → keywords → tags → relations → codeLinks)되므로
- * 복수 위반이 있어도 첫 번째 위반만 보고된다.
+ * Validates size limits of card input values.
+ * Throws {@link CardValidationError} on violation.
+ * Fields are checked in order (summary → body → keywords → tags → relations → codeLinks),
+ * so only the first violation is reported even if multiple violations exist.
  *
- * @param input - 검사할 입력 객체. `undefined` 필드는 건너뛴다.
- * @throws {CardValidationError} 크기 제한 위반 시
+ * @param input - The input object to validate. `undefined` fields are skipped.
+ * @throws {CardValidationError} On size limit violation.
  */
 export function validateCardInput(input: ValidationInput): void {
   const { summary, body, keywords, tags, relations, codeLinks } = input;

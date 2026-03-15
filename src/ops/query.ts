@@ -7,7 +7,7 @@ import { readCardFile } from '../fs/reader';
 import { resolveCardCodeLinks, type ResolvedCodeLink } from './link';
 
 /**
- * 카드 고유 식별자와 DB에서의 위치 정보를 담는 관계 그래프 노드.
+ * A relation graph node containing the card's unique identifier and its position info in the DB.
  */
 export interface RelationGraphNode {
   key: string;
@@ -99,12 +99,12 @@ export async function getCardContext(ctx: EmberdeckContext, fullKey: string): Pr
 }
 
 /**
- * 카드를 파일에서 읽어 반환한다.
+ * Reads a card from its file and returns it.
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param fullKey - 조회할 카드의 fullKey.
- * @returns frontmatter + body 전체.
- * @throws {CardNotFoundError} 파일이 존재하지 않을 때.
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKey - fullKey of the card to retrieve.
+ * @returns The complete frontmatter + body.
+ * @throws {CardNotFoundError} When the file does not exist.
  */
 export async function getCard(ctx: EmberdeckContext, fullKey: string): Promise<CardFile> {
   const key = parseFullKey(fullKey);
@@ -114,33 +114,33 @@ export async function getCard(ctx: EmberdeckContext, fullKey: string): Promise<C
 }
 
 /**
- * DB에서 카드 목록을 조회한다.
+ * Lists cards from the DB.
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param filter - 선택적 필터. `status`로 상태를 필터링한다.
- * @returns DB row 배열 (파일 미읽기, 경량 조회).
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param filter - Optional filter. Filters by `status`.
+ * @returns Array of DB rows (no file reads, lightweight query).
  */
 export function listCards(ctx: EmberdeckContext, filter?: { status?: CardStatus }): CardRow[] {
   return ctx.cardRepo.list(filter);
 }
 
 /**
- * FTS5 전문 검색으로 카드를 조회한다.
+ * Searches cards using FTS5 full-text search.
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param query - 검색어. 빈 문자열이면 빈 배열 반환.
- * @returns 검색에 매칭된 DB row 배열.
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param query - Search query. Returns an empty array if the query is empty.
+ * @returns Array of DB rows matching the search.
  */
 export function searchCards(ctx: EmberdeckContext, query: string): CardRow[] {
   return ctx.cardRepo.search(query);
 }
 
 /**
- * 카드의 관계 목록을 반환한다 (forward + reverse 모두 포함).
+ * Returns the list of relations for a card (both forward and reverse).
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param fullKey - 조회할 카드의 fullKey.
- * @returns `isReverse=false`이면 outgoing, `isReverse=true`이면 incoming 관계.
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKey - fullKey of the card to query.
+ * @returns `isReverse=false` for outgoing relations, `isReverse=true` for incoming relations.
  */
 export function listCardRelations(ctx: EmberdeckContext, fullKey: string): RelationRow[] {
   const key = parseFullKey(fullKey);

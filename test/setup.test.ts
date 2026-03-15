@@ -41,7 +41,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     mockGildashOpen.mockImplementation(async () => makeFakeGildash().gildash);
   });
 
-  // 1. [HP] projectRoot 미지정 → ctx.gildash === undefined
+  // 1. [HP] projectRoot not specified → ctx.gildash === undefined
   it('should set gildash to undefined when projectRoot is not provided', async () => {
     // Arrange / Act
     const ctx = await setupEmberdeck(BASE_OPTS);
@@ -51,7 +51,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 2. [HP] projectRoot 지정 + Gildash.open 성공 → ctx.gildash 할당됨
+  // 2. [HP] projectRoot specified + Gildash.open succeeds → ctx.gildash assigned
   it('should assign gildash instance when projectRoot is provided and open succeeds', async () => {
     // Arrange
     const { gildash } = makeFakeGildash();
@@ -63,7 +63,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 3. [HP] allowedRelationTypes 지정 → ctx.allowedRelationTypes 그대로
+  // 3. [HP] allowedRelationTypes specified → ctx.allowedRelationTypes as-is
   it('should use provided allowedRelationTypes when specified', async () => {
     // Arrange
     const types = ['custom-a', 'custom-b'] as const;
@@ -74,7 +74,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 4. [HP] allowedRelationTypes 미지정 → DEFAULT_RELATION_TYPES 사용
+  // 4. [HP] allowedRelationTypes not specified → DEFAULT_RELATION_TYPES used
   it('should use DEFAULT_RELATION_TYPES when allowedRelationTypes is not provided', async () => {
     // Arrange / Act
     const ctx = await setupEmberdeck(BASE_OPTS);
@@ -83,7 +83,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 5. [HP] codeLinkRepo 항상 존재 (projectRoot 없어도)
+  // 5. [HP] codeLinkRepo always exists (even without projectRoot)
   it('should always provide codeLinkRepo regardless of projectRoot', async () => {
     // Arrange / Act
     const ctx = await setupEmberdeck(BASE_OPTS);
@@ -92,7 +92,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 6. [HP] cardRepo, relationRepo, classificationRepo 모두 존재
+  // 6. [HP] cardRepo, relationRepo, classificationRepo all exist
   it('should provide cardRepo, relationRepo, and classificationRepo', async () => {
     // Arrange / Act
     const ctx = await setupEmberdeck(BASE_OPTS);
@@ -103,7 +103,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 7. [HP] teardown: gildash undefined → close 미호출
+  // 7. [HP] teardown: gildash undefined → close not called
   it('should not call gildash.close when gildash is undefined during teardown', async () => {
     // Arrange
     const ctx = await setupEmberdeck(BASE_OPTS);
@@ -112,7 +112,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await expect(teardownEmberdeck(ctx)).resolves.toBeUndefined();
   });
 
-  // 8. [HP] teardown: gildash mock → close 1회 호출
+  // 8. [HP] teardown: gildash mock → close called once
   it('should call gildash.close exactly once during teardown when gildash is set', async () => {
     // Arrange
     const closeMock = mock(async () => undefined);
@@ -125,7 +125,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     expect(closeMock).toHaveBeenCalledTimes(1);
   });
 
-  // 9. [HP] projectRoot + gildashIgnore 지정 → Gildash.open에 해당 값 전달
+  // 9. [HP] projectRoot + gildashIgnore specified → values passed to Gildash.open
   it('should pass projectRoot and gildashIgnore to Gildash.open when provided', async () => {
     // Arrange
     const { gildash } = makeFakeGildash();
@@ -141,7 +141,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 10. [NE] Gildash.open Err 반환 → ctx.gildash = undefined, setup 정상 반환
+  // 10. [NE] Gildash.open returns Err → ctx.gildash = undefined, setup returns normally
   it('should set gildash to undefined and not throw when Gildash.open returns an Err', async () => {
     // Arrange
     mockGildashOpen.mockImplementation(async () => makeGildashErr());
@@ -152,7 +152,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 11. [NE] Gildash.open Err 반환 → codeLinkRepo/cardRepo 정상
+  // 11. [NE] Gildash.open returns Err → codeLinkRepo/cardRepo still normal
   it('should still provide codeLinkRepo and cardRepo when Gildash.open returns an Err', async () => {
     // Arrange
     mockGildashOpen.mockImplementation(async () => makeGildashErr());
@@ -164,7 +164,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 12. [ED] projectRoot = '' → gildash 미초기화
+  // 12. [ED] projectRoot = '' → gildash not initialized
   it('should not initialize gildash when projectRoot is empty string', async () => {
     // Arrange / Act
     const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '' });
@@ -183,7 +183,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 14. [CO] projectRoot 지정 + Gildash.open Err + allowedRelationTypes 미지정 → gildash=undefined + DEFAULT
+  // 14. [CO] projectRoot specified + Gildash.open Err + allowedRelationTypes not set → gildash=undefined + DEFAULT
   it('should fallback to DEFAULT_RELATION_TYPES and undefined gildash when open fails and types not set', async () => {
     // Arrange
     mockGildashOpen.mockImplementation(async () => makeGildashErr());
@@ -195,7 +195,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 15. [ST] setup → teardown → re-setup 성공
+  // 15. [ST] setup → teardown → re-setup succeeds
   it('should succeed on re-setup after teardown', async () => {
     // Arrange
     const ctx1 = await setupEmberdeck(BASE_OPTS);
@@ -208,7 +208,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx2);
   });
 
-  // 16. [ID] teardown 두 번 → 에러 없음
+  // 16. [ID] teardown called twice → no error
   it('should not throw when teardownEmberdeck is called twice', async () => {
     // Arrange
     const ctx = await setupEmberdeck(BASE_OPTS);
@@ -217,7 +217,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await expect(teardownEmberdeck(ctx)).resolves.toBeUndefined();
   });
 
-  // 17. [NE] Gildash.open throws(reject) → setupEmberdeck이 throw하지 않고 gildash=undefined 반환
+  // 17. [NE] Gildash.open throws (reject) → setupEmberdeck does not throw, returns gildash=undefined
   it('should set gildash to undefined and not throw when Gildash.open rejects with an error', async () => {
     // Arrange
     mockGildashOpen.mockImplementation(async () => { throw new Error('open failed unexpectedly'); });
@@ -227,7 +227,7 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     await teardownEmberdeck(ctx);
   });
 
-  // 18. [CO] Gildash.open throws + cardRepo/codeLinkRepo 정상 제공
+  // 18. [CO] Gildash.open throws + cardRepo/codeLinkRepo still provided normally
   it('should still provide cardRepo and codeLinkRepo when Gildash.open throws', async () => {
     // Arrange
     mockGildashOpen.mockImplementation(async () => { throw new Error('unexpected'); });

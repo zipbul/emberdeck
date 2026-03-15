@@ -1,6 +1,6 @@
 import type { CardStatus } from '../card/types';
 
-// ---- 행 타입 ----
+// ---- Row types ----
 
 export interface CardRow {
   key: string;
@@ -33,7 +33,7 @@ export interface CardListFilter {
   status?: CardStatus;
 }
 
-// ---- Repository 인터페이스 ----
+// ---- Repository interfaces ----
 
 export interface CardRepository {
   findByKey(key: string): CardRow | null;
@@ -46,31 +46,31 @@ export interface CardRepository {
 }
 
 export interface RelationRepository {
-  /** 카드의 관계를 전부 교체. isReverse 양방향 자동 처리. */
+  /** Replace all relations for a card. Automatically handles bidirectional isReverse entries. */
   replaceForCard(cardKey: string, relations: { type: string; target: string }[]): void;
   findByCardKey(cardKey: string): RelationRow[];
   deleteByCardKey(cardKey: string): void;
 }
 
 export interface ClassificationRepository {
-  /** 카드의 keyword 매핑을 전부 교체. 미등록 keyword는 자동 생성. */
+  /** Replace all keyword mappings for a card. Unregistered keywords are auto-created. */
   replaceKeywords(cardKey: string, names: string[]): void;
-  /** 카드의 tag 매핑을 전부 교체. 미등록 tag는 자동 생성. */
+  /** Replace all tag mappings for a card. Unregistered tags are auto-created. */
   replaceTags(cardKey: string, names: string[]): void;
   findKeywordsByCard(cardKey: string): string[];
   findTagsByCard(cardKey: string): string[];
   deleteByCardKey(cardKey: string): void;
-  /** 아무 카드에도 연결되지 않은 keyword/tag row를 삭제. */
+  /** Delete keyword/tag rows not linked to any card. */
   pruneOrphans(): void;
 }
 
 export interface CodeLinkRepository {
-  /** 카드의 codeLink 목록을 전부 교체. */
+  /** Replace all codeLink entries for a card. */
   replaceForCard(cardKey: string, links: import('../card/types').CodeLink[]): void;
   findByCardKey(cardKey: string): CodeLinkRow[];
-  /** symbol 이름으로 조회. filePath 지정 시 해당 파일로 필터. */
+  /** Look up by symbol name. If filePath is specified, filter to that file. */
   findBySymbol(symbolName: string, filePath?: string): CodeLinkRow[];
-  /** 특정 파일 경로를 참조하는 모든 code link 조회. */
+  /** Find all code links referencing a specific file path. */
   findByFile(filePath: string): CodeLinkRow[];
   deleteByCardKey(cardKey: string): void;
 }

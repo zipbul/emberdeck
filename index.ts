@@ -23,6 +23,7 @@ export {
 
 // ---- Operations ----
 export { createCard, type CreateCardInput, type CreateCardResult } from './src/ops/create';
+export { bulkCreateCards, type BulkCreateResult } from './src/ops/bulk-create';
 export {
   updateCard,
   updateCardStatus,

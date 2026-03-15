@@ -12,7 +12,7 @@ import { readCardFile } from '../fs/reader';
 
 export interface ResolvedCodeLink {
   link: CodeLink;
-  /** gildash에서 찾은 심볼. null이면 심볼 없음 (깨진 링크). */
+  /** Symbol found by gildash. null means symbol not found (broken link). */
   symbol: SymbolSearchResult | null;
 }
 
@@ -35,8 +35,8 @@ async function readCard(ctx: EmberdeckContext, fullKey: string) {
 // ---- Operations ----
 
 /**
- * 카드의 codeLinks를 gildash 심볼 인덱스에서 조회하여 반환.
- * gildash 미설정 시 GildashNotConfiguredError throw.
+ * Resolves a card's codeLinks by looking them up in the gildash symbol index.
+ * Throws GildashNotConfiguredError if gildash is not configured.
  */
 export async function resolveCardCodeLinks(
   ctx: EmberdeckContext,
@@ -68,7 +68,7 @@ export async function resolveCardCodeLinks(
 }
 
 /**
- * 심볼 이름(+ 선택적 파일 경로)으로 해당 심볼을 참조하는 카드 목록 반환.
+ * Returns the list of cards that reference the given symbol name (+ optional file path).
  */
 export function findCardsBySymbol(
   ctx: EmberdeckContext,
@@ -88,7 +88,7 @@ export function findCardsBySymbol(
 }
 
 /**
- * 변경된 파일 목록 → 해당 파일의 심볼을 codeLink로 참조하는 카드 목록 반환.
+ * Given a list of changed files, returns the cards that reference symbols in those files via codeLinks.
  */
 export async function findAffectedCards(
   ctx: EmberdeckContext,
@@ -113,8 +113,8 @@ export async function findAffectedCards(
 }
 
 /**
- * 카드의 모든 codeLink가 현재 심볼 인덱스에 존재하는지 검증.
- * 깨진 링크 목록을 반환. 빈 배열이면 전부 유효.
+ * Validates that all of a card's codeLinks exist in the current symbol index.
+ * Returns a list of broken links. An empty array means all links are valid.
  */
 export async function validateCodeLinks(
   ctx: EmberdeckContext,

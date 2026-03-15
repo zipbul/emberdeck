@@ -4,8 +4,8 @@ const CARD_SLUG_RE =
   /^(?![A-Za-z]:)(?!.*::)(?!.*:)(?!.*\/\/)(?!\.{1,2}$)(?!.*(?:^|\/)\.{1,2}(?:\/|$))[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
 
 /**
- * 유효하지 않은 카드 slug 또는 key일 때 throw된다.
- * 허용되지 않는 문자, Windows 드라이브 경로, 상대 경로(`..`) 등이 포함되었을 때 발생한다.
+ * Thrown when a card slug or key is invalid.
+ * Occurs when disallowed characters, Windows drive paths, relative paths (`..`), etc. are included.
  *
  * @example
  * normalizeSlug(''); // throws CardKeyError
@@ -25,12 +25,12 @@ function assertValidSlug(slug: string): void {
 }
 
 /**
- * slug의 백슬래시를 슬래시로 정규화하고 선행/후행 슬래시를 제거한 후
- * CARD_SLUG_RE 패턴으로 유효성을 검증다.
+ * Normalizes backslashes to forward slashes in the slug, strips leading/trailing slashes,
+ * then validates against the CARD_SLUG_RE pattern.
  *
- * @param slug - 입력 slug. 비어 있으면 CardKeyError가 throw된다.
- * @returns 정규화된 slug 문자열.
- * @throws {CardKeyError} slug이 유효하지 않을 때.
+ * @param slug - Input slug. Throws CardKeyError if empty.
+ * @returns The normalized slug string.
+ * @throws {CardKeyError} When the slug is invalid.
  */
 export function normalizeSlug(slug: string): string {
   const normalized = slug.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
@@ -39,12 +39,12 @@ export function normalizeSlug(slug: string): string {
 }
 
 /**
- * fullKey를 유효성 검증한 후 정규화된 slug으로 반환한다.
- * ops 레이어에서 API로 입력된 key를 정규화하는 진입점.
+ * Validates the fullKey and returns the normalized slug.
+ * Entry point for normalizing keys received from the API at the ops layer.
  *
- * @param fullKey - 카드 식별자 문자열.
- * @returns 정규화된 slug.
- * @throws {CardKeyError} fullKey가 비어 있거나 유효하지 않을 때.
+ * @param fullKey - Card identifier string.
+ * @returns The normalized slug.
+ * @throws {CardKeyError} When fullKey is empty or invalid.
  */
 export function parseFullKey(fullKey: string): string {
   if (typeof fullKey !== 'string' || fullKey.length === 0) {
@@ -54,7 +54,7 @@ export function parseFullKey(fullKey: string): string {
 }
 
 /**
- * cardsDir + slug → 카드 파일 절대 경로 (`*.card.md`).
+ * cardsDir + slug → absolute path to the card file (`*.card.md`).
  *
  * @example
  * buildCardPath('/data/cards', 'auth-token')

@@ -127,7 +127,7 @@ describe('DrizzleClassificationRepository', () => {
     repo.replaceKeywords('e1', ['existing-kw']);
     // Act
     repo.replaceKeywords('e1', []);
-    // Assert: `if (names.length === 0) return` 분기 발동
+    // Assert: `if (names.length === 0) return` branch triggered
     expect(repo.findKeywordsByCard('e1')).toEqual([]);
   });
 
@@ -137,7 +137,7 @@ describe('DrizzleClassificationRepository', () => {
     repo.replaceTags('e2', ['existing-tag']);
     // Act
     repo.replaceTags('e2', []);
-    // Assert: `if (names.length === 0) return` 분기 발동
+    // Assert: `if (names.length === 0) return` branch triggered
     expect(repo.findTagsByCard('e2')).toEqual([]);
   });
 
@@ -169,24 +169,24 @@ describe('DrizzleClassificationRepository', () => {
 
   // pruneOrphans
 
-  // 1. [HP] 사용 중인 keyword는 prune 오 후에도 유지
+  // 1. [HP] In-use keyword is retained even after prune
   it('should retain keyword row when it is still referenced by a card mapping', () => {
     // Arrange
     insertCard('pk-a');
     repo.replaceKeywords('pk-a', ['typescript']);
     // Act
     repo.pruneOrphans();
-    // Assert — keyword는 여전히 존재여야 함
+    // Assert — keyword should still exist
     const rows = db.select({ name: keyword.name }).from(keyword).all();
     expect(rows.map((r) => r.name)).toContain('typescript');
   });
 
-  // 2. [NE] orphan keyword 삭제
+  // 2. [NE] Delete orphan keyword
   it('should remove keyword row when no card_keyword mapping references it', () => {
-    // Arrange: keyword row를 직접삽입 (replaceKeywords 후 매핑 제거)
+    // Arrange: keyword row inserted directly (mapping removed after replaceKeywords)
     insertCard('pk-b');
     repo.replaceKeywords('pk-b', ['orphan-kw']);
-    repo.replaceKeywords('pk-b', []); // 매핑 제거 → orphan 남음
+    repo.replaceKeywords('pk-b', []); // mapping removed → orphan remains
     // Act
     repo.pruneOrphans();
     // Assert
@@ -194,12 +194,12 @@ describe('DrizzleClassificationRepository', () => {
     expect(rows.map((r) => r.name)).not.toContain('orphan-kw');
   });
 
-  // 3. [NE] orphan tag 삭제
+  // 3. [NE] Delete orphan tag
   it('should remove tag row when no card_tag mapping references it', () => {
     // Arrange
     insertCard('pk-c');
     repo.replaceTags('pk-c', ['orphan-tag']);
-    repo.replaceTags('pk-c', []); // 매핑 제거 → orphan
+    repo.replaceTags('pk-c', []); // mapping removed → orphan
     // Act
     repo.pruneOrphans();
     // Assert
@@ -207,7 +207,7 @@ describe('DrizzleClassificationRepository', () => {
     expect(rows.map((r) => r.name)).not.toContain('orphan-tag');
   });
 
-  // 4. [ST] replaceKeywords로 old keyword 매핑 제거 후 pruneOrphans
+  // 4. [ST] Old keyword mapping removed via replaceKeywords, then pruneOrphans
   it('should delete keyword row that became orphan after keywords were replaced', () => {
     // Arrange
     insertCard('pk-d');
@@ -222,13 +222,13 @@ describe('DrizzleClassificationRepository', () => {
     expect(names).toContain('kept-kw');
   });
 
-  // 5. [ST] 카드 삭제 후 pruneOrphans → keyword/tag row 삭제
+  // 5. [ST] After card deletion, pruneOrphans → keyword/tag rows deleted
   it('should delete keyword and tag rows that became orphan after card is deleted', () => {
     // Arrange
     insertCard('pk-e');
     repo.replaceKeywords('pk-e', ['kw-del']);
     repo.replaceTags('pk-e', ['tag-del']);
-    cardRepo.deleteByKey('pk-e'); // CASCADE로 card_keyword/tag 매핑 제거, keyword/tag row 잔류
+    cardRepo.deleteByKey('pk-e'); // CASCADE removes card_keyword/tag mappings, keyword/tag rows remain
     // Act
     repo.pruneOrphans();
     // Assert

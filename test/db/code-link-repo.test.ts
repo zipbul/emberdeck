@@ -40,7 +40,7 @@ function insertCard(key: string): void {
 // ---- Tests ----
 
 describe('DrizzleCodeLinkRepository', () => {
-  // 1. [HP] replaceForCard: 단일 link → kind/file/symbol 값 보존
+  // 1. [HP] replaceForCard: single link → kind/file/symbol values preserved
   it('should store single link and return it with correct fields when replaceForCard called with one link', () => {
     // Arrange
     insertCard('auth/token');
@@ -57,7 +57,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result[0]!.symbol).toBe('refreshToken');
   });
 
-  // 2. [HP] replaceForCard: 복수 links → 모두 반환
+  // 2. [HP] replaceForCard: multiple links → all returned
   it('should store all links when replaceForCard called with multiple links', () => {
     // Arrange
     insertCard('auth/token');
@@ -73,7 +73,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result).toHaveLength(3);
   });
 
-  // 3. [HP] replaceForCard: 두 번 호출 → 두 번째 결과만 남음
+  // 3. [HP] replaceForCard: called twice → only second result remains
   it('should replace previous links when replaceForCard called twice with different links', () => {
     // Arrange
     insertCard('auth/token');
@@ -90,7 +90,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result[0]!.symbol).toBe('NewClass');
   });
 
-  // 4. [ED] replaceForCard: 빈 배열 → []
+  // 4. [ED] replaceForCard: empty array → []
   it('should return empty array when replaceForCard called with empty array', () => {
     // Arrange
     insertCard('auth/token');
@@ -104,7 +104,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result).toHaveLength(0);
   });
 
-  // 5. [NE] replaceForCard: 존재하지 않는 cardKey → FK violation 스킵, 에러 없음
+  // 5. [NE] replaceForCard: non-existent cardKey → FK violation skipped, no error
   it('should not throw when replaceForCard called for non-existent card key', () => {
     // Arrange / Act / Assert
     expect(() => {
@@ -114,7 +114,7 @@ describe('DrizzleCodeLinkRepository', () => {
     }).not.toThrow();
   });
 
-  // 6. [HP] findByCardKey: 링크 있는 카드 → 반환
+  // 6. [HP] findByCardKey: card with links → returned
   it('should return stored links when findByCardKey called for card with links', () => {
     // Arrange
     insertCard('spec/design');
@@ -128,7 +128,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result[0]!.symbol).toBe('IDesign');
   });
 
-  // 7. [HP] findByCardKey: 미존재 카드 → []
+  // 7. [HP] findByCardKey: non-existent card → []
   it('should return empty array when findByCardKey called for card with no links', () => {
     // Arrange
     insertCard('no/links');
@@ -138,7 +138,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result).toEqual([]);
   });
 
-  // 8. [HP] findBySymbol: symbolName만 지정 → 해당 symbol 모든 링크 반환
+  // 8. [HP] findBySymbol: only symbolName specified → returns all links for that symbol
   it('should return all links for symbol when findBySymbol called without filePath', () => {
     // Arrange
     insertCard('spec/a');
@@ -155,7 +155,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result).toHaveLength(2);
   });
 
-  // 9. [HP] findBySymbol: symbolName + filePath 지정 → 필터링
+  // 9. [HP] findBySymbol: symbolName + filePath specified → filtered
   it('should return only matching file links when findBySymbol called with filePath', () => {
     // Arrange
     insertCard('spec/a');
@@ -170,7 +170,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result[0]!.file).toBe('src/auth.ts');
   });
 
-  // 10. [HP] findBySymbol: symbolName + filePath 지정, 해당 파일 없음 → []
+  // 10. [HP] findBySymbol: symbolName + filePath specified, no matching file → []
   it('should return empty array when findBySymbol called with filePath that has no matching symbol', () => {
     // Arrange
     insertCard('spec/a');
@@ -183,7 +183,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result).toHaveLength(0);
   });
 
-  // 11. [HP] findBySymbol: 다른 카드가 동일 symbol → 둘 다 반환
+  // 11. [HP] findBySymbol: different cards share same symbol → both returned
   it('should return links from all cards when multiple cards reference same symbol', () => {
     // Arrange
     insertCard('spec/x');
@@ -196,7 +196,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result).toHaveLength(2);
   });
 
-  // 12. [HP] findBySymbol: filePath 지정 시 다른 파일 제외
+  // 12. [HP] findBySymbol: when filePath specified, other files excluded
   it('should exclude links from other files when findBySymbol called with specific filePath', () => {
     // Arrange
     insertCard('spec/a');
@@ -211,7 +211,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result[0]!.file).toBe('src/a.ts');
   });
 
-  // 13. [HP] deleteByCardKey: 존재하는 링크 삭제 → []
+  // 13. [HP] deleteByCardKey: delete existing links → []
   it('should delete all links when deleteByCardKey called for card with links', () => {
     // Arrange
     insertCard('spec/del');
@@ -225,7 +225,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(result).toHaveLength(0);
   });
 
-  // 14. [ED] deleteByCardKey: 미존재 cardKey → 에러 없음
+  // 14. [ED] deleteByCardKey: non-existent cardKey → no error
   it('should not throw when deleteByCardKey called for non-existent card key', () => {
     // Arrange / Act / Assert
     expect(() => repo.deleteByCardKey('never/existed')).not.toThrow();
@@ -242,7 +242,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(repo.findByCardKey('state/test')).toHaveLength(0);
   });
 
-  // 16. [ST] card CASCADE DELETE → code_link 자동 삭제
+  // 16. [ST] card CASCADE DELETE → code_link auto-deleted
   it('should cascade delete code_links when referenced card is deleted', () => {
     // Arrange
     insertCard('cascade/test');
@@ -253,7 +253,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(repo.findByCardKey('cascade/test')).toHaveLength(0);
   });
 
-  // 17. [HP] 두 카드가 독립 링크 저장
+  // 17. [HP] Two cards store links independently
   it('should store links independently for two different cards', () => {
     // Arrange
     insertCard('spec/one');
@@ -267,7 +267,7 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(repo.findByCardKey('spec/two')[0]!.symbol).toBe('ClassB');
   });
 
-  // 18. [ID] deleteByCardKey 두 번 → 에러 없음
+  // 18. [ID] deleteByCardKey called twice → no error
   it('should not throw when deleteByCardKey called twice', () => {
     // Arrange
     insertCard('idempotent/test');
@@ -296,7 +296,7 @@ describe('DrizzleCodeLinkRepository', () => {
   it('should call console.warn when FK violation occurs in replaceForCard', () => {
     // Arrange
     const warnSpy = spyOn(console, 'warn');
-    // cardKey가 card 테이블에 없으면 insert 시 FK violation 발생
+    // If cardKey is not in the card table, FK violation occurs on insert
     // Act
     repo.replaceForCard('nonexistent-card', [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }]);
     // Assert

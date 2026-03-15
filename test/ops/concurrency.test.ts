@@ -17,17 +17,17 @@ describe('ops concurrency', () => {
     await tc?.cleanup();
   });
 
-  // ── CR-1: createCard 동시 같은 slug → 직렬화, 두 번째 AlreadyExistsError ──
+  // ── CR-1: concurrent createCard with same slug → serialized, second gets AlreadyExistsError ──
 
   it('[CR] should serialize concurrent createCard with same slug and reject the second', async () => {
     // Arrange
     tc = await createTestContext();
-    // Act — 두 개 동시 실행
+    // Act — execute two concurrently
     const results = await Promise.allSettled([
       createCard(tc.ctx, { slug: 'dup', summary: 'First' }),
       createCard(tc.ctx, { slug: 'dup', summary: 'Second' }),
     ]);
-    // Assert — 정확히 하나만 성공, 하나는 AlreadyExistsError
+    // Assert — exactly one succeeds, one gets AlreadyExistsError
     const fulfilled = results.filter((r) => r.status === 'fulfilled');
     const rejected = results.filter((r) => r.status === 'rejected');
     expect(fulfilled).toHaveLength(1);
@@ -35,7 +35,7 @@ describe('ops concurrency', () => {
     expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(CardAlreadyExistsError);
   });
 
-  // ── CR-2: updateCard 동시 같은 key → 직렬화(둘 다 성공) ──
+  // ── CR-2: concurrent updateCard on same key → serialized (both succeed) ──
 
   it('[CR] should serialize concurrent updateCard on the same key', async () => {
     // Arrange
@@ -46,15 +46,15 @@ describe('ops concurrency', () => {
       updateCard(tc.ctx, 'target', { summary: 'Update-A' }),
       updateCard(tc.ctx, 'target', { summary: 'Update-B' }),
     ]);
-    // Assert — 둘 다 성공 (직렬화되어 순차 실행)
+    // Assert — both succeed (serialized, executed sequentially)
     expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
-    // 마지막 쓴 값이 DB에 반영
+    // Last written value is reflected in DB
     const row = tc.ctx.cardRepo.findByKey('target');
     expect(row).not.toBeNull();
     expect(['Update-A', 'Update-B']).toContain(row!.summary);
   });
 
-  // ── CR-3: createCard 다른 slug 동시 → 병렬(둘 다 성공) ──
+  // ── CR-3: concurrent createCard with different slugs → parallel (both succeed) ──
 
   it('[CR] should allow concurrent createCard with different slugs', async () => {
     // Arrange
@@ -64,14 +64,14 @@ describe('ops concurrency', () => {
       createCard(tc.ctx, { slug: 'alpha', summary: 'Alpha' }),
       createCard(tc.ctx, { slug: 'beta', summary: 'Beta' }),
     ]);
-    // Assert — 둘 다 성공
+    // Assert — both succeed
     expect(results[0].status).toBe('fulfilled');
     expect(results[1].status).toBe('fulfilled');
     expect(tc.ctx.cardRepo.findByKey('alpha')).not.toBeNull();
     expect(tc.ctx.cardRepo.findByKey('beta')).not.toBeNull();
   });
 
-  // ── CR-4: deleteCard + updateCard 같은 key → 직렬화, 두 번째 NotFound ──
+  // ── CR-4: deleteCard + updateCard on same key → serialized, second gets NotFound ──
 
   it('[CR] should serialize concurrent deleteCard and updateCard on the same key', async () => {
     // Arrange
@@ -82,7 +82,7 @@ describe('ops concurrency', () => {
       deleteCard(tc.ctx, 'gone'),
       updateCard(tc.ctx, 'gone', { summary: 'Too late' }),
     ]);
-    // Assert — 정확히 하나 성공, 하나 NotFound
+    // Assert — exactly one succeeds, one gets NotFound
     const fulfilled = results.filter((r) => r.status === 'fulfilled');
     const rejected = results.filter((r) => r.status === 'rejected');
     expect(fulfilled).toHaveLength(1);
@@ -90,7 +90,7 @@ describe('ops concurrency', () => {
     expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(CardNotFoundError);
   });
 
-  // ── CR-5: renameCard 동시 같은 old key → 직렬화, 두 번째 NotFound ──
+  // ── CR-5: concurrent renameCard on same old key → serialized, second gets NotFound ──
 
   it('[CR] should serialize concurrent renameCard on the same old key', async () => {
     // Arrange
@@ -101,7 +101,7 @@ describe('ops concurrency', () => {
       renameCard(tc.ctx, 'orig', 'new-a'),
       renameCard(tc.ctx, 'orig', 'new-b'),
     ]);
-    // Assert — 하나 성공, 하나 NotFound
+    // Assert — one succeeds, one gets NotFound
     const fulfilled = results.filter((r) => r.status === 'fulfilled');
     const rejected = results.filter((r) => r.status === 'rejected');
     expect(fulfilled).toHaveLength(1);

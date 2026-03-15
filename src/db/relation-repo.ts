@@ -8,10 +8,10 @@ export class DrizzleRelationRepository implements RelationRepository {
   constructor(private db: EmberdeckDb) {}
 
   replaceForCard(cardKey: string, relations: { type: string; target: string }[]): void {
-    // 이 카드가 소유한 관계만 삭제:
-    //   - 정방향(isReverse=false): 이 카드가 선언한 relation
-    //   - 역방향 mirror(isReverse=true, dstCardKey=cardKey): 이 카드 선언의 자동 역방향
-    // 다른 카드가 선언한 forward relation(dstCardKey=cardKey, isReverse=false)은 건드리지 않음
+    // Delete only the relations owned by this card:
+    //   - forward (isReverse=false): relations declared by this card
+    //   - reverse mirror (isReverse=true, dstCardKey=cardKey): auto-reverse of this card's declarations
+    // Forward relations declared by other cards (dstCardKey=cardKey, isReverse=false) are left untouched
     this.db
       .delete(cardRelation)
       .where(and(eq(cardRelation.srcCardKey, cardKey), eq(cardRelation.isReverse, false)))
@@ -21,8 +21,8 @@ export class DrizzleRelationRepository implements RelationRepository {
       .where(and(eq(cardRelation.dstCardKey, cardKey), eq(cardRelation.isReverse, true)))
       .run();
 
-    // 2. 새 관계 삽입 (정방향 + 역방향)
-    // FK 방어: 대상 카드 미존재 시 FK 위반 → 스킵
+    // 2. Insert new relations (forward + reverse)
+    // FK guard: if target card does not exist, FK violation → skip
     for (const rel of relations) {
       try {
         this.db
@@ -48,7 +48,7 @@ export class DrizzleRelationRepository implements RelationRepository {
         const msg = e instanceof Error ? e.message : String(e);
         if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
         console.warn(`[emberdeck] relation skipped (FK violation): ${msg}`);
-        // FK violation: 대상 카드 미존재 → 해당 relation만 스킵 (정상)
+        // FK violation: target card does not exist → skip this relation (expected)
       }
     }
   }

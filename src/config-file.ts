@@ -1,9 +1,9 @@
 /**
- * emberdeck 설정 파일 로더.
+ * Emberdeck configuration file loader.
  *
- * `.emberdeck.jsonc` 또는 `.emberdeck.json`을 탐색하여 로드한다.
- * `Bun.JSONC.parse`로 주석 포함 JSONC를 파싱하고,
- * 모든 필드를 엄격하게 검증한 뒤 `Result` 패턴으로 반환한다.
+ * Searches for and loads `.emberdeck.jsonc` or `.emberdeck.json`.
+ * Parses JSONC (including comments) with `Bun.JSONC.parse`,
+ * strictly validates all fields, and returns the result using the `Result` pattern.
  *
  * @example
  * ```ts
@@ -24,7 +24,7 @@ import { DEFAULT_RELATION_TYPES } from './config';
 
 // ── Types ──
 
-/** 설정 파일의 limits 섹션 */
+/** Limits section of the configuration file */
 export interface ConfigLimits {
   summaryMax: number;
   bodyMax: number;
@@ -35,7 +35,7 @@ export interface ConfigLimits {
   codeLinkFileMax: number;
 }
 
-/** 설정 파일에서 읽은 전체 구성 */
+/** Full configuration read from the config file */
 export interface EmberdeckFileConfig {
   cardsDir: string;
   dbPath: string;
@@ -47,7 +47,7 @@ export interface EmberdeckFileConfig {
   cardExtension: string;
 }
 
-/** config 에러 데이터 */
+/** Config error data */
 export interface ConfigError {
   code: 'FILE_NOT_FOUND' | 'PARSE_ERROR' | 'VALIDATION_ERROR';
   message: string;
@@ -84,7 +84,7 @@ type ValidationErrors = string[];
 
 function assertString(obj: Record<string, unknown>, key: string, errors: ValidationErrors): void {
   if (key in obj && typeof obj[key] !== 'string') {
-    errors.push(`"${key}": string이어야 합니다 (received ${typeof obj[key]})`);
+    errors.push(`"${key}": must be a string (received ${typeof obj[key]})`);
   }
 }
 
@@ -96,16 +96,16 @@ function assertStringArray(
   if (!(key in obj)) return;
   const val = obj[key];
   if (!Array.isArray(val)) {
-    errors.push(`"${key}": string[] 이어야 합니다 (received ${typeof val})`);
+    errors.push(`"${key}": must be a string[] (received ${typeof val})`);
     return;
   }
   for (let i = 0; i < val.length; i++) {
     if (typeof val[i] !== 'string') {
-      errors.push(`"${key}[${i}]": string이어야 합니다 (received ${typeof val[i]})`);
+      errors.push(`"${key}[${i}]": must be a string (received ${typeof val[i]})`);
     }
   }
   if (val.length === 0) {
-    errors.push(`"${key}": 비어있을 수 없습니다`);
+    errors.push(`"${key}": must not be empty`);
   }
 }
 
@@ -117,7 +117,7 @@ function assertPositiveInt(
   if (!(key in obj)) return;
   const val = obj[key];
   if (typeof val !== 'number' || !Number.isInteger(val) || val <= 0) {
-    errors.push(`"${key}": 양의 정수여야 합니다 (received ${String(val)})`);
+    errors.push(`"${key}": must be a positive integer (received ${String(val)})`);
   }
 }
 
@@ -145,8 +145,8 @@ const KNOWN_LIMIT_KEYS = new Set([
 // ── Core ──
 
 /**
- * 원시 파싱 결과를 검증하고 `EmberdeckFileConfig`로 변환한다.
- * 알 수 없는 키, 타입 오류, 범위 오류를 모두 수집한 뒤 한번에 보고한다.
+ * Validates the raw parsed result and converts it to `EmberdeckFileConfig`.
+ * Collects all unknown keys, type errors, and range errors, then reports them at once.
  */
 export function validateRawConfig(
   raw: unknown,
@@ -155,7 +155,7 @@ export function validateRawConfig(
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return err({
       code: 'VALIDATION_ERROR',
-      message: '설정 파일의 최상위는 객체여야 합니다',
+      message: 'The top level of the config file must be an object',
       filePath,
     });
   }
@@ -163,38 +163,38 @@ export function validateRawConfig(
   const obj = raw as Record<string, unknown>;
   const errors: ValidationErrors = [];
 
-  // ── 알 수 없는 키 감지 ──
+  // ── Detect unknown keys ──
   for (const key of Object.keys(obj)) {
     if (!KNOWN_TOP_KEYS.has(key)) {
-      errors.push(`알 수 없는 키: "${key}"`);
+      errors.push(`Unknown key: "${key}"`);
     }
   }
 
-  // ── string 필드 ──
+  // ── String fields ──
   assertString(obj, 'cardsDir', errors);
   assertString(obj, 'dbPath', errors);
   assertString(obj, 'projectRoot', errors);
   assertString(obj, 'cardExtension', errors);
 
   if (typeof obj['cardExtension'] === 'string' && !obj['cardExtension'].startsWith('.')) {
-    errors.push(`"cardExtension": 점(.)으로 시작해야 합니다 (received "${obj['cardExtension']}")`);
+    errors.push(`"cardExtension": must start with a dot (.) (received "${obj['cardExtension']}")`);
   }
 
-  // ── string[] 필드 ──
+  // ── String array fields ──
   assertStringArray(obj, 'gildashIgnore', errors);
   assertStringArray(obj, 'allowedRelationTypes', errors);
   assertStringArray(obj, 'statuses', errors);
 
-  // ── limits 객체 ──
+  // ── Limits object ──
   if ('limits' in obj) {
     const lim = obj['limits'];
     if (lim === null || typeof lim !== 'object' || Array.isArray(lim)) {
-      errors.push(`"limits": 객체여야 합니다`);
+      errors.push(`"limits": must be an object`);
     } else {
       const limObj = lim as Record<string, unknown>;
       for (const key of Object.keys(limObj)) {
         if (!KNOWN_LIMIT_KEYS.has(key)) {
-          errors.push(`"limits"에 알 수 없는 키: "${key}"`);
+          errors.push(`Unknown key in "limits": "${key}"`);
         }
       }
       for (const key of KNOWN_LIMIT_KEYS) {
@@ -211,7 +211,7 @@ export function validateRawConfig(
     });
   }
 
-  // ── 기본값 병합 ──
+  // ── Merge with defaults ──
   const resolvedDir = dirname(filePath);
 
   const cardsDir =
@@ -246,7 +246,7 @@ export function validateRawConfig(
       ? (obj['cardExtension'] as string)
       : DEFAULT_CARD_EXTENSION;
 
-  // limits 병합
+  // Merge limits
   const rawLimits = (typeof obj['limits'] === 'object' && obj['limits'] !== null && !Array.isArray(obj['limits']))
     ? (obj['limits'] as Record<string, unknown>)
     : {};
@@ -273,7 +273,7 @@ export function validateRawConfig(
 }
 
 /**
- * 지정된 경로에서 설정 파일을 읽고 파싱+검증한다.
+ * Reads, parses, and validates the config file at the specified path.
  */
 export async function loadConfigFromPath(
   filePath: string,
@@ -284,7 +284,7 @@ export async function loadConfigFromPath(
   if (!exists) {
     return err({
       code: 'FILE_NOT_FOUND',
-      message: `설정 파일을 찾을 수 없습니다: ${absPath}`,
+      message: `Config file not found: ${absPath}`,
       filePath: absPath,
     });
   }
@@ -295,7 +295,7 @@ export async function loadConfigFromPath(
   } catch (e) {
     return err({
       code: 'PARSE_ERROR',
-      message: `설정 파일 읽기 실패: ${e instanceof Error ? e.message : String(e)}`,
+      message: `Failed to read config file: ${e instanceof Error ? e.message : String(e)}`,
       filePath: absPath,
     });
   }
@@ -306,7 +306,7 @@ export async function loadConfigFromPath(
   } catch (e) {
     return err({
       code: 'PARSE_ERROR',
-      message: `JSONC 파싱 실패: ${e instanceof Error ? e.message : String(e)}`,
+      message: `JSONC parsing failed: ${e instanceof Error ? e.message : String(e)}`,
       filePath: absPath,
     });
   }
@@ -315,10 +315,10 @@ export async function loadConfigFromPath(
 }
 
 /**
- * CWD에서 `.emberdeck.jsonc` 또는 `.emberdeck.json`을 자동 탐색한다.
- * 찾으면 로드+검증, 없으면 기본값으로 config를 생성한다.
+ * Automatically searches for `.emberdeck.jsonc` or `.emberdeck.json` from CWD.
+ * If found, loads and validates it; if not found, creates a config with defaults.
  *
- * @param cwd - 탐색 시작 디렉토리. 기본값: `process.cwd()`
+ * @param cwd - Directory to start searching from. Default: `process.cwd()`
  */
 export async function loadConfig(
   cwd?: string,
@@ -333,13 +333,13 @@ export async function loadConfig(
     }
   }
 
-  // 설정 파일 없음 → 기본값으로 생성
+  // No config file found -> create with defaults
   return buildDefaultConfig(baseDir);
 }
 
 /**
- * CLI arg로 config를 override한다.
- * undefined인 arg는 무시한다.
+ * Overrides config with CLI args.
+ * Args that are undefined are ignored.
  */
 export function mergeCliArgs(
   config: EmberdeckFileConfig,
@@ -358,7 +358,7 @@ export function mergeCliArgs(
 }
 
 /**
- * 기본값만으로 config 생성. 설정 파일이 없을 때 사용.
+ * Creates a config using only defaults. Used when no config file exists.
  */
 export function buildDefaultConfig(baseDir: string): EmberdeckFileConfig {
   return {

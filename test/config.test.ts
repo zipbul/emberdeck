@@ -16,7 +16,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     await tc?.cleanup();
   });
 
-  // [HP-1] 새 타입 추가 → allowedRelationTypes에 포함
+  // [HP-1] Add new type → included in allowedRelationTypes
   it('should include the new type when adding a type that does not exist', async () => {
     // Arrange
     tc = await createTestContext();
@@ -26,7 +26,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     expect(tc.ctx.allowedRelationTypes).toContain('custom-type');
   });
 
-  // [HP-2] 이미 있는 타입 추가 → 중복 없음 (includes guard)
+  // [HP-2] Add already-existing type → no duplicate (includes guard)
   it('should not add a duplicate when adding a type that already exists', async () => {
     // Arrange
     tc = await createTestContext();
@@ -39,7 +39,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     expect(tc.ctx.allowedRelationTypes.filter((t) => t === 'dup-type')).toHaveLength(1);
   });
 
-  // [HP-3] 있는 타입 제거 → 목록에서 제거
+  // [HP-3] Remove existing type → removed from list
   it('should remove the type from allowedRelationTypes when it exists', async () => {
     // Arrange
     tc = await createTestContext();
@@ -51,7 +51,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     expect(tc.ctx.allowedRelationTypes).not.toContain('to-remove');
   });
 
-  // [HP-4] 없는 타입 제거 → 무해, 목록 불변
+  // [HP-4] Remove non-existent type → harmless, list unchanged
   it('should leave allowedRelationTypes unchanged when removing a type that does not exist', async () => {
     // Arrange
     tc = await createTestContext();
@@ -62,7 +62,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     expect([...tc.ctx.allowedRelationTypes]).toEqual(before);
   });
 
-  // [HP-5] listRelationTypes → 현재 배열 반환
+  // [HP-5] listRelationTypes → returns current array
   it('should return the current allowed relation types via listRelationTypes', async () => {
     // Arrange
     tc = await createTestContext();
@@ -74,7 +74,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     }
   });
 
-  // [HP-6] addRelationType 후 해당 타입으로 createCard → 성공
+  // [HP-6] After addRelationType, createCard with that type → succeeds
   it('should allow createCard to use a relation type after it has been added', async () => {
     // Arrange
     tc = await createTestContext();
@@ -90,7 +90,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     ).resolves.toBeDefined();
   });
 
-  // [ST-7] add → remove → list → 원래 목록 복원
+  // [ST-7] add → remove → list → original list restored
   it('should restore original allowedRelationTypes after add then remove', async () => {
     // Arrange
     tc = await createTestContext();
@@ -102,7 +102,7 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     expect([...listRelationTypes(tc.ctx)]).toEqual(original);
   });
 
-  // [ID-8] addRelationType 두 번 → 목록에 하나만 존재
+  // [ID-8] addRelationType called twice → only one entry in list
   it('should contain only one entry when the same type is added twice', async () => {
     // Arrange
     tc = await createTestContext();

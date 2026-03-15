@@ -16,38 +16,38 @@ import { txDb } from '../db/connection';
 import { withCardLock, withRetry } from './safe';
 
 /**
- * `renameCard` 성공 시 반환되는 결과.
+ * Result returned on successful `renameCard`.
  */
 export interface RenameCardResult {
-  /** 이전 카드 파일의 절대 경로. */
+  /** Absolute path of the old card file. */
   oldFilePath: string;
-  /** 새 카드 파일의 절대 경로. */
+  /** Absolute path of the new card file. */
   newFilePath: string;
-  /** 새 fullKey (= 새 정규화된 newSlug). */
+  /** New fullKey (= newly normalized newSlug). */
   newFullKey: string;
-  /** 새 카드 데이터 (frontmatter 업데이트된 상태). */
+  /** New card data (with updated frontmatter). */
   card: CardFile;
 }
 
 /**
- * 카드의 slug(이름)을 변경한다.
+ * Renames a card's slug (name).
  *
- * 1. 소스 파일을 새 경로로 이동한다 (OS rename).
- * 2. frontmatter의 key 필드를 새 key로 갱신한다.
- * 3. DB 트랜잭션에서 이전 row를 삭제하고 새 key로 재삽입한다.
- *    (relations, keywords, tags, codeLinks 모두 보존)
- * 4. DB TX 실패 시 파일을 원래대로 복원한다.
+ * 1. Moves the source file to the new path (OS rename).
+ * 2. Updates the frontmatter key field to the new key.
+ * 3. In a DB transaction, deletes the old row and re-inserts with the new key.
+ *    (relations, keywords, tags, codeLinks are all preserved)
+ * 4. If the DB transaction fails, restores the file to its original state.
  *
- * 데드락 방지를 위해 두 키를 알파벳 순 직렬화한다.
+ * Locks both keys in alphabetical order to prevent deadlocks.
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param fullKey - 이름을 바꿀 원본 fullKey.
- * @param newSlug - 새 slug.
- * @returns rename 결과.
- * @throws {CardKeyError} 어느 slug이라도 유효하지 않을 때.
- * @throws {CardRenameSamePathError} 원본과 대상이 같을 때.
- * @throws {CardNotFoundError} 원본 카드가 없었을 때.
- * @throws {CardAlreadyExistsError} 새 key의 카드가 이미 존재할 때.
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKey - The original fullKey to rename.
+ * @param newSlug - The new slug.
+ * @returns Rename result.
+ * @throws {CardKeyError} When any slug is invalid.
+ * @throws {CardRenameSamePathError} When source and destination are the same.
+ * @throws {CardNotFoundError} When the source card does not exist.
+ * @throws {CardAlreadyExistsError} When a card with the new key already exists.
  */
 export async function renameCard(
   ctx: EmberdeckContext,
@@ -63,7 +63,7 @@ export async function renameCard(
 
   if (oldFilePath === newFilePath) throw new CardRenameSamePathError();
 
-  // 양쪽 키 모두 lock (oldKey 먼저, 알파벳 순 정렬로 데드락 방지)
+  // Lock both keys (sorted alphabetically to prevent deadlocks)
   const [firstKey, secondKey] = [oldKey, newFullKey].sort() as [string, string];
   return withCardLock(ctx, firstKey, () =>
     withCardLock(ctx, secondKey, () =>
@@ -91,7 +91,7 @@ export async function renameCard(
             const classRepo = new DrizzleClassificationRepository(d);
             const codeLinkRepo = new DrizzleCodeLinkRepository(d);
 
-            // 기존 관계/분류/코드링크 백업
+            // Back up existing relations/classifications/code links
             const oldRelations = relationRepo
               .findByCardKey(oldKey)
               .filter((r) => !r.isReverse)
@@ -100,7 +100,7 @@ export async function renameCard(
             const oldTags = classRepo.findTagsByCard(oldKey);
             const oldCodeLinks = codeLinkRepo.findByCardKey(oldKey);
 
-            cardRepo.deleteByKey(oldKey); // cascade 삭제
+            cardRepo.deleteByKey(oldKey); // cascade delete
 
             const row: CardRow = {
               key: newFullKey,
@@ -125,7 +125,7 @@ export async function renameCard(
               );
           });
         } catch (dbErr) {
-          // DB tx 실패 → 파일을 원래대로 복원
+          // DB tx failed -> restore file to original state
           await rename(newFilePath, oldFilePath);
           const orig = await readCardFile(oldFilePath);
           const restored: CardFile = {

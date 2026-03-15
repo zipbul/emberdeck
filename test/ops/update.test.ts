@@ -170,7 +170,7 @@ describe('updateCard', () => {
   });
 
   it('should throw CardNotFoundError when file exists but frontmatter.key mismatches in updateCard', async () => {
-    // Arrange — 파일은 존재하지만 내부 key가 요청 key와 다른 경우
+    // Arrange — file exists but internal key differs from the requested key
     tc = await createTestContext();
     const wrongPath = join(tc.ctx.cardsDir, 'mismatch-upd.card.md');
     await Bun.write(wrongPath, '---\nkey: different-key\nsummary: s\nstatus: draft\n---\n');
@@ -181,7 +181,7 @@ describe('updateCard', () => {
   });
 
   it('should throw CardNotFoundError when file exists but frontmatter.key mismatches in updateCardStatus', async () => {
-    // Arrange — 파일은 존재하지만 내부 key가 요청 key와 다른 경우
+    // Arrange — file exists but internal key differs from the requested key
     tc = await createTestContext();
     const wrongPath = join(tc.ctx.cardsDir, 'mismatch-st.card.md');
     await Bun.write(wrongPath, '---\nkey: different-key\nsummary: s\nstatus: draft\n---\n');

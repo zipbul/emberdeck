@@ -174,7 +174,7 @@ describe('RelationTypeError', () => {
 // ── GildashNotConfiguredError ─────────────────────────────────────────────────
 
 describe('GildashNotConfiguredError', () => {
-  // 19. [HP] message 정확한 문자열
+  // 19. [HP] exact message string
   it('should set correct message when constructed', () => {
     // Arrange / Act
     const err = new GildashNotConfiguredError();
@@ -184,7 +184,7 @@ describe('GildashNotConfiguredError', () => {
     );
   });
 
-  // 20. [HP] name 확인
+  // 20. [HP] name check
   it('should set name to GildashNotConfiguredError when constructed', () => {
     // Arrange / Act
     const err = new GildashNotConfiguredError();
@@ -208,7 +208,7 @@ describe('GildashNotConfiguredError', () => {
     expect(err).toBeInstanceOf(GildashNotConfiguredError);
   });
 
-  // 23. [HP] throw 후 catch 가능
+  // 23. [HP] catchable after throw
   it('should be catchable as GildashNotConfiguredError when thrown', () => {
     // Arrange / Act / Assert
     expect(() => {

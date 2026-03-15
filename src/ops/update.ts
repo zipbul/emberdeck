@@ -15,50 +15,50 @@ import { withCardLock, withRetry, safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 
 /**
- * `updateCard`에 전달하는 부분 업데이트 필드.
- * `undefined`인 필드는 변경하지 않는다. `null`은 해당 필드를 삭제한다.
+ * Partial update fields passed to `updateCard`.
+ * Fields set to `undefined` are left unchanged. `null` deletes the field.
  */
 export interface UpdateCardFields {
-  /** 새 요약. undefined이면 유지. */
+  /** New summary. If undefined, kept as-is. */
   summary?: string;
-  /** 새 본문. undefined이면 유지. */
+  /** New body. If undefined, kept as-is. */
   body?: string;
-  /** 키워드. null 또는 빈 배열은 필드 삭제. */
+  /** Keywords. null or empty array deletes the field. */
   keywords?: string[] | null;
-  /** 태그. null 또는 빈 배열은 필드 삭제. */
+  /** Tags. null or empty array deletes the field. */
   tags?: string[] | null;
-  /** 제약 조건. undefined이면 유지. */
+  /** Constraints. If undefined, kept as-is. */
   constraints?: unknown;
-  /** 관계 목록. null 또는 빈 배열은 필드 삭제. */
+  /** Relations list. null or empty array deletes the field. */
   relations?: CardRelation[] | null;
-  /** 코드 링크 목록. null 또는 빈 배열은 필드 삭제. */
+  /** Code links list. null or empty array deletes the field. */
   codeLinks?: CodeLink[] | null;
 }
 
 /**
- * `updateCard` 성공 시 반환되는 결과.
+ * Result returned on successful `updateCard`.
  */
 export interface UpdateCardResult {
-  /** 업데이트된 카드 파일의 절대 경로. */
+  /** Absolute path of the updated card file. */
   filePath: string;
-  /** 업데이트된 전체 카드 데이터. */
+  /** Complete updated card data. */
   card: CardFile;
 }
 
 /**
- * 기존 카드를 부분 업데이트한다.
+ * Partially updates an existing card.
  *
- * - `undefined`인 `fields` 항목은 변경하지 않는다.
- * - `null` 또는 빈 배열로 설정하면 해당 frontmatter 필드를 삭제한다.
- * - 파일 쓰기 실패 시 `syncCardFromFile`로 DB를 보상한다.
+ * - `fields` entries set to `undefined` are left unchanged.
+ * - Setting to `null` or an empty array deletes the corresponding frontmatter field.
+ * - On file write failure, compensates the DB via `syncCardFromFile`.
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param fullKey - 업데이트할 카드의 fullKey.
- * @param fields - 변경할 필드들. 지정하지 않은 카드는 유지된다.
- * @returns 업데이트된 결과 (filePath, card).
- * @throws {CardKeyError} fullKey가 유효하지 않을 때.
- * @throws {CardNotFoundError} 해당 key의 카드가 없었을 때.
- * @throws {RelationTypeError} 허용되지 않는 관계 타입을 사용할 때.
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKey - fullKey of the card to update.
+ * @param fields - Fields to change. Unspecified fields are preserved.
+ * @returns Updated result (filePath, card).
+ * @throws {CardKeyError} When fullKey is invalid.
+ * @throws {CardNotFoundError} When no card exists for the given key.
+ * @throws {RelationTypeError} When a disallowed relation type is used.
  */
 export async function updateCard(
   ctx: EmberdeckContext,
@@ -159,15 +159,15 @@ export async function updateCard(
 }
 
 /**
- * 카드 상태만 변경한다.
+ * Changes only the card's status.
  *
- * `updateCard`의 상태 전용 단축 헬퍼. 다른 필드는 변경하지 않는다.
+ * A status-only shortcut helper for `updateCard`. Other fields are left unchanged.
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param fullKey - 업데이트할 카드의 fullKey.
- * @param status - 새 상태 값.
- * @returns 업데이트된 결과 (filePath, card).
- * @throws {CardNotFoundError} 해당 key의 카드가 없었을 때.
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKey - fullKey of the card to update.
+ * @param status - New status value.
+ * @returns Updated result (filePath, card).
+ * @throws {CardNotFoundError} When no card exists for the given key.
  */
 export async function updateCardStatus(
   ctx: EmberdeckContext,

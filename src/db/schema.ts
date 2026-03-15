@@ -90,7 +90,7 @@ export const cardRelation = sqliteTable(
   ],
 );
 
-/** FTS5 가상 테이블 매핑. 실제 생성/동기화는 마이그레이션 SQL + 트리거. */
+/** FTS5 virtual table mapping. Actual creation/sync is handled by migration SQL + triggers. */
 export const cardFts = sqliteTable('card_fts', {
   key: text('key'),
   summary: text('summary'),

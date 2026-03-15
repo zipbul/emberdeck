@@ -27,7 +27,7 @@ function configurePragmas(db: EmberdeckDb): void {
 }
 
 /**
- * 새 DB 열기 + pragma + migration.
+ * Open a new DB + configure pragmas + run migrations.
  */
 export function createEmberdeckDb(path: string): EmberdeckDb {
   if (path !== ':memory:') {
@@ -41,7 +41,7 @@ export function createEmberdeckDb(path: string): EmberdeckDb {
 }
 
 /**
- * 기존 DB에 emberdeck 마이그레이션만 실행 (CLI 통합용).
+ * Run only emberdeck migrations on an existing DB (for CLI integration).
  */
 export function migrateEmberdeck(db: EmberdeckDb): void {
   migrate(db, { migrationsFolder: getMigrationsFolder() });
@@ -52,9 +52,9 @@ export function closeDb(db: EmberdeckDb): void {
 }
 
 /**
- * 트랜잭션 객체를 EmberdeckDb로 캐스팅하는 헬퍼.
- * drizzle-orm의 트랜잭션 타입과 EmberdeckDb가 정확히 일치하지 않아
- * `as unknown as EmberdeckDb` 패턴이 필요한데, 이 함수로 캐스팅을 한 곳에 집중시킨다.
+ * Helper to cast a transaction object to EmberdeckDb.
+ * drizzle-orm's transaction type does not exactly match EmberdeckDb,
+ * requiring the `as unknown as EmberdeckDb` pattern — this function centralizes that cast.
  */
 export function txDb(tx: unknown): EmberdeckDb {
   return tx as EmberdeckDb;

@@ -1,8 +1,8 @@
 /**
- * MCP Tool 등록 모듈.
+ * MCP tool registration module.
  *
- * emberdeck의 모든 public API를 MCP tool로 노출한다.
- * 외부 MCP 서버가 McpServer 인스턴스를 전달하면, 이 함수가 tool 정의를 일괄 등록한다.
+ * Exposes all emberdeck public APIs as MCP tools.
+ * An external MCP server passes its McpServer instance and this function registers all tool definitions.
  *
  * @example
  * ```ts
@@ -19,6 +19,7 @@ import { z } from 'zod/v4';
 
 import type { EmberdeckContext } from '../config';
 import { createCard } from '../ops/create';
+import { bulkCreateCards } from '../ops/bulk-create';
 import { updateCard, updateCardStatus } from '../ops/update';
 import { deleteCard } from '../ops/delete';
 import { renameCard } from '../ops/rename';
@@ -63,8 +64,8 @@ const statusEnum = z.enum(['draft', 'accepted', 'implementing', 'implemented', '
 // ---- McpServer Type ----
 
 /**
- * McpServer의 registerTool에 필요한 최소 인터페이스.
- * @modelcontextprotocol/sdk를 직접 import하지 않고 구조적 타이핑으로 호환.
+ * Minimal interface for McpServer.registerTool.
+ * Structurally typed to avoid direct import of @modelcontextprotocol/sdk.
  */
 interface McpServerLike {
   registerTool(name: string, config: Record<string, unknown>, cb: Function): unknown;
@@ -73,10 +74,10 @@ interface McpServerLike {
 // ---- Registration ----
 
 /**
- * McpServer에 emberdeck의 모든 tool을 등록한다.
+ * Registers all emberdeck tools on the given McpServer.
  *
- * @param server - McpServer 인스턴스 (또는 registerTool을 가진 호환 객체)
- * @param ctx - setupEmberdeck()로 생성된 EmberdeckContext
+ * @param server - McpServer instance (or any object with a compatible registerTool method)
+ * @param ctx - EmberdeckContext created by setupEmberdeck()
  */
 export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckContext): void {
   // ── CRUD ──
@@ -84,16 +85,18 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_create_card',
     {
-      description: '새 설계 카드를 생성한다. slug(파일명), summary(한줄 요약)이 필수.',
+      description:
+        'Record a new feature, decision, or spec before implementation. ' +
+        'Use this to capture intent as a card. Requires slug (filename) and summary.',
       inputSchema: {
-        slug: z.string().describe('카드 slug (파일명, e.g. "auth-token")'),
-        summary: z.string().describe('카드 한줄 요약'),
-        body: z.string().optional().describe('마크다운 본문'),
-        keywords: z.array(z.string()).optional().describe('키워드 목록'),
-        tags: z.array(z.string()).optional().describe('태그 목록'),
-        relations: z.array(relationSchema).optional().describe('관계 목록 [{type, target}]'),
-        codeLinks: z.array(codeLinkSchema).optional().describe('코드 링크 [{kind, file, symbol}]'),
-        constraints: z.record(z.string(), z.unknown()).optional().describe('제약 조건 (key-value)'),
+        slug: z.string().describe('Card slug used as filename (e.g. "auth-token")'),
+        summary: z.string().describe('One-line summary of the card'),
+        body: z.string().optional().describe('Markdown body'),
+        keywords: z.array(z.string()).optional().describe('Keyword list for search'),
+        tags: z.array(z.string()).optional().describe('Tag list for classification'),
+        relations: z.array(relationSchema).optional().describe('Relations [{type, target}]'),
+        codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
+        constraints: z.record(z.string(), z.unknown()).optional().describe('Constraints (key-value)'),
       },
     },
     async (args: {
@@ -116,11 +119,55 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   );
 
   server.registerTool(
+    'emberdeck_bulk_create_cards',
+    {
+      description:
+        'Create multiple cards at once. Use when bootstrapping an existing project with specs, ' +
+        'or when a sub-agent generates cards for an entire feature area. ' +
+        'Relations between cards in the same batch are resolved regardless of order. ' +
+        'Partially succeeds on item failure.',
+      inputSchema: {
+        cards: z.array(z.object({
+          slug: z.string().describe('Card slug (e.g. "auth-token")'),
+          summary: z.string().describe('One-line summary'),
+          body: z.string().optional().describe('Markdown body'),
+          keywords: z.array(z.string()).optional().describe('Keywords'),
+          tags: z.array(z.string()).optional().describe('Tags'),
+          relations: z.array(relationSchema).optional().describe('Relations [{type, target}]'),
+          codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
+          constraints: z.record(z.string(), z.unknown()).optional().describe('Constraints'),
+        })).describe('Array of card inputs (same schema as create_card)'),
+      },
+    },
+    async (args: {
+      cards: Array<{
+        slug: string;
+        summary: string;
+        body?: string;
+        keywords?: string[];
+        tags?: string[];
+        relations?: Array<{ type: string; target: string }>;
+        codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
+        constraints?: Record<string, unknown>;
+      }>;
+    }) => {
+      try {
+        const result = await bulkCreateCards(ctx, args.cards);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
     'emberdeck_get_card',
     {
-      description: '카드 키로 카드 파일(frontmatter + body)을 읽는다.',
+      description:
+        'Read a card\'s full content (frontmatter + body). ' +
+        'Use before implementation to review the spec, or to inspect card details.',
       inputSchema: {
-        key: z.string().describe('카드 키 (e.g. "auth-token")'),
+        key: z.string().describe('Card key (e.g. "auth-token")'),
       },
     },
     async (args: { key: string }) => {
@@ -136,16 +183,18 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_update_card',
     {
-      description: '기존 카드의 필드를 업데이트한다. 변경할 필드만 전달.',
+      description:
+        'Update card fields when the spec evolves or needs refinement. ' +
+        'Only pass the fields you want to change; the rest are preserved.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
-        summary: z.string().optional().describe('새 한줄 요약'),
-        body: z.string().optional().describe('새 본문'),
-        keywords: z.array(z.string()).nullable().optional().describe('키워드 (null=삭제)'),
-        tags: z.array(z.string()).nullable().optional().describe('태그 (null=삭제)'),
-        relations: z.array(relationSchema).nullable().optional().describe('관계 (null=삭제)'),
-        codeLinks: z.array(codeLinkSchema).nullable().optional().describe('코드 링크 (null=삭제)'),
-        constraints: z.record(z.string(), z.unknown()).optional().describe('제약 조건'),
+        key: z.string().describe('Card key'),
+        summary: z.string().optional().describe('New summary'),
+        body: z.string().optional().describe('New body'),
+        keywords: z.array(z.string()).nullable().optional().describe('Keywords (null to remove)'),
+        tags: z.array(z.string()).nullable().optional().describe('Tags (null to remove)'),
+        relations: z.array(relationSchema).nullable().optional().describe('Relations (null to remove)'),
+        codeLinks: z.array(codeLinkSchema).nullable().optional().describe('Code links (null to remove)'),
+        constraints: z.record(z.string(), z.unknown()).optional().describe('Constraints'),
       },
     },
     async (args: {
@@ -171,10 +220,12 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_update_card_status',
     {
-      description: '카드 상태를 변경한다 (draft/accepted/implementing/implemented/deprecated).',
+      description:
+        'Transition a card through its lifecycle (draft/accepted/implementing/implemented/deprecated). ' +
+        'Use after review to accept a spec, or after implementation to mark it done.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
-        status: statusEnum.describe('새 상태'),
+        key: z.string().describe('Card key'),
+        status: statusEnum.describe('New status'),
       },
     },
     async (args: { key: string; status: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated' }) => {
@@ -190,9 +241,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_delete_card',
     {
-      description: '카드를 삭제한다 (DB + 파일).',
+      description:
+        'Permanently remove a card (DB + file). ' +
+        'Use when a spec is no longer relevant. Prefer deprecating over deleting if history matters.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
+        key: z.string().describe('Card key'),
       },
     },
     async (args: { key: string }) => {
@@ -208,10 +261,12 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_rename_card',
     {
-      description: '카드 이름(key)을 변경한다. 파일 이동 + DB 갱신.',
+      description:
+        'Rename a card key (moves file + updates DB). ' +
+        'Use when the original slug no longer reflects the card\'s scope.',
       inputSchema: {
-        key: z.string().describe('현재 카드 키'),
-        newSlug: z.string().describe('새 slug'),
+        key: z.string().describe('Current card key'),
+        newSlug: z.string().describe('New slug'),
       },
     },
     async (args: { key: string; newSlug: string }) => {
@@ -229,9 +284,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_list_cards',
     {
-      description: '카드 목록을 조회한다. status 필터 선택 가능.',
+      description:
+        'List all cards, optionally filtered by status. ' +
+        'Use at session start to see what specs exist, or to find cards in a specific lifecycle stage.',
       inputSchema: {
-        status: statusEnum.optional().describe('상태 필터 (선택)'),
+        status: statusEnum.optional().describe('Filter by status (optional)'),
       },
     },
     async (args: { status?: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated' }) => {
@@ -248,9 +305,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_search_cards',
     {
-      description: '카드를 텍스트 검색한다 (summary, body).',
+      description:
+        'Full-text search over card summaries and bodies. ' +
+        'Use before implementing a feature or fixing a bug to check if a related spec already exists.',
       inputSchema: {
-        query: z.string().describe('검색어'),
+        query: z.string().describe('Search query text'),
       },
     },
     async (args: { query: string }) => {
@@ -266,9 +325,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_get_card_context',
     {
-      description: '카드의 전체 컨텍스트를 반환한다 (카드 + 관계 + 코드 링크).',
+      description:
+        'Get a single card\'s full context: the card itself, its relations, and code links. ' +
+        'Use for a quick look at one card\'s dependencies and connected symbols.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
+        key: z.string().describe('Card key'),
       },
     },
     async (args: { key: string }) => {
@@ -284,11 +345,13 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_get_relation_graph',
     {
-      description: '카드의 관계 그래프를 BFS로 탐색한다.',
+      description:
+        'BFS-traverse the card relation graph from a starting card. ' +
+        'Use to understand how specs connect to each other and to find transitive dependencies.',
       inputSchema: {
-        key: z.string().describe('시작 카드 키'),
-        maxDepth: z.number().optional().describe('최대 탐색 깊이'),
-        direction: z.enum(['forward', 'backward', 'both']).optional().describe('탐색 방향'),
+        key: z.string().describe('Starting card key'),
+        maxDepth: z.number().optional().describe('Max traversal depth'),
+        direction: z.enum(['forward', 'backward', 'both']).optional().describe('Traversal direction'),
       },
     },
     async (args: { key: string; maxDepth?: number; direction?: 'forward' | 'backward' | 'both' }) => {
@@ -307,9 +370,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_list_card_relations',
     {
-      description: '카드의 관계 목록을 반환한다 (forward + reverse).',
+      description:
+        'List all relations for a card (forward + reverse). ' +
+        'Use to quickly check what a card depends on and what depends on it.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
+        key: z.string().describe('Card key'),
       },
     },
     async (args: { key: string }) => {
@@ -327,9 +392,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_sync_card_from_file',
     {
-      description: '외부 변경된 카드 파일을 DB에 동기화한다.',
+      description:
+        'Sync a card file that was edited outside emberdeck into the DB. ' +
+        'Use after manual file edits to keep DB in sync.',
       inputSchema: {
-        filePath: z.string().describe('카드 파일 절대 경로'),
+        filePath: z.string().describe('Absolute path to the .card.md file'),
       },
     },
     async (args: { filePath: string }) => {
@@ -345,9 +412,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_bulk_sync_cards',
     {
-      description: '디렉토리의 모든 .card.md 파일을 DB에 일괄 동기화한다.',
+      description:
+        'Scan a directory for all .card.md files and sync them into the DB. ' +
+        'Use after bulk file changes or initial project setup to ensure DB reflects disk state.',
       inputSchema: {
-        dirPath: z.string().optional().describe('스캔 디렉토리 (미지정 시 cardsDir)'),
+        dirPath: z.string().optional().describe('Directory to scan (defaults to cardsDir)'),
       },
     },
     async (args: { dirPath?: string }) => {
@@ -363,9 +432,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_validate_cards',
     {
-      description: '카드 파일과 DB의 일관성을 검증한다 (read-only).',
+      description:
+        'Check consistency between card files and DB (read-only). ' +
+        'Use to detect stale DB rows, orphan files, or key mismatches before making changes.',
       inputSchema: {
-        dirPath: z.string().optional().describe('검증 디렉토리 (미지정 시 cardsDir)'),
+        dirPath: z.string().optional().describe('Directory to validate (defaults to cardsDir)'),
       },
     },
     async (args: { dirPath?: string }) => {
@@ -381,9 +452,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_export_card_to_file',
     {
-      description: 'DB 상태를 기준으로 카드 파일을 재생성한다 (역방향 동기화).',
+      description:
+        'Regenerate a card file from DB state (reverse sync). ' +
+        'Use when DB is the source of truth and the file needs to be recreated.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
+        key: z.string().describe('Card key'),
       },
     },
     async (args: { key: string }) => {
@@ -401,9 +474,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_resolve_code_links',
     {
-      description: '카드의 codeLink를 심볼 인덱스에서 조회하여 반환한다. gildash 필요.',
+      description:
+        'Resolve a card\'s code links against the symbol index. Requires gildash. ' +
+        'Use to verify that declared code links point to real symbols in the codebase.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
+        key: z.string().describe('Card key'),
       },
     },
     async (args: { key: string }) => {
@@ -419,10 +494,12 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_find_cards_by_symbol',
     {
-      description: '심볼 이름으로 해당 심볼을 참조하는 카드 목록을 반환한다.',
+      description:
+        'Find cards that reference a given symbol name. ' +
+        'Use when investigating a symbol to discover its related specs.',
       inputSchema: {
-        symbolName: z.string().describe('심볼 이름'),
-        filePath: z.string().optional().describe('파일 경로 필터 (선택)'),
+        symbolName: z.string().describe('Symbol name to search for'),
+        filePath: z.string().optional().describe('File path filter (optional)'),
       },
     },
     async (args: { symbolName: string; filePath?: string }) => {
@@ -438,9 +515,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_find_affected_cards',
     {
-      description: '변경된 파일 목록 → 해당 파일의 심볼을 codeLink로 참조하는 카드 목록.',
+      description:
+        'Given a list of changed files, find cards whose code links reference symbols in those files. ' +
+        'Use after code changes to identify which specs may need review or updates.',
       inputSchema: {
-        changedFiles: z.array(z.string()).describe('변경된 파일 경로 배열'),
+        changedFiles: z.array(z.string()).describe('Array of changed file paths'),
       },
     },
     async (args: { changedFiles: string[] }) => {
@@ -456,9 +535,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   server.registerTool(
     'emberdeck_validate_code_links',
     {
-      description: '카드의 codeLink가 현재 심볼 인덱스에 존재하는지 검증한다. gildash 필요.',
+      description:
+        'Validate that a card\'s code links exist in the current symbol index. Requires gildash. ' +
+        'Use to detect broken links after code refactoring or symbol renames.',
       inputSchema: {
-        key: z.string().describe('카드 키'),
+        key: z.string().describe('Card key'),
       },
     },
     async (args: { key: string }) => {

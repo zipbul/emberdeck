@@ -1,9 +1,9 @@
 /**
- * MCP tools 통합 테스트.
+ * MCP tools integration tests.
  *
- * 공식 MCP 테스트 방법 사용:
+ * Uses official MCP testing approach:
  * - McpServer + InMemoryTransport.createLinkedPair() + Client
- * - Client.listTools() / Client.callTool() 프로토콜 수준 검증
+ * - Client.listTools() / Client.callTool() protocol-level verification
  */
 import { describe, it, expect, afterEach } from 'bun:test';
 
@@ -79,7 +79,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should return 19 tools via listTools', async () => {
       s = await setupMcp();
       const { tools } = await s.client.listTools();
-      expect(tools).toHaveLength(19);
+      expect(tools).toHaveLength(20);
     });
 
     // #2
@@ -118,7 +118,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       try {
         await s.client.callTool({ name: 'nonexistent_tool', arguments: {} });
-        // 프로토콜이 에러를 throw할 수도 있고, isError result를 반환할 수도 있음
+        // Protocol may throw an error or return an isError result
         expect(true).toBe(false); // should not reach
       } catch (err) {
         expect(err).toBeDefined();
@@ -167,7 +167,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #7
     it('should create a card with all optional fields', async () => {
       s = await setupMcp({ allowedRelationTypes: ['depends-on'] });
-      // target 카드를 먼저 생성해야 FK 충족
+      // Target card must be created first to satisfy FK constraint
       await s.client.callTool({
         name: 'emberdeck_create_card',
         arguments: { slug: 'dep-target', summary: 'Dep target' },
@@ -541,12 +541,12 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #28
     it('should handle empty search query gracefully', async () => {
       s = await setupMcp();
-      // 빈 query는 에러 또는 빈 결과 — 어느 쪽이든 crash하지 않아야 함
+      // Empty query may return an error or empty results — either way it should not crash
       const result = await s.client.callTool({
         name: 'emberdeck_search_cards',
         arguments: { query: '' },
       });
-      // isError이든 빈 결과이든 유효 응답
+      // Whether isError or empty result, it should be a valid response
       expect(result.content).toBeArray();
     });
   });
@@ -824,7 +824,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
           codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Foo' }],
         },
       });
-      // gildash 미설정 → GildashNotConfiguredError
+      // gildash not configured → GildashNotConfiguredError
       const result = await s.client.callTool({
         name: 'emberdeck_resolve_code_links',
         arguments: { key: 'link-card' },
@@ -912,7 +912,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
           codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Bar' }],
         },
       });
-      // gildash 미설정 → GildashNotConfiguredError
+      // gildash not configured → GildashNotConfiguredError
       const result = await s.client.callTool({
         name: 'emberdeck_validate_code_links',
         arguments: { key: 'vcl-card' },
@@ -996,7 +996,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         name: 'emberdeck_create_card',
         arguments: { slug: 'self-ref', summary: 'Self ref' },
       });
-      // self-ref: forward + reverse 모두 (type, src, dst) 동일 → UNIQUE 위반
+      // self-ref: both forward + reverse have identical (type, src, dst) → UNIQUE violation
       const upd = await s.client.callTool({
         name: 'emberdeck_update_card',
         arguments: { key: 'self-ref', relations: [{ type: 'depends-on', target: 'self-ref' }] },
@@ -1007,7 +1007,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #53
     it('should show mutual relations in graph', async () => {
       s = await setupMcp({ allowedRelationTypes: ['depends-on'] });
-      // 양쪽 카드 먼저 생성, 후 관계 추가
+      // Create both cards first, then add relations
       await s.client.callTool({
         name: 'emberdeck_create_card',
         arguments: { slug: 'mutual-a', summary: 'A' },
@@ -1016,7 +1016,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         name: 'emberdeck_create_card',
         arguments: { slug: 'mutual-b', summary: 'B' },
       });
-      // 관계 추가
+      // Add relations
       await s.client.callTool({
         name: 'emberdeck_update_card',
         arguments: { key: 'mutual-a', relations: [{ type: 'depends-on', target: 'mutual-b' }] },

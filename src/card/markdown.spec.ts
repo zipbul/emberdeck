@@ -328,7 +328,7 @@ describe('parseCardMarkdown', () => {
   });
 
   it('should throw CardValidationError when YAML frontmatter is syntactically invalid', () => {
-    // Bun.YAML.parse 실패(예: `key: [[`) 시 네이티브 에러 대신 CardValidationError throw
+    // When Bun.YAML.parse fails (e.g. `key: [[`), throw CardValidationError instead of native error
     const md = '---\nkey: [[\n---\nbody';
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
@@ -337,7 +337,7 @@ describe('parseCardMarkdown', () => {
 // ── codeLinks parsing ─────────────────────────────────────────────────────
 
 describe('parseCardMarkdown — codeLinks', () => {
-  // 1. [HP] 단일 유효 codeLink
+  // 1. [HP] single valid codeLink
   it('should parse codeLinks when single valid codeLink given', () => {
     // Arrange
     const md = makeMarkdown({
@@ -351,7 +351,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     ]);
   });
 
-  // 2. [HP] 복수 codeLinks
+  // 2. [HP] multiple codeLinks
   it('should parse all codeLinks when multiple valid codeLinks given', () => {
     // Arrange
     const links = [
@@ -365,7 +365,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks).toEqual(links);
   });
 
-  // 3. [HP] codeLinks 미지정 → undefined
+  // 3. [HP] codeLinks not specified → undefined
   it('should return undefined codeLinks when codeLinks field absent', () => {
     // Arrange
     const md = makeMarkdown();
@@ -385,7 +385,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks).toBeUndefined();
   });
 
-  // 5. [ED] codeLinks: [] → 빈 배열
+  // 5. [ED] codeLinks: [] → empty array
   it('should return empty array codeLinks when codeLinks is empty array', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: []\n---\n`;
@@ -395,7 +395,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks).toEqual([]);
   });
 
-  // 6. [NE] codeLinks가 숫자 → throw
+  // 6. [NE] codeLinks is a number → throw
   it('should throw CardValidationError when codeLinks is a number', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: 42\n---\n`;
@@ -403,7 +403,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 7. [NE] codeLinks가 비배열 객체 → throw
+  // 7. [NE] codeLinks is a non-array object → throw
   it('should throw CardValidationError when codeLinks is a non-array object', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  kind: function\n---\n`;
@@ -411,7 +411,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 8. [NE] 아이템이 null → throw
+  // 8. [NE] item is null → throw
   it('should throw CardValidationError when codeLinks item is null', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - null\n---\n`;
@@ -419,7 +419,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 9. [NE] 아이템 kind가 빈 문자열 → throw
+  // 9. [NE] item kind is empty string → throw
   it('should throw CardValidationError when codeLinks item kind is empty string', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: ''\n    file: src/a.ts\n    symbol: foo\n---\n`;
@@ -427,7 +427,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 10. [NE] 아이템 kind 키 없음 → throw
+  // 10. [NE] item missing kind key → throw
   it('should throw CardValidationError when codeLinks item is missing kind', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - file: src/a.ts\n    symbol: foo\n---\n`;
@@ -435,7 +435,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 11. [NE] 아이템 file이 빈 문자열 → throw
+  // 11. [NE] item file is empty string → throw
   it('should throw CardValidationError when codeLinks item file is empty string', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: ''\n    symbol: foo\n---\n`;
@@ -443,7 +443,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 12. [NE] 아이템 symbol이 빈 문자열 → throw
+  // 12. [NE] item symbol is empty string → throw
   it('should throw CardValidationError when codeLinks item symbol is empty string', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: ''\n---\n`;
@@ -451,7 +451,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 13. [HP] codeLinks와 relations 동시 존재
+  // 13. [HP] codeLinks and relations coexist
   it('should parse both codeLinks and relations when both fields given', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\nrelations:\n  - type: depends-on\n    target: other\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n---\n`;
@@ -462,7 +462,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks).toEqual([{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }]);
   });
 
-  // 14. [HP] 순서 보존
+  // 14. [HP] order preservation
   it('should preserve codeLinks order when multiple codeLinks given', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: alpha\n  - kind: class\n    file: src/b.ts\n    symbol: beta\n---\n`;
@@ -473,7 +473,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks![1]!.symbol).toBe('beta');
   });
 
-  // 15. [CO] 첫 아이템 유효, 두 번째 아이템 kind='' → throw
+  // 15. [CO] first item valid, second item kind='' → throw
   it('should throw CardValidationError when second codeLinks item has empty kind', () => {
     // Arrange
     const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n  - kind: ''\n    file: src/b.ts\n    symbol: bar\n---\n`;
@@ -485,7 +485,7 @@ describe('parseCardMarkdown — codeLinks', () => {
 // ── codeLinks serialization ──────────────────────────────────────────────────
 
 describe('serializeCardMarkdown — codeLinks', () => {
-  // 16. [HP] codeLinks 있는 frontmatter → YAML에 codeLinks 포함
+  // 16. [HP] frontmatter with codeLinks → YAML includes codeLinks
   it('should include codeLinks in YAML when codeLinks present in frontmatter', () => {
     // Arrange
     const fm: CardFrontmatter = {
@@ -501,7 +501,7 @@ describe('serializeCardMarkdown — codeLinks', () => {
     expect(result).toContain('refreshToken');
   });
 
-  // 17. [HP] codeLinks 없는 frontmatter → YAML에 codeLinks 없음
+  // 17. [HP] frontmatter without codeLinks → YAML excludes codeLinks
   it('should not include codeLinks in YAML when codeLinks absent from frontmatter', () => {
     // Arrange
     const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft' };
@@ -511,7 +511,7 @@ describe('serializeCardMarkdown — codeLinks', () => {
     expect(result).not.toContain('codeLinks');
   });
 
-  // 18. [HP] round-trip: parse→serialize codeLinks 값 보존
+  // 18. [HP] round-trip: parse→serialize preserves codeLinks values
   it('should preserve codeLinks after round-trip parse then serialize then parse', () => {
     // Arrange
     const original: CardFrontmatter = {

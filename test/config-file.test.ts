@@ -41,7 +41,7 @@ async function writeConfig(name: string, content: string): Promise<string> {
 describe('validateRawConfig', () => {
   // ── valid cases ──
 
-  it('빈 객체 → 기본값으로 생성', () => {
+  it('empty object -> creates defaults', () => {
     const filePath = join(tmpDir, '.emberdeck.jsonc');
     const result = validateRawConfig({}, filePath);
     expect(isErr(result)).toBe(false);
@@ -53,7 +53,7 @@ describe('validateRawConfig', () => {
     expect(config.limits).toEqual(DEFAULT_LIMITS);
   });
 
-  it('모든 필드 지정', () => {
+  it('all fields specified', () => {
     const raw = {
       cardsDir: './my-cards',
       dbPath: './my.db',
@@ -86,7 +86,7 @@ describe('validateRawConfig', () => {
     expect(config.limits.summaryMax).toBe(200);
   });
 
-  it('limits 일부만 지정 → 나머지는 기본값', () => {
+  it('partial limits -> rest use defaults', () => {
     const filePath = join(tmpDir, '.emberdeck.json');
     const result = validateRawConfig({ limits: { summaryMax: 300 } }, filePath);
     expect(isErr(result)).toBe(false);
@@ -97,28 +97,28 @@ describe('validateRawConfig', () => {
 
   // ── invalid: top-level type ──
 
-  it('null → 에러', () => {
+  it('null -> error', () => {
     const result = validateRawConfig(null, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
       expect(result.data.code).toBe('VALIDATION_ERROR');
-      expect(result.data.message).toContain('객체');
+      expect(result.data.message).toContain('object');
     }
   });
 
-  it('배열 → 에러', () => {
+  it('array -> error', () => {
     const result = validateRawConfig([], '/fake');
     expect(isErr(result)).toBe(true);
   });
 
-  it('문자열 → 에러', () => {
+  it('string -> error', () => {
     const result = validateRawConfig('hello', '/fake');
     expect(isErr(result)).toBe(true);
   });
 
   // ── invalid: unknown keys ──
 
-  it('알 수 없는 키 → 에러', () => {
+  it('unknown key -> error', () => {
     const result = validateRawConfig({ unknownKey: 123 }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
@@ -126,7 +126,7 @@ describe('validateRawConfig', () => {
     }
   });
 
-  it('limits에 알 수 없는 키 → 에러', () => {
+  it('unknown key in limits -> error', () => {
     const result = validateRawConfig({ limits: { badKey: 1 } }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
@@ -136,7 +136,7 @@ describe('validateRawConfig', () => {
 
   // ── invalid: type errors ──
 
-  it('cardsDir가 number → 에러', () => {
+  it('cardsDir as number -> error', () => {
     const result = validateRawConfig({ cardsDir: 123 }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
@@ -144,7 +144,7 @@ describe('validateRawConfig', () => {
     }
   });
 
-  it('statuses가 string이 아닌 항목 → 에러', () => {
+  it('non-string item in statuses -> error', () => {
     const result = validateRawConfig({ statuses: ['ok', 42] }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
@@ -152,23 +152,23 @@ describe('validateRawConfig', () => {
     }
   });
 
-  it('빈 statuses 배열 → 에러', () => {
+  it('empty statuses array -> error', () => {
     const result = validateRawConfig({ statuses: [] }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
-      expect(result.data.message).toContain('비어있을 수 없습니다');
+      expect(result.data.message).toContain('must not be empty');
     }
   });
 
-  it('cardExtension이 점으로 시작하지 않음 → 에러', () => {
+  it('cardExtension without leading dot -> error', () => {
     const result = validateRawConfig({ cardExtension: 'md' }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
-      expect(result.data.message).toContain('점(.)');
+      expect(result.data.message).toContain('dot (.)');
     }
   });
 
-  it('limits가 배열 → 에러', () => {
+  it('limits as array -> error', () => {
     const result = validateRawConfig({ limits: [] }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
@@ -176,25 +176,25 @@ describe('validateRawConfig', () => {
     }
   });
 
-  it('limits에 음수 → 에러', () => {
+  it('negative number in limits -> error', () => {
     const result = validateRawConfig({ limits: { summaryMax: -1 } }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
-      expect(result.data.message).toContain('양의 정수');
+      expect(result.data.message).toContain('positive integer');
     }
   });
 
-  it('limits에 소수 → 에러', () => {
+  it('decimal number in limits -> error', () => {
     const result = validateRawConfig({ limits: { bodyMax: 1.5 } }, '/fake');
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
-      expect(result.data.message).toContain('양의 정수');
+      expect(result.data.message).toContain('positive integer');
     }
   });
 
-  // ── 에러 메시지 집계 ──
+  // ── error message aggregation ──
 
-  it('여러 에러를 한번에 수집', () => {
+  it('collects multiple errors at once', () => {
     const result = validateRawConfig(
       { cardsDir: 123, unknownKey: true, statuses: 'string' },
       '/fake',
@@ -210,7 +210,7 @@ describe('validateRawConfig', () => {
 // ── loadConfigFromPath ──
 
 describe('loadConfigFromPath', () => {
-  it('존재하지 않는 경로 → FILE_NOT_FOUND', async () => {
+  it('non-existent path -> FILE_NOT_FOUND', async () => {
     const result = await loadConfigFromPath(join(tmpDir, 'no-such-file.jsonc'));
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
@@ -218,9 +218,9 @@ describe('loadConfigFromPath', () => {
     }
   });
 
-  it('유효한 JSONC 파일 → 정상 로드', async () => {
+  it('valid JSONC file -> loads successfully', async () => {
     const p = await writeConfig('.emberdeck.jsonc', `{
-      // 주석 허용
+      // comments allowed
       "cardsDir": "./c",
       "dbPath": "./d.db"
     }`);
@@ -230,7 +230,7 @@ describe('loadConfigFromPath', () => {
     expect(config.cardsDir).toBe(resolve(tmpDir, './c'));
   });
 
-  it('잘못된 JSON → PARSE_ERROR', async () => {
+  it('invalid JSON -> PARSE_ERROR', async () => {
     const p = await writeConfig('.emberdeck.jsonc', '{ invalid json }}}');
     const result = await loadConfigFromPath(p);
     expect(isErr(result)).toBe(true);
@@ -239,7 +239,7 @@ describe('loadConfigFromPath', () => {
     }
   });
 
-  it('유효 JSON이지만 검증 실패 → VALIDATION_ERROR', async () => {
+  it('valid JSON but fails validation -> VALIDATION_ERROR', async () => {
     const p = await writeConfig('.emberdeck.json', '{ "badKey": 1 }');
     const result = await loadConfigFromPath(p);
     expect(isErr(result)).toBe(true);
@@ -252,7 +252,7 @@ describe('loadConfigFromPath', () => {
 // ── loadConfig (auto-search) ──
 
 describe('loadConfig', () => {
-  it('설정 파일 없을 때 → 기본값 반환', async () => {
+  it('no config file -> returns defaults', async () => {
     const result = await loadConfig(tmpDir);
     expect(isErr(result)).toBe(false);
     const config = result as EmberdeckFileConfig;
@@ -260,7 +260,7 @@ describe('loadConfig', () => {
     expect(config.dbPath).toBe(resolve(tmpDir, DEFAULT_DB_PATH));
   });
 
-  it('.emberdeck.jsonc 우선 탐색', async () => {
+  it('.emberdeck.jsonc takes priority', async () => {
     await writeConfig('.emberdeck.jsonc', '{ "cardsDir": "./a" }');
     await writeConfig('.emberdeck.json', '{ "cardsDir": "./b" }');
     const result = await loadConfig(tmpDir);
@@ -281,7 +281,7 @@ describe('loadConfig', () => {
 // ── mergeCliArgs ──
 
 describe('mergeCliArgs', () => {
-  it('CLI args가 config을 override', () => {
+  it('CLI args override config', () => {
     const config = buildDefaultConfig(tmpDir);
     const merged = mergeCliArgs(config, {
       dir: '/abs/cards',
@@ -289,12 +289,12 @@ describe('mergeCliArgs', () => {
     });
     expect(merged.cardsDir).toBe(resolve('/abs/cards'));
     expect(merged.dbPath).toBe(resolve('/abs/data.db'));
-    // 다른 필드는 유지
+    // other fields preserved
     expect(merged.cardExtension).toBe(config.cardExtension);
     expect(merged.limits).toEqual(config.limits);
   });
 
-  it('undefined arg는 무시', () => {
+  it('undefined arg is ignored', () => {
     const config = buildDefaultConfig(tmpDir);
     const merged = mergeCliArgs(config, {});
     expect(merged.cardsDir).toBe(config.cardsDir);
@@ -311,7 +311,7 @@ describe('mergeCliArgs', () => {
 // ── buildDefaultConfig ──
 
 describe('buildDefaultConfig', () => {
-  it('기본값 정확성', () => {
+  it('default values are correct', () => {
     const config = buildDefaultConfig('/base');
     expect(config.cardsDir).toBe(resolve('/base', DEFAULT_CARDS_DIR));
     expect(config.dbPath).toBe(resolve('/base', DEFAULT_DB_PATH));
@@ -325,7 +325,7 @@ describe('buildDefaultConfig', () => {
     expect(config.cardExtension).toBe(DEFAULT_CARD_EXTENSION);
   });
 
-  it('반환된 limits은 독립 복사본', () => {
+  it('returned limits is an independent copy', () => {
     const a = buildDefaultConfig('/a');
     const b = buildDefaultConfig('/b');
     a.limits.summaryMax = 999;

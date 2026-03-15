@@ -1,11 +1,11 @@
 /**
- * 카드의 라이프사이클 상태.
+ * Lifecycle status of a card.
  *
- * - `draft` — 초기 작성 중. 검토 전.
- * - `accepted` — 리뷰 완료. 구현 대기.
- * - `implementing` — 구현 진행 중.
- * - `implemented` — 구현 완료.
- * - `deprecated` — 더 이상 유효하지 않음.
+ * - `draft` — Initial authoring in progress. Not yet reviewed.
+ * - `accepted` — Review complete. Awaiting implementation.
+ * - `implementing` — Implementation in progress.
+ * - `implemented` — Implementation complete.
+ * - `deprecated` — No longer valid.
  */
 export type CardStatus =
   | 'draft'
@@ -15,61 +15,61 @@ export type CardStatus =
   | 'deprecated';
 
 /**
- * 카드 간 단방향 관계 레코드.
- * 역방향(reverse)은 DB에서 자동 생성되며 이 인터페이스로 직접 표현하지 않는다.
+ * A unidirectional relation record between cards.
+ * Reverse relations are auto-generated in the DB and are not directly represented by this interface.
  */
 export interface CardRelation {
-  /** 관계 타입. `EmberdeckContext.allowedRelationTypes`에 등록된 값이어야 한다. */
+  /** Relation type. Must be a value registered in `EmberdeckContext.allowedRelationTypes`. */
   type: string;
-  /** 대상 카드의 fullKey (e.g. `'auth-token'`, `'api/rate-limit'`). */
+  /** The target card's fullKey (e.g. `'auth-token'`, `'api/rate-limit'`). */
   target: string;
 }
 
 /**
- * 카드와 소스 코드 심볼을 연결하는 레코드 (gildash 통합).
- * `EmberdeckOptions.projectRoot`가 설정된 경우에만 코드 링크 기능이 활성화된다.
+ * A record linking a card to a source code symbol (gildash integration).
+ * Code link functionality is only enabled when `EmberdeckOptions.projectRoot` is configured.
  */
 export interface CodeLink {
   /** gildash SymbolKind (e.g. `'function'` | `'class'` | `'variable'` | ...) */
   kind: string;
-  /** 프로젝트 루트 기준 상대 경로 (e.g. `'src/auth/token.ts'`) */
+  /** Relative path from the project root (e.g. `'src/auth/token.ts'`) */
   file: string;
-  /** 정확한 심볼 이름 (e.g. `'refreshToken'`) */
+  /** Exact symbol name (e.g. `'refreshToken'`) */
   symbol: string;
 }
 
 /**
- * `.card.md` 파일의 YAML frontmatter 구조.
- * `serializeCardMarkdown` / `parseCardMarkdown`으로 마크다운 파일과 상호변환된다.
+ * YAML frontmatter structure of a `.card.md` file.
+ * Converted to/from markdown files via `serializeCardMarkdown` / `parseCardMarkdown`.
  */
 export interface CardFrontmatter {
-  /** 카드 고유 식별자. 파일 경로 slug와 일치해야 한다. */
+  /** Unique card identifier. Must match the file path slug. */
   key: string;
-  /** 카드를 한 줄로 요약하는 필수 텍스트. */
+  /** Required one-line summary of the card. */
   summary: string;
-  /** 카드의 현재 라이프사이클 상태. */
+  /** Current lifecycle status of the card. */
   status: CardStatus;
-  /** 분류용 태그 목록. */
+  /** List of tags for categorization. */
   tags?: string[];
-  /** 검색용 키워드 목록. */
+  /** List of keywords for search. */
   keywords?: string[];
-  /** 자유 형식 제약 조건. 스키마 미지정. */
+  /** Free-form constraints. No schema defined. */
   constraints?: unknown;
-  /** 다른 카드와의 관계 목록. */
+  /** List of relations to other cards. */
   relations?: CardRelation[];
-  /** 소스 코드 심볼 참조 목록. */
+  /** List of source code symbol references. */
   codeLinks?: CodeLink[];
 }
 
 /**
- * 파일에서 읽은 카드의 전체 표현.
- * `readCardFile` / `writeCardFile`로 디스크와 상호변환된다.
+ * Complete representation of a card read from a file.
+ * Converted to/from disk via `readCardFile` / `writeCardFile`.
  */
 export interface CardFile {
-  /** 파싱된 frontmatter 객체. */
+  /** Parsed frontmatter object. */
   frontmatter: CardFrontmatter;
-  /** frontmatter 아래의 마크다운 본문. */
+  /** Markdown body below the frontmatter. */
   body: string;
-  /** 카드 파일의 절대 경로. `buildCardPath(cardsDir, key)`로 계산. */
+  /** Absolute path to the card file. Computed via `buildCardPath(cardsDir, key)`. */
   filePath?: string;
 }

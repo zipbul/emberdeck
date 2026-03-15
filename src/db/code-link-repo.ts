@@ -22,7 +22,7 @@ export class DrizzleCodeLinkRepository implements CodeLinkRepository {
         const msg = e instanceof Error ? e.message : String(e);
         if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
         console.warn(`[emberdeck] code link skipped (FK violation): ${msg}`);
-        // FK violation: 대상 카드 미존재 → 해당 link만 스킵
+        // FK violation: target card does not exist → skip this link
       }
     }
   }

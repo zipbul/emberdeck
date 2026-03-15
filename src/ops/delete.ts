@@ -6,16 +6,16 @@ import { withCardLock, withRetry, safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 
 /**
- * 카드를 삭제한다 (DB + 파일).
+ * Deletes a card (DB + file).
  *
- * 1. DB를 먼저 삭제한다 (FK CASCADE로 relation/keyword/tag 자동 정리).
- * 2. 파일시스템 삭제 시 실패하면 `syncCardFromFile`로 DB를 복구한다.
+ * 1. Deletes from the DB first (FK CASCADE auto-cleans relations/keywords/tags).
+ * 2. If filesystem deletion fails, restores the DB via `syncCardFromFile`.
  *
- * @param ctx - `setupEmberdeck()`으로 생성된 컨텍스트.
- * @param fullKey - 삭제할 카드의 fullKey.
- * @returns 삭제된 파일 경로.
- * @throws {CardKeyError} fullKey가 유효하지 않을 때.
- * @throws {CardNotFoundError} 해당 key의 카드가 없었을 때.
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKey - fullKey of the card to delete.
+ * @returns The deleted file path.
+ * @throws {CardKeyError} When fullKey is invalid.
+ * @throws {CardNotFoundError} When no card exists for the given key.
  */
 export async function deleteCard(
   ctx: EmberdeckContext,
@@ -33,9 +33,9 @@ export async function deleteCard(
 
       return safeWriteOperation({
         dbAction: () => {
-          // DB 먼저 삭제(FK cascade로 relation, keyword, tag 매핑 자동 삭제)
+          // Delete from DB first (FK cascade auto-deletes relation, keyword, tag mappings)
           ctx.cardRepo.deleteByKey(key);
-          // cascade 후 매핑만 삭제되고 keyword/tag 자체는 남을 수 있으므로 정리
+          // After cascade, only mappings are deleted; keywords/tags themselves may remain, so prune them
           ctx.classificationRepo.pruneOrphans();
           return { filePath };
         },
@@ -43,7 +43,7 @@ export async function deleteCard(
           await deleteCardFile(filePath);
         },
         compensate: async () => {
-          // 파일이 아직 남아있으므로 syncCardFromFile로 DB 복구
+          // File still exists, so restore DB via syncCardFromFile
           await syncCardFromFile(ctx, filePath);
         },
       });

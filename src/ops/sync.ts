@@ -26,8 +26,8 @@ export interface CardValidationResult {
 }
 
 /**
- * 외부 변경된 카드 파일 → DB 동기화.
- * watcher 이벤트(생성/변경) 수신 시 CLI가 호출.
+ * Syncs an externally modified card file to the DB.
+ * Called by the CLI when a watcher event (create/change) is received.
  */
 export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string): Promise<void> {
   const cardFile = await readCardFile(filePath);
@@ -62,10 +62,10 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
 }
 
 /**
- * cardsDir(또는 dirPath) 전체를 스캔하여 모든 .card.md 파일을 DB에 일괄 동기화.
+ * Scans the entire cardsDir (or dirPath) and bulk-syncs all .card.md files to the DB.
  *
- * 파일 읽기를 `Promise.allSettled`로 병렬 실행하여 I/O 대기 시간을 최소화한다.
- * 각 파일의 DB 쓰기는 `syncCardFromFile` 내부의 트랜잭션으로 원자성이 보장된다.
+ * File reads are executed in parallel via `Promise.allSettled` to minimize I/O wait time.
+ * Each file's DB write is atomic, guaranteed by the transaction inside `syncCardFromFile`.
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,
@@ -98,8 +98,8 @@ export async function bulkSyncCards(
 }
 
 /**
- * cardsDir(또는 dirPath) 파일 목록과 DB rows의 일관성을 검증.
- * DB를 수정하지 않는다 (read-only).
+ * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
+ * Does not modify the DB (read-only).
  */
 export async function validateCards(
   ctx: EmberdeckContext,
@@ -129,9 +129,9 @@ export async function validateCards(
 }
 
 /**
- * DB 상태를 기준으로 카드 파일을 재생성(역방향 동기화).
- * DB row + relations + keywords + tags + codeLinks → frontmatter 구성 → Bun.write.
- * @returns 작성된 파일 절대 경로
+ * Regenerates a card file from the DB state (reverse sync).
+ * DB row + relations + keywords + tags + codeLinks -> constructs frontmatter -> Bun.write.
+ * @returns Absolute path of the written file.
  */
 export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
   const key = parseFullKey(fullKey);
@@ -166,8 +166,8 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
 }
 
 /**
- * 외부 삭제된 카드 파일 → DB에서 제거.
- * watcher 이벤트(삭제) 수신 시 CLI가 호출.
+ * Removes a card from the DB when its file has been externally deleted.
+ * Called by the CLI when a watcher event (delete) is received.
  */
 export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void {
   const existing = ctx.cardRepo.findByFilePath(filePath);

@@ -45,7 +45,7 @@ describe('migration', () => {
     closeDb(db);
   });
 
-  // NE — file path: mkdirSync 분기 (path !== ':memory:')
+  // NE — file path: mkdirSync branch (path !== ':memory:')
   it('should create the DB file and directory when createEmberdeckDb is called with a real file path', async () => {
     // Arrange
     const tmpDir = join(tmpdir(), `emberdeck_migrate_test_${Date.now()}`);

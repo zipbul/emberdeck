@@ -4,20 +4,20 @@ import { CompensationError } from '../card/errors';
 // ── Types ─────────────────────────────────────────────────────────────────
 
 export interface RetryOptions {
-  /** 최대 재시도 횟수. 기본값: 3 */
+  /** Maximum number of retries. Default: 3 */
   maxRetries?: number;
-  /** 첫 재시도 대기 시간(ms). 지수 백오프 기준. 기본값: 50 */
+  /** Initial retry delay (ms). Used as the base for exponential backoff. Default: 50 */
   baseDelayMs?: number;
-  /** 최대 대기 시간(ms). 기본값: 2000 */
+  /** Maximum delay (ms). Default: 2000 */
   maxDelayMs?: number;
 }
 
 export interface SafeWriteOptions<T> {
-  /** DB 트랜잭션 액션. 동기 실행. */
+  /** DB transaction action. Executed synchronously. */
   dbAction: () => T;
-  /** 파일시스템 액션. 비동기 실행. */
+  /** Filesystem action. Executed asynchronously. */
   fileAction: () => Promise<void>;
-  /** dbAction 성공 후 fileAction 실패 시 보상(rollback) 액션. */
+  /** Compensation (rollback) action when fileAction fails after dbAction succeeds. */
   compensate: (dbResult: T) => void | Promise<void>;
 }
 
@@ -41,8 +41,8 @@ function getLocksMap(ctx: EmberdeckContext): Map<string, Promise<void>> {
 // ── Public API ────────────────────────────────────────────────────────────
 
 /**
- * SQLITE_BUSY 에러 시 지수 백오프로 재시도.
- * Non-busy 에러는 즉시 re-throw.
+ * Retries with exponential backoff on SQLITE_BUSY errors.
+ * Non-busy errors are re-thrown immediately.
  */
 export async function withRetry<T>(
   fn: () => T | Promise<T>,
@@ -69,8 +69,8 @@ export async function withRetry<T>(
 }
 
 /**
- * 동일 ctx + 동일 key에 대한 동시 호출을 FIFO로 직렬화.
- * WeakMap 기반이므로 ctx GC 시 자동 정리.
+ * Serializes concurrent calls for the same ctx + key in FIFO order.
+ * Uses a WeakMap, so locks are automatically cleaned up when ctx is garbage collected.
  */
 export async function withCardLock<T>(
   ctx: EmberdeckContext,
@@ -99,9 +99,9 @@ export async function withCardLock<T>(
 }
 
 /**
- * DB 액션 → 파일 액션 순서로 실행.
- * 파일 실패 시 compensate로 DB 롤백 시도.
- * compensate도 실패하면 CompensationError.
+ * Executes DB action first, then file action.
+ * On file failure, attempts DB rollback via compensate.
+ * If compensate also fails, throws CompensationError.
  */
 export async function safeWriteOperation<T>(
   options: SafeWriteOptions<T>,

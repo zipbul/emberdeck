@@ -13,28 +13,28 @@ export const DEFAULT_RELATION_TYPES = [
 export type DefaultRelationType = (typeof DEFAULT_RELATION_TYPES)[number];
 
 /**
- * `setupEmberdeck()`에 전달하는 초기화 옵션.
+ * Initialization options passed to `setupEmberdeck()`.
  */
 export interface EmberdeckOptions {
-  /** 카드 .card.md 파일이 저장되는 절대 경로 디렉토리 */
+  /** Absolute path to the directory where .card.md files are stored */
   cardsDir: string;
-  /** SQLite DB 파일 절대 경로. ':memory:' 허용 */
+  /** Absolute path to the SQLite DB file. ':memory:' is allowed */
   dbPath: string;
-  /** 허용 관계 타입. 미지정 시 DEFAULT_RELATION_TYPES 사용 */
+  /** Allowed relation types. Uses DEFAULT_RELATION_TYPES when not specified */
   allowedRelationTypes?: readonly string[];
-  /** gildash 활성화용 프로젝트 루트 절대 경로. 미지정 시 코드 링크 기능 비활성 */
+  /** Absolute path to the project root for enabling gildash. Code link feature is disabled when not specified */
   projectRoot?: string;
-  /** gildash ignore 패턴. 기본값: ['node_modules', 'dist', '.zipbul'] */
+  /** Gildash ignore patterns. Default: ['node_modules', 'dist', '.zipbul'] */
   gildashIgnore?: string[];
 }
 
 /**
- * `setupEmberdeck()`이 반환하는 런타임 컨텍스트.
- * 모든 ops 함수의 첫 번째 파라미터로 전달된다.
+ * Runtime context returned by `setupEmberdeck()`.
+ * Passed as the first parameter to all ops functions.
  *
  * @example
  * const ctx = await setupEmberdeck({ cardsDir: './cards', dbPath: './cards.db' });
- * await createCard(ctx, { slug: 'auth-token', summary: 'JWT 토큰 관리' });
+ * await createCard(ctx, { slug: 'auth-token', summary: 'JWT token management' });
  */
 export interface EmberdeckContext {
   cardsDir: string;
@@ -44,13 +44,13 @@ export interface EmberdeckContext {
   classificationRepo: ClassificationRepository;
   codeLinkRepo: CodeLinkRepository;
   allowedRelationTypes: readonly string[];
-  /** gildash 인스턴스. projectRoot 미설정 또는 초기화 실패 시 undefined */
+  /** Gildash instance. undefined when projectRoot is not set or initialization fails */
   gildash?: Gildash;
 }
 
 /**
- * ctx의 허용 관계 타입 목록에 새 타입을 추가.
- * 이미 존재하면 무시 (중복 방지).
+ * Adds a new type to the allowed relation types list in ctx.
+ * Ignored if it already exists (prevents duplicates).
  */
 export function addRelationType(ctx: EmberdeckContext, type: string): void {
   if (!ctx.allowedRelationTypes.includes(type)) {
@@ -59,15 +59,15 @@ export function addRelationType(ctx: EmberdeckContext, type: string): void {
 }
 
 /**
- * ctx의 허용 관계 타입 목록에서 타입 제거.
- * 존재하지 않으면 무해.
+ * Removes a type from the allowed relation types list in ctx.
+ * No-op if the type does not exist.
  */
 export function removeRelationType(ctx: EmberdeckContext, type: string): void {
   ctx.allowedRelationTypes = ctx.allowedRelationTypes.filter((t) => t !== type);
 }
 
 /**
- * ctx의 현재 허용 관계 타입 목록 반환.
+ * Returns the current allowed relation types list from ctx.
  */
 export function listRelationTypes(ctx: EmberdeckContext): readonly string[] {
   return ctx.allowedRelationTypes;
