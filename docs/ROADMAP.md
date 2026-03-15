@@ -227,6 +227,65 @@ Baker와 Emberdeck의 직접 통합은 로드맵 범위 밖.
 
 ## 4. 로드맵
 
+### Phase 0.5: 기존 도구 AX 개선 (Phase 1 선행)
+
+> **목표**: 기존 19개 MCP 도구의 description을 AX 원칙(§1.5)에 맞게 개선.
+> Phase 1에서 신규 도구를 추가하기 전에, 기존 도구의 description 품질을 먼저 확보한다.
+
+현재 도구 description은 "무엇을 하는지(what)"만 기술한다.
+서브에이전트는 도구 목록을 스캔하여 어떤 도구를 쓸지 결정하므로,
+description에 **"언제 사용해야 하는지(when)"**가 없으면 도구 선택 정확도가 떨어진다.
+
+**변경 범위**: `src/mcp/tools.ts`의 description 문자열만 변경. 로직 변경 없음.
+
+**예시**:
+
+| 도구 | Before | After |
+|------|--------|-------|
+| `search_cards` | "카드를 텍스트 검색한다" | "기능 구현이나 버그 수정 전에 관련 스펙이 있는지 먼저 확인한다. summary와 body를 텍스트 검색." |
+| `get_card_context` | "카드의 전체 컨텍스트를 반환한다" | "특정 카드의 관계와 코드 링크를 빠르게 확인할 때 사용한다. 단일 카드 조회용." |
+| `find_affected_cards` | "변경된 파일 목록 → 카드 목록" | "코드 수정 후 영향받는 스펙을 파악할 때 사용한다. 변경 파일의 심볼을 참조하는 카드를 반환." |
+
+모든 19개 도구에 대해 동일 원칙 적용. 신규 도구(Phase 1~4)는 처음부터 AX 원칙으로 작성.
+
+#### 0.5.2 배치 카드 생성
+
+기존 프로젝트에 Emberdeck을 최초 적용할 때, 에이전트가 코드를 분석하여
+다수의 카드를 한 번에 생성할 수 있어야 한다.
+
+**MCP 도구 추가**:
+- `emberdeck_bulk_create_cards` — 여러 카드를 한 번에 생성한다. 기존 프로젝트를 스펙화하거나, 서브에이전트가 한 기능 영역의 카드를 일괄 생성할 때 사용한다.
+
+```
+emberdeck_bulk_create_cards(
+  cards: [
+    { slug: "auth-token", summary: "JWT 토큰 생성/검증/갱신",
+      codeLinks: [{ kind: "function", file: "src/auth/token.ts", symbol: "generateToken" }] },
+    { slug: "auth-session", summary: "세션 생명주기 관리",
+      codeLinks: [...],
+      relations: [{ type: "depends-on", target: "auth-token" }] },
+    ...
+  ]
+)
+→ { created: 12, failed: 0, errors: [] }
+```
+
+**설계 원칙**:
+- 내부 처리 순서: 모든 카드 생성 → 관계 일괄 해석. 배치 내 카드 간 관계 참조가 순서에 무관하게 동작.
+- 실패한 항목은 건너뛰고 나머지 계속 처리 (부분 성공 허용).
+- 각 항목의 입력 스키마는 `emberdeck_create_card`와 동일.
+
+**`create_cards_from_files` 기각 사유**:
+파일 경계와 기능 경계는 일치하지 않는다. 1 파일 = 1 카드라는 가정은 거의 항상 틀리며,
+의미 없는 draft 카드를 대량 생성하는 것은 노이즈다. 기능 단위 판단은 에이전트의 영역이므로,
+Emberdeck은 에이전트가 결정한 카드 구조를 효율적으로 저장하는 역할에 집중한다.
+
+**`get_spec_coverage` 기각 사유**:
+에이전트가 Gildash 파일 목록 + `list_cards()` 결과로 즉석에서 교차 비교할 수 있다.
+별도 도구는 "파일 커버리지"라는 잘못된 지표를 공식화할 위험이 있다.
+
+---
+
 ### Phase 1: 구조적 스펙 카드 (v0.3.0)
 
 > **목표**: 카드가 "문서"에서 "검증 가능한 스펙"으로 진화.
@@ -262,6 +321,7 @@ acceptance:
 
 **MCP 도구 추가**:
 - `emberdeck_verify_acceptance` — 특정 acceptance 기준의 verified 상태 변경
+  - `criterionIds: string | string[]` — 단일 또는 배치 처리 지원. 서브에이전트가 구현 완료 후 여러 기준을 한 번에 검증할 수 있다.
 - `emberdeck_list_unverified` — 미검증 기준이 있는 카드 목록 조회
 
 #### 1.2 카드 타입과 우선순위
@@ -274,6 +334,19 @@ priority: high   # critical | high | medium | low
 - `type`은 카드의 성격을 명시. 에이전트가 구현 전략을 결정하는 데 사용.
 - `priority`는 에이전트가 작업 순서를 결정하는 데 사용.
 - `decision` 타입은 ADR(Architecture Decision Record) 용도.
+
+**`list_cards` 확장**:
+- `sortBy?: "priority" | "updated_at"` 옵션 추가. 에이전트가 세션 시작 시 `list_cards(status: "accepted", sortBy: "priority")`로 다음 작업을 결정할 수 있다.
+
+**`update_card_status` 안전장치**:
+- `implemented`로 전이할 때 미검증 acceptance 기준이 있으면, 전이는 허용하되 응답에 경고를 포함한다:
+  ```json
+  {
+    "success": true,
+    "warnings": ["ac-2: 미검증 상태. 검증 후 재확인 권장."]
+  }
+  ```
+- 차단이 아닌 정보성 경고. 에이전트가 의식적으로 미검증 상태를 넘기는 것은 허용.
 
 #### 1.3 카드 변경 이력 (Changelog)
 
@@ -449,6 +522,9 @@ emberdeck_generate_context(
 - 넓은 범위가 필요하면 `maxDepth`를 키우고, 여러 무관한 영역은 `search_cards` → 개별 `generate_context` 호출로 해결.
 - 출력 크기 제어: `maxCards`, `maxDepth` 파라미터로 토큰 예산 관리.
 - 정보는 요약 수준. 전체 body를 포함하지 않음 (필요 시 `getCard`으로 개별 조회).
+- `includeBody?: boolean` (기본값 false) — true일 때 **시작 카드**의 body만 포함.
+  서브에이전트가 구현 작업 시 `generate_context` 한 번으로 시작 카드 본문 + 관계 컨텍스트를 모두 받을 수 있다.
+  관계 카드의 body는 포함하지 않음 (토큰 예산 보호).
 
 **`get_card_context`(v0.2.0)와의 관계**:
 - `get_card_context` — 단일 카드의 관계와 코드 링크를 빠르게 조회. 가벼운 조회용.
@@ -479,6 +555,11 @@ emberdeck_check_drift(
 
 - `key` 지정 시 해당 카드 + BFS 관계 그래프 범위에서 drift 계산.
 - `key` 미지정 시 전체 카드에 대해 drift 계산.
+
+**사용 시점 가이드** (도구 description에 반영):
+- 카드를 `implemented`로 전이하기 전, 코드와의 동기화 상태를 확인할 때.
+- 새 세션 시작 시, 프로젝트 전체 건강도를 빠르게 파악할 때 (`key` 미지정).
+- 장기간 미갱신된 카드 영역을 식별할 때.
 
 **drift score 계산** (가중합, 범위 0~1):
 ```
@@ -649,6 +730,56 @@ Layer 4 (통합 — 코드가 아닌 에이전트 워크플로우)
   emberdeck_regression_guard(firebat 결과) → 스펙 기반 교차 검증
   emberdeck_check_drift → 스펙-코드 동기화 확인
 
+패턴 4: 세션 초기화
+
+  emberdeck_list_cards(status: "implementing", sortBy: "priority")
+    → 진행 중인 작업 확인
+  emberdeck_generate_context(첫 번째 카드, includeBody: true)
+    → 맥락 복구
+  (작업 재개)
+
+패턴 5: 버그 조사
+
+  emberdeck_find_cards_by_symbol(문제 심볼)
+    → 해당 심볼의 스펙 카드 식별
+  emberdeck_get_card_context(key)
+    → 원래 의도 파악
+  (의도 기반 버그 수정)
+
+패턴 6: 구현 중 새 요구사항 발견
+
+  emberdeck_create_card(slug, summary,
+    relations: [{type: "related", target: "현재카드"}])
+    → 발견한 요구사항을 즉시 카드로 기록
+  (현재 작업 계속, 새 카드는 후속 세션에서 처리)
+
+패턴 7: 기존 프로젝트 부트스트랩 (서브에이전트 병렬)
+
+  // 메인 에이전트: 프로젝트 구조 파악
+  Gildash: getSymbolsByFile("src/**/*.ts") → 파일/심볼 목록
+
+  // 메인 에이전트: 기능 영역 분류 (에이전트 판단)
+  → auth (4파일), api (6파일), db (5파일), ...
+
+  // 서브에이전트 N개 동시 실행 (기능 영역당 1개)
+  Sub-Agent("auth"):
+    파일 읽기 → 코드 이해 → 기능 단위 판단
+    emberdeck_bulk_create_cards([
+      { slug: "auth-token", summary: "JWT 토큰 생성/검증/갱신", codeLinks: [...] },
+      { slug: "auth-session", summary: "세션 생명주기 관리", codeLinks: [...] }
+    ])
+    반환: { keys: [...], crossRefs: ["auth-token → db/user-repo (depends-on)"] }
+
+  // ... 다른 서브에이전트들 동시 실행 ...
+
+  // 메인 에이전트: 교차 관계 설정
+  서브에이전트 결과 수집 → crossRefs 취합
+  emberdeck_update_card(관계 설정) × N
+
+  // 검증
+  emberdeck_list_cards() → 전체 카드 확인
+  emberdeck_get_relation_graph(시작 카드) → 그래프 연결성 검증
+
 ```
 
 ### 5.3 Gildash에 필요한 확장
@@ -688,6 +819,7 @@ Emberdeck 팀이 Gildash의 내부 구현에 관여하지 않는다.
 
 | Phase | 버전 | 핵심 기능 | Gildash 필요 확장 |
 |-------|------|----------|------------------|
+| 0.5 | v0.2.1 | 기존 19개 도구 description AX 개선, 배치 카드 생성 | 없음 |
 | 1 | v0.3.0 | acceptance 기준, 카드 타입/우선순위, 변경 이력 | 없음 |
 | 2 | v0.4.0 | @spec 자동 감지, 심볼 리네임 동기화, 커버리지 | 주석 파싱, 변경 감지 |
 | 3 | v0.5.0 | 컨텍스트 팩, drift 감지, 상호작용 분석 | 파일 변경 횟수 |
@@ -734,10 +866,11 @@ Phase 3이 완성되면 바이브코딩의 핵심 문제(컨텍스트 유실)를
 | `emberdeck_find_affected_cards` | 코드 링크 |
 | `emberdeck_validate_code_links` | 코드 링크 |
 
-### 신규 (Phase 1~4, 8개)
+### 신규 (Phase 0.5~4, 10개)
 
 | 도구 | Phase | 카테고리 |
 |------|-------|---------|
+| `emberdeck_bulk_create_cards` | 0.5 | CRUD |
 | `emberdeck_verify_acceptance` | 1 | 검증 |
 | `emberdeck_list_unverified` | 1 | 쿼리 |
 | `emberdeck_get_card_history` | 1 | 쿼리 |
