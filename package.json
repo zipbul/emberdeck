@@ -20,7 +20,7 @@
     "drizzle:migrate": "bunx drizzle-kit migrate --config drizzle.config.ts"
   },
   "dependencies": {
-    "@zipbul/gildash": "^0.5.1",
+    "@zipbul/gildash": "0.9.0",
     "@zipbul/result": "^0.0.3",
     "drizzle-orm": "^0.45.1"
   },
@@ -28,6 +28,7 @@
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@types/bun": "^1.3.0",
     "drizzle-kit": "^0.31.9",
+    "typescript": "^5.9.3",
     "zod": "^4.3.6"
   },
   "peerDependencies": {
@@ -35,7 +36,11 @@
     "zod": ">=3.25.0"
   },
   "peerDependenciesMeta": {
-    "@modelcontextprotocol/sdk": { "optional": true },
-    "zod": { "optional": true }
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
   }
 }

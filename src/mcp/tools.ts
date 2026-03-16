@@ -57,6 +57,11 @@ import {
   preChangeCheck,
   regressionGuard,
 } from '../ops/impact';
+import {
+  syncSpecAnnotations,
+  syncSymbolChanges,
+  getLinkCoverage,
+} from '../ops/spec-sync';
 
 // ---- Helpers ----
 
@@ -771,6 +776,69 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: { changedFiles: string[]; firebatReport?: unknown }) => {
       try {
         const result = regressionGuard(ctx, args.changedFiles, args.firebatReport);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // ── Code Link Automation ──
+
+  server.registerTool(
+    'emberdeck_sync_spec_annotations',
+    {
+      description:
+        'Scan @spec annotations in source code and auto-create code links for matching cards. ' +
+        'Use after adding @spec comments to source files, or during bulk sync to discover code-spec connections. ' +
+        'Requires gildash. Manual links are preserved.',
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const result = syncSpecAnnotations(ctx);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_sync_symbol_changes',
+    {
+      description:
+        'Update code links after symbol renames/moves detected by gildash. ' +
+        'Use after refactoring to keep code links in sync with renamed or moved symbols. ' +
+        'Requires gildash. Deleted symbols are reported but not auto-removed.',
+      inputSchema: {
+        since: z.string().describe('ISO timestamp — sync changes after this time'),
+      },
+    },
+    async (args: { since: string }) => {
+      try {
+        const result = syncSymbolChanges(ctx, args.since);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_get_link_coverage',
+    {
+      description:
+        'Check code link coverage for a card: how many links resolve, how many are broken, ' +
+        'and what symbols in linked files are not yet connected. ' +
+        'Use to find gaps in code-spec traceability. Requires gildash.',
+      inputSchema: {
+        key: z.string().describe('Card key'),
+      },
+    },
+    async (args: { key: string }) => {
+      try {
+        const result = getLinkCoverage(ctx, args.key);
         return ok(result);
       } catch (err) {
         return fail(err);

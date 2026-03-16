@@ -95,6 +95,14 @@ export {
   type AtRiskAcceptance,
   type RiskLevel,
 } from './src/ops/impact';
+export {
+  syncSpecAnnotations,
+  syncSymbolChanges,
+  getLinkCoverage,
+  type SpecSyncResult,
+  type SymbolSyncResult,
+  type LinkCoverageResult,
+} from './src/ops/spec-sync';
 
 // ---- Repository interfaces (for testing/mocking) ----
 export type {
