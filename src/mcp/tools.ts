@@ -48,6 +48,15 @@ import {
   listUnverified,
   getCardHistory,
 } from '../ops/acceptance';
+import {
+  generateContext,
+  checkDrift,
+  checkInteractions,
+} from '../ops/context';
+import {
+  preChangeCheck,
+  regressionGuard,
+} from '../ops/impact';
 
 // ---- Helpers ----
 
@@ -644,6 +653,124 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: { key: string; limit?: number }) => {
       try {
         const result = getCardHistory(ctx, args.key, args.limit);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // ── Context Engine ──
+
+  server.registerTool(
+    'emberdeck_generate_context',
+    {
+      description:
+        'Generate a multi-card context pack from a starting card via BFS relation traversal. ' +
+        'Use at session start or when context degrades to quickly restore project context. ' +
+        'Returns card summaries, relation graph, acceptance criteria, code links, and recent changes.',
+      inputSchema: {
+        key: z.string().describe('Starting card key'),
+        maxCards: z.number().optional().describe('Max cards to include (default: 20)'),
+        maxDepth: z.number().optional().describe('Max BFS depth (default: 3)'),
+        includeBody: z.boolean().optional().describe('Include the starting card body (default: false)'),
+      },
+    },
+    async (args: { key: string; maxCards?: number; maxDepth?: number; includeBody?: boolean }) => {
+      try {
+        const result = await generateContext(ctx, args.key, {
+          maxCards: args.maxCards,
+          maxDepth: args.maxDepth,
+          includeBody: args.includeBody,
+        });
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_check_drift',
+    {
+      description:
+        'Calculate a drift score (0=synchronized, 1=completely stale) for a card and its relation graph. ' +
+        'Use before marking a card as implemented, at session start for project health, or to find stale areas. ' +
+        'Omit key to check all cards.',
+      inputSchema: {
+        key: z.string().optional().describe('Starting card key (omit for all cards)'),
+        maxDepth: z.number().optional().describe('Max BFS depth (default: 3)'),
+      },
+    },
+    async (args: { key?: string; maxDepth?: number }) => {
+      try {
+        const result = checkDrift(ctx, args.key, { maxDepth: args.maxDepth });
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_check_interactions',
+    {
+      description:
+        'Analyze interactions between a set of cards. Detects shared code symbols, ' +
+        'existing relations, and potential conflicts. ' +
+        'Use before modifying multiple related features to understand cross-card dependencies.',
+      inputSchema: {
+        cards: z.array(z.string()).describe('Array of card keys to analyze'),
+      },
+    },
+    async (args: { cards: string[] }) => {
+      try {
+        const result = checkInteractions(ctx, args.cards);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // ── Impact Analysis ──
+
+  server.registerTool(
+    'emberdeck_pre_change_check',
+    {
+      description:
+        'Analyze impact before changing specific files or symbols. ' +
+        'Returns directly and transitively affected cards, at-risk acceptance criteria, and risk level. ' +
+        'Use before code changes to understand what specs may need review.',
+      inputSchema: {
+        files: z.array(z.string()).describe('File paths that will be changed'),
+        symbols: z.array(z.string()).optional().describe('Specific symbols being changed (optional)'),
+      },
+    },
+    async (args: { files: string[]; symbols?: string[] }) => {
+      try {
+        const result = preChangeCheck(ctx, args.files, args.symbols);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_regression_guard',
+    {
+      description:
+        'Quality gate combining changed file analysis with optional Firebat scan results. ' +
+        'Use after code changes to check for regressions. Pass Firebat output directly without format conversion.',
+      inputSchema: {
+        changedFiles: z.array(z.string()).describe('Changed file paths'),
+        firebatReport: z.unknown().optional().describe('Firebat scan result (pass as-is, any format)'),
+      },
+    },
+    async (args: { changedFiles: string[]; firebatReport?: unknown }) => {
+      try {
+        const result = regressionGuard(ctx, args.changedFiles, args.firebatReport);
         return ok(result);
       } catch (err) {
         return fail(err);

@@ -76,6 +76,25 @@ export {
   type VerifyAcceptanceResult,
   type UnverifiedCard,
 } from './src/ops/acceptance';
+export {
+  generateContext,
+  checkDrift,
+  checkInteractions,
+  type ContextPack,
+  type GenerateContextOptions,
+  type DriftResult,
+  type CheckDriftOptions,
+  type InteractionResult,
+} from './src/ops/context';
+export {
+  preChangeCheck,
+  regressionGuard,
+  type PreChangeResult,
+  type RegressionResult,
+  type AffectedCard,
+  type AtRiskAcceptance,
+  type RiskLevel,
+} from './src/ops/impact';
 
 // ---- Repository interfaces (for testing/mocking) ----
 export type {

@@ -79,7 +79,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should return 19 tools via listTools', async () => {
       s = await setupMcp();
       const { tools } = await s.client.listTools();
-      expect(tools).toHaveLength(23);
+      expect(tools).toHaveLength(28);
     });
 
     // #2
