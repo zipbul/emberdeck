@@ -215,6 +215,7 @@ export async function generateContext(
 export interface StaleCard {
   key: string;
   lastCardUpdate: string;
+  codeChangesAfter: number;
   brokenLinks: number;
   unverifiedAcceptance: number;
 }
@@ -262,25 +263,52 @@ export function checkDrift(
   let brokenLinks = 0;
   let totalAcceptance = 0;
   let unverifiedAcceptance = 0;
+  let staleCount = 0;
   const staleCards: StaleCard[] = [];
 
   for (const key of targetKeys) {
     const row = ctx.cardRepo.findByKey(key);
     if (!row) continue;
 
-    // Count code link health (broken = link to non-existent file)
+    const cardUpdatedAt = new Date(row.updatedAt).getTime();
+
+    // Count code link health via gildash symbol validation
     const links = ctx.codeLinkRepo.findByCardKey(key);
     let cardBrokenLinks = 0;
+    let cardCodeChangesAfter = 0;
+    let cardIsStale = false;
+
     for (const link of links) {
       totalLinks++;
-      // Check if referenced file still exists (relative to project root)
       if (ctx.gildash) {
-        // Use gildash if available — but we can't easily check without async
-        // For now, count all links as valid when gildash is available
-      } else {
-        // Without gildash, we can't validate links — skip broken link counting
+        // Validate symbol exists in gildash index
+        const results = ctx.gildash.searchSymbols({
+          text: link.symbol,
+          exact: true,
+          filePath: link.file,
+        });
+        if (!Array.isArray(results)) {
+          cardBrokenLinks++;
+        } else {
+          const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
+          if (!found) cardBrokenLinks++;
+        }
+
+        // Check if linked file was modified after the card was last updated
+        const fileInfo = ctx.gildash.getFileInfo(link.file);
+        if (fileInfo) {
+          const fileMtime = new Date(fileInfo.mtime).getTime();
+          if (fileMtime > cardUpdatedAt) {
+            cardCodeChangesAfter++;
+            cardIsStale = true;
+          }
+        }
       }
+      // Without gildash, broken link counting is skipped (graceful degradation)
     }
+
+    if (cardIsStale) staleCount++;
+    brokenLinks += cardBrokenLinks;
 
     // Count acceptance health
     let cardUnverified = 0;
@@ -294,6 +322,7 @@ export function checkDrift(
     staleCards.push({
       key,
       lastCardUpdate: row.updatedAt,
+      codeChangesAfter: cardCodeChangesAfter,
       brokenLinks: cardBrokenLinks,
       unverifiedAcceptance: cardUnverified,
     });
@@ -302,15 +331,7 @@ export function checkDrift(
   // Calculate ratios
   const brokenLinkRatio = totalLinks > 0 ? brokenLinks / totalLinks : 0;
   const unverifiedRatio = totalAcceptance > 0 ? unverifiedAcceptance / totalAcceptance : 0;
-  const missingLinkRatio = 0; // Phase 2 feature — graceful degradation
-
-  // Stale card ratio: cards not updated in last 7 days relative to newest card
-  const updates = staleCards.map((c) => new Date(c.lastCardUpdate).getTime());
-  const newest = Math.max(...updates);
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  const staleCount = staleCards.filter(
-    (c) => newest - new Date(c.lastCardUpdate).getTime() > sevenDays,
-  ).length;
+  const missingLinkRatio = 0; // Phase 2 @spec auto-detection — graceful degradation
   const staleCardRatio = targetKeys.length > 0 ? staleCount / targetKeys.length : 0;
 
   const driftScore = Math.min(1, Math.max(0,
@@ -322,13 +343,13 @@ export function checkDrift(
 
   // Filter to only report cards with issues
   const problemCards = staleCards.filter(
-    (c) => c.brokenLinks > 0 || c.unverifiedAcceptance > 0,
+    (c) => c.brokenLinks > 0 || c.unverifiedAcceptance > 0 || c.codeChangesAfter > 0,
   );
 
   const totalCards = targetKeys.length;
   const issueCount = problemCards.length;
   const summary = issueCount > 0
-    ? `${issueCount} of ${totalCards} cards have issues (${unverifiedAcceptance} unverified acceptance, ${brokenLinks} broken links).`
+    ? `${issueCount} of ${totalCards} cards have issues (${unverifiedAcceptance} unverified acceptance, ${brokenLinks} broken links, ${staleCount} stale).`
     : `All ${totalCards} cards are in good health.`;
 
   return {
