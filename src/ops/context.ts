@@ -1,9 +1,6 @@
-import { statSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import type { EmberdeckContext } from '../config';
 import type { AcceptanceCriterion } from '../card/types';
-import type { CardRow, CodeLinkRow, ChangelogRow } from '../db/repository';
+import type { CardRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
 import { getRelationGraph, type RelationGraphNode } from './query';

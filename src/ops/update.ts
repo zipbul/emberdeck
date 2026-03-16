@@ -136,7 +136,10 @@ export async function updateCard(
         if (fields.tags === null || fields.tags.length === 0) delete next.tags;
         else next.tags = fields.tags;
       }
-      if (fields.constraints !== undefined) next.constraints = fields.constraints;
+      if (fields.constraints !== undefined) {
+        if (fields.constraints === null) delete next.constraints;
+        else next.constraints = fields.constraints;
+      }
       if (fields.relations !== undefined) {
         if (fields.relations === null || fields.relations.length === 0) delete next.relations;
         else next.relations = fields.relations;
@@ -168,7 +171,7 @@ export async function updateCard(
               type: next.type ?? null,
               priority: next.priority ?? null,
               acceptanceJson: next.acceptance ? JSON.stringify(next.acceptance) : null,
-              constraintsJson: next.constraints ? JSON.stringify(next.constraints) : null,
+              constraintsJson: next.constraints !== undefined ? JSON.stringify(next.constraints) : null,
               body: nextBody,
               filePath,
               updatedAt: now,

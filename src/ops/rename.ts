@@ -106,7 +106,12 @@ export async function renameCard(
               key: newFullKey,
               summary: card.frontmatter.summary,
               status: card.frontmatter.status,
-              constraintsJson: card.frontmatter.constraints
+              type: card.frontmatter.type ?? null,
+              priority: card.frontmatter.priority ?? null,
+              acceptanceJson: card.frontmatter.acceptance
+                ? JSON.stringify(card.frontmatter.acceptance)
+                : null,
+              constraintsJson: card.frontmatter.constraints !== undefined
                 ? JSON.stringify(card.frontmatter.constraints)
                 : null,
               body: card.body,

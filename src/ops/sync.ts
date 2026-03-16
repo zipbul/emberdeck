@@ -1,5 +1,4 @@
-import { readdir } from 'node:fs/promises';
-import { join, basename } from 'node:path';
+import { basename } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
 import type { CardRow } from '../db/repository';
@@ -77,11 +76,11 @@ export async function bulkSyncCards(
   dirPath?: string,
 ): Promise<BulkSyncResult> {
   const targetDir = dirPath ?? ctx.cardsDir;
-  const entries = await readdir(targetDir, { withFileTypes: true });
-
-  const cardFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.card.md'))
-    .map((entry) => join(targetDir, entry.name));
+  const glob = new Bun.Glob('**/*.card.md');
+  const cardFiles: string[] = [];
+  for await (const file of glob.scan({ cwd: targetDir, absolute: true })) {
+    cardFiles.push(file);
+  }
 
   const results = await Promise.allSettled(
     cardFiles.map((filePath) => syncCardFromFile(ctx, filePath)),
@@ -111,11 +110,11 @@ export async function validateCards(
   dirPath?: string,
 ): Promise<CardValidationResult> {
   const targetDir = dirPath ?? ctx.cardsDir;
-  const entries = await readdir(targetDir, { withFileTypes: true });
-
-  const cardFiles = entries
-    .filter((e) => e.isFile() && e.name.endsWith('.card.md'))
-    .map((e) => join(targetDir, e.name));
+  const glob = new Bun.Glob('**/*.card.md');
+  const cardFiles: string[] = [];
+  for await (const file of glob.scan({ cwd: targetDir, absolute: true })) {
+    cardFiles.push(file);
+  }
 
   const fileSet = new Set(cardFiles);
   const dbRows = ctx.cardRepo.list();

@@ -178,6 +178,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       cards: Array<{
         slug: string;
         summary: string;
+        type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
+        priority?: 'critical' | 'high' | 'medium' | 'low';
+        acceptance?: Array<{ id: string; description: string; verified?: boolean }>;
         body?: string;
         keywords?: string[];
         tags?: string[];

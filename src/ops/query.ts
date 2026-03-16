@@ -1,5 +1,5 @@
 import type { EmberdeckContext } from '../config';
-import type { CardFile, CardStatus } from '../card/types';
+import type { CardFile } from '../card/types';
 import type { CardRow, CardListFilter, RelationRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
