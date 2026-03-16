@@ -1140,4 +1140,315 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       expect(keys).toEqual(['a-card', 'z-card']);
     });
   });
+
+  // ════════════════════════════════════════
+  // Phase 1 — type, priority, acceptance, history
+  // ════════════════════════════════════════
+
+  describe('Phase 1 — structured spec cards', () => {
+    it('should create card with type and priority and return them', async () => {
+      s = await setupMcp();
+      const result = await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          slug: 'typed-card',
+          summary: 'Typed card',
+          type: 'feature',
+          priority: 'high',
+          acceptance: [{ id: 'ac-1', description: 'Must pass tests' }],
+        },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { fullKey: string };
+      expect(data.fullKey).toBe('typed-card');
+
+      const get = await s.client.callTool({
+        name: 'emberdeck_get_card',
+        arguments: { key: 'typed-card' },
+      });
+      const card = parseText(get) as {
+        frontmatter: { type: string; priority: string; acceptance: Array<{ id: string }> };
+      };
+      expect(card.frontmatter.type).toBe('feature');
+      expect(card.frontmatter.priority).toBe('high');
+      expect(card.frontmatter.acceptance).toBeArray();
+      expect(card.frontmatter.acceptance[0]!.id).toBe('ac-1');
+    });
+
+    it('should list cards sorted by priority via sortBy', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'low-p', summary: 'Low', priority: 'low' },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'crit-p', summary: 'Critical', priority: 'critical' },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'med-p', summary: 'Medium', priority: 'medium' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_list_cards',
+        arguments: { sortBy: 'priority' },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as Array<{ key: string; priority: string }>;
+      expect(data).toHaveLength(3);
+      // critical should come before low in priority sort
+      const keys = data.map((c) => c.key);
+      expect(keys.indexOf('crit-p')).toBeLessThan(keys.indexOf('low-p'));
+    });
+
+    it('should filter cards by type', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'feat-1', summary: 'Feature 1', type: 'feature' },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'bug-1', summary: 'Bug 1', type: 'bug' },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'feat-2', summary: 'Feature 2', type: 'feature' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_list_cards',
+        arguments: { type: 'feature' },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as Array<{ key: string }>;
+      expect(data).toHaveLength(2);
+      const keys = data.map((c) => c.key).sort();
+      expect(keys).toEqual(['feat-1', 'feat-2']);
+    });
+
+    it('should verify an acceptance criterion', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          slug: 'verify-me',
+          summary: 'Verify test',
+          acceptance: [
+            { id: 'ac-1', description: 'Criterion 1' },
+            { id: 'ac-2', description: 'Criterion 2' },
+          ],
+        },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_verify_acceptance',
+        arguments: { key: 'verify-me', criterionIds: 'ac-1', verified: true },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as {
+        key: string;
+        acceptance: Array<{ id: string; verified: boolean }>;
+        changed: number;
+      };
+      expect(data.key).toBe('verify-me');
+      expect(data.changed).toBe(1);
+      const ac1 = data.acceptance.find((a) => a.id === 'ac-1');
+      expect(ac1!.verified).toBe(true);
+      const ac2 = data.acceptance.find((a) => a.id === 'ac-2');
+      expect(ac2!.verified).toBe(false);
+    });
+
+    it('should list cards with unverified acceptance criteria', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          slug: 'unv-card',
+          summary: 'Unverified card',
+          acceptance: [
+            { id: 'ac-x', description: 'Not yet verified' },
+          ],
+        },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'no-ac-card', summary: 'No acceptance' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_list_unverified',
+        arguments: {},
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as Array<{ key: string; unverified: unknown[]; total: number }>;
+      expect(data.length).toBeGreaterThanOrEqual(1);
+      expect(data.some((c) => c.key === 'unv-card')).toBe(true);
+      // Card without acceptance should not appear
+      expect(data.some((c) => c.key === 'no-ac-card')).toBe(false);
+    });
+
+    it('should return card history after status update', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'hist-card', summary: 'History card' },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_update_card_status',
+        arguments: { key: 'hist-card', status: 'accepted' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_get_card_history',
+        arguments: { key: 'hist-card' },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as Array<{ cardKey: string; field: string }>;
+      expect(data.length).toBeGreaterThanOrEqual(1);
+      expect(data.some((e) => e.field === 'status')).toBe(true);
+    });
+  });
+
+  // ════════════════════════════════════════
+  // Phase 3 — Context Engine
+  // ════════════════════════════════════════
+
+  describe('Phase 3 — Context Engine', () => {
+    it('should generate context pack with expected shape', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          slug: 'ctx-root',
+          summary: 'Context root',
+          acceptance: [{ id: 'ac-ctx', description: 'Context criterion' }],
+        },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_generate_context',
+        arguments: { key: 'ctx-root' },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as {
+        cards: unknown[];
+        relationGraph: unknown[];
+        acceptanceCriteria: unknown[];
+        codeLinks: unknown[];
+        recentChanges: unknown[];
+        constraints: Record<string, unknown>;
+      };
+      expect(data.cards).toBeArray();
+      expect(data.cards.length).toBeGreaterThanOrEqual(1);
+      expect(data.relationGraph).toBeArray();
+      expect(data.acceptanceCriteria).toBeArray();
+      expect(data.codeLinks).toBeArray();
+      expect(data.recentChanges).toBeArray();
+      expect(data.constraints).toBeDefined();
+    });
+
+    it('should check drift and return driftScore and summary', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'drift-card', summary: 'Drift test' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_check_drift',
+        arguments: { key: 'drift-card' },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as {
+        driftScore: number;
+        staleCards: unknown[];
+        summary: string;
+      };
+      expect(typeof data.driftScore).toBe('number');
+      expect(data.driftScore).toBeGreaterThanOrEqual(0);
+      expect(data.driftScore).toBeLessThanOrEqual(1);
+      expect(data.staleCards).toBeArray();
+      expect(typeof data.summary).toBe('string');
+    });
+
+    it('should check interactions between cards with shared code links', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          slug: 'inter-a',
+          summary: 'Interaction A',
+          codeLinks: [{ kind: 'defines', file: 'src/shared.ts', symbol: 'SharedFn' }],
+        },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          slug: 'inter-b',
+          summary: 'Interaction B',
+          codeLinks: [{ kind: 'uses', file: 'src/shared.ts', symbol: 'SharedFn' }],
+        },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_check_interactions',
+        arguments: { cards: ['inter-a', 'inter-b'] },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as {
+        interactions: Array<{ pair: [string, string]; sharedSymbols: unknown[] }>;
+        undefinedRelations: unknown[];
+      };
+      expect(data.interactions).toBeArray();
+      expect(data.interactions.length).toBeGreaterThanOrEqual(1);
+      expect(data.interactions[0]!.sharedSymbols.length).toBeGreaterThanOrEqual(1);
+      expect(data.undefinedRelations).toBeArray();
+    });
+  });
+
+  // ════════════════════════════════════════
+  // Phase 4 — Impact Analysis
+  // ════════════════════════════════════════
+
+  describe('Phase 4 — Impact Analysis', () => {
+    it('should find affected cards via pre_change_check', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          slug: 'impact-card',
+          summary: 'Impact card',
+          codeLinks: [{ kind: 'defines', file: 'src/target.ts', symbol: 'TargetClass' }],
+        },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_pre_change_check',
+        arguments: { files: ['src/target.ts'] },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as {
+        affectedCards: Array<{ key: string; linkType: string }>;
+        atRiskAcceptance: unknown[];
+        riskLevel: string;
+        suggestedActions: string[];
+      };
+      expect(data.affectedCards.length).toBeGreaterThanOrEqual(1);
+      expect(data.affectedCards.some((c) => c.key === 'impact-card')).toBe(true);
+      expect(data.affectedCards[0]!.linkType).toBe('direct');
+      expect(typeof data.riskLevel).toBe('string');
+    });
+
+    it('should return pass quality gate for regression_guard with empty files', async () => {
+      s = await setupMcp();
+      const result = await s.client.callTool({
+        name: 'emberdeck_regression_guard',
+        arguments: { changedFiles: [] },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as {
+        qualityGate: string;
+        newIssues: unknown[];
+        affectedAcceptance: unknown[];
+        recommendation: string;
+      };
+      expect(data.qualityGate).toBe('pass');
+      expect(data.newIssues).toEqual([]);
+      expect(data.affectedAcceptance).toEqual([]);
+      expect(typeof data.recommendation).toBe('string');
+    });
+  });
 });

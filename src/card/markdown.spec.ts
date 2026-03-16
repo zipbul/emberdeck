@@ -184,6 +184,36 @@ describe('parseCardMarkdown', () => {
     expect(result.body).toBe('body');
   });
 
+  // HP — type, priority, acceptance
+  it('should parse type=feature when type is feature in frontmatter', () => {
+    // Arrange
+    const md = makeMarkdown({ type: 'feature' });
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.type).toBe('feature');
+  });
+
+  it('should parse priority=high when priority is high in frontmatter', () => {
+    // Arrange
+    const md = makeMarkdown({ priority: 'high' });
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.priority).toBe('high');
+  });
+
+  it('should parse acceptance array when acceptance criteria given in frontmatter', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\nacceptance:\n  - id: AC-1\n    description: must compile\n    verified: false\n---\n`;
+    // Act
+    const result = parseCardMarkdown(md);
+    // Assert
+    expect(result.frontmatter.acceptance).toEqual([
+      { id: 'AC-1', description: 'must compile', verified: false },
+    ]);
+  });
+
   // ID
   it('should return identical result when called twice with same input', () => {
     const md = makeMarkdown({ tags: ['x'] }, 'body');
@@ -244,9 +274,21 @@ describe('parseCardMarkdown', () => {
     ).toThrow(CardValidationError);
   });
 
-  it('should throw CardValidationError when type field is present in frontmatter', () => {
+  it('should throw CardValidationError when type field has invalid value', () => {
     expect(() =>
       parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntype: card\n---\n'),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when priority field has invalid value', () => {
+    expect(() =>
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\npriority: urgent\n---\n'),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when acceptance is not an array', () => {
+    expect(() =>
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\nacceptance: not-an-array\n---\n'),
     ).toThrow(CardValidationError);
   });
 
@@ -609,5 +651,29 @@ describe('serializeCardMarkdown', () => {
     const reparsed = parseCardMarkdown(serialized);
     // Assert
     expect(reparsed.frontmatter.constraints).toEqual(fm.constraints);
+  });
+
+  it('should preserve type, priority, and acceptance after round-trip', () => {
+    // Arrange
+    const fm: CardFrontmatter = {
+      key: 'spec/round',
+      summary: 'Round-trip spec',
+      status: 'draft',
+      type: 'feature',
+      priority: 'high',
+      acceptance: [
+        { id: 'AC-1', description: 'must compile', verified: false },
+        { id: 'AC-2', description: 'tests pass', verified: true },
+      ],
+    };
+    const body = '## Notes\nround-trip body';
+    // Act
+    const serialized = serializeCardMarkdown(fm, body);
+    const reparsed = parseCardMarkdown(serialized);
+    // Assert
+    expect(reparsed.frontmatter.type).toBe('feature');
+    expect(reparsed.frontmatter.priority).toBe('high');
+    expect(reparsed.frontmatter.acceptance).toEqual(fm.acceptance);
+    expect(reparsed.body).toBe(body);
   });
 });

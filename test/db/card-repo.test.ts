@@ -11,6 +11,9 @@ function makeRow(overrides: Partial<CardRow> = {}): CardRow {
     key: 'test/card',
     summary: 'Test card',
     status: 'draft',
+    type: null,
+    priority: null,
+    acceptanceJson: null,
     constraintsJson: null,
     body: 'body content',
     filePath: '/cards/test/card.card.md',
@@ -253,5 +256,99 @@ describe('DrizzleCardRepository', () => {
     const second = repo.existsByKey('idem');
     // Assert
     expect(first).toBe(second);
+  });
+
+  // ── Phase 1 fields: type, priority, acceptanceJson ───────────────────────
+
+  it('should store and retrieve type field when upsert is called with type', () => {
+    // Arrange / Act
+    repo.upsert(makeRow({ key: 'typed', type: 'feature', filePath: '/typed.card.md' }));
+    // Assert
+    const row = repo.findByKey('typed');
+    expect(row?.type).toBe('feature');
+  });
+
+  it('should store and retrieve priority field when upsert is called with priority', () => {
+    // Arrange / Act
+    repo.upsert(makeRow({ key: 'prio', priority: 'high', filePath: '/prio.card.md' }));
+    // Assert
+    const row = repo.findByKey('prio');
+    expect(row?.priority).toBe('high');
+  });
+
+  it('should store and retrieve acceptanceJson field when upsert is called with acceptanceJson', () => {
+    // Arrange
+    const json = JSON.stringify([{ id: 'AC-1', description: 'must pass', verified: false }]);
+    // Act
+    repo.upsert(makeRow({ key: 'ac', acceptanceJson: json, filePath: '/ac.card.md' }));
+    // Assert
+    const row = repo.findByKey('ac');
+    expect(row?.acceptanceJson).toBe(json);
+  });
+
+  it('should return only feature cards when list is called with type feature filter', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'f/1', type: 'feature', filePath: '/f1.card.md' }));
+    repo.upsert(makeRow({ key: 'b/1', type: 'bug', filePath: '/b1.card.md' }));
+    repo.upsert(makeRow({ key: 'n/1', type: null, filePath: '/n1.card.md' }));
+    // Act
+    const result = repo.list({ type: 'feature' });
+    // Assert
+    expect(result).toHaveLength(1);
+    expect(result[0]?.key).toBe('f/1');
+  });
+
+  it('should order critical > high > medium > low > null when list is called with sortBy priority', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'p/low', priority: 'low', filePath: '/low.card.md' }));
+    repo.upsert(makeRow({ key: 'p/crit', priority: 'critical', filePath: '/crit.card.md' }));
+    repo.upsert(makeRow({ key: 'p/null', priority: null, filePath: '/null.card.md' }));
+    repo.upsert(makeRow({ key: 'p/high', priority: 'high', filePath: '/high.card.md' }));
+    repo.upsert(makeRow({ key: 'p/med', priority: 'medium', filePath: '/med.card.md' }));
+    // Act
+    const result = repo.list({ sortBy: 'priority' });
+    // Assert
+    expect(result.map((r) => r.key)).toEqual([
+      'p/crit',
+      'p/high',
+      'p/med',
+      'p/low',
+      'p/null',
+    ]);
+  });
+
+  it('should order newest first when list is called with sortBy updated_at', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'u/old', updatedAt: '2026-01-01T00:00:00.000Z', filePath: '/old.card.md' }));
+    repo.upsert(makeRow({ key: 'u/mid', updatedAt: '2026-06-15T00:00:00.000Z', filePath: '/mid.card.md' }));
+    repo.upsert(makeRow({ key: 'u/new', updatedAt: '2026-12-31T00:00:00.000Z', filePath: '/new.card.md' }));
+    // Act
+    const result = repo.list({ sortBy: 'updated_at' });
+    // Assert
+    expect(result.map((r) => r.key)).toEqual(['u/new', 'u/mid', 'u/old']);
+  });
+
+  it('should return only draft features when list is called with status draft and type feature', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'df/1', status: 'draft', type: 'feature', filePath: '/df1.card.md' }));
+    repo.upsert(makeRow({ key: 'af/1', status: 'accepted', type: 'feature', filePath: '/af1.card.md' }));
+    repo.upsert(makeRow({ key: 'db/1', status: 'draft', type: 'bug', filePath: '/db1.card.md' }));
+    // Act
+    const result = repo.list({ status: 'draft', type: 'feature' });
+    // Assert
+    expect(result).toHaveLength(1);
+    expect(result[0]?.key).toBe('df/1');
+  });
+
+  it('should return bugs sorted by priority when list is called with type bug and sortBy priority', () => {
+    // Arrange
+    repo.upsert(makeRow({ key: 'bug/low', type: 'bug', priority: 'low', filePath: '/bl.card.md' }));
+    repo.upsert(makeRow({ key: 'bug/high', type: 'bug', priority: 'high', filePath: '/bh.card.md' }));
+    repo.upsert(makeRow({ key: 'feat/crit', type: 'feature', priority: 'critical', filePath: '/fc.card.md' }));
+    // Act
+    const result = repo.list({ type: 'bug', sortBy: 'priority' });
+    // Assert
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.key)).toEqual(['bug/high', 'bug/low']);
   });
 });
