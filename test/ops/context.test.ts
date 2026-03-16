@@ -1,5 +1,7 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 
+import { mock } from 'bun:test';
+
 import {
   createCard,
   updateCard,
@@ -362,5 +364,211 @@ describe('checkInteractions', () => {
     const result = checkInteractions(tc.ctx, ['fa', 'fb']);
     expect(result.interactions).toHaveLength(1);
     expect(result.interactions[0]!.potentialConflicts.length).toBeGreaterThan(0);
+  });
+});
+
+// ── Mock Gildash Factory ──
+
+function createMockGildash(overrides: {
+  searchAnnotations?: (...args: unknown[]) => unknown[];
+  searchSymbols?: (...args: unknown[]) => unknown;
+  getSymbolChanges?: (...args: unknown[]) => unknown[];
+  getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
+  getFileInfo?: (...args: unknown[]) => unknown;
+} = {}) {
+  return {
+    searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
+    searchSymbols: mock(overrides.searchSymbols ?? (() => [])),
+    getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
+    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? (() => [])),
+    getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
+    close: mock(() => Promise.resolve()),
+  } as any;
+}
+
+describe('checkDrift with gildash — broken link detection', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should detect broken links when searchSymbols returns empty array', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-broken',
+      summary: 'Broken link card',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-broken');
+    expect(result.driftScore).toBeGreaterThan(0);
+    expect(result.staleCards.length).toBeGreaterThanOrEqual(1);
+    const card = result.staleCards.find((c) => c.key === 'drift-broken');
+    expect(card).toBeDefined();
+    expect(card!.brokenLinks).toBe(1);
+  });
+
+  it('should report zero broken links when searchSymbols finds the symbol', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-ok',
+      summary: 'OK link card',
+      codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
+    });
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [{ name: 'okFn', filePath: 'src/ok.ts', kind: 'function' }],
+      getFileInfo: () => null,
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-ok');
+    // No broken links and no stale files means no drift from links
+    const card = result.staleCards.find((c) => c.key === 'drift-ok');
+    if (card) {
+      expect(card.brokenLinks).toBe(0);
+    }
+  });
+
+  it('should detect broken link when searchSymbols returns non-array error result', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-err',
+      summary: 'Error result card',
+      codeLinks: [{ kind: 'function', file: 'src/err.ts', symbol: 'errFn' }],
+    });
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => ({ data: 'error', isErr: true }),
+      getFileInfo: () => null,
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-err');
+    expect(result.driftScore).toBeGreaterThan(0);
+    const card = result.staleCards.find((c) => c.key === 'drift-err');
+    expect(card).toBeDefined();
+    expect(card!.brokenLinks).toBe(1);
+  });
+
+  it('should detect multiple broken links across multiple code links', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-multi',
+      summary: 'Multi broken',
+      codeLinks: [
+        { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
+        { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
+      ],
+    });
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-multi');
+    const card = result.staleCards.find((c) => c.key === 'drift-multi');
+    expect(card).toBeDefined();
+    expect(card!.brokenLinks).toBe(2);
+  });
+});
+
+describe('checkDrift with gildash — stale detection', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should detect stale card when getFileInfo returns mtime newer than card updated_at', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-stale',
+      summary: 'Stale card',
+      codeLinks: [{ kind: 'function', file: 'src/changed.ts', symbol: 'changedFn' }],
+    });
+
+    // The card was just created, so its updatedAt is approximately now.
+    // Set file mtime to far in the future to guarantee stale detection.
+    const futureMtime = new Date(Date.now() + 60_000).toISOString();
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [{ name: 'changedFn', filePath: 'src/changed.ts', kind: 'function' }],
+      getFileInfo: () => ({ mtime: futureMtime }),
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-stale');
+    expect(result.driftScore).toBeGreaterThan(0);
+    const card = result.staleCards.find((c) => c.key === 'drift-stale');
+    expect(card).toBeDefined();
+    expect(card!.codeChangesAfter).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should not detect stale when getFileInfo returns mtime older than card updated_at', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-fresh',
+      summary: 'Fresh card',
+      codeLinks: [{ kind: 'function', file: 'src/old.ts', symbol: 'oldFn' }],
+    });
+
+    const pastMtime = new Date(Date.now() - 60_000).toISOString();
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [{ name: 'oldFn', filePath: 'src/old.ts', kind: 'function' }],
+      getFileInfo: () => ({ mtime: pastMtime }),
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-fresh');
+    // No broken links, no stale files, no unverified acceptance
+    expect(result.staleCards).toHaveLength(0);
+  });
+
+  it('should not detect stale when getFileInfo returns null', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-no-info',
+      summary: 'No file info card',
+      codeLinks: [{ kind: 'function', file: 'src/unknown.ts', symbol: 'unknownFn' }],
+    });
+
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [{ name: 'unknownFn', filePath: 'src/unknown.ts', kind: 'function' }],
+      getFileInfo: () => null,
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-no-info');
+    expect(result.staleCards).toHaveLength(0);
+  });
+
+  it('should detect both broken link and stale file simultaneously', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-combo',
+      summary: 'Combo drift card',
+      codeLinks: [
+        { kind: 'function', file: 'src/broken.ts', symbol: 'brokenFn' },
+        { kind: 'class', file: 'src/stale.ts', symbol: 'StaleClass' },
+      ],
+    });
+
+    const futureMtime = new Date(Date.now() + 60_000).toISOString();
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: ({ text }: any) => {
+        if (text === 'brokenFn') return [];
+        if (text === 'StaleClass') return [{ name: 'StaleClass', filePath: 'src/stale.ts', kind: 'class' }];
+        return [];
+      },
+      getFileInfo: (file: string) => {
+        if (file === 'src/stale.ts') return { mtime: futureMtime };
+        return null;
+      },
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-combo');
+    expect(result.driftScore).toBeGreaterThan(0);
+    const card = result.staleCards.find((c) => c.key === 'drift-combo');
+    expect(card).toBeDefined();
+    expect(card!.brokenLinks).toBe(1);
+    expect(card!.codeChangesAfter).toBe(1);
   });
 });

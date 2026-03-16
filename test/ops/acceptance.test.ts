@@ -303,3 +303,85 @@ describe('Phase 1 — type, priority, acceptance in create/update', () => {
     expect(result[0]!.key).toBe('feat');
   });
 });
+
+describe('updateCard changelog for type and priority', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should record changelog entry when type changes', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-type', summary: 'Type changelog', type: 'feature' });
+    await updateCard(tc.ctx, 'cl-type', { type: 'bug' });
+
+    const history = getCardHistory(tc.ctx, 'cl-type');
+    const typeChange = history.find((h) => h.field === 'type');
+    expect(typeChange).toBeDefined();
+    expect(typeChange!.oldValue).toBe('feature');
+    expect(typeChange!.newValue).toBe('bug');
+  });
+
+  it('should record changelog entry when priority changes', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-prio', summary: 'Priority changelog', priority: 'low' });
+    await updateCard(tc.ctx, 'cl-prio', { priority: 'critical' });
+
+    const history = getCardHistory(tc.ctx, 'cl-prio');
+    const prioChange = history.find((h) => h.field === 'priority');
+    expect(prioChange).toBeDefined();
+    expect(prioChange!.oldValue).toBe('low');
+    expect(prioChange!.newValue).toBe('critical');
+  });
+
+  it('should record changelog entries when both type and priority change simultaneously', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-both', summary: 'Both changelog', type: 'feature', priority: 'low' });
+    await updateCard(tc.ctx, 'cl-both', { type: 'refactor', priority: 'high' });
+
+    const history = getCardHistory(tc.ctx, 'cl-both');
+    const typeChange = history.find((h) => h.field === 'type');
+    const prioChange = history.find((h) => h.field === 'priority');
+    expect(typeChange).toBeDefined();
+    expect(typeChange!.oldValue).toBe('feature');
+    expect(typeChange!.newValue).toBe('refactor');
+    expect(prioChange).toBeDefined();
+    expect(prioChange!.oldValue).toBe('low');
+    expect(prioChange!.newValue).toBe('high');
+  });
+
+  it('should record changelog entry when type is set from null', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-null-type', summary: 'Null type' });
+    await updateCard(tc.ctx, 'cl-null-type', { type: 'bug' });
+
+    const history = getCardHistory(tc.ctx, 'cl-null-type');
+    const typeChange = history.find((h) => h.field === 'type');
+    expect(typeChange).toBeDefined();
+    expect(typeChange!.oldValue).toBeNull();
+    expect(typeChange!.newValue).toBe('bug');
+  });
+
+  it('should record changelog entry when type is cleared to null', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-clear-type', summary: 'Clear type', type: 'feature' });
+    await updateCard(tc.ctx, 'cl-clear-type', { type: null });
+
+    const history = getCardHistory(tc.ctx, 'cl-clear-type');
+    const typeChange = history.find((h) => h.field === 'type');
+    expect(typeChange).toBeDefined();
+    expect(typeChange!.oldValue).toBe('feature');
+    expect(typeChange!.newValue).toBeNull();
+  });
+
+  it('should not record changelog entry when type value is unchanged', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-same-type', summary: 'Same type', type: 'feature' });
+    await updateCard(tc.ctx, 'cl-same-type', { type: 'feature' });
+
+    const history = getCardHistory(tc.ctx, 'cl-same-type');
+    const typeChanges = history.filter((h) => h.field === 'type');
+    expect(typeChanges).toHaveLength(0);
+  });
+});

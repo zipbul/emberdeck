@@ -42,7 +42,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     acceptanceJson: cardFile.frontmatter.acceptance
       ? JSON.stringify(cardFile.frontmatter.acceptance)
       : null,
-    constraintsJson: cardFile.frontmatter.constraints
+    constraintsJson: cardFile.frontmatter.constraints !== undefined
       ? JSON.stringify(cardFile.frontmatter.constraints)
       : null,
     body: cardFile.body,

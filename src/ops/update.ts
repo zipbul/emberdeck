@@ -276,7 +276,7 @@ export async function updateCardStatus(
                 acceptanceJson: current.frontmatter.acceptance
                   ? JSON.stringify(current.frontmatter.acceptance)
                   : null,
-                constraintsJson: current.frontmatter.constraints
+                constraintsJson: current.frontmatter.constraints !== undefined
                   ? JSON.stringify(current.frontmatter.constraints)
                   : null,
                 body: current.body,

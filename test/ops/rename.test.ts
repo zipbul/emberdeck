@@ -377,4 +377,89 @@ describe('renameCard', () => {
     expect(finalLinks).toHaveLength(1);
     expect(finalLinks[0]!.symbol).toBe('chainFn');
   });
+
+  // ── type, priority, acceptance Preservation ─────────────────────────────
+
+  it('should preserve type in DB after rename', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'rnm-tp-src', summary: 'Type preserve', type: 'feature' });
+    // Act
+    await renameCard(tc.ctx, 'rnm-tp-src', 'rnm-tp-dst');
+    // Assert
+    const row = tc.ctx.cardRepo.findByKey('rnm-tp-dst');
+    expect(row).not.toBeNull();
+    expect(row!.type).toBe('feature');
+  });
+
+  it('should preserve priority in DB after rename', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'rnm-pri-src', summary: 'Priority preserve', priority: 'critical' });
+    // Act
+    await renameCard(tc.ctx, 'rnm-pri-src', 'rnm-pri-dst');
+    // Assert
+    const row = tc.ctx.cardRepo.findByKey('rnm-pri-dst');
+    expect(row).not.toBeNull();
+    expect(row!.priority).toBe('critical');
+  });
+
+  it('should preserve acceptance criteria in DB after rename', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'rnm-ac-src',
+      summary: 'AC preserve',
+      acceptance: [
+        { id: 'ac-1', description: 'First', verified: false },
+        { id: 'ac-2', description: 'Second', verified: true },
+      ],
+    });
+    // Act
+    await renameCard(tc.ctx, 'rnm-ac-src', 'rnm-ac-dst');
+    // Assert
+    const row = tc.ctx.cardRepo.findByKey('rnm-ac-dst');
+    expect(row).not.toBeNull();
+    expect(row!.acceptanceJson).not.toBeNull();
+    const acceptance = JSON.parse(row!.acceptanceJson!);
+    expect(acceptance).toHaveLength(2);
+    expect(acceptance[0].id).toBe('ac-1');
+    expect(acceptance[1].verified).toBe(true);
+  });
+
+  it('should preserve type, priority, and acceptance in file after rename', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'rnm-all-p1',
+      summary: 'All P1 fields',
+      type: 'bug',
+      priority: 'high',
+      acceptance: [{ id: 'ac-1', description: 'Must fix', verified: false }],
+    });
+    // Act
+    const result = await renameCard(tc.ctx, 'rnm-all-p1', 'rnm-all-p1-new');
+    // Assert: check file frontmatter
+    expect(result.card.frontmatter.type).toBe('bug');
+    expect(result.card.frontmatter.priority).toBe('high');
+    expect(result.card.frontmatter.acceptance).toHaveLength(1);
+    expect(result.card.frontmatter.acceptance![0]!.description).toBe('Must fix');
+    // Assert: check DB row
+    const row = tc.ctx.cardRepo.findByKey('rnm-all-p1-new');
+    expect(row!.type).toBe('bug');
+    expect(row!.priority).toBe('high');
+  });
+
+  it('should preserve null type and priority after rename when card has neither', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'rnm-null-src', summary: 'No type or priority' });
+    // Act
+    await renameCard(tc.ctx, 'rnm-null-src', 'rnm-null-dst');
+    // Assert
+    const row = tc.ctx.cardRepo.findByKey('rnm-null-dst');
+    expect(row!.type).toBeNull();
+    expect(row!.priority).toBeNull();
+    expect(row!.acceptanceJson).toBeNull();
+  });
 });

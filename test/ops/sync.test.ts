@@ -848,3 +848,195 @@ describe('exportCardToFile', () => {
     expect(parsed.frontmatter.constraints).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// syncCardFromFile — type, priority, acceptance
+// ---------------------------------------------------------------------------
+
+describe('syncCardFromFile — type, priority, acceptance', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should persist type to DB when syncing a file with type in frontmatter', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'feature' },
+      '',
+    );
+    const filePath = join(tc.cardsDir, 'sync-type.card.md');
+    await writeFile(filePath, content, 'utf-8');
+    await syncCardFromFile(tc.ctx, filePath);
+
+    const row = tc.ctx.cardRepo.findByKey('sync-type');
+    expect(row).not.toBeNull();
+    expect(row!.type).toBe('feature');
+  });
+
+  it('should persist priority to DB when syncing a file with priority in frontmatter', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      { key: 'sync-prio', summary: 'Priority sync', status: 'draft', priority: 'critical' },
+      '',
+    );
+    const filePath = join(tc.cardsDir, 'sync-prio.card.md');
+    await writeFile(filePath, content, 'utf-8');
+    await syncCardFromFile(tc.ctx, filePath);
+
+    const row = tc.ctx.cardRepo.findByKey('sync-prio');
+    expect(row).not.toBeNull();
+    expect(row!.priority).toBe('critical');
+  });
+
+  it('should persist acceptance criteria to DB when syncing a file with acceptance in frontmatter', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      {
+        key: 'sync-ac',
+        summary: 'AC sync',
+        status: 'draft',
+        acceptance: [
+          { id: 'ac-1', description: 'First criterion', verified: false },
+          { id: 'ac-2', description: 'Second criterion', verified: true },
+        ],
+      },
+      '',
+    );
+    const filePath = join(tc.cardsDir, 'sync-ac.card.md');
+    await writeFile(filePath, content, 'utf-8');
+    await syncCardFromFile(tc.ctx, filePath);
+
+    const row = tc.ctx.cardRepo.findByKey('sync-ac');
+    expect(row).not.toBeNull();
+    expect(row!.acceptanceJson).not.toBeNull();
+    const acceptance = JSON.parse(row!.acceptanceJson!);
+    expect(acceptance).toHaveLength(2);
+    expect(acceptance[0].id).toBe('ac-1');
+    expect(acceptance[1].verified).toBe(true);
+  });
+
+  it('should persist type, priority, and acceptance together when syncing a file with all three', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      {
+        key: 'sync-all-p1',
+        summary: 'All Phase 1 fields',
+        status: 'draft',
+        type: 'bug',
+        priority: 'high',
+        acceptance: [{ id: 'ac-1', description: 'Must fix', verified: false }],
+      },
+      '',
+    );
+    const filePath = join(tc.cardsDir, 'sync-all-p1.card.md');
+    await writeFile(filePath, content, 'utf-8');
+    await syncCardFromFile(tc.ctx, filePath);
+
+    const row = tc.ctx.cardRepo.findByKey('sync-all-p1');
+    expect(row!.type).toBe('bug');
+    expect(row!.priority).toBe('high');
+    const acceptance = JSON.parse(row!.acceptanceJson!);
+    expect(acceptance).toHaveLength(1);
+    expect(acceptance[0].description).toBe('Must fix');
+  });
+
+  it('should set type and priority to null when syncing file without those fields', async () => {
+    tc = await createTestContext();
+    const content = serializeCardMarkdown(
+      { key: 'sync-no-tp', summary: 'No type/priority', status: 'draft' },
+      '',
+    );
+    const filePath = join(tc.cardsDir, 'sync-no-tp.card.md');
+    await writeFile(filePath, content, 'utf-8');
+    await syncCardFromFile(tc.ctx, filePath);
+
+    const row = tc.ctx.cardRepo.findByKey('sync-no-tp');
+    expect(row!.type).toBeNull();
+    expect(row!.priority).toBeNull();
+    expect(row!.acceptanceJson).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// exportCardToFile — type, priority, acceptance round-trip
+// ---------------------------------------------------------------------------
+
+describe('exportCardToFile — type, priority, acceptance round-trip', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should include type in exported file when card has type', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-type', summary: 'Type export', type: 'feature' });
+
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-type');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    expect(parsed.frontmatter.type).toBe('feature');
+  });
+
+  it('should include priority in exported file when card has priority', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-prio', summary: 'Priority export', priority: 'critical' });
+
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-prio');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    expect(parsed.frontmatter.priority).toBe('critical');
+  });
+
+  it('should include acceptance criteria in exported file when card has acceptance', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'exp-ac',
+      summary: 'AC export',
+      acceptance: [
+        { id: 'ac-1', description: 'Criterion one', verified: false },
+        { id: 'ac-2', description: 'Criterion two', verified: true },
+      ],
+    });
+
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-ac');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    expect(parsed.frontmatter.acceptance).toHaveLength(2);
+    expect(parsed.frontmatter.acceptance![0]!.id).toBe('ac-1');
+    expect(parsed.frontmatter.acceptance![1]!.verified).toBe(true);
+  });
+
+  it('should round-trip type, priority, and acceptance through create, export, and re-parse', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'exp-rt-p1',
+      summary: 'Round-trip Phase 1',
+      type: 'bug',
+      priority: 'high',
+      acceptance: [{ id: 'ac-1', description: 'Must pass', verified: false }],
+    });
+
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-rt-p1');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    expect(parsed.frontmatter.type).toBe('bug');
+    expect(parsed.frontmatter.priority).toBe('high');
+    expect(parsed.frontmatter.acceptance).toHaveLength(1);
+    expect(parsed.frontmatter.acceptance![0]!.description).toBe('Must pass');
+  });
+
+  it('should omit type and priority from exported file when card has neither', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'exp-no-tp', summary: 'No type or priority' });
+
+    const exportedPath = await exportCardToFile(tc.ctx, 'exp-no-tp');
+    const text = await Bun.file(exportedPath).text();
+    const parsed = parseCardMarkdown(text);
+    expect(parsed.frontmatter.type).toBeUndefined();
+    expect(parsed.frontmatter.priority).toBeUndefined();
+    expect(parsed.frontmatter.acceptance).toBeUndefined();
+  });
+});
