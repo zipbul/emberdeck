@@ -58,19 +58,27 @@ export async function bulkCreateCards(
     }
   }
 
-  // Phase 2: Apply relations for successfully created cards
+  // Phase 2: Apply relations for successfully created cards.
+  // We collect ALL declared relations first, then apply them per card in one shot.
+  // This prevents mutual relations (A→B + B→A) from overwriting each other's reverse mirrors.
   if (pendingRelations.length > 0) {
-    const { updateCard } = await import('../ops/update');
+    // Build a merged relation map: cardKey → all forward relations it should own
+    const relationMap = new Map<string, Array<{ type: string; target: string }>>();
     for (const { key, input } of pendingRelations) {
+      if (input.relations) {
+        relationMap.set(key, [...(relationMap.get(key) ?? []), ...input.relations]);
+      }
+    }
+
+    const { updateCard } = await import('../ops/update');
+    for (const [key, relations] of relationMap) {
       try {
-        await updateCard(ctx, key, { relations: input.relations });
+        await updateCard(ctx, key, { relations });
       } catch (err) {
-        // Relation failure does not remove the card, but is reported
         errors.push({
           slug: key,
           message: `relation update failed: ${err instanceof Error ? err.message : String(err)}`,
         });
-        // Remove from keys since it's partially failed
         const idx = keys.indexOf(key);
         if (idx !== -1) keys.splice(idx, 1);
       }

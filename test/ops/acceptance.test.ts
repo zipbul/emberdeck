@@ -304,6 +304,28 @@ describe('Phase 1 — type, priority, acceptance in create/update', () => {
   });
 });
 
+describe('listCards with combined filters', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should filter by status + type + sortBy priority simultaneously', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'df-hi', summary: 'Draft feature high', status: 'draft' as any, type: 'feature', priority: 'high' });
+    await createCard(tc.ctx, { slug: 'df-lo', summary: 'Draft feature low', type: 'feature', priority: 'low' });
+    await createCard(tc.ctx, { slug: 'af-cr', summary: 'Accepted feature critical', type: 'feature', priority: 'critical' });
+    await updateCardStatus(tc.ctx, 'af-cr', 'accepted');
+    await createCard(tc.ctx, { slug: 'db-md', summary: 'Draft bug medium', type: 'bug', priority: 'medium' });
+
+    const result = listCards(tc.ctx, { status: 'draft', type: 'feature', sortBy: 'priority' });
+    expect(result).toHaveLength(2);
+    expect(result[0]!.key).toBe('df-hi');
+    expect(result[1]!.key).toBe('df-lo');
+  });
+});
+
 describe('updateCard changelog for type and priority', () => {
   let tc: TestContext;
 

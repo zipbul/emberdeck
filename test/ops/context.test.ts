@@ -122,6 +122,29 @@ describe('generateContext', () => {
     expect(result.cards[0]!.body).toBeUndefined();
   });
 
+  it('should handle circular relations without hanging', async () => {
+    // Use 'related' type which creates bidirectional reverse mirrors.
+    // A related B already creates A→B forward + B→A reverse.
+    // BFS traversal from A should visit B (via forward) and from B should revisit A (via reverse),
+    // but the visited set prevents infinite loops.
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'circ-a', summary: 'Circular A' });
+    await createCard(tc.ctx, {
+      slug: 'circ-b',
+      summary: 'Circular B',
+      relations: [{ type: 'related', target: 'circ-a' }],
+    });
+    // At this point: circ-b→circ-a (forward), circ-a→circ-b (reverse mirror)
+    // BFS from circ-a sees circ-b via reverse mirror, then from circ-b sees circ-a via forward.
+    // Act — should return without hanging
+    const result = await generateContext(tc.ctx, 'circ-a');
+    // Assert — includes both cards
+    const keys = result.cards.map((c) => c.key);
+    expect(keys).toContain('circ-a');
+    expect(keys).toContain('circ-b');
+    expect(result.cards.length).toBe(2);
+  });
+
   it('should throw when card does not exist', async () => {
     tc = await createTestContext();
     expect(generateContext(tc.ctx, 'nonexistent')).rejects.toThrow();

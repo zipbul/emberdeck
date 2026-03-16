@@ -109,6 +109,57 @@ describe('bulkCreateCards', () => {
     expect(result.keys).toEqual(['solo']);
   });
 
+  // ── Mutual Relations ──
+
+  it('should create both cards but report relation error for mutual relations in same batch', async () => {
+    // Mutual relations (a depends-on b AND b depends-on a) in the same batch
+    // cause a UNIQUE constraint conflict: processing a's relations creates a
+    // reverse mirror row (b→a), then b's forward relation (b→a) collides.
+    tc = await createTestContext();
+    const result = await bulkCreateCards(tc.ctx, [
+      {
+        slug: 'a',
+        summary: 'Card A',
+        relations: [{ type: 'depends-on', target: 'b' }],
+      },
+      {
+        slug: 'b',
+        summary: 'Card B',
+        relations: [{ type: 'depends-on', target: 'a' }],
+      },
+    ]);
+    // Both cards exist in DB (created in phase 1)
+    expect(tc.ctx.cardRepo.findByKey('a')).not.toBeNull();
+    expect(tc.ctx.cardRepo.findByKey('b')).not.toBeNull();
+    // First card's relations succeed (a depends-on b)
+    const aRelations = tc.ctx.relationRepo.findByCardKey('a');
+    const aForward = aRelations.find((r) => !r.isReverse && r.dstCardKey === 'b');
+    expect(aForward).not.toBeUndefined();
+    // Second card's relation update fails (UNIQUE constraint), reported as error
+    expect(result.errors.length).toBeGreaterThanOrEqual(1);
+    const bError = result.errors.find((e) => e.slug === 'b');
+    expect(bError).toBeDefined();
+  });
+
+  // ── Duplicate Slugs in Same Batch ──
+
+  it('should fail second item when batch contains duplicate slugs', async () => {
+    tc = await createTestContext();
+    const result = await bulkCreateCards(tc.ctx, [
+      { slug: 'dup', summary: 'A' },
+      { slug: 'dup', summary: 'B' },
+    ]);
+    expect(result.created).toBe(1);
+    expect(result.failed).toBe(1);
+    expect(result.keys).toEqual(['dup']);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]!.slug).toBe('dup');
+    // Verify the first card's summary persists
+    const row = tc.ctx.cardRepo.findByKey('dup');
+    expect(row).not.toBeNull();
+    expect(row!.summary).toBe('A');
+  });
+
   it('should report relation error when relation type is not allowed', async () => {
     tc = await createTestContext({ allowedRelationTypes: [] });
     const result = await bulkCreateCards(tc.ctx, [

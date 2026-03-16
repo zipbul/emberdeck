@@ -12,6 +12,7 @@ import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
+import { DrizzleChangelogRepository } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { withCardLock, withRetry } from './safe';
 
@@ -90,8 +91,9 @@ export async function renameCard(
             const relationRepo = new DrizzleRelationRepository(d);
             const classRepo = new DrizzleClassificationRepository(d);
             const codeLinkRepo = new DrizzleCodeLinkRepository(d);
+            const changelogRepo = new DrizzleChangelogRepository(d);
 
-            // Back up existing relations/classifications/code links
+            // Back up existing relations/classifications/code links/changelog
             const oldRelations = relationRepo
               .findByCardKey(oldKey)
               .filter((r) => !r.isReverse)
@@ -99,6 +101,7 @@ export async function renameCard(
             const oldKeywords = classRepo.findKeywordsByCard(oldKey);
             const oldTags = classRepo.findTagsByCard(oldKey);
             const oldCodeLinks = codeLinkRepo.findByCardKey(oldKey);
+            const oldChangelog = changelogRepo.findByCardKey(oldKey, 10000);
 
             cardRepo.deleteByKey(oldKey); // cascade delete
 
@@ -123,6 +126,16 @@ export async function renameCard(
             if (oldRelations.length > 0) relationRepo.replaceForCard(newFullKey, oldRelations);
             if (oldKeywords.length > 0) classRepo.replaceKeywords(newFullKey, oldKeywords);
             if (oldTags.length > 0) classRepo.replaceTags(newFullKey, oldTags);
+            for (const entry of oldChangelog) {
+              changelogRepo.insert({
+                cardKey: newFullKey,
+                field: entry.field,
+                oldValue: entry.oldValue,
+                newValue: entry.newValue,
+                changedAt: entry.changedAt,
+                changedBy: entry.changedBy,
+              });
+            }
             if (oldCodeLinks.length > 0)
               codeLinkRepo.replaceForCard(
                 newFullKey,

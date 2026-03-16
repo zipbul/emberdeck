@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 import { existsSync } from 'node:fs';
 
-import { createCard, renameCard, updateCard } from '../../index';
+import { createCard, renameCard, updateCard, updateCardStatus, getCardHistory } from '../../index';
 import {
   CardAlreadyExistsError,
   CardKeyError,
@@ -292,6 +292,28 @@ describe('renameCard', () => {
     // Assert
     expect(tc.ctx.cardRepo.findByKey('db-verify-old')).toBeNull();
     expect(tc.ctx.cardRepo.findByKey('db-verify-new')).not.toBeNull();
+  });
+
+  // ── Changelog Preservation ──────────────────────────────────────────────
+
+  it('should preserve changelog entries under new key after rename', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'cl-rnm-old', summary: 'Original' });
+    await updateCardStatus(tc.ctx, 'cl-rnm-old', 'accepted');
+    await updateCardStatus(tc.ctx, 'cl-rnm-old', 'implementing');
+    const historyBefore = getCardHistory(tc.ctx, 'cl-rnm-old');
+    expect(historyBefore.length).toBe(2);
+    // Act
+    await renameCard(tc.ctx, 'cl-rnm-old', 'cl-rnm-new');
+    // Assert: new key has the old changelog entries
+    const historyNew = getCardHistory(tc.ctx, 'cl-rnm-new');
+    expect(historyNew.length).toBe(2);
+    const statuses = historyNew.map((h) => h.newValue).sort();
+    expect(statuses).toEqual(['accepted', 'implementing']);
+    // Assert: old key returns empty
+    const historyOld = getCardHistory(tc.ctx, 'cl-rnm-old');
+    expect(historyOld).toEqual([]);
   });
 
   // ── codeLink Preservation ─────────────────────────────────────────────

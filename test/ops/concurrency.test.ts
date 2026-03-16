@@ -90,7 +90,27 @@ describe('ops concurrency', () => {
     expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(CardNotFoundError);
   });
 
-  // ── CR-5: concurrent renameCard on same old key → serialized, second gets NotFound ──
+  // ── CR-5: concurrent createCard + renameCard to same target key ──
+
+  it('[CR] should allow exactly one of concurrent createCard and renameCard targeting the same key', async () => {
+    // Arrange
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'old-name', summary: 'Will be renamed' });
+    // Act — createCard("target") and renameCard("old-name", "target") race
+    const results = await Promise.allSettled([
+      createCard(tc.ctx, { slug: 'target', summary: 'Created directly' }),
+      renameCard(tc.ctx, 'old-name', 'target'),
+    ]);
+    // Assert — exactly one succeeds, one fails
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    // The target key should exist in DB
+    expect(tc.ctx.cardRepo.findByKey('target')).not.toBeNull();
+  });
+
+  // ── CR-6: concurrent renameCard on same old key → serialized, second gets NotFound ──
 
   it('[CR] should serialize concurrent renameCard on the same old key', async () => {
     // Arrange

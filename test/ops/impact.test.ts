@@ -239,6 +239,18 @@ describe('regressionGuard', () => {
     expect(result.newIssues).toHaveLength(2);
   });
 
+  it('should pass gracefully when firebatReport is a string', async () => {
+    tc = await createTestContext();
+    const result = regressionGuard(tc.ctx, ['src/a.ts'], 'scan completed' as any);
+    expect(result.qualityGate).toBe('pass');
+  });
+
+  it('should pass gracefully when firebatReport is a number', async () => {
+    tc = await createTestContext();
+    const result = regressionGuard(tc.ctx, ['src/a.ts'], 42 as any);
+    expect(result.qualityGate).toBe('pass');
+  });
+
   it('should pass with empty changedFiles and no firebat', async () => {
     tc = await createTestContext();
     const result = regressionGuard(tc.ctx, []);
