@@ -133,6 +133,47 @@ describe('generateContext', () => {
     const result = await generateContext(tc.ctx, 'hist-ctx');
     expect(result.recentChanges.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('should include constraints from cards', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'cst',
+      summary: 'Constraints',
+      constraints: { maxRetries: 3, timeout: 5000 },
+    });
+
+    const result = await generateContext(tc.ctx, 'cst');
+    expect(result.constraints['cst']).toEqual({ maxRetries: 3, timeout: 5000 });
+  });
+
+  it('should respect maxDepth parameter', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'd0', summary: 'Depth 0' });
+    await createCard(tc.ctx, { slug: 'd1', summary: 'Depth 1', relations: [{ type: 'depends-on', target: 'd0' }] });
+    await createCard(tc.ctx, { slug: 'd2', summary: 'Depth 2', relations: [{ type: 'depends-on', target: 'd1' }] });
+    await createCard(tc.ctx, { slug: 'd3', summary: 'Depth 3', relations: [{ type: 'depends-on', target: 'd2' }] });
+
+    const result = await generateContext(tc.ctx, 'd3', { maxDepth: 1 });
+    const keys = result.cards.map((c) => c.key);
+    expect(keys).toContain('d3');
+    expect(keys).toContain('d2');
+    expect(keys).not.toContain('d0');
+  });
+
+  it('should include relation graph edges', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { slug: 'edge-a', summary: 'A' });
+    await createCard(tc.ctx, {
+      slug: 'edge-b',
+      summary: 'B',
+      relations: [{ type: 'depends-on', target: 'edge-a' }],
+    });
+
+    const result = await generateContext(tc.ctx, 'edge-b');
+    expect(result.relationGraph.length).toBeGreaterThanOrEqual(1);
+    const edge = result.relationGraph.find((e) => e.from === 'edge-b' && e.to === 'edge-a');
+    expect(edge).toBeDefined();
+  });
 });
 
 describe('checkDrift', () => {
@@ -181,6 +222,37 @@ describe('checkDrift', () => {
     const result = checkDrift(tc.ctx);
     expect(result.driftScore).toBe(0);
     expect(result.summary).toContain('No cards');
+  });
+
+  it('should include related cards in drift scope via BFS', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-root',
+      summary: 'Root',
+      acceptance: [{ id: 'ac-1', description: 'X', verified: false }],
+    });
+    await createCard(tc.ctx, {
+      slug: 'drift-child',
+      summary: 'Child',
+      relations: [{ type: 'depends-on', target: 'drift-root' }],
+      acceptance: [{ id: 'ac-2', description: 'Y', verified: false }],
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-child');
+    expect(result.staleCards.length).toBe(2);
+  });
+
+  it('should report 0 drift when all acceptance verified', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'all-verified',
+      summary: 'All verified',
+      acceptance: [{ id: 'ac-1', description: 'Done', verified: true }],
+    });
+
+    const result = checkDrift(tc.ctx, 'all-verified');
+    expect(result.driftScore).toBe(0);
+    expect(result.staleCards).toHaveLength(0);
   });
 });
 

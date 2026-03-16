@@ -110,6 +110,39 @@ describe('preChangeCheck', () => {
     expect(result.atRiskAcceptance[0]!.criterionId).toBe('ac-1');
   });
 
+  it('should calculate risk level as medium when 1-2 direct cards affected', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'med-risk',
+      summary: 'Medium',
+      codeLinks: [{ kind: 'function', file: 'src/med.ts', symbol: 'fn' }],
+    });
+
+    const result = preChangeCheck(tc.ctx, ['src/med.ts']);
+    expect(result.riskLevel).toBe('medium');
+  });
+
+  it('should return empty results for empty files array', async () => {
+    tc = await createTestContext();
+    const result = preChangeCheck(tc.ctx, []);
+    expect(result.affectedCards).toHaveLength(0);
+    expect(result.riskLevel).toBe('low');
+  });
+
+  it('should generate suggested actions for at-risk criteria', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'suggest',
+      summary: 'Suggest',
+      codeLinks: [{ kind: 'function', file: 'src/s.ts', symbol: 'fn' }],
+      acceptance: [{ id: 'ac-1', description: 'Must validate', verified: true }],
+    });
+
+    const result = preChangeCheck(tc.ctx, ['src/s.ts']);
+    expect(result.suggestedActions.length).toBeGreaterThanOrEqual(1);
+    expect(result.suggestedActions[0]).toContain('ac-1');
+  });
+
   it('should return empty results for unrelated files', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
@@ -186,5 +219,42 @@ describe('regressionGuard', () => {
     tc = await createTestContext();
     const result = regressionGuard(tc.ctx, ['src/a.ts'], undefined);
     expect(result.qualityGate).toBe('pass');
+  });
+
+  it('should fail when firebat reports error severity issues', async () => {
+    tc = await createTestContext();
+    const result = regressionGuard(tc.ctx, ['src/a.ts'], [
+      { severity: 'error', message: 'Type mismatch' },
+    ]);
+    expect(result.qualityGate).toBe('fail');
+  });
+
+  it('should handle firebat array format directly', async () => {
+    tc = await createTestContext();
+    const result = regressionGuard(tc.ctx, ['src/a.ts'], [
+      { severity: 'warning', message: 'Unused import' },
+      { severity: 'warning', message: 'Missing return type' },
+    ]);
+    expect(result.qualityGate).toBe('warn');
+    expect(result.newIssues).toHaveLength(2);
+  });
+
+  it('should pass with empty changedFiles and no firebat', async () => {
+    tc = await createTestContext();
+    const result = regressionGuard(tc.ctx, []);
+    expect(result.qualityGate).toBe('pass');
+  });
+
+  it('should include affected acceptance count in recommendation', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'rec-card',
+      summary: 'Rec',
+      codeLinks: [{ kind: 'function', file: 'src/r.ts', symbol: 'fn' }],
+      acceptance: [{ id: 'ac-1', description: 'Works', verified: true }],
+    });
+
+    const result = regressionGuard(tc.ctx, ['src/r.ts']);
+    expect(result.recommendation).toContain('at-risk');
   });
 });
