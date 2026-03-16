@@ -990,18 +990,19 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     });
 
     // #52
-    it('should return isError for self-referencing relation (unique constraint)', async () => {
+    it('should succeed for self-referencing relation (unique constraint includes is_reverse)', async () => {
       s = await setupMcp({ allowedRelationTypes: ['depends-on'] });
       await s.client.callTool({
         name: 'emberdeck_create_card',
         arguments: { slug: 'self-ref', summary: 'Self ref' },
       });
-      // self-ref: both forward + reverse have identical (type, src, dst) → UNIQUE violation
+      // self-ref: forward (isReverse=false) and reverse (isReverse=true) differ in is_reverse column,
+      // so the unique constraint (type, src, dst, is_reverse) is not violated.
       const upd = await s.client.callTool({
         name: 'emberdeck_update_card',
         arguments: { key: 'self-ref', relations: [{ type: 'depends-on', target: 'self-ref' }] },
       });
-      expect(upd.isError).toBe(true);
+      expect(upd.isError).toBeFalsy();
     });
 
     // #53

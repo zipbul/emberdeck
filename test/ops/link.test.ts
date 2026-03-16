@@ -60,6 +60,9 @@ function insertInDb(key: string): void {
     key: slug,
     summary: `Card ${slug}`,
     status: 'draft',
+    type: null,
+    priority: null,
+    acceptanceJson: null,
     constraintsJson: null,
     body: null,
     filePath: buildCardPath(tc.ctx.cardsDir, slug),
@@ -81,7 +84,7 @@ const fakeSymbol: SymbolSearchResult = {
 };
 
 const gildashErr = () =>
-  err<GildashError>({ type: 'search', message: 'search failed', cause: undefined });
+  err<GildashError>({ type: 'search', message: 'search failed', cause: undefined, name: 'GildashError' });
 
 // ---- Tests ----
 

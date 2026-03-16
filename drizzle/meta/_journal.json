@@ -36,6 +36,13 @@
       "when": 1773868800000,
       "tag": "0004_structured_spec",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1773955200000,
+      "tag": "0005_fix_relation_unique",
+      "breakpoints": true
     }
   ]
 }

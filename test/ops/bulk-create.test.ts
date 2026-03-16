@@ -111,10 +111,10 @@ describe('bulkCreateCards', () => {
 
   // ── Mutual Relations ──
 
-  it('should create both cards but report relation error for mutual relations in same batch', async () => {
-    // Mutual relations (a depends-on b AND b depends-on a) in the same batch
-    // cause a UNIQUE constraint conflict: processing a's relations creates a
-    // reverse mirror row (b→a), then b's forward relation (b→a) collides.
+  it('should create both cards and succeed with mutual relations in same batch', async () => {
+    // Mutual relations (a depends-on b AND b depends-on a) in the same batch.
+    // The unique constraint now includes is_reverse, so the reverse mirror row
+    // (b→a, isReverse=true) and b's forward relation (b→a, isReverse=false) do not collide.
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       {
@@ -128,17 +128,21 @@ describe('bulkCreateCards', () => {
         relations: [{ type: 'depends-on', target: 'a' }],
       },
     ]);
-    // Both cards exist in DB (created in phase 1)
+    // Both cards exist in DB
     expect(tc.ctx.cardRepo.findByKey('a')).not.toBeNull();
     expect(tc.ctx.cardRepo.findByKey('b')).not.toBeNull();
-    // First card's relations succeed (a depends-on b)
+    // Both cards created, both relations applied, zero errors
+    expect(result.created).toBe(2);
+    expect(result.failed).toBe(0);
+    expect(result.errors).toEqual([]);
+    // a depends-on b (forward)
     const aRelations = tc.ctx.relationRepo.findByCardKey('a');
     const aForward = aRelations.find((r) => !r.isReverse && r.dstCardKey === 'b');
     expect(aForward).not.toBeUndefined();
-    // Second card's relation update fails (UNIQUE constraint), reported as error
-    expect(result.errors.length).toBeGreaterThanOrEqual(1);
-    const bError = result.errors.find((e) => e.slug === 'b');
-    expect(bError).toBeDefined();
+    // b depends-on a (forward)
+    const bRelations = tc.ctx.relationRepo.findByCardKey('b');
+    const bForward = bRelations.find((r) => !r.isReverse && r.dstCardKey === 'a');
+    expect(bForward).not.toBeUndefined();
   });
 
   // ── Duplicate Slugs in Same Batch ──

@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
 import type { ClassificationRepository } from './repository';
@@ -71,9 +71,7 @@ export class DrizzleClassificationRepository implements ClassificationRepository
   }
 
   pruneOrphans(): void {
-    this.db.$client.run(
-      'DELETE FROM keyword WHERE id NOT IN (SELECT keyword_id FROM card_keyword)',
-    );
-    this.db.$client.run('DELETE FROM tag WHERE id NOT IN (SELECT tag_id FROM card_tag)');
+    this.db.run(sql`DELETE FROM keyword WHERE id NOT IN (SELECT keyword_id FROM card_keyword)`);
+    this.db.run(sql`DELETE FROM tag WHERE id NOT IN (SELECT tag_id FROM card_tag)`);
   }
 }

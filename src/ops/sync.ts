@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { relative } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
 import type { CardRow } from '../db/repository';
@@ -82,19 +82,23 @@ export async function bulkSyncCards(
     cardFiles.push(file);
   }
 
-  const results = await Promise.allSettled(
-    cardFiles.map((filePath) => syncCardFromFile(ctx, filePath)),
-  );
-
   let synced = 0;
   const errors: BulkSyncResult['errors'] = [];
+  const BATCH_SIZE = 20;
 
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i]!;
-    if (result.status === 'fulfilled') {
-      synced++;
-    } else {
-      errors.push({ filePath: cardFiles[i]!, error: result.reason });
+  for (let i = 0; i < cardFiles.length; i += BATCH_SIZE) {
+    const batch = cardFiles.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map((filePath) => syncCardFromFile(ctx, filePath)),
+    );
+
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j]!;
+      if (result.status === 'fulfilled') {
+        synced++;
+      } else {
+        errors.push({ filePath: batch[j]!, error: result.reason });
+      }
     }
   }
 
@@ -124,7 +128,7 @@ export async function validateCards(
   const orphanFiles = cardFiles.filter((f) => !dbFilePaths.has(f));
   const keyMismatches = dbRows
     .map((r) => {
-      const expectedKey = basename(r.filePath, '.card.md');
+      const expectedKey = relative(targetDir, r.filePath).replace(/\.card\.md$/, '');
       return expectedKey !== r.key ? { row: r, expectedKey } : null;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -180,5 +184,6 @@ export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void 
   const existing = ctx.cardRepo.findByFilePath(filePath);
   if (existing) {
     ctx.cardRepo.deleteByKey(existing.key);
+    ctx.classificationRepo.pruneOrphans();
   }
 }

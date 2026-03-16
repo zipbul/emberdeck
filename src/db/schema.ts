@@ -91,7 +91,7 @@ export const cardRelation = sqliteTable(
     index('idx_card_relation_src').on(table.srcCardKey),
     index('idx_card_relation_dst').on(table.dstCardKey),
     index('idx_card_relation_type').on(table.type),
-    uniqueIndex('uq_card_relation').on(table.type, table.srcCardKey, table.dstCardKey),
+    uniqueIndex('uq_card_relation').on(table.type, table.srcCardKey, table.dstCardKey, table.isReverse),
   ],
 );
 

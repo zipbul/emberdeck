@@ -562,8 +562,8 @@ describe('getLinkCoverage', () => {
     });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'fnA', filePath: 'src/a.ts', kind: 'function' }],
-      getSymbolsByFile: (file: string) => {
-        if (file === 'src/a.ts') return [
+      getSymbolsByFile: (...args: unknown[]) => {
+        if (args[0] === 'src/a.ts') return [
           { name: 'fnA', kind: 'function' },
           { name: 'fnB', kind: 'function' },
           { name: 'ClassC', kind: 'class' },

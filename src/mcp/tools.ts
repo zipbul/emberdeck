@@ -84,7 +84,7 @@ const priorityEnum = z.enum(['critical', 'high', 'medium', 'low']);
 const acceptanceSchema = z.object({
   id: z.string(),
   description: z.string(),
-  verified: z.boolean().optional().default(false),
+  verified: z.boolean().default(false),
 });
 
 // ---- McpServer Type ----
@@ -94,6 +94,7 @@ const acceptanceSchema = z.object({
  * Structurally typed to avoid direct import of @modelcontextprotocol/sdk.
  */
 interface McpServerLike {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   registerTool(name: string, config: Record<string, unknown>, cb: Function): unknown;
 }
 
@@ -133,7 +134,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       summary: string;
       type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
       priority?: 'critical' | 'high' | 'medium' | 'low';
-      acceptance?: Array<{ id: string; description: string; verified?: boolean }>;
+      acceptance?: Array<{ id: string; description: string; verified: boolean }>;
       body?: string;
       keywords?: string[];
       tags?: string[];
@@ -180,7 +181,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         summary: string;
         type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
         priority?: 'critical' | 'high' | 'medium' | 'low';
-        acceptance?: Array<{ id: string; description: string; verified?: boolean }>;
+        acceptance?: Array<{ id: string; description: string; verified: boolean }>;
         body?: string;
         keywords?: string[];
         tags?: string[];
@@ -243,7 +244,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       summary?: string;
       type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision' | null;
       priority?: 'critical' | 'high' | 'medium' | 'low' | null;
-      acceptance?: Array<{ id: string; description: string; verified?: boolean }> | null;
+      acceptance?: Array<{ id: string; description: string; verified: boolean }> | null;
       body?: string;
       keywords?: string[] | null;
       tags?: string[] | null;

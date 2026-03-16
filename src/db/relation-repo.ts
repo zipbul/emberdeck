@@ -47,8 +47,7 @@ export class DrizzleRelationRepository implements RelationRepository {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
-        console.warn(`[emberdeck] relation skipped (FK violation): ${msg}`);
-        // FK violation: target card does not exist → skip this relation (expected)
+        // FK violation: target card does not exist → skip this relation
       }
     }
   }

@@ -24,17 +24,6 @@ import { DEFAULT_RELATION_TYPES } from './config';
 
 // ── Types ──
 
-/** Limits section of the configuration file */
-export interface ConfigLimits {
-  summaryMax: number;
-  bodyMax: number;
-  arrayMax: number;
-  itemMax: number;
-  relationTargetMax: number;
-  codeLinkSymbolMax: number;
-  codeLinkFileMax: number;
-}
-
 /** Full configuration read from the config file */
 export interface EmberdeckFileConfig {
   cardsDir: string;
@@ -42,9 +31,6 @@ export interface EmberdeckFileConfig {
   projectRoot?: string;
   gildashIgnore?: string[];
   allowedRelationTypes: readonly string[];
-  limits: ConfigLimits;
-  statuses: string[];
-  cardExtension: string;
 }
 
 /** Config error data */
@@ -58,23 +44,6 @@ export interface ConfigError {
 
 export const DEFAULT_CARDS_DIR = '.emberdeck/cards';
 export const DEFAULT_DB_PATH = '.emberdeck/data.db';
-export const DEFAULT_CARD_EXTENSION = '.card.md';
-export const DEFAULT_STATUSES: readonly string[] = [
-  'draft',
-  'accepted',
-  'implementing',
-  'implemented',
-  'deprecated',
-];
-export const DEFAULT_LIMITS: ConfigLimits = {
-  summaryMax: 500,
-  bodyMax: 100_000,
-  arrayMax: 100,
-  itemMax: 100,
-  relationTargetMax: 200,
-  codeLinkSymbolMax: 200,
-  codeLinkFileMax: 500,
-};
 
 const CONFIG_FILE_NAMES = ['.emberdeck.jsonc', '.emberdeck.json'] as const;
 
@@ -109,37 +78,12 @@ function assertStringArray(
   }
 }
 
-function assertPositiveInt(
-  obj: Record<string, unknown>,
-  key: string,
-  errors: ValidationErrors,
-): void {
-  if (!(key in obj)) return;
-  const val = obj[key];
-  if (typeof val !== 'number' || !Number.isInteger(val) || val <= 0) {
-    errors.push(`"${key}": must be a positive integer (received ${String(val)})`);
-  }
-}
-
 const KNOWN_TOP_KEYS = new Set([
   'cardsDir',
   'dbPath',
   'projectRoot',
   'gildashIgnore',
   'allowedRelationTypes',
-  'limits',
-  'statuses',
-  'cardExtension',
-]);
-
-const KNOWN_LIMIT_KEYS = new Set([
-  'summaryMax',
-  'bodyMax',
-  'arrayMax',
-  'itemMax',
-  'relationTargetMax',
-  'codeLinkSymbolMax',
-  'codeLinkFileMax',
 ]);
 
 // ── Core ──
@@ -174,34 +118,10 @@ export function validateRawConfig(
   assertString(obj, 'cardsDir', errors);
   assertString(obj, 'dbPath', errors);
   assertString(obj, 'projectRoot', errors);
-  assertString(obj, 'cardExtension', errors);
-
-  if (typeof obj['cardExtension'] === 'string' && !obj['cardExtension'].startsWith('.')) {
-    errors.push(`"cardExtension": must start with a dot (.) (received "${obj['cardExtension']}")`);
-  }
 
   // ── String array fields ──
   assertStringArray(obj, 'gildashIgnore', errors);
   assertStringArray(obj, 'allowedRelationTypes', errors);
-  assertStringArray(obj, 'statuses', errors);
-
-  // ── Limits object ──
-  if ('limits' in obj) {
-    const lim = obj['limits'];
-    if (lim === null || typeof lim !== 'object' || Array.isArray(lim)) {
-      errors.push(`"limits": must be an object`);
-    } else {
-      const limObj = lim as Record<string, unknown>;
-      for (const key of Object.keys(limObj)) {
-        if (!KNOWN_LIMIT_KEYS.has(key)) {
-          errors.push(`Unknown key in "limits": "${key}"`);
-        }
-      }
-      for (const key of KNOWN_LIMIT_KEYS) {
-        assertPositiveInt(limObj, key, errors);
-      }
-    }
-  }
 
   if (errors.length > 0) {
     return err({
@@ -237,38 +157,12 @@ export function validateRawConfig(
     ? (obj['allowedRelationTypes'] as string[])
     : [...DEFAULT_RELATION_TYPES];
 
-  const statuses = Array.isArray(obj['statuses'])
-    ? (obj['statuses'] as string[])
-    : [...DEFAULT_STATUSES];
-
-  const cardExtension =
-    typeof obj['cardExtension'] === 'string'
-      ? (obj['cardExtension'] as string)
-      : DEFAULT_CARD_EXTENSION;
-
-  // Merge limits
-  const rawLimits = (typeof obj['limits'] === 'object' && obj['limits'] !== null && !Array.isArray(obj['limits']))
-    ? (obj['limits'] as Record<string, unknown>)
-    : {};
-  const limits: ConfigLimits = {
-    summaryMax: typeof rawLimits['summaryMax'] === 'number' ? rawLimits['summaryMax'] : DEFAULT_LIMITS.summaryMax,
-    bodyMax: typeof rawLimits['bodyMax'] === 'number' ? rawLimits['bodyMax'] : DEFAULT_LIMITS.bodyMax,
-    arrayMax: typeof rawLimits['arrayMax'] === 'number' ? rawLimits['arrayMax'] : DEFAULT_LIMITS.arrayMax,
-    itemMax: typeof rawLimits['itemMax'] === 'number' ? rawLimits['itemMax'] : DEFAULT_LIMITS.itemMax,
-    relationTargetMax: typeof rawLimits['relationTargetMax'] === 'number' ? rawLimits['relationTargetMax'] : DEFAULT_LIMITS.relationTargetMax,
-    codeLinkSymbolMax: typeof rawLimits['codeLinkSymbolMax'] === 'number' ? rawLimits['codeLinkSymbolMax'] : DEFAULT_LIMITS.codeLinkSymbolMax,
-    codeLinkFileMax: typeof rawLimits['codeLinkFileMax'] === 'number' ? rawLimits['codeLinkFileMax'] : DEFAULT_LIMITS.codeLinkFileMax,
-  };
-
   return {
     cardsDir,
     dbPath,
     projectRoot,
     gildashIgnore,
     allowedRelationTypes,
-    limits,
-    statuses,
-    cardExtension,
   };
 }
 
@@ -367,8 +261,5 @@ export function buildDefaultConfig(baseDir: string): EmberdeckFileConfig {
     projectRoot: undefined,
     gildashIgnore: undefined,
     allowedRelationTypes: [...DEFAULT_RELATION_TYPES],
-    limits: { ...DEFAULT_LIMITS },
-    statuses: [...DEFAULT_STATUSES],
-    cardExtension: DEFAULT_CARD_EXTENSION,
   };
 }

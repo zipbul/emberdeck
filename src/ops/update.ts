@@ -196,10 +196,22 @@ export async function updateCard(
               changelogRepo.insert({ cardKey: key, field: 'acceptance', oldValue: prev.acceptance ? JSON.stringify(prev.acceptance) : null, newValue: next.acceptance ? JSON.stringify(next.acceptance) : null, changedAt: now, changedBy });
             }
 
-            if (fields.relations !== undefined) relationRepo.replaceForCard(key, next.relations ?? []);
-            if (fields.keywords !== undefined) classRepo.replaceKeywords(key, next.keywords ?? []);
-            if (fields.tags !== undefined) classRepo.replaceTags(key, next.tags ?? []);
-            if (fields.codeLinks !== undefined) codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
+            if (fields.relations !== undefined) {
+              relationRepo.replaceForCard(key, next.relations ?? []);
+              changelogRepo.insert({ cardKey: key, field: 'relations', oldValue: prev.relations ? JSON.stringify(prev.relations) : null, newValue: next.relations ? JSON.stringify(next.relations) : null, changedAt: now, changedBy });
+            }
+            if (fields.keywords !== undefined) {
+              classRepo.replaceKeywords(key, next.keywords ?? []);
+              changelogRepo.insert({ cardKey: key, field: 'keywords', oldValue: prev.keywords ? JSON.stringify(prev.keywords) : null, newValue: next.keywords ? JSON.stringify(next.keywords) : null, changedAt: now, changedBy });
+            }
+            if (fields.tags !== undefined) {
+              classRepo.replaceTags(key, next.tags ?? []);
+              changelogRepo.insert({ cardKey: key, field: 'tags', oldValue: prev.tags ? JSON.stringify(prev.tags) : null, newValue: next.tags ? JSON.stringify(next.tags) : null, changedAt: now, changedBy });
+            }
+            if (fields.codeLinks !== undefined) {
+              codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
+              changelogRepo.insert({ cardKey: key, field: 'codeLinks', oldValue: prev.codeLinks ? JSON.stringify(prev.codeLinks) : null, newValue: next.codeLinks ? JSON.stringify(next.codeLinks) : null, changedAt: now, changedBy });
+            }
           });
           return { filePath, card } as UpdateCardResult;
         },
@@ -264,38 +276,44 @@ export async function updateCardStatus(
 
       return safeWriteOperation({
         dbAction: () => {
-          const existing = ctx.cardRepo.findByKey(key);
-          const row: CardRow = existing
-            ? { ...existing, status, updatedAt: now }
-            : {
-                key,
-                summary: current.frontmatter.summary,
-                status,
-                type: current.frontmatter.type ?? null,
-                priority: current.frontmatter.priority ?? null,
-                acceptanceJson: current.frontmatter.acceptance
-                  ? JSON.stringify(current.frontmatter.acceptance)
-                  : null,
-                constraintsJson: current.frontmatter.constraints !== undefined
-                  ? JSON.stringify(current.frontmatter.constraints)
-                  : null,
-                body: current.body,
-                filePath,
-                updatedAt: now,
-              };
-          ctx.cardRepo.upsert(row);
+          ctx.db.transaction((tx) => {
+            const d = txDb(tx);
+            const cardRepo = new DrizzleCardRepository(d);
+            const changelogRepo = new DrizzleChangelogRepository(d);
 
-          // Record status change in changelog
-          if (oldStatus !== status) {
-            ctx.changelogRepo.insert({
-              cardKey: key,
-              field: 'status',
-              oldValue: oldStatus,
-              newValue: status,
-              changedAt: now,
-              changedBy: 'agent',
-            });
-          }
+            const existing = cardRepo.findByKey(key);
+            const row: CardRow = existing
+              ? { ...existing, status, updatedAt: now }
+              : {
+                  key,
+                  summary: current.frontmatter.summary,
+                  status,
+                  type: current.frontmatter.type ?? null,
+                  priority: current.frontmatter.priority ?? null,
+                  acceptanceJson: current.frontmatter.acceptance
+                    ? JSON.stringify(current.frontmatter.acceptance)
+                    : null,
+                  constraintsJson: current.frontmatter.constraints !== undefined
+                    ? JSON.stringify(current.frontmatter.constraints)
+                    : null,
+                  body: current.body,
+                  filePath,
+                  updatedAt: now,
+                };
+            cardRepo.upsert(row);
+
+            // Record status change in changelog
+            if (oldStatus !== status) {
+              changelogRepo.insert({
+                cardKey: key,
+                field: 'status',
+                oldValue: oldStatus,
+                newValue: status,
+                changedAt: now,
+                changedBy: 'agent',
+              });
+            }
+          });
 
           const result: UpdateCardResult = { filePath, card };
           if (warnings.length > 0) result.warnings = warnings;

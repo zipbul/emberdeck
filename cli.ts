@@ -1,22 +1,22 @@
 #!/usr/bin/env bun
 /**
- * emberdeck CLI 엔트리포인트.
+ * emberdeck CLI entry point.
  *
- * 하위 커맨드:
- *   mcp   — MCP stdio 서버 실행
+ * Subcommands:
+ *   mcp   — Start MCP stdio server
  *
- * 옵션:
- *   --dir <path>          카드 디렉토리 경로
- *   --db-path <path>      SQLite DB 파일 경로
- *   --project-root <path> gildash 활성화용 프로젝트 루트
- *   --config <path>       설정 파일 경로 (.emberdeck.jsonc / .json)
+ * Options:
+ *   --dir <path>          Card directory path
+ *   --db-path <path>      SQLite DB file path
+ *   --project-root <path> Project root for gildash integration
+ *   --config <path>       Config file path (.emberdeck.jsonc / .json)
  *
- * 우선순위: CLI args > config file > defaults
+ * Priority: CLI args > config file > defaults
  *
  * @example
  *   bun run cli.ts mcp --dir ./cards --db-path ./data.db
  *   bun run cli.ts mcp --config .emberdeck.jsonc
- *   bun run cli.ts mcp  # 자동으로 .emberdeck.jsonc / .json 탐색
+ *   bun run cli.ts mcp  # Auto-searches for .emberdeck.jsonc / .json
  */
 
 import { parseArgs } from 'node:util';
@@ -25,7 +25,7 @@ import { loadConfig, loadConfigFromPath, mergeCliArgs, buildDefaultConfig } from
 import type { EmberdeckFileConfig, ConfigError } from './src/config-file';
 import type { Result } from '@zipbul/result';
 
-// ── CLI arg 파싱 ──
+// ── CLI arg parsing ──
 
 const { values, positionals } = parseArgs({
   args: Bun.argv.slice(2),
@@ -44,21 +44,21 @@ const { values, positionals } = parseArgs({
 // ── Help / Version ──
 
 function printHelp(): void {
-  process.stderr.write(`emberdeck — 구조화된 지식 카드 시스템
+  process.stderr.write(`emberdeck — Structured knowledge card system
 
 Usage:
   emberdeck <command> [options]
 
 Commands:
-  mcp    MCP stdio 서버 실행
+  mcp    Start MCP stdio server
 
 Options:
-  --dir <path>          카드 디렉토리 경로
-  --db-path <path>      SQLite DB 파일 경로
-  --project-root <path> gildash 프로젝트 루트
-  --config <path>       설정 파일 경로
-  -h, --help            도움말 출력
-  -v, --version         버전 출력
+  --dir <path>          Card directory path
+  --db-path <path>      SQLite DB file path
+  --project-root <path> Gildash project root
+  --config <path>       Config file path
+  -h, --help            Show help
+  -v, --version         Show version
 
 Priority: CLI args > config file > defaults
 Config auto-search: .emberdeck.jsonc → .emberdeck.json (CWD)
@@ -81,22 +81,22 @@ const subcommand = positionals[0];
 
 if (!subcommand) {
   printHelp();
-  process.stderr.write('\nError: subcommand를 지정해야 합니다 (예: mcp)\n');
+  process.stderr.write('\nError: A subcommand is required (e.g. mcp)\n');
   process.exit(1);
 }
 
 if (subcommand === 'mcp') {
   await runMcp();
 } else {
-  process.stderr.write(`Error: 알 수 없는 subcommand "${subcommand}"\n`);
-  process.stderr.write('사용 가능한 subcommand: mcp\n');
+  process.stderr.write(`Error: Unknown subcommand "${subcommand}"\n`);
+  process.stderr.write('Available subcommands: mcp\n');
   process.exit(1);
 }
 
 // ── MCP subcommand ──
 
 async function runMcp(): Promise<void> {
-  // 1. Config 로드
+  // 1. Load config
   let result: Result<EmberdeckFileConfig, ConfigError>;
 
   if (values.config) {
@@ -138,6 +138,15 @@ async function runMcp(): Promise<void> {
 
   const server = new McpServer({ name: 'emberdeck', version: '0.2.0' });
   registerEmberdeckTools(server, ctx);
+
+  // Graceful shutdown: ensure DB is closed and WAL checkpointed
+  const { teardownEmberdeck } = await import('./index');
+  const shutdown = async () => {
+    await teardownEmberdeck(ctx);
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

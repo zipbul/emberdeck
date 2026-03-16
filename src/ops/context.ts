@@ -1,6 +1,6 @@
 import type { EmberdeckContext } from '../config';
 import type { AcceptanceCriterion } from '../card/types';
-import type { CardRow } from '../db/repository';
+import type { CardRow, CodeLinkRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
 import { getRelationGraph, type RelationGraphNode } from './query';
@@ -86,10 +86,17 @@ export async function generateContext(
   const connectedKeys = graphNodes.map((n) => n.key).slice(0, maxCards - 1);
   const allKeys = [rootKey, ...connectedKeys];
 
+  // Pre-fetch all card rows into a cache to avoid repeated DB queries
+  const rowCache = new Map<string, CardRow>();
+  for (const key of allKeys) {
+    const row = ctx.cardRepo.findByKey(key);
+    if (row) rowCache.set(key, row);
+  }
+
   // Collect card summaries
   const cards: ContextCardSummary[] = [];
   for (const key of allKeys) {
-    const row = ctx.cardRepo.findByKey(key);
+    const row = rowCache.get(key);
     if (!row) continue;
     const card: ContextCardSummary = {
       key: row.key,
@@ -145,7 +152,7 @@ export async function generateContext(
   // Collect acceptance criteria
   const acceptanceCriteria: ContextAcceptance[] = [];
   for (const key of allKeys) {
-    const row = ctx.cardRepo.findByKey(key);
+    const row = rowCache.get(key);
     if (!row?.acceptanceJson) continue;
     const criteria = JSON.parse(row.acceptanceJson) as AcceptanceCriterion[];
     for (const ac of criteria) {
@@ -191,7 +198,7 @@ export async function generateContext(
   // Collect constraints
   const constraints: Record<string, unknown> = {};
   for (const key of allKeys) {
-    const row = ctx.cardRepo.findByKey(key);
+    const row = rowCache.get(key);
     if (row?.constraintsJson) {
       constraints[key] = JSON.parse(row.constraintsJson);
     }
@@ -294,7 +301,7 @@ export function checkDrift(
         // Check if linked file was modified after the card was last updated
         const fileInfo = ctx.gildash.getFileInfo(link.file);
         if (fileInfo) {
-          const fileMtime = new Date(fileInfo.mtime).getTime();
+          const fileMtime = fileInfo.mtimeMs;
           if (fileMtime > cardUpdatedAt) {
             cardCodeChangesAfter++;
             cardIsStale = true;

@@ -9,7 +9,9 @@
   },
   "exports": {
     ".": {
-      "import": "./index.ts"
+      "bun": "./index.ts",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
   "scripts": {

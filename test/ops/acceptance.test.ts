@@ -313,7 +313,7 @@ describe('listCards with combined filters', () => {
 
   it('should filter by status + type + sortBy priority simultaneously', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'df-hi', summary: 'Draft feature high', status: 'draft' as any, type: 'feature', priority: 'high' });
+    await createCard(tc.ctx, { slug: 'df-hi', summary: 'Draft feature high', type: 'feature', priority: 'high' });
     await createCard(tc.ctx, { slug: 'df-lo', summary: 'Draft feature low', type: 'feature', priority: 'low' });
     await createCard(tc.ctx, { slug: 'af-cr', summary: 'Accepted feature critical', type: 'feature', priority: 'critical' });
     await updateCardStatus(tc.ctx, 'af-cr', 'accepted');

@@ -73,6 +73,9 @@ export function validateCardInput(input: ValidationInput): void {
       );
     }
     for (const kw of keywords) {
+      if (kw.length === 0) {
+        throw new CardValidationError('keyword item must not be empty');
+      }
       if (kw.length > LIMITS.ITEM_MAX) {
         throw new CardValidationError(
           `keyword item exceeds maximum length of ${LIMITS.ITEM_MAX} characters`,
@@ -89,6 +92,9 @@ export function validateCardInput(input: ValidationInput): void {
       );
     }
     for (const tag of tags) {
+      if (tag.length === 0) {
+        throw new CardValidationError('tag item must not be empty');
+      }
       if (tag.length > LIMITS.ITEM_MAX) {
         throw new CardValidationError(
           `tag item exceeds maximum length of ${LIMITS.ITEM_MAX} characters`,

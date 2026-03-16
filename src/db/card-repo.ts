@@ -80,19 +80,27 @@ export class DrizzleCardRepository implements CardRepository {
 
   search(query: string): CardRow[] {
     if (!query) return [];
-    return this.db.$client
-      .prepare(
-        `SELECT c.key, c.summary, c.status,
-                c.type, c.priority,
-                c.acceptance_json AS acceptanceJson,
-                c.constraints_json AS constraintsJson,
-                c.body,
-                c.file_path AS filePath,
-                c.updated_at AS updatedAt
-         FROM card c
-         JOIN card_fts f ON c.rowid = f.rowid
-         WHERE card_fts MATCH ?`,
-      )
-      .all(query) as CardRow[];
+    try {
+      return this.db.$client
+        .prepare(
+          `SELECT c.key, c.summary, c.status,
+                  c.type, c.priority,
+                  c.acceptance_json AS acceptanceJson,
+                  c.constraints_json AS constraintsJson,
+                  c.body,
+                  c.file_path AS filePath,
+                  c.updated_at AS updatedAt
+           FROM card c
+           JOIN card_fts f ON c.rowid = f.rowid
+           WHERE card_fts MATCH ?`,
+        )
+        .all(query) as CardRow[];
+    } catch (e) {
+      // FTS5 syntax errors (malformed queries) → return empty results
+      if (e instanceof Error && (e.message.includes('fts5:') || e.message.includes('unterminated'))) {
+        return [];
+      }
+      throw e;
+    }
   }
 }

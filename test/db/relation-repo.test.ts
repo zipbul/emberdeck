@@ -29,6 +29,9 @@ function insertCard(key: string, filePath = `/cards/${key}.card.md`): void {
     key,
     summary: `Card ${key}`,
     status: 'draft',
+    type: null,
+    priority: null,
+    acceptanceJson: null,
     constraintsJson: null,
     body: null,
     filePath,
@@ -233,16 +236,15 @@ describe('DrizzleRelationRepository', () => {
     ).toThrow();
   });
 
-  // NE — FK violation warn
-  it('should call console.warn when FK violation occurs in replaceForCard', () => {
+  // NE — FK violation silently skipped (no warn, no throw)
+  it('should silently skip FK violation without throwing in replaceForCard', () => {
     // Arrange
-    const warnSpy = spyOn(console, 'warn');
     insertCard('warn-src');
-    // Act
-    repo.replaceForCard('warn-src', [{ type: 'depends-on', target: 'nonexistent-dst' }]);
-    // Assert
-    expect(warnSpy).toHaveBeenCalled();
-    // Cleanup
-    warnSpy.mockRestore();
+    // Act — target does not exist → FK violation silently skipped
+    expect(() =>
+      repo.replaceForCard('warn-src', [{ type: 'depends-on', target: 'nonexistent-dst' }]),
+    ).not.toThrow();
+    // Assert — no rows inserted
+    expect(repo.findByCardKey('warn-src')).toEqual([]);
   });
 });

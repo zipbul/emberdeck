@@ -148,12 +148,8 @@ export {
   buildDefaultConfig,
   DEFAULT_CARDS_DIR,
   DEFAULT_DB_PATH,
-  DEFAULT_CARD_EXTENSION,
-  DEFAULT_STATUSES,
-  DEFAULT_LIMITS,
 } from './src/config-file';
 export type {
   EmberdeckFileConfig,
-  ConfigLimits,
   ConfigError,
 } from './src/config-file';

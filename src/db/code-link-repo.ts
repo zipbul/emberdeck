@@ -12,7 +12,18 @@ export class DrizzleCodeLinkRepository implements CodeLinkRepository {
     this.db.delete(codeLink).where(eq(codeLink.cardKey, cardKey)).run();
     if (links.length === 0) return;
 
+    // Deduplicate by (kind, file, symbol) to prevent UNIQUE constraint violations
+    const seen = new Set<string>();
+    const unique: CodeLink[] = [];
     for (const link of links) {
+      const key = `${link.kind}\0${link.file}\0${link.symbol}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(link);
+      }
+    }
+
+    for (const link of unique) {
       try {
         this.db
           .insert(codeLink)
@@ -21,8 +32,7 @@ export class DrizzleCodeLinkRepository implements CodeLinkRepository {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
-        console.warn(`[emberdeck] code link skipped (FK violation): ${msg}`);
-        // FK violation: target card does not exist → skip this link
+        // FK violation: card does not exist → skip
       }
     }
   }

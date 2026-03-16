@@ -1,19 +1,13 @@
 import { mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { sql } from 'drizzle-orm';
 
 import type { EmberdeckContext } from '../config';
 import type { CardFile } from '../card/types';
-import type { CardRow } from '../db/repository';
 import { parseFullKey, normalizeSlug, buildCardPath } from '../card/card-key';
 import { CardNotFoundError, CardAlreadyExistsError, CardRenameSamePathError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
-import { DrizzleCardRepository } from '../db/card-repo';
-import { DrizzleRelationRepository } from '../db/relation-repo';
-import { DrizzleClassificationRepository } from '../db/classification-repo';
-import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
-import { DrizzleChangelogRepository } from '../db/changelog-repo';
-import { txDb } from '../db/connection';
 import { withCardLock, withRetry } from './safe';
 
 /**
@@ -35,9 +29,9 @@ export interface RenameCardResult {
  *
  * 1. Moves the source file to the new path (OS rename).
  * 2. Updates the frontmatter key field to the new key.
- * 3. In a DB transaction, deletes the old row and re-inserts with the new key.
- *    (relations, keywords, tags, codeLinks are all preserved)
- * 4. If the DB transaction fails, restores the file to its original state.
+ * 3. UPDATEs the card row's key in the DB. FK CASCADE UPDATE propagates
+ *    to all referencing tables (relations, keywords, tags, codeLinks, changelog).
+ * 4. If the DB update fails, restores the file to its original state.
  *
  * Locks both keys in alphabetical order to prevent deadlocks.
  *
@@ -85,65 +79,15 @@ export async function renameCard(
 
         const now = new Date().toISOString();
         try {
-          ctx.db.transaction((tx) => {
-            const d = txDb(tx);
-            const cardRepo = new DrizzleCardRepository(d);
-            const relationRepo = new DrizzleRelationRepository(d);
-            const classRepo = new DrizzleClassificationRepository(d);
-            const codeLinkRepo = new DrizzleCodeLinkRepository(d);
-            const changelogRepo = new DrizzleChangelogRepository(d);
-
-            // Back up existing relations/classifications/code links/changelog
-            const oldRelations = relationRepo
-              .findByCardKey(oldKey)
-              .filter((r) => !r.isReverse)
-              .map((r) => ({ type: r.type, target: r.dstCardKey }));
-            const oldKeywords = classRepo.findKeywordsByCard(oldKey);
-            const oldTags = classRepo.findTagsByCard(oldKey);
-            const oldCodeLinks = codeLinkRepo.findByCardKey(oldKey);
-            const oldChangelog = changelogRepo.findByCardKey(oldKey, 10000);
-
-            cardRepo.deleteByKey(oldKey); // cascade delete
-
-            const row: CardRow = {
-              key: newFullKey,
-              summary: card.frontmatter.summary,
-              status: card.frontmatter.status,
-              type: card.frontmatter.type ?? null,
-              priority: card.frontmatter.priority ?? null,
-              acceptanceJson: card.frontmatter.acceptance
-                ? JSON.stringify(card.frontmatter.acceptance)
-                : null,
-              constraintsJson: card.frontmatter.constraints !== undefined
-                ? JSON.stringify(card.frontmatter.constraints)
-                : null,
-              body: card.body,
-              filePath: newFilePath,
-              updatedAt: now,
-            };
-            cardRepo.upsert(row);
-
-            if (oldRelations.length > 0) relationRepo.replaceForCard(newFullKey, oldRelations);
-            if (oldKeywords.length > 0) classRepo.replaceKeywords(newFullKey, oldKeywords);
-            if (oldTags.length > 0) classRepo.replaceTags(newFullKey, oldTags);
-            for (const entry of oldChangelog) {
-              changelogRepo.insert({
-                cardKey: newFullKey,
-                field: entry.field,
-                oldValue: entry.oldValue,
-                newValue: entry.newValue,
-                changedAt: entry.changedAt,
-                changedBy: entry.changedBy,
-              });
-            }
-            if (oldCodeLinks.length > 0)
-              codeLinkRepo.replaceForCard(
-                newFullKey,
-                oldCodeLinks.map((l) => ({ kind: l.kind, file: l.file, symbol: l.symbol })),
-              );
-          });
+          // UPDATE the key in-place. FK ON UPDATE CASCADE propagates to all
+          // referencing tables (relations, keywords, tags, codeLinks, changelog),
+          // preserving incoming relations from other cards.
+          ctx.db.$client.run(
+            `UPDATE card SET key = ?, file_path = ?, updated_at = ? WHERE key = ?`,
+            [newFullKey, newFilePath, now, oldKey],
+          );
         } catch (dbErr) {
-          // DB tx failed -> restore file to original state
+          // DB update failed -> restore file to original state
           await rename(newFilePath, oldFilePath);
           const orig = await readCardFile(oldFilePath);
           const restored: CardFile = {

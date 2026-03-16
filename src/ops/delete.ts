@@ -2,6 +2,9 @@ import type { EmberdeckContext } from '../config';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
 import { deleteCardFile } from '../fs/writer';
+import { DrizzleCardRepository } from '../db/card-repo';
+import { DrizzleClassificationRepository } from '../db/classification-repo';
+import { txDb } from '../db/connection';
 import { withCardLock, withRetry, safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 
@@ -33,10 +36,15 @@ export async function deleteCard(
 
       return safeWriteOperation({
         dbAction: () => {
-          // Delete from DB first (FK cascade auto-deletes relation, keyword, tag mappings)
-          ctx.cardRepo.deleteByKey(key);
-          // After cascade, only mappings are deleted; keywords/tags themselves may remain, so prune them
-          ctx.classificationRepo.pruneOrphans();
+          ctx.db.transaction((tx) => {
+            const d = txDb(tx);
+            const cardRepo = new DrizzleCardRepository(d);
+            const classRepo = new DrizzleClassificationRepository(d);
+            // Delete from DB (FK cascade auto-deletes relation, keyword, tag mappings)
+            cardRepo.deleteByKey(key);
+            // After cascade, only mappings are deleted; keywords/tags themselves may remain
+            classRepo.pruneOrphans();
+          });
           return { filePath };
         },
         fileAction: async () => {

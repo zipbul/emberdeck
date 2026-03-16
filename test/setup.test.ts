@@ -24,7 +24,7 @@ function makeFakeGildash(): { instance: ReturnType<typeof mock> & { close: Retur
 }
 
 function makeGildashErr(): ReturnType<typeof err<GildashError>> {
-  return err<GildashError>({ type: 'watcher', message: 'open failed', cause: undefined });
+  return err<GildashError>({ type: 'watcher', message: 'open failed', cause: undefined, name: 'GildashError' });
 }
 
 // ---- Suite ----

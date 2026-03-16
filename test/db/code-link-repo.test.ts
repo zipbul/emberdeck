@@ -29,6 +29,9 @@ function insertCard(key: string): void {
     key,
     summary: `Card ${key}`,
     status: 'draft',
+    type: null,
+    priority: null,
+    acceptanceJson: null,
     constraintsJson: null,
     body: null,
     filePath: `/cards/${key}.card.md`,
@@ -292,17 +295,15 @@ describe('DrizzleCodeLinkRepository', () => {
     ).toThrow('disk I/O error');
   });
 
-  // [NE] FK violation warn
-  it('should call console.warn when FK violation occurs in replaceForCard', () => {
-    // Arrange
-    const warnSpy = spyOn(console, 'warn');
-    // If cardKey is not in the card table, FK violation occurs on insert
-    // Act
-    repo.replaceForCard('nonexistent-card', [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }]);
-    // Assert
-    expect(warnSpy).toHaveBeenCalled();
-    // Cleanup
-    warnSpy.mockRestore();
+  // [NE] FK violation silently skipped (no warn, no throw)
+  it('should silently skip FK violation without throwing in replaceForCard', () => {
+    // If cardKey is not in the card table, FK violation occurs on insert — silently skipped
+    // Act / Assert
+    expect(() =>
+      repo.replaceForCard('nonexistent-card', [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }]),
+    ).not.toThrow();
+    // No rows inserted for non-existent card
+    expect(repo.findByCardKey('nonexistent-card')).toHaveLength(0);
   });
 
   // [NE] UNIQUE constraint

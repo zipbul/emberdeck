@@ -27,7 +27,7 @@ export function getRelationGraph(
   options?: RelationGraphOptions,
 ): RelationGraphNode[] {
   const rootKey = parseFullKey(fullKey);
-  const maxDepth = options?.maxDepth ?? Infinity;
+  const maxDepth = options?.maxDepth ?? 3;
   const direction = options?.direction ?? 'both';
 
   if (!ctx.cardRepo.existsByKey(rootKey)) return [];

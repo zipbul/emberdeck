@@ -514,10 +514,9 @@ describe('checkDrift with gildash — stale detection', () => {
 
     // The card was just created, so its updatedAt is approximately now.
     // Set file mtime to far in the future to guarantee stale detection.
-    const futureMtime = new Date(Date.now() + 60_000).toISOString();
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'changedFn', filePath: 'src/changed.ts', kind: 'function' }],
-      getFileInfo: () => ({ mtime: futureMtime }),
+      getFileInfo: () => ({ mtimeMs: Date.now() + 60_000 }),
     });
 
     const result = checkDrift(tc.ctx, 'drift-stale');
@@ -535,10 +534,9 @@ describe('checkDrift with gildash — stale detection', () => {
       codeLinks: [{ kind: 'function', file: 'src/old.ts', symbol: 'oldFn' }],
     });
 
-    const pastMtime = new Date(Date.now() - 60_000).toISOString();
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'oldFn', filePath: 'src/old.ts', kind: 'function' }],
-      getFileInfo: () => ({ mtime: pastMtime }),
+      getFileInfo: () => ({ mtimeMs: Date.now() - 60_000 }),
     });
 
     const result = checkDrift(tc.ctx, 'drift-fresh');
@@ -581,8 +579,8 @@ describe('checkDrift with gildash — stale detection', () => {
         if (text === 'StaleClass') return [{ name: 'StaleClass', filePath: 'src/stale.ts', kind: 'class' }];
         return [];
       },
-      getFileInfo: (file: string) => {
-        if (file === 'src/stale.ts') return { mtime: futureMtime };
+      getFileInfo: (...args: unknown[]) => {
+        if (args[0] === 'src/stale.ts') return { mtimeMs: Date.now() + 60_000 };
         return null;
       },
     });

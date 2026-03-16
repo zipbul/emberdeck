@@ -12,9 +12,6 @@ import {
   buildDefaultConfig,
   DEFAULT_CARDS_DIR,
   DEFAULT_DB_PATH,
-  DEFAULT_CARD_EXTENSION,
-  DEFAULT_STATUSES,
-  DEFAULT_LIMITS,
   type EmberdeckFileConfig,
 } from '../src/config-file';
 
@@ -48,9 +45,6 @@ describe('validateRawConfig', () => {
     const config = result as EmberdeckFileConfig;
     expect(config.cardsDir).toBe(resolve(tmpDir, DEFAULT_CARDS_DIR));
     expect(config.dbPath).toBe(resolve(tmpDir, DEFAULT_DB_PATH));
-    expect(config.cardExtension).toBe(DEFAULT_CARD_EXTENSION);
-    expect(config.statuses).toEqual([...DEFAULT_STATUSES]);
-    expect(config.limits).toEqual(DEFAULT_LIMITS);
   });
 
   it('all fields specified', () => {
@@ -60,17 +54,6 @@ describe('validateRawConfig', () => {
       projectRoot: './proj',
       gildashIgnore: ['node_modules', 'dist'],
       allowedRelationTypes: ['depends-on', 'custom'],
-      statuses: ['open', 'closed'],
-      cardExtension: '.md',
-      limits: {
-        summaryMax: 200,
-        bodyMax: 50_000,
-        arrayMax: 50,
-        itemMax: 50,
-        relationTargetMax: 100,
-        codeLinkSymbolMax: 100,
-        codeLinkFileMax: 300,
-      },
     };
     const filePath = join(tmpDir, '.emberdeck.jsonc');
     const result = validateRawConfig(raw, filePath);
@@ -81,18 +64,6 @@ describe('validateRawConfig', () => {
     expect(config.projectRoot).toBe(resolve(tmpDir, './proj'));
     expect(config.gildashIgnore).toEqual(['node_modules', 'dist']);
     expect(config.allowedRelationTypes).toEqual(['depends-on', 'custom']);
-    expect(config.statuses).toEqual(['open', 'closed']);
-    expect(config.cardExtension).toBe('.md');
-    expect(config.limits.summaryMax).toBe(200);
-  });
-
-  it('partial limits -> rest use defaults', () => {
-    const filePath = join(tmpDir, '.emberdeck.json');
-    const result = validateRawConfig({ limits: { summaryMax: 300 } }, filePath);
-    expect(isErr(result)).toBe(false);
-    const config = result as EmberdeckFileConfig;
-    expect(config.limits.summaryMax).toBe(300);
-    expect(config.limits.bodyMax).toBe(DEFAULT_LIMITS.bodyMax);
   });
 
   // ── invalid: top-level type ──
@@ -126,14 +97,6 @@ describe('validateRawConfig', () => {
     }
   });
 
-  it('unknown key in limits -> error', () => {
-    const result = validateRawConfig({ limits: { badKey: 1 } }, '/fake');
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.data.message).toContain('badKey');
-    }
-  });
-
   // ── invalid: type errors ──
 
   it('cardsDir as number -> error', () => {
@@ -144,65 +107,17 @@ describe('validateRawConfig', () => {
     }
   });
 
-  it('non-string item in statuses -> error', () => {
-    const result = validateRawConfig({ statuses: ['ok', 42] }, '/fake');
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.data.message).toContain('statuses[1]');
-    }
-  });
-
-  it('empty statuses array -> error', () => {
-    const result = validateRawConfig({ statuses: [] }, '/fake');
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.data.message).toContain('must not be empty');
-    }
-  });
-
-  it('cardExtension without leading dot -> error', () => {
-    const result = validateRawConfig({ cardExtension: 'md' }, '/fake');
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.data.message).toContain('dot (.)');
-    }
-  });
-
-  it('limits as array -> error', () => {
-    const result = validateRawConfig({ limits: [] }, '/fake');
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.data.message).toContain('limits');
-    }
-  });
-
-  it('negative number in limits -> error', () => {
-    const result = validateRawConfig({ limits: { summaryMax: -1 } }, '/fake');
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.data.message).toContain('positive integer');
-    }
-  });
-
-  it('decimal number in limits -> error', () => {
-    const result = validateRawConfig({ limits: { bodyMax: 1.5 } }, '/fake');
-    expect(isErr(result)).toBe(true);
-    if (isErr(result)) {
-      expect(result.data.message).toContain('positive integer');
-    }
-  });
-
   // ── error message aggregation ──
 
   it('collects multiple errors at once', () => {
     const result = validateRawConfig(
-      { cardsDir: 123, unknownKey: true, statuses: 'string' },
+      { cardsDir: 123, unknownKey: true },
       '/fake',
     );
     expect(isErr(result)).toBe(true);
     if (isErr(result)) {
       const lines = result.data.message.split('\n');
-      expect(lines.length).toBeGreaterThanOrEqual(3);
+      expect(lines.length).toBeGreaterThanOrEqual(2);
     }
   });
 });
@@ -289,9 +204,6 @@ describe('mergeCliArgs', () => {
     });
     expect(merged.cardsDir).toBe(resolve('/abs/cards'));
     expect(merged.dbPath).toBe(resolve('/abs/data.db'));
-    // other fields preserved
-    expect(merged.cardExtension).toBe(config.cardExtension);
-    expect(merged.limits).toEqual(config.limits);
   });
 
   it('undefined arg is ignored', () => {
@@ -320,15 +232,5 @@ describe('buildDefaultConfig', () => {
     expect(config.allowedRelationTypes).toEqual([
       'depends-on', 'references', 'related', 'extends', 'conflicts',
     ]);
-    expect(config.statuses).toEqual([...DEFAULT_STATUSES]);
-    expect(config.limits).toEqual(DEFAULT_LIMITS);
-    expect(config.cardExtension).toBe(DEFAULT_CARD_EXTENSION);
-  });
-
-  it('returned limits is an independent copy', () => {
-    const a = buildDefaultConfig('/a');
-    const b = buildDefaultConfig('/b');
-    a.limits.summaryMax = 999;
-    expect(b.limits.summaryMax).toBe(DEFAULT_LIMITS.summaryMax);
   });
 });
