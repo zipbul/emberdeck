@@ -1,203 +1,107 @@
 ---
 name: emberdeck
-description: Spec-driven development workflows using Emberdeck MCP tools. Orchestrates design cards — scanning for affected specs, creating new specs, pre-commit validation, and health checks. Use this skill when the user says "/emberdeck", wants to scan specs before coding, create a design spec, review specs before commit, check spec health, or any workflow involving emberdeck cards. Also trigger when the user mentions spec-driven development, design cards, acceptance criteria tracking, or code-spec synchronization — even if they don't say "emberdeck" explicitly.
+description: Design knowledge management for codebases using Emberdeck MCP tools. Trigger when the user asks to build, change, fix, or refactor code in a project with emberdeck configured. Also trigger on "/emberdeck" or when the user asks about specs, design cards, or acceptance criteria.
 ---
 
-# Emberdeck — Spec-Driven Development Workflows
+# Emberdeck
 
-Emberdeck maintains design specs (cards) synchronized with code through MCP tools (`emberdeck:emberdeck_*`). This skill defines four workflows that orchestrate those tools. Each workflow specifies a goal and completion criteria — use whatever combination of emberdeck tools best achieves the goal.
+Emberdeck keeps design knowledge linked to code. Before changing code, check what design decisions constrain it. After changing code, verify nothing broke. Skipping this leads to silent invariant violations that compound over time.
 
-**Cardinal rule:** Never directly read/write `.emberdeck/cards/*.card.md` files. The MCP layer guarantees DB-file consistency — direct edits break it.
+**Never** directly read/write `.emberdeck/cards/*.card.md` files. Use `emberdeck_*` MCP tools only.
 
-## Sub-commands
+## Principle
 
-| Invocation | Workflow |
-|------------|----------|
-| `/emberdeck` | Scan — start-of-work context |
-| `/emberdeck spec` | Create a new design card |
-| `/emberdeck review` | Pre-commit validation gate |
-| `/emberdeck sync` | Health check & drift dashboard |
+Check before change. Verify after change.
 
-**Examples:**
-- `/emberdeck` — scan before starting work
-- `/emberdeck spec add WebSocket support for real-time card sync` — create spec with description
-- `/emberdeck spec` — create spec interactively
-- `/emberdeck review` — validate before committing
-- `/emberdeck sync` — check overall spec health
-- `check if there are specs for the files I changed` — triggers scan
-- `I need to write a design card for the new export feature` — triggers spec
+## When to act
 
----
+### User asks to build a feature
 
-## Scan (`/emberdeck`)
+1. `emberdeck_search_cards` / `emberdeck_find_affected_cards` — find related cards
+2. If cards exist: `emberdeck_get_card` — read design intent, acceptance criteria, constraints
+3. If no card covers this feature: create one first
+   - Read relevant code and ask the user about policies, constraints, non-goals
+   - `emberdeck_create_card` with substantive body (see body guide below)
+4. Write code within the card's constraints
+5. `emberdeck_validate_code_links` — verify consistency
+6. If acceptance criteria are satisfied: `emberdeck_verify_acceptance`
 
-**Goal:** Before starting work, understand what specs exist for the files being changed and identify coverage gaps.
+### User asks to fix a bug
 
-**Completion criteria:**
-- All affected cards identified (by file path and by symbol)
-- Each affected card's status, acceptance criteria, constraints, and link health reported
-- Relation graph shown for context
-- Changed files without spec coverage listed
-- Actionable next steps suggested (e.g., create missing specs, update stale ones)
+1. `emberdeck_find_affected_cards` — check if the buggy code has a card
+2. If card exists: read it. Fix within the card's invariants.
+3. `emberdeck_validate_code_links` after fix
+4. If the bug reveals a design flaw: update the card body and acceptance criteria
 
-**Output format:**
-```
-## Scan Results
+### Bug escalates to structural problem
 
-### Affected Cards
-- **card-key** (status) — summary
-  - Unverified: [criteria list]
-  - Constraints: [if any]
-  - Link coverage: N resolved, N broken
+1. `emberdeck_get_relation_graph` — map the blast radius through card dependencies
+2. `emberdeck_pre_change_check` — identify all at-risk acceptance criteria
+3. `emberdeck_check_interactions` — find cross-card conflicts
+4. Update or recreate affected cards before rewriting code
+5. Refactor code, then `emberdeck_validate_code_links` on all affected cards
 
-### Relation Graph
-[upstream/downstream dependencies]
+### User asks to refactor
 
-### Interactions
-[If multiple cards: shared symbols, conflicts]
+1. `emberdeck_find_affected_cards` on files being refactored
+2. `emberdeck_pre_change_check` — understand impact
+3. If invariants change: update card body and acceptance criteria first
+4. If invariants don't change: refactor code, then verify links
 
-### Coverage Gaps
-[Changed files not covered by any card]
+### Trivial change (typo, formatting, comments)
 
-### Suggested Actions
-- [actionable recommendations]
-```
+No card action needed.
 
----
+### User asks about spec health
 
-## Spec (`/emberdeck spec`)
+1. `emberdeck_check_drift` — overall or per-card staleness
+2. `emberdeck_validate_cards` — DB-file consistency
+3. `emberdeck_sync_spec_annotations` — sync @spec comments
+4. `emberdeck_list_unverified` — outstanding acceptance criteria
+5. Report findings and suggest actions
 
-**Goal:** Create a design card that captures knowledge code cannot express — rationale, invariants, scope boundaries, domain rules.
+## Creating cards
 
-**Pipeline (do not skip steps):**
+### When to create
 
-1. **Search** — check existing cards to avoid duplicates. If a related card exists, offer to update it instead.
-2. **Gather** — collect design knowledge before writing the card. Done when all of:
-   - Related cards' acceptance criteria and constraints reviewed (no contradictions with new card)
-   - Relation graph of neighboring cards understood (what depends on what)
-   - For existing code: source read, behavior analyzed, invariants inferred
-   - For new features: user asked about policies, constraints, business rules, non-goals
-   - Design rationale captured: what decision was made, what alternatives were rejected and why
-3. **Draft** — assemble the card in free-form first. Reason about what an agent modifying this code would need to know that isn't visible in the code itself.
-4. **Create** — call `emberdeck_create_card` with all fields:
-   - `slug`, `summary`, `type`, `priority`
-   - `body` — the design knowledge from step 2-3 (see body guide below)
-   - `acceptance` — 3-5 testable criteria (`{id, description, verified}`)
-   - `keywords`, `tags`, `relations`, `codeLinks`, `constraints`
-5. **Confirm** — show the draft to the user before creation. Show how it fits the relation graph. Optionally transition to `accepted`.
+- New module, feature, or significant component — always
+- Bug fix that reveals a design flaw — create or update
+- Refactor that changes invariants — update existing card
 
-**Body guide — what to write:**
+### When NOT to create
 
-The body captures knowledge that code alone cannot provide. It should contain some or all of:
-- **Why** — design rationale, rejected alternatives, trade-offs made
-- **Invariants** — conditions that must always hold across changes
-- **Scope boundaries** — what this deliberately does NOT do (non-goals)
-- **Domain rules** — business logic, regulatory constraints, formulas
-- **Edge cases** — boundary behavior, failure modes, concurrency concerns
-- **Failure history** — past bugs and why they happened (prevents recurrence)
+- Trivial fixes, formatting, dependency bumps
+- Changes fully covered by an existing card
 
-**What NOT to put in body:** file paths, function signatures, symbol names — these belong in `codeLinks`.
+### Body guide
 
-**Example of a good body** (from the `card-model` card):
-```markdown
-## Invariants
-- A card key is always a normalized slug: lowercase alphanumeric, hyphens, dots, underscores, slashes.
-- `parseCardMarkdown(serializeCardMarkdown(card))` round-trips without data loss.
+The body captures knowledge that code cannot express. Include:
 
-## Contracts
-### card-key.ts
-- `normalizeSlug(slug)`: Throws CardKeyError on empty string, `..` paths, consecutive separators.
+- **Why** — design rationale, rejected alternatives, trade-offs
+- **Invariants** — conditions that must hold across changes
+- **Scope boundaries** — what this deliberately does NOT do
+- **Edge cases** — boundary behavior, failure modes
+- **Failure history** — past bugs and why they happened
 
-## Edge Cases
-- Slugs with mixed path separators (`foo\bar/baz`) normalize to `foo/bar/baz`.
-- Empty body after frontmatter is valid (body = empty string).
-```
+Do NOT put file paths or function signatures in the body — use `codeLinks` for that.
 
-**Output format:**
-```
-Created **slug**: "summary"
-Type: feature | Status: draft/accepted | Criteria: N | Relations: [list]
-```
+### Before creating
 
----
+1. `emberdeck_search_cards` — check for duplicates
+2. Read existing related cards — no contradictions with new card
+3. Understand the relation graph — what depends on what
+4. For existing code: read the source, infer invariants
+5. For new features: ask the user about policies, constraints, non-goals
+6. Draft the body in free-form reasoning first, then structure it
 
-## Review (`/emberdeck review`)
+### Fields
 
-**Goal:** Validate code-spec consistency before committing. This is a quality gate — present a clear pass/fail verdict.
-
-**Completion criteria:**
-- Impact analysis run on changed files (affected cards, risk level)
-- Code links validated and resolved for each affected card
-- Drift checked for each affected card (>0.5 = stale, needs attention)
-- Cross-card interactions analyzed if multiple cards affected
-- Unverified acceptance criteria cross-referenced with changes — if changes satisfy criteria, mark them verified
-- Regression guard run as final gate
-- Stale specs offered for update, completed implementations offered for status transition
-
-**Output format:**
-```
-## Pre-Commit Review: PASS / FAIL
-
-### Impact: low/medium/high — N affected cards
-
-### Code Links
-- card-key: valid / broken (details)
-
-### Drift
-- card-key: score (fresh/stale)
-
-### Acceptance Criteria
-- card-key: "criterion" — verified / unverified
-
-### Regression Guard: PASS / FAIL
-
-### Actions Required
-- [specific fixes needed]
-```
-
----
-
-## Sync (`/emberdeck sync`)
-
-**Goal:** Full health check of the entire spec system. Detect and fix inconsistencies, report drift, coverage, and outstanding work.
-
-**Completion criteria:**
-- DB-file consistency validated (inconsistencies auto-fixed if possible)
-- All cards inventoried by status
-- Drift scores calculated for active cards (accepted/implementing)
-- Code link coverage checked per card (resolved vs broken)
-- @spec annotations in source code synced
-- Symbol renames/moves synced
-- Unverified acceptance criteria listed
-- Recent change history shown for active cards
-- Prioritized recommendations generated
-
-**Output format:**
-```
-## Spec Health Dashboard
-
-### Inventory
-| Status | Count |
-|--------|-------|
-| draft | N |
-| accepted | N |
-| implementing | N |
-| implemented | N |
-| deprecated | N |
-
-### Consistency: all synced / N issues
-
-### Drift (active cards)
-- card-key: score
-
-### Link Coverage
-[per-card breakdown]
-
-### Spec Annotations
-- N new links from @spec
-
-### Unverified Criteria: N across M cards
-
-### Recommendations
-- [prioritized actions]
-```
+- `slug` — short identifier
+- `summary` — one line
+- `type` — feature / bug / refactor / spike / decision
+- `priority` — critical / high / medium / low
+- `body` — design knowledge (see guide above)
+- `acceptance` — 3-5 testable criteria, `{id, description, verified}`
+- `relations` — `{type, target}` linking to other cards
+- `codeLinks` — `{kind, file, symbol}` linking to code
+- `keywords`, `tags`, `constraints` — as needed
