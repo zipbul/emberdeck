@@ -38,6 +38,7 @@ afterEach(async () => {
 async function createCard(
   key: string,
   codeLinks?: CodeLink[],
+  status: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated' = 'draft',
 ): Promise<void> {
   const slug = normalizeSlug(key);
   const filePath = buildCardPath(tc.ctx.cardsDir, slug);
@@ -46,7 +47,7 @@ async function createCard(
     frontmatter: {
       key: slug,
       summary: `Card ${slug}`,
-      status: 'draft',
+      status,
       ...(codeLinks !== undefined ? { codeLinks } : {}),
     },
     body: '',
@@ -224,7 +225,7 @@ describe('ops/link', () => {
     expect(result[0]!.key).toBe('spec/a');
   });
 
-  // 11. [HP] validateCodeLinks: all valid → []
+  // 11. [HP] validateCodeLinks: all valid → declared=1, valid=1, broken=[]
   it('should return empty array when all code links resolve to existing symbols', async () => {
     // Arrange
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
@@ -233,7 +234,9 @@ describe('ops/link', () => {
     // Act
     const result = await validateCodeLinks(tc.ctx, 'auth/token');
     // Assert
-    expect(result).toEqual([]);
+    expect(result.declared).toBe(1);
+    expect(result.valid).toBe(1);
+    expect(result.broken).toEqual([]);
   });
 
   // 12. [HP] validateCodeLinks: broken symbol → BrokenLink 'symbol-not-found'
@@ -244,10 +247,12 @@ describe('ops/link', () => {
     mockSearchSymbols.mockReturnValue([]);
     // Act
     const result = await validateCodeLinks(tc.ctx, 'auth/token');
-    // Assert
-    expect(result).toHaveLength(1);
-    expect(result[0]!.link).toEqual(link);
-    expect(result[0]!.reason).toBe('symbol-not-found');
+    // Assert — draft card, so broken links go to planned
+    expect(result.declared).toBe(1);
+    expect(result.valid).toBe(0);
+    expect(result.planned).toHaveLength(1);
+    expect(result.planned[0]!.link).toEqual(link);
+    expect(result.planned[0]!.reason).toBe('symbol-not-found');
   });
 
   // 13. [NE] resolveCardCodeLinks: gildash undefined → GildashNotConfiguredError
@@ -337,14 +342,17 @@ describe('ops/link', () => {
     expect(result).toEqual([]);
   });
 
-  // 21. [ED] validateCodeLinks: codeLinks=[] → []
-  it('should return empty array when card has empty codeLinks array in validateCodeLinks', async () => {
+  // 21. [ED] validateCodeLinks: codeLinks=[] → declared=0
+  it('should return empty result when card has empty codeLinks array in validateCodeLinks', async () => {
     // Arrange
     await createCard('auth/token', []);
     // Act
     const result = await validateCodeLinks(tc.ctx, 'auth/token');
     // Assert
-    expect(result).toEqual([]);
+    expect(result.declared).toBe(0);
+    expect(result.valid).toBe(0);
+    expect(result.broken).toEqual([]);
+    expect(result.planned).toEqual([]);
   });
 
   // 22. [CO] resolveCardCodeLinks: codeLinks=[] + gildash present → []
@@ -367,9 +375,9 @@ describe('ops/link', () => {
     mockSearchSymbols.mockReturnValue(gildashErr());
     // Act
     const result = await validateCodeLinks(tc.ctx, 'auth/token');
-    // Assert
-    expect(result).toHaveLength(1);
-    expect(result[0]!.reason).toBe('file-not-indexed');
+    // Assert — draft card, so goes to planned
+    expect(result.planned).toHaveLength(1);
+    expect(result.planned[0]!.reason).toBe('file-not-indexed');
   });
 
   // 24. [ST] DB state set up manually → findCardsBySymbol returns correct result
@@ -395,5 +403,77 @@ describe('ops/link', () => {
     const result2 = await validateCodeLinks(tc.ctx, 'auth/token');
     // Assert
     expect(result1).toEqual(result2);
+    expect(result1.declared).toBe(0);
+  });
+
+  // 26. [HP] validateCodeLinks: implementing card with broken link → broken (not planned)
+  it('should put broken links in broken array for implementing card', async () => {
+    const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
+    await createCard('impl/card', [link], 'implementing');
+    mockSearchSymbols.mockReturnValue([]);
+    const result = await validateCodeLinks(tc.ctx, 'impl/card');
+    expect(result.declared).toBe(1);
+    expect(result.valid).toBe(0);
+    expect(result.broken).toHaveLength(1);
+    expect(result.broken[0]!.reason).toBe('symbol-not-found');
+    expect(result.planned).toHaveLength(0);
+  });
+
+  // 27. [HP] validateCodeLinks: accepted card with broken link → planned (not broken)
+  it('should put broken links in planned array for accepted card', async () => {
+    const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
+    await createCard('acc/card', [link], 'accepted');
+    mockSearchSymbols.mockReturnValue([]);
+    const result = await validateCodeLinks(tc.ctx, 'acc/card');
+    expect(result.declared).toBe(1);
+    expect(result.valid).toBe(0);
+    expect(result.broken).toHaveLength(0);
+    expect(result.planned).toHaveLength(1);
+    expect(result.planned[0]!.reason).toBe('symbol-not-found');
+  });
+
+  // 28. [HP] validateCodeLinks: accepted card with file-not-indexed → planned
+  it('should put file-not-indexed links in planned array for accepted card', async () => {
+    const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
+    await createCard('acc/err', [link], 'accepted');
+    mockSearchSymbols.mockReturnValue(gildashErr());
+    const result = await validateCodeLinks(tc.ctx, 'acc/err');
+    expect(result.planned).toHaveLength(1);
+    expect(result.planned[0]!.reason).toBe('file-not-indexed');
+    expect(result.broken).toHaveLength(0);
+  });
+
+  // 29. [HP] validateCodeLinks: implementing card with valid links → all valid, empty broken/planned
+  it('should return valid count and empty broken/planned for implementing card with valid links', async () => {
+    const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
+    await createCard('impl/ok', [link], 'implementing');
+    mockSearchSymbols.mockReturnValue([fakeSymbol]);
+    const result = await validateCodeLinks(tc.ctx, 'impl/ok');
+    expect(result.declared).toBe(1);
+    expect(result.valid).toBe(1);
+    expect(result.broken).toHaveLength(0);
+    expect(result.planned).toHaveLength(0);
+  });
+
+  // 30. [HP] resolveCardCodeLinks should call reindex before searching
+  it('should call gildash.reindex() before resolving code links', async () => {
+    const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
+    await createCard('reindex/test', [link]);
+    const mockReindex = mock(() => Promise.resolve());
+    (tc.ctx.gildash as any).reindex = mockReindex;
+    mockSearchSymbols.mockReturnValue([fakeSymbol]);
+    await resolveCardCodeLinks(tc.ctx, 'reindex/test');
+    expect(mockReindex).toHaveBeenCalledTimes(1);
+  });
+
+  // 31. [HP] validateCodeLinks should call reindex before validating
+  it('should call gildash.reindex() before validating code links', async () => {
+    const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
+    await createCard('reindex/val', [link]);
+    const mockReindex = mock(() => Promise.resolve());
+    (tc.ctx.gildash as any).reindex = mockReindex;
+    mockSearchSymbols.mockReturnValue([fakeSymbol]);
+    await validateCodeLinks(tc.ctx, 'reindex/val');
+    expect(mockReindex).toHaveBeenCalledTimes(1);
   });
 });

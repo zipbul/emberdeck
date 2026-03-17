@@ -281,6 +281,7 @@ export function checkDrift(
     let cardBrokenLinks = 0;
     let cardCodeChangesAfter = 0;
     let cardIsStale = false;
+    const isPlanning = row.status === 'draft' || row.status === 'accepted';
 
     for (const link of links) {
       totalLinks++;
@@ -292,10 +293,10 @@ export function checkDrift(
           filePath: link.file,
         });
         if (!Array.isArray(results)) {
-          cardBrokenLinks++;
+          if (!isPlanning) cardBrokenLinks++;
         } else {
           const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
-          if (!found) cardBrokenLinks++;
+          if (!found && !isPlanning) cardBrokenLinks++;
         }
 
         // Check if linked file was modified after the card was last updated
@@ -373,6 +374,8 @@ export interface SharedSymbol {
 export interface CardInteraction {
   pair: [string, string];
   sharedSymbols: SharedSymbol[];
+  /** Files that both cards have code links to (different symbols, same file). */
+  sharedFiles: string[];
   relationType: string | null;
   potentialConflicts: string[];
 }
@@ -445,25 +448,27 @@ export function checkInteractions(
       );
       const relationType = directRelation?.type ?? reverseRelation?.type ?? null;
 
+      // Detect shared files (both cards link to the same file)
+      const sharedFileSet = new Set<string>();
+      for (const [file] of linksA) {
+        if (linksB.has(file)) sharedFileSet.add(file);
+      }
+      const sharedFiles = [...sharedFileSet];
+
       // Detect potential conflicts
       const potentialConflicts: string[] = [];
-
-      // Shared files without defined relation
-      const sharedFiles = new Set<string>();
-      for (const [file] of linksA) {
-        if (linksB.has(file)) sharedFiles.add(file);
-      }
-      if (sharedFiles.size > 0 && !relationType) {
+      if (sharedFiles.length > 0 && !relationType) {
         potentialConflicts.push(
-          `Cards share ${sharedFiles.size} file(s) but have no defined relation.`,
+          `Cards share ${sharedFiles.length} file(s) but have no defined relation.`,
         );
       }
 
       // Only include pairs with some interaction
-      if (sharedSymbols.length > 0 || relationType || potentialConflicts.length > 0) {
+      if (sharedSymbols.length > 0 || sharedFiles.length > 0 || relationType || potentialConflicts.length > 0) {
         interactions.push({
           pair: [keyA, keyB],
           sharedSymbols,
+          sharedFiles,
           relationType,
           potentialConflicts,
         });

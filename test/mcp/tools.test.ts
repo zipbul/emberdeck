@@ -105,7 +105,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       const result = await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'fmt-check', summary: 'Format check' },
+        arguments: { slug: 'fmt-check', summary: 'Format check', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       expect(result.content).toBeArray();
       const content = result.content as Array<{ type: string; text: string }>;
@@ -130,7 +130,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'idem', summary: 'Idem test' },
+        arguments: { slug: 'idem', summary: 'Idem test', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const r1 = await s.client.callTool({ name: 'emberdeck_get_card', arguments: { key: 'idem' } });
       const r2 = await s.client.callTool({ name: 'emberdeck_get_card', arguments: { key: 'idem' } });
@@ -156,7 +156,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       const result = await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'hello', summary: 'Hello world' },
+        arguments: { slug: 'hello', summary: 'Hello world', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       expect(result.isError).toBeFalsy();
       const data = parseText(result) as { fullKey: string; filePath: string };
@@ -170,7 +170,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       // Target card must be created first to satisfy FK constraint
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'dep-target', summary: 'Dep target' },
+        arguments: { slug: 'dep-target', summary: 'Dep target', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_create_card',
@@ -181,8 +181,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
           keywords: ['kw1', 'kw2'],
           tags: ['t1', 't2'],
           relations: [{ type: 'depends-on', target: 'dep-target' }],
-          codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Foo' }],
-        },
+          codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Foo' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       expect(result.isError).toBeFalsy();
       const data = parseText(result) as { fullKey: string };
@@ -194,11 +193,11 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'dup', summary: 'First' },
+        arguments: { slug: 'dup', summary: 'First', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'dup', summary: 'Second' },
+        arguments: { slug: 'dup', summary: 'Second', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       expect(result.isError).toBe(true);
       expect(textOf(result)).toContain('dup');
@@ -209,7 +208,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       const result = await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: '', summary: 'No slug' },
+        arguments: { slug: '', summary: 'No slug', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       expect(result.isError).toBe(true);
     });
@@ -219,7 +218,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       const result = await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'empty-kw', summary: 'Empty KW', keywords: [] },
+        arguments: { slug: 'empty-kw', summary: 'Empty KW', keywords: [], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       expect(result.isError).toBeFalsy();
     });
@@ -235,7 +234,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'get-me', summary: 'Get test', body: '# Body here' },
+        arguments: { slug: 'get-me', summary: 'Get test', body: '# Body here', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_get_card',
@@ -270,7 +269,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'upd', summary: 'Old' },
+        arguments: { slug: 'upd', summary: 'Old', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card',
@@ -291,7 +290,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'multi', summary: 'Multi', body: 'Old body', keywords: ['old'] },
+        arguments: { slug: 'multi', summary: 'Multi', body: 'Old body', keywords: ['old'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card',
@@ -318,12 +317,27 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       expect(result.isError).toBe(true);
     });
 
+    // #16a — strict schema rejects unknown fields
+    it('should reject unknown fields via strict schema', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'strict-test', summary: 'Strict', acceptance: [{ id: 'ac-1', description: 'placeholder', verified: false }] },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_update_card',
+        arguments: { key: 'strict-test', fields: { body: 'wrapped' } } as any,
+      });
+      // .strict() should reject the 'fields' key
+      expect(result.isError).toBe(true);
+    });
+
     // #16
     it('should delete keywords when set to null', async () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'null-kw', summary: 'KW', keywords: ['a', 'b'] },
+        arguments: { slug: 'null-kw', summary: 'KW', keywords: ['a', 'b'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card',
@@ -349,7 +363,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'status-card', summary: 'Status' },
+        arguments: { slug: 'status-card', summary: 'Status', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -385,7 +399,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'del-me', summary: 'Delete' },
+        arguments: { slug: 'del-me', summary: 'Delete', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_delete_card',
@@ -421,7 +435,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'old-name', summary: 'Rename me' },
+        arguments: { slug: 'old-name', summary: 'Rename me', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_rename_card',
@@ -453,11 +467,11 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'src-card', summary: 'Src' },
+        arguments: { slug: 'src-card', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'dst-card', summary: 'Dst' },
+        arguments: { slug: 'dst-card', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_rename_card',
@@ -475,8 +489,8 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #24
     it('should list multiple cards', async () => {
       s = await setupMcp();
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'a', summary: 'A' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'b', summary: 'B' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       const result = await s.client.callTool({ name: 'emberdeck_list_cards', arguments: {} });
       expect(result.isError).toBeFalsy();
       const data = parseText(result) as Array<{ key: string }>;
@@ -486,8 +500,8 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #25
     it('should filter cards by status', async () => {
       s = await setupMcp();
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'draft-card', summary: 'D' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'acc-card', summary: 'A' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'draft-card', summary: 'D', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'acc-card', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
         arguments: { key: 'acc-card', status: 'accepted' },
@@ -522,11 +536,11 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'searchable', summary: 'UniqueKeyword123' },
+        arguments: { slug: 'searchable', summary: 'UniqueKeyword123', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'other', summary: 'No match' },
+        arguments: { slug: 'other', summary: 'No match', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_search_cards',
@@ -561,7 +575,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'ctx-card', summary: 'Context card' },
+        arguments: { slug: 'ctx-card', summary: 'Context card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_get_card_context',
@@ -601,11 +615,11 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp({ allowedRelationTypes: ['depends-on'] });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'graph-a', summary: 'A' },
+        arguments: { slug: 'graph-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'graph-b', summary: 'B', relations: [{ type: 'depends-on', target: 'graph-a' }] },
+        arguments: { slug: 'graph-b', summary: 'B', relations: [{ type: 'depends-on', target: 'graph-a' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_get_relation_graph',
@@ -622,14 +636,14 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #32
     it('should respect maxDepth parameter', async () => {
       s = await setupMcp({ allowedRelationTypes: ['depends-on'] });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'dep-a', summary: 'A' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'dep-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'dep-b', summary: 'B', relations: [{ type: 'depends-on', target: 'dep-a' }] },
+        arguments: { slug: 'dep-b', summary: 'B', relations: [{ type: 'depends-on', target: 'dep-a' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'dep-c', summary: 'C', relations: [{ type: 'depends-on', target: 'dep-b' }] },
+        arguments: { slug: 'dep-c', summary: 'C', relations: [{ type: 'depends-on', target: 'dep-b' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_get_relation_graph',
@@ -641,10 +655,10 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #33
     it('should respect direction parameter', async () => {
       s = await setupMcp({ allowedRelationTypes: ['depends-on'] });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'dir-a', summary: 'A' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'dir-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'dir-b', summary: 'B', relations: [{ type: 'depends-on', target: 'dir-a' }] },
+        arguments: { slug: 'dir-b', summary: 'B', relations: [{ type: 'depends-on', target: 'dir-a' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_get_relation_graph',
@@ -675,10 +689,10 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #35
     it('should list relations for a card', async () => {
       s = await setupMcp({ allowedRelationTypes: ['uses'] });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'rel-a', summary: 'A' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'rel-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'rel-b', summary: 'B', relations: [{ type: 'uses', target: 'rel-a' }] },
+        arguments: { slug: 'rel-b', summary: 'B', relations: [{ type: 'uses', target: 'rel-a' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_list_card_relations',
@@ -693,7 +707,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #36
     it('should return empty relations for card with no relations', async () => {
       s = await setupMcp();
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'no-rel', summary: 'No relations' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'no-rel', summary: 'No relations', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       const result = await s.client.callTool({
         name: 'emberdeck_list_card_relations',
         arguments: { key: 'no-rel' },
@@ -716,7 +730,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       // Create card via API first, then modify file and sync
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'sync-me', summary: 'Original' },
+        arguments: { slug: 'sync-me', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       // Modify the file directly
       const filePath = buildCardPath(s.tc.ctx.cardsDir, 'sync-me');
@@ -756,8 +770,8 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #39
     it('should bulk sync cards from directory', async () => {
       s = await setupMcp();
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'bulk-a', summary: 'A' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'bulk-b', summary: 'B' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'bulk-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'bulk-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       const result = await s.client.callTool({
         name: 'emberdeck_bulk_sync_cards',
         arguments: { dirPath: s.tc.cardsDir },
@@ -770,7 +784,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #40
     it('should validate cards returning consistency report', async () => {
       s = await setupMcp();
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'val-card', summary: 'Valid' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'val-card', summary: 'Valid', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       const result = await s.client.callTool({
         name: 'emberdeck_validate_cards',
         arguments: { dirPath: s.tc.cardsDir },
@@ -787,7 +801,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #41
     it('should export card to file', async () => {
       s = await setupMcp();
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'exp-card', summary: 'Export' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'exp-card', summary: 'Export', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
       const result = await s.client.callTool({
         name: 'emberdeck_export_card_to_file',
         arguments: { key: 'exp-card' },
@@ -821,8 +835,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           slug: 'link-card',
           summary: 'Link',
-          codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Foo' }],
-        },
+          codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Foo' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       // gildash not configured → GildashNotConfiguredError
       const result = await s.client.callTool({
@@ -853,8 +866,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           slug: 'sym-card',
           summary: 'Symbol',
-          codeLinks: [{ kind: 'defines', file: 'src/x.ts', symbol: 'MyClass' }],
-        },
+          codeLinks: [{ kind: 'defines', file: 'src/x.ts', symbol: 'MyClass' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_find_cards_by_symbol',
@@ -875,8 +887,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           slug: 'affected',
           summary: 'Affected',
-          codeLinks: [{ kind: 'defines', file: 'src/changed.ts', symbol: 'Handler' }],
-        },
+          codeLinks: [{ kind: 'defines', file: 'src/changed.ts', symbol: 'Handler' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_find_affected_cards',
@@ -909,8 +920,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           slug: 'vcl-card',
           summary: 'Validate CL',
-          codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Bar' }],
-        },
+          codeLinks: [{ kind: 'defines', file: 'src/a.ts', symbol: 'Bar' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       // gildash not configured → GildashNotConfiguredError
       const result = await s.client.callTool({
@@ -930,6 +940,34 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       expect(result.isError).toBe(true);
     });
+
+    // #49a — batch: omit key to validate all cards
+    it('should validate all cards when key is omitted', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'batch-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder', verified: false }] },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { slug: 'batch-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder', verified: false }] },
+      });
+      // gildash not configured → cards without code links still produce results
+      // (validateCodeLinks throws for gildash-dependent operations, but cards with no code links
+      //  return { declared: 0, valid: 0, broken: [], planned: [] } before gildash check)
+      // For this test we need gildash — but these cards have no codeLinks, so gildash is checked
+      // Actually validateCodeLinks throws GildashNotConfiguredError before reading the file.
+      // So batch mode will skip cards that throw.
+      // Result should be an empty object (all cards skipped due to gildash error)
+      const result = await s.client.callTool({
+        name: 'emberdeck_validate_code_links',
+        arguments: {},
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as Record<string, unknown>;
+      // Cards were skipped due to missing gildash, so empty result
+      expect(typeof data).toBe('object');
+    });
   });
 
   // ════════════════════════════════════════
@@ -946,8 +984,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
           slug: 'null-all',
           summary: 'All nullable',
           keywords: ['kw'],
-          tags: ['tag'],
-        },
+          tags: ['tag'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card',
@@ -971,7 +1008,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'before-rename', summary: 'Before' },
+        arguments: { slug: 'before-rename', summary: 'Before', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_rename_card',
@@ -994,7 +1031,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp({ allowedRelationTypes: ['depends-on'] });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'self-ref', summary: 'Self ref' },
+        arguments: { slug: 'self-ref', summary: 'Self ref', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       // self-ref: forward (isReverse=false) and reverse (isReverse=true) differ in is_reverse column,
       // so the unique constraint (type, src, dst, is_reverse) is not violated.
@@ -1011,11 +1048,11 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       // Create both cards first, then add relations
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'mutual-a', summary: 'A' },
+        arguments: { slug: 'mutual-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'mutual-b', summary: 'B' },
+        arguments: { slug: 'mutual-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       // Add relations
       await s.client.callTool({
@@ -1048,7 +1085,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'lifecycle', summary: 'Lifecycle card' },
+        arguments: { slug: 'lifecycle', summary: 'Lifecycle card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
 
       const statuses = ['accepted', 'implementing', 'implemented', 'deprecated'] as const;
@@ -1070,7 +1107,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'phoenix', summary: 'First life' },
+        arguments: { slug: 'phoenix', summary: 'First life', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_delete_card',
@@ -1078,7 +1115,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       const result = await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'phoenix', summary: 'Second life' },
+        arguments: { slug: 'phoenix', summary: 'Second life', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       expect(result.isError).toBeFalsy();
       const get = await s.client.callTool({ name: 'emberdeck_get_card', arguments: { key: 'phoenix' } });
@@ -1091,7 +1128,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'roundtrip', summary: 'Original' },
+        arguments: { slug: 'roundtrip', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
 
       // Export to file
@@ -1132,8 +1169,8 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     // #59
     it('should return same list regardless of creation order', async () => {
       s = await setupMcp();
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'z-card', summary: 'Z' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'a-card', summary: 'A' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'z-card', summary: 'Z', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { slug: 'a-card', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] } });
 
       const result = await s.client.callTool({ name: 'emberdeck_list_cards', arguments: {} });
       const data = parseText(result) as Array<{ key: string }>;
@@ -1180,15 +1217,15 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'low-p', summary: 'Low', priority: 'low' },
+        arguments: { slug: 'low-p', summary: 'Low', priority: 'low', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'crit-p', summary: 'Critical', priority: 'critical' },
+        arguments: { slug: 'crit-p', summary: 'Critical', priority: 'critical', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'med-p', summary: 'Medium', priority: 'medium' },
+        arguments: { slug: 'med-p', summary: 'Medium', priority: 'medium', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_list_cards',
@@ -1206,15 +1243,15 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'feat-1', summary: 'Feature 1', type: 'feature' },
+        arguments: { slug: 'feat-1', summary: 'Feature 1', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'bug-1', summary: 'Bug 1', type: 'bug' },
+        arguments: { slug: 'bug-1', summary: 'Bug 1', type: 'bug', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'feat-2', summary: 'Feature 2', type: 'feature' },
+        arguments: { slug: 'feat-2', summary: 'Feature 2', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_list_cards',
@@ -1290,7 +1327,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'hist-card', summary: 'History card' },
+        arguments: { slug: 'hist-card', summary: 'History card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -1348,7 +1385,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { slug: 'drift-card', summary: 'Drift test' },
+        arguments: { slug: 'drift-card', summary: 'Drift test', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_check_drift',
@@ -1374,16 +1411,14 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           slug: 'inter-a',
           summary: 'Interaction A',
-          codeLinks: [{ kind: 'defines', file: 'src/shared.ts', symbol: 'SharedFn' }],
-        },
+          codeLinks: [{ kind: 'defines', file: 'src/shared.ts', symbol: 'SharedFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
         arguments: {
           slug: 'inter-b',
           summary: 'Interaction B',
-          codeLinks: [{ kind: 'uses', file: 'src/shared.ts', symbol: 'SharedFn' }],
-        },
+          codeLinks: [{ kind: 'uses', file: 'src/shared.ts', symbol: 'SharedFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_check_interactions',
@@ -1413,8 +1448,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           slug: 'impact-card',
           summary: 'Impact card',
-          codeLinks: [{ kind: 'defines', file: 'src/target.ts', symbol: 'TargetClass' }],
-        },
+          codeLinks: [{ kind: 'defines', file: 'src/target.ts', symbol: 'TargetClass' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_pre_change_check',

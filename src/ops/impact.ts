@@ -17,6 +17,8 @@ export interface AtRiskAcceptance {
   criterionId: string;
   description: string;
   relatedSymbol: string;
+  /** true = previously verified (regression risk), false = unverified (needs verification). */
+  currentlyVerified: boolean;
 }
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
@@ -88,14 +90,13 @@ export function preChangeCheck(
       .map((l) => l.symbol);
 
     for (const ac of criteria) {
-      if (!ac.verified) continue; // Only at-risk if previously verified
-      // Every verified criterion on a directly affected card is at risk
       for (const sym of affectedSymbols) {
         atRiskAcceptance.push({
           cardKey: key,
           criterionId: ac.id,
           description: ac.description,
           relatedSymbol: sym,
+          currentlyVerified: ac.verified,
         });
         break; // One per criterion is enough
       }
@@ -110,9 +111,10 @@ export function preChangeCheck(
     return row?.priority === 'critical';
   });
 
+  const verifiedAtRisk = atRiskAcceptance.filter((a) => a.currentlyVerified);
   if (hasCritical) {
     riskLevel = 'critical';
-  } else if (directCards.size >= 3 || atRiskAcceptance.length > 0) {
+  } else if (directCards.size >= 3 || verifiedAtRisk.length > 0) {
     riskLevel = 'high';
   } else if (directCards.size >= 1) {
     riskLevel = 'medium';

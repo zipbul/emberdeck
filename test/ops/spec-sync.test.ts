@@ -47,7 +47,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should create code link from @spec annotation matching an existing card', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'auth-token', summary: 'Auth token' });
+    await createCard(tc.ctx, { slug: 'auth-token', summary: 'Auth token', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'auth-token', filePath: 'src/auth.ts', symbolName: 'generateToken', source: 'line' },
@@ -57,8 +57,9 @@ describe('syncSpecAnnotations', () => {
       ],
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(1);
+    expect(result.alreadyLinked).toBe(0);
     expect(result.unmatched).toHaveLength(0);
 
     const links = tc.ctx.codeLinkRepo.findByCardKey('auth-token');
@@ -69,8 +70,8 @@ describe('syncSpecAnnotations', () => {
 
   it('should create multiple code links from multiple annotations', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'card-a', summary: 'A' });
-    await createCard(tc.ctx, { slug: 'card-b', summary: 'B' });
+    await createCard(tc.ctx, { slug: 'card-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'card-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'card-a', filePath: 'src/a.ts', symbolName: 'fnA', source: 'jsdoc' },
@@ -83,7 +84,7 @@ describe('syncSpecAnnotations', () => {
       },
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(2);
   });
 
@@ -91,7 +92,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should throw GildashNotConfiguredError when gildash is not set', async () => {
     tc = await createTestContext();
-    expect(() => syncSpecAnnotations(tc.ctx)).toThrow(GildashNotConfiguredError);
+    await expect(syncSpecAnnotations(tc.ctx)).rejects.toThrow(GildashNotConfiguredError);
   });
 
   it('should report unmatched when card does not exist for annotation', async () => {
@@ -102,7 +103,7 @@ describe('syncSpecAnnotations', () => {
       ],
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(0);
     expect(result.unmatched).toHaveLength(1);
     expect(result.unmatched[0]!.cardKey).toBe('nonexistent');
@@ -118,21 +119,21 @@ describe('syncSpecAnnotations', () => {
       ],
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(0);
     expect(result.unmatched).toHaveLength(0);
   });
 
   it('should skip annotation with null symbolName', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'orphan', summary: 'Orphan' });
+    await createCard(tc.ctx, { slug: 'orphan', summary: 'Orphan', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'orphan', filePath: 'src/x.ts', symbolName: null, source: 'block' },
       ],
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(0);
   });
 
@@ -140,7 +141,7 @@ describe('syncSpecAnnotations', () => {
     tc = await createTestContext();
     tc.ctx.gildash = createMockGildash({ searchAnnotations: () => [] });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(0);
     expect(result.unmatched).toHaveLength(0);
   });
@@ -150,16 +151,16 @@ describe('syncSpecAnnotations', () => {
     await createCard(tc.ctx, {
       slug: 'dup-link',
       summary: 'Dup',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'existing' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'existing' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'dup-link', filePath: 'src/a.ts', symbolName: 'existing', source: 'line' },
       ],
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(0);
+    expect(result.alreadyLinked).toBe(1);
 
     const links = tc.ctx.codeLinkRepo.findByCardKey('dup-link');
     expect(links).toHaveLength(1);
@@ -170,8 +171,7 @@ describe('syncSpecAnnotations', () => {
     await createCard(tc.ctx, {
       slug: 'preserve',
       summary: 'Preserve',
-      codeLinks: [{ kind: 'class', file: 'src/old.ts', symbol: 'OldClass' }],
-    });
+      codeLinks: [{ kind: 'class', file: 'src/old.ts', symbol: 'OldClass' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'preserve', filePath: 'src/new.ts', symbolName: 'newFn', source: 'jsdoc' },
@@ -179,7 +179,7 @@ describe('syncSpecAnnotations', () => {
       searchSymbols: () => [{ name: 'newFn', filePath: 'src/new.ts', kind: 'function' }],
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.created).toBe(1);
 
     const links = tc.ctx.codeLinkRepo.findByCardKey('preserve');
@@ -190,7 +190,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should set kind to unknown when searchSymbols returns error Result', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'err-sym', summary: 'Error symbol' });
+    await createCard(tc.ctx, { slug: 'err-sym', summary: 'Error symbol', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'err-sym', filePath: 'src/err.ts', symbolName: 'badFn', source: 'line' },
@@ -198,14 +198,14 @@ describe('syncSpecAnnotations', () => {
       searchSymbols: () => ({ data: 'some error', isErr: true }), // non-array = error
     });
 
-    syncSpecAnnotations(tc.ctx);
+    await syncSpecAnnotations(tc.ctx);
     const links = tc.ctx.codeLinkRepo.findByCardKey('err-sym');
     expect(links[0]!.kind).toBe('unknown');
   });
 
   it('should set kind to unknown when searchSymbols finds no match', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-match', summary: 'No match' });
+    await createCard(tc.ctx, { slug: 'no-match', summary: 'No match', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'no-match', filePath: 'src/x.ts', symbolName: 'ghost', source: 'line' },
@@ -213,7 +213,7 @@ describe('syncSpecAnnotations', () => {
       searchSymbols: () => [], // empty = no match
     });
 
-    syncSpecAnnotations(tc.ctx);
+    await syncSpecAnnotations(tc.ctx);
     const links = tc.ctx.codeLinkRepo.findByCardKey('no-match');
     expect(links[0]!.kind).toBe('unknown');
   });
@@ -228,7 +228,7 @@ describe('syncSpecAnnotations', () => {
       ],
     });
 
-    const result = syncSpecAnnotations(tc.ctx);
+    const result = await syncSpecAnnotations(tc.ctx);
     expect(result.unmatched).toHaveLength(0);
   });
 
@@ -236,7 +236,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should return same result when called twice with same state', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'idem', summary: 'Idempotent' });
+    await createCard(tc.ctx, { slug: 'idem', summary: 'Idempotent', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'idem', filePath: 'src/i.ts', symbolName: 'fn', source: 'line' },
@@ -244,11 +244,12 @@ describe('syncSpecAnnotations', () => {
       searchSymbols: () => [{ name: 'fn', filePath: 'src/i.ts', kind: 'function' }],
     });
 
-    const r1 = syncSpecAnnotations(tc.ctx);
+    const r1 = await syncSpecAnnotations(tc.ctx);
     expect(r1.created).toBe(1);
 
-    const r2 = syncSpecAnnotations(tc.ctx);
+    const r2 = await syncSpecAnnotations(tc.ctx);
     expect(r2.created).toBe(0); // already exists
+    expect(r2.alreadyLinked).toBe(1);
 
     expect(tc.ctx.codeLinkRepo.findByCardKey('idem')).toHaveLength(1);
   });
@@ -272,8 +273,7 @@ describe('syncSymbolChanges', () => {
     await createCard(tc.ctx, {
       slug: 'rename-card',
       summary: 'Rename',
-      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'oldName' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'oldName' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'renamed',
@@ -303,8 +303,7 @@ describe('syncSymbolChanges', () => {
     await createCard(tc.ctx, {
       slug: 'move-card',
       summary: 'Move',
-      codeLinks: [{ kind: 'class', file: 'src/old-path.ts', symbol: 'MyClass' }],
-    });
+      codeLinks: [{ kind: 'class', file: 'src/old-path.ts', symbol: 'MyClass' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'moved',
@@ -333,8 +332,7 @@ describe('syncSymbolChanges', () => {
     await createCard(tc.ctx, {
       slug: 'del-card',
       summary: 'Deleted',
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'deletedFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'deletedFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'removed',
@@ -383,8 +381,7 @@ describe('syncSymbolChanges', () => {
     await createCard(tc.ctx, {
       slug: 'unrelated',
       summary: 'Unrelated',
-      codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'otherFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'otherFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'renamed',
@@ -412,8 +409,7 @@ describe('syncSymbolChanges', () => {
     await createCard(tc.ctx, {
       slug: 'fallback',
       summary: 'Fallback',
-      codeLinks: [{ kind: 'function', file: 'src/f.ts', symbol: 'sameName' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/f.ts', symbol: 'sameName' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'renamed',
@@ -443,8 +439,7 @@ describe('syncSymbolChanges', () => {
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
         { kind: 'function', file: 'src/b.ts', symbol: 'fnB' },
-      ],
-    });
+      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [
         {
@@ -473,8 +468,7 @@ describe('syncSymbolChanges', () => {
     await createCard(tc.ctx, {
       slug: 'idem-sync',
       summary: 'Idem',
-      codeLinks: [{ kind: 'function', file: 'src/i.ts', symbol: 'old' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/i.ts', symbol: 'old' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const mockChanges = [{
       changeType: 'renamed' as const, symbolName: 'new', symbolKind: 'function',
       filePath: 'src/i.ts', oldName: 'old', oldFilePath: null,
@@ -510,8 +504,7 @@ describe('getLinkCoverage', () => {
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
         { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
-      ],
-    });
+      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: ({ text, filePath }: any) => {
         if (text === 'fnA') return [{ name: 'fnA', filePath: 'src/a.ts', kind: 'function' }];
@@ -521,7 +514,7 @@ describe('getLinkCoverage', () => {
       getSymbolsByFile: () => [],
     });
 
-    const result = getLinkCoverage(tc.ctx, 'full-cov');
+    const result = await getLinkCoverage(tc.ctx, 'full-cov');
     expect(result.declared).toBe(2);
     expect(result.resolved).toBe(2);
     expect(result.broken).toBe(0);
@@ -536,8 +529,7 @@ describe('getLinkCoverage', () => {
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'exists' },
         { kind: 'function', file: 'src/b.ts', symbol: 'missing' },
-      ],
-    });
+      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: ({ text }: any) => {
         if (text === 'exists') return [{ name: 'exists', filePath: 'src/a.ts', kind: 'function' }];
@@ -546,7 +538,7 @@ describe('getLinkCoverage', () => {
       getSymbolsByFile: () => [],
     });
 
-    const result = getLinkCoverage(tc.ctx, 'partial-cov');
+    const result = await getLinkCoverage(tc.ctx, 'partial-cov');
     expect(result.declared).toBe(2);
     expect(result.resolved).toBe(1);
     expect(result.broken).toBe(1);
@@ -558,8 +550,7 @@ describe('getLinkCoverage', () => {
     await createCard(tc.ctx, {
       slug: 'unref',
       summary: 'Unreferenced',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fnA' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fnA' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'fnA', filePath: 'src/a.ts', kind: 'function' }],
       getSymbolsByFile: (...args: unknown[]) => {
@@ -572,7 +563,7 @@ describe('getLinkCoverage', () => {
       },
     });
 
-    const result = getLinkCoverage(tc.ctx, 'unref');
+    const result = await getLinkCoverage(tc.ctx, 'unref');
     expect(result.unreferenced).toHaveLength(2);
     expect(result.unreferenced.some((u) => u.symbol === 'fnB')).toBe(true);
     expect(result.unreferenced.some((u) => u.symbol === 'ClassC')).toBe(true);
@@ -582,18 +573,18 @@ describe('getLinkCoverage', () => {
 
   it('should throw GildashNotConfiguredError when gildash is not set', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-gildash', summary: 'No gildash' });
-    expect(() => getLinkCoverage(tc.ctx, 'no-gildash')).toThrow(GildashNotConfiguredError);
+    await createCard(tc.ctx, { slug: 'no-gildash', summary: 'No gildash', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await expect(getLinkCoverage(tc.ctx, 'no-gildash')).rejects.toThrow(GildashNotConfiguredError);
   });
 
   // ── ED ──
 
   it('should return coverage 1 and empty arrays for card with no code links', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-links', summary: 'No links' });
+    await createCard(tc.ctx, { slug: 'no-links', summary: 'No links', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash();
 
-    const result = getLinkCoverage(tc.ctx, 'no-links');
+    const result = await getLinkCoverage(tc.ctx, 'no-links');
     expect(result.declared).toBe(0);
     expect(result.resolved).toBe(0);
     expect(result.broken).toBe(0);
@@ -606,14 +597,13 @@ describe('getLinkCoverage', () => {
     await createCard(tc.ctx, {
       slug: 'err-search',
       summary: 'Error search',
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => ({ data: 'error', isErr: true }), // non-array
       getSymbolsByFile: () => [],
     });
 
-    const result = getLinkCoverage(tc.ctx, 'err-search');
+    const result = await getLinkCoverage(tc.ctx, 'err-search');
     expect(result.broken).toBe(1);
     expect(result.resolved).toBe(0);
   });
@@ -623,14 +613,13 @@ describe('getLinkCoverage', () => {
     await createCard(tc.ctx, {
       slug: 'null-syms',
       summary: 'Null symbols',
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'fn', filePath: 'src/x.ts', kind: 'function' }],
       getSymbolsByFile: () => null,
     });
 
-    const result = getLinkCoverage(tc.ctx, 'null-syms');
+    const result = await getLinkCoverage(tc.ctx, 'null-syms');
     expect(result.unreferenced).toHaveLength(0);
   });
 
@@ -644,16 +633,32 @@ describe('getLinkCoverage', () => {
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'gone1' },
         { kind: 'function', file: 'src/b.ts', symbol: 'gone2' },
-      ],
-    });
+      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
       getSymbolsByFile: () => [],
     });
 
-    const result = getLinkCoverage(tc.ctx, 'all-broken');
+    const result = await getLinkCoverage(tc.ctx, 'all-broken');
     expect(result.declared).toBe(2);
     expect(result.broken).toBe(2);
     expect(result.coverage).toBe(0);
+  });
+
+  it('should call gildash.reindex() before calculating coverage', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'reindex-cov',
+      summary: 'Reindex coverage',
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    const mockReindex = mock(() => Promise.resolve());
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [{ name: 'fn', filePath: 'src/a.ts', kind: 'function' }],
+      getSymbolsByFile: () => [],
+    });
+    (tc.ctx.gildash as any).reindex = mockReindex;
+
+    await getLinkCoverage(tc.ctx, 'reindex-cov');
+    expect(mockReindex).toHaveBeenCalledTimes(1);
   });
 });

@@ -68,6 +68,7 @@ export {
   validateCodeLinks,
   type ResolvedCodeLink,
   type BrokenLink,
+  type ValidateCodeLinksResult,
 } from './src/ops/link';
 export {
   verifyAcceptance,

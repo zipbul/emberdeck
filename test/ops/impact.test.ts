@@ -19,8 +19,7 @@ describe('preChangeCheck', () => {
     await createCard(tc.ctx, {
       slug: 'direct',
       summary: 'Direct',
-      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'login' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'login' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = preChangeCheck(tc.ctx, ['src/auth.ts']);
     expect(result.affectedCards).toHaveLength(1);
@@ -36,8 +35,7 @@ describe('preChangeCheck', () => {
       codeLinks: [
         { kind: 'function', file: 'src/auth.ts', symbol: 'login' },
         { kind: 'function', file: 'src/auth.ts', symbol: 'logout' },
-      ],
-    });
+      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = preChangeCheck(tc.ctx, ['src/auth.ts'], ['login']);
     expect(result.affectedCards).toHaveLength(1);
@@ -49,13 +47,11 @@ describe('preChangeCheck', () => {
     await createCard(tc.ctx, {
       slug: 'base',
       summary: 'Base',
-      codeLinks: [{ kind: 'class', file: 'src/base.ts', symbol: 'Base' }],
-    });
+      codeLinks: [{ kind: 'class', file: 'src/base.ts', symbol: 'Base' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'dependent',
       summary: 'Depends on base',
-      relations: [{ type: 'depends-on', target: 'base' }],
-    });
+      relations: [{ type: 'depends-on', target: 'base' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = preChangeCheck(tc.ctx, ['src/base.ts']);
     expect(result.affectedCards.length).toBeGreaterThanOrEqual(2);
@@ -71,8 +67,7 @@ describe('preChangeCheck', () => {
       slug: 'crit',
       summary: 'Critical card',
       priority: 'critical',
-      codeLinks: [{ kind: 'function', file: 'src/core.ts', symbol: 'core' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/core.ts', symbol: 'core' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = preChangeCheck(tc.ctx, ['src/core.ts']);
     expect(result.riskLevel).toBe('critical');
@@ -84,8 +79,7 @@ describe('preChangeCheck', () => {
       await createCard(tc.ctx, {
         slug: `multi-${i}`,
         summary: `Card ${i}`,
-        codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: `fn${i}` }],
-      });
+        codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: `fn${i}` }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     }
 
     const result = preChangeCheck(tc.ctx, ['src/shared.ts']);
@@ -105,9 +99,12 @@ describe('preChangeCheck', () => {
     });
 
     const result = preChangeCheck(tc.ctx, ['src/risky.ts']);
-    // Only verified criteria are at-risk (ac-1)
-    expect(result.atRiskAcceptance).toHaveLength(1);
-    expect(result.atRiskAcceptance[0]!.criterionId).toBe('ac-1');
+    // Both verified and unverified criteria are reported
+    expect(result.atRiskAcceptance).toHaveLength(2);
+    const verified = result.atRiskAcceptance.find((a) => a.criterionId === 'ac-1');
+    const unverified = result.atRiskAcceptance.find((a) => a.criterionId === 'ac-2');
+    expect(verified!.currentlyVerified).toBe(true);
+    expect(unverified!.currentlyVerified).toBe(false);
   });
 
   it('should calculate risk level as medium when 1-2 direct cards affected', async () => {
@@ -115,8 +112,7 @@ describe('preChangeCheck', () => {
     await createCard(tc.ctx, {
       slug: 'med-risk',
       summary: 'Medium',
-      codeLinks: [{ kind: 'function', file: 'src/med.ts', symbol: 'fn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/med.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = preChangeCheck(tc.ctx, ['src/med.ts']);
     expect(result.riskLevel).toBe('medium');
@@ -148,12 +144,45 @@ describe('preChangeCheck', () => {
     await createCard(tc.ctx, {
       slug: 'unrelated',
       summary: 'Unrelated',
-      codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'other' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'other' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = preChangeCheck(tc.ctx, ['src/different.ts']);
     expect(result.affectedCards).toHaveLength(0);
     expect(result.riskLevel).toBe('low');
+  });
+
+  it('should NOT elevate risk to high when only unverified AC are at risk', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'unverified-only',
+      summary: 'Only unverified',
+      codeLinks: [{ kind: 'function', file: 'src/u.ts', symbol: 'fn' }],
+      acceptance: [
+        { id: 'ac-1', description: 'Not yet verified', verified: false },
+        { id: 'ac-2', description: 'Also not verified', verified: false },
+      ],
+    });
+
+    const result = preChangeCheck(tc.ctx, ['src/u.ts']);
+    expect(result.atRiskAcceptance).toHaveLength(2);
+    expect(result.atRiskAcceptance.every((a) => !a.currentlyVerified)).toBe(true);
+    // Only verified AC elevate risk to 'high'; unverified alone → stays 'medium'
+    expect(result.riskLevel).toBe('medium');
+  });
+
+  it('should elevate risk to high when verified AC are at risk', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'verified-risk',
+      summary: 'Verified at risk',
+      codeLinks: [{ kind: 'function', file: 'src/v.ts', symbol: 'fn' }],
+      acceptance: [{ id: 'ac-1', description: 'Was verified', verified: true }],
+    });
+
+    const result = preChangeCheck(tc.ctx, ['src/v.ts']);
+    expect(result.atRiskAcceptance).toHaveLength(1);
+    expect(result.atRiskAcceptance[0]!.currentlyVerified).toBe(true);
+    expect(result.riskLevel).toBe('high');
   });
 });
 

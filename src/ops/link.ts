@@ -21,6 +21,17 @@ export interface BrokenLink {
   reason: 'symbol-not-found' | 'file-not-indexed';
 }
 
+export interface ValidateCodeLinksResult {
+  /** Total number of code links declared on the card. */
+  declared: number;
+  /** Number of links that resolved successfully. */
+  valid: number;
+  /** Links that could not be resolved (on implementing+ cards). */
+  broken: BrokenLink[];
+  /** Links that could not be resolved on draft/accepted cards (expected — code not yet written). */
+  planned: BrokenLink[];
+}
+
 // ---- Helpers ----
 
 async function readCard(ctx: EmberdeckContext, fullKey: string) {
@@ -43,6 +54,10 @@ export async function resolveCardCodeLinks(
   fullKey: string,
 ): Promise<ResolvedCodeLink[]> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
+
+  if (typeof ctx.gildash.reindex === 'function') {
+    await ctx.gildash.reindex();
+  }
 
   const cardFile = await readCard(ctx, fullKey);
   const codeLinks = cardFile.frontmatter.codeLinks ?? [];
@@ -114,19 +129,28 @@ export async function findAffectedCards(
 
 /**
  * Validates that all of a card's codeLinks exist in the current symbol index.
- * Returns a list of broken links. An empty array means all links are valid.
+ * Returns declared/valid/broken counts for unambiguous interpretation.
  */
 export async function validateCodeLinks(
   ctx: EmberdeckContext,
   fullKey: string,
-): Promise<BrokenLink[]> {
+): Promise<ValidateCodeLinksResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
+
+  if (typeof ctx.gildash.reindex === 'function') {
+    await ctx.gildash.reindex();
+  }
 
   const cardFile = await readCard(ctx, fullKey);
   const codeLinks = cardFile.frontmatter.codeLinks ?? [];
-  if (codeLinks.length === 0) return [];
+  if (codeLinks.length === 0) return { declared: 0, valid: 0, broken: [], planned: [] };
+
+  const status = cardFile.frontmatter.status;
+  const isPlanning = status === 'draft' || status === 'accepted';
 
   const broken: BrokenLink[] = [];
+  const planned: BrokenLink[] = [];
+  let valid = 0;
   for (const link of codeLinks) {
     const search = ctx.gildash.searchSymbols({
       text: link.symbol,
@@ -135,14 +159,20 @@ export async function validateCodeLinks(
     });
 
     if (isErr(search)) {
-      broken.push({ link, reason: 'file-not-indexed' });
+      const entry: BrokenLink = { link, reason: 'file-not-indexed' };
+      if (isPlanning) planned.push(entry);
+      else broken.push(entry);
       continue;
     }
 
     const found = search.find((s) => s.name === link.symbol && s.filePath === link.file);
     if (!found) {
-      broken.push({ link, reason: 'symbol-not-found' });
+      const entry: BrokenLink = { link, reason: 'symbol-not-found' };
+      if (isPlanning) planned.push(entry);
+      else broken.push(entry);
+    } else {
+      valid++;
     }
   }
-  return broken;
+  return { declared: codeLinks.length, valid, broken, planned };
 }

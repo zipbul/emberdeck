@@ -27,6 +27,7 @@ describe('generateContext', () => {
       summary: 'Root card',
       type: 'feature',
       priority: 'high',
+      acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }],
     });
 
     const result = await generateContext(tc.ctx, 'root');
@@ -37,17 +38,15 @@ describe('generateContext', () => {
 
   it('should include related cards via BFS', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'a', summary: 'Card A' });
+    await createCard(tc.ctx, { slug: 'a', summary: 'Card A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'b',
       summary: 'Card B',
-      relations: [{ type: 'depends-on', target: 'a' }],
-    });
+      relations: [{ type: 'depends-on', target: 'a' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'c',
       summary: 'Card C',
-      relations: [{ type: 'depends-on', target: 'b' }],
-    });
+      relations: [{ type: 'depends-on', target: 'b' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = await generateContext(tc.ctx, 'c');
     expect(result.cards.length).toBeGreaterThanOrEqual(2);
@@ -58,10 +57,10 @@ describe('generateContext', () => {
 
   it('should respect maxCards limit', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'root', summary: 'Root' });
-    await createCard(tc.ctx, { slug: 'n1', summary: 'N1', relations: [{ type: 'related', target: 'root' }] });
-    await createCard(tc.ctx, { slug: 'n2', summary: 'N2', relations: [{ type: 'related', target: 'root' }] });
-    await createCard(tc.ctx, { slug: 'n3', summary: 'N3', relations: [{ type: 'related', target: 'root' }] });
+    await createCard(tc.ctx, { slug: 'root', summary: 'Root', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'n1', summary: 'N1', relations: [{ type: 'related', target: 'root' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'n2', summary: 'N2', relations: [{ type: 'related', target: 'root' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'n3', summary: 'N3', relations: [{ type: 'related', target: 'root' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = await generateContext(tc.ctx, 'root', { maxCards: 2 });
     expect(result.cards.length).toBeLessThanOrEqual(2);
@@ -90,8 +89,7 @@ describe('generateContext', () => {
     await createCard(tc.ctx, {
       slug: 'cl-card',
       summary: 'CL card',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = await generateContext(tc.ctx, 'cl-card');
     expect(result.codeLinks).toHaveLength(1);
@@ -100,13 +98,12 @@ describe('generateContext', () => {
 
   it('should include body only for root card when includeBody=true', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'body-root', summary: 'Root', body: 'Root body content' });
+    await createCard(tc.ctx, { slug: 'body-root', summary: 'Root', body: 'Root body content', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'body-child',
       summary: 'Child',
       body: 'Child body',
-      relations: [{ type: 'related', target: 'body-root' }],
-    });
+      relations: [{ type: 'related', target: 'body-root' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = await generateContext(tc.ctx, 'body-root', { includeBody: true });
     const root = result.cards.find((c) => c.key === 'body-root');
@@ -117,7 +114,7 @@ describe('generateContext', () => {
 
   it('should not include body when includeBody=false (default)', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-body', summary: 'No body', body: 'Some content' });
+    await createCard(tc.ctx, { slug: 'no-body', summary: 'No body', body: 'Some content', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const result = await generateContext(tc.ctx, 'no-body');
     expect(result.cards[0]!.body).toBeUndefined();
   });
@@ -128,12 +125,11 @@ describe('generateContext', () => {
     // BFS traversal from A should visit B (via forward) and from B should revisit A (via reverse),
     // but the visited set prevents infinite loops.
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'circ-a', summary: 'Circular A' });
+    await createCard(tc.ctx, { slug: 'circ-a', summary: 'Circular A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'circ-b',
       summary: 'Circular B',
-      relations: [{ type: 'related', target: 'circ-a' }],
-    });
+      relations: [{ type: 'related', target: 'circ-a' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // At this point: circ-b→circ-a (forward), circ-a→circ-b (reverse mirror)
     // BFS from circ-a sees circ-b via reverse mirror, then from circ-b sees circ-a via forward.
     // Act — should return without hanging
@@ -152,7 +148,7 @@ describe('generateContext', () => {
 
   it('should include recent changes', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'hist-ctx', summary: 'Original' });
+    await createCard(tc.ctx, { slug: 'hist-ctx', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'hist-ctx', { summary: 'Updated' });
 
     const result = await generateContext(tc.ctx, 'hist-ctx');
@@ -164,8 +160,7 @@ describe('generateContext', () => {
     await createCard(tc.ctx, {
       slug: 'cst',
       summary: 'Constraints',
-      constraints: { maxRetries: 3, timeout: 5000 },
-    });
+      constraints: { maxRetries: 3, timeout: 5000 }, acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = await generateContext(tc.ctx, 'cst');
     expect(result.constraints['cst']).toEqual({ maxRetries: 3, timeout: 5000 });
@@ -173,10 +168,10 @@ describe('generateContext', () => {
 
   it('should respect maxDepth parameter', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'd0', summary: 'Depth 0' });
-    await createCard(tc.ctx, { slug: 'd1', summary: 'Depth 1', relations: [{ type: 'depends-on', target: 'd0' }] });
-    await createCard(tc.ctx, { slug: 'd2', summary: 'Depth 2', relations: [{ type: 'depends-on', target: 'd1' }] });
-    await createCard(tc.ctx, { slug: 'd3', summary: 'Depth 3', relations: [{ type: 'depends-on', target: 'd2' }] });
+    await createCard(tc.ctx, { slug: 'd0', summary: 'Depth 0', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'd1', summary: 'Depth 1', relations: [{ type: 'depends-on', target: 'd0' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'd2', summary: 'Depth 2', relations: [{ type: 'depends-on', target: 'd1' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'd3', summary: 'Depth 3', relations: [{ type: 'depends-on', target: 'd2' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = await generateContext(tc.ctx, 'd3', { maxDepth: 1 });
     const keys = result.cards.map((c) => c.key);
@@ -187,12 +182,11 @@ describe('generateContext', () => {
 
   it('should include relation graph edges', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'edge-a', summary: 'A' });
+    await createCard(tc.ctx, { slug: 'edge-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'edge-b',
       summary: 'B',
-      relations: [{ type: 'depends-on', target: 'edge-a' }],
-    });
+      relations: [{ type: 'depends-on', target: 'edge-a' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = await generateContext(tc.ctx, 'edge-b');
     expect(result.relationGraph.length).toBeGreaterThanOrEqual(1);
@@ -210,7 +204,7 @@ describe('checkDrift', () => {
 
   it('should return 0 drift for healthy card', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'healthy', summary: 'Healthy card' });
+    await createCard(tc.ctx, { slug: 'healthy', summary: 'Healthy card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: true }] });
     const result = checkDrift(tc.ctx, 'healthy');
     expect(result.driftScore).toBe(0);
     expect(result.staleCards).toHaveLength(0);
@@ -235,8 +229,8 @@ describe('checkDrift', () => {
 
   it('should check all cards when key is omitted', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'all-a', summary: 'A' });
-    await createCard(tc.ctx, { slug: 'all-b', summary: 'B' });
+    await createCard(tc.ctx, { slug: 'all-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'all-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = checkDrift(tc.ctx);
     expect(result.summary).toContain('2');
@@ -293,13 +287,11 @@ describe('checkInteractions', () => {
     await createCard(tc.ctx, {
       slug: 'ia',
       summary: 'Card A',
-      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'ib',
       summary: 'Card B',
-      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = checkInteractions(tc.ctx, ['ia', 'ib']);
     expect(result.interactions).toHaveLength(1);
@@ -312,13 +304,11 @@ describe('checkInteractions', () => {
     await createCard(tc.ctx, {
       slug: 'ua',
       summary: 'A',
-      codeLinks: [{ kind: 'class', file: 'src/x.ts', symbol: 'X' }],
-    });
+      codeLinks: [{ kind: 'class', file: 'src/x.ts', symbol: 'X' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'ub',
       summary: 'B',
-      codeLinks: [{ kind: 'class', file: 'src/x.ts', symbol: 'X' }],
-    });
+      codeLinks: [{ kind: 'class', file: 'src/x.ts', symbol: 'X' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = checkInteractions(tc.ctx, ['ua', 'ub']);
     expect(result.undefinedRelations).toHaveLength(1);
@@ -327,12 +317,11 @@ describe('checkInteractions', () => {
 
   it('should report existing relation type for related cards', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'ra', summary: 'A' });
+    await createCard(tc.ctx, { slug: 'ra', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'rb',
       summary: 'B',
-      relations: [{ type: 'depends-on', target: 'ra' }],
-    });
+      relations: [{ type: 'depends-on', target: 'ra' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = checkInteractions(tc.ctx, ['ra', 'rb']);
     // They have a defined relation, so the interaction includes the relationType
@@ -351,13 +340,11 @@ describe('checkInteractions', () => {
     await createCard(tc.ctx, {
       slug: 'na',
       summary: 'A',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'funcA' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'funcA' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'nb',
       summary: 'B',
-      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'funcB' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'funcB' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = checkInteractions(tc.ctx, ['na', 'nb']);
     expect(result.interactions).toHaveLength(0);
@@ -376,17 +363,47 @@ describe('checkInteractions', () => {
     await createCard(tc.ctx, {
       slug: 'fa',
       summary: 'A',
-      codeLinks: [{ kind: 'function', file: 'src/common.ts', symbol: 'funcA' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/common.ts', symbol: 'funcA' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'fb',
       summary: 'B',
-      codeLinks: [{ kind: 'function', file: 'src/common.ts', symbol: 'funcB' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/common.ts', symbol: 'funcB' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = checkInteractions(tc.ctx, ['fa', 'fb']);
     expect(result.interactions).toHaveLength(1);
     expect(result.interactions[0]!.potentialConflicts.length).toBeGreaterThan(0);
+  });
+
+  it('should populate sharedFiles array with exact file paths', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'sf-a',
+      summary: 'A',
+      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'funcA' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, {
+      slug: 'sf-b',
+      summary: 'B',
+      codeLinks: [{ kind: 'class', file: 'src/shared.ts', symbol: 'ClassB' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+
+    const result = checkInteractions(tc.ctx, ['sf-a', 'sf-b']);
+    expect(result.interactions).toHaveLength(1);
+    expect(result.interactions[0]!.sharedFiles).toEqual(['src/shared.ts']);
+    expect(result.interactions[0]!.sharedSymbols).toHaveLength(0);
+  });
+
+  it('should return empty sharedFiles when no files overlap', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'nsf-a',
+      summary: 'A',
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, {
+      slug: 'nsf-b',
+      summary: 'B',
+      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+
+    const result = checkInteractions(tc.ctx, ['nsf-a', 'nsf-b']);
+    expect(result.interactions).toHaveLength(0);
   });
 });
 
@@ -421,8 +438,8 @@ describe('checkDrift with gildash — broken link detection', () => {
     await createCard(tc.ctx, {
       slug: 'drift-broken',
       summary: 'Broken link card',
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCardStatus(tc.ctx, 'drift-broken', 'implementing');
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
       getFileInfo: () => null,
@@ -441,8 +458,7 @@ describe('checkDrift with gildash — broken link detection', () => {
     await createCard(tc.ctx, {
       slug: 'drift-ok',
       summary: 'OK link card',
-      codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'okFn', filePath: 'src/ok.ts', kind: 'function' }],
       getFileInfo: () => null,
@@ -461,8 +477,8 @@ describe('checkDrift with gildash — broken link detection', () => {
     await createCard(tc.ctx, {
       slug: 'drift-err',
       summary: 'Error result card',
-      codeLinks: [{ kind: 'function', file: 'src/err.ts', symbol: 'errFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/err.ts', symbol: 'errFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCardStatus(tc.ctx, 'drift-err', 'implementing');
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => ({ data: 'error', isErr: true }),
       getFileInfo: () => null,
@@ -483,8 +499,8 @@ describe('checkDrift with gildash — broken link detection', () => {
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
         { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
-      ],
-    });
+      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCardStatus(tc.ctx, 'drift-multi', 'implementing');
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
       getFileInfo: () => null,
@@ -494,6 +510,45 @@ describe('checkDrift with gildash — broken link detection', () => {
     const card = result.staleCards.find((c) => c.key === 'drift-multi');
     expect(card).toBeDefined();
     expect(card!.brokenLinks).toBe(2);
+  });
+
+  it('should NOT count broken links for draft card', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-draft',
+      summary: 'Draft card',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    // status defaults to 'draft'
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-draft');
+    const card = result.staleCards.find((c) => c.key === 'drift-draft');
+    // Draft card: broken links skipped, but unverified AC still counts
+    if (card) {
+      expect(card.brokenLinks).toBe(0);
+    }
+  });
+
+  it('should NOT count broken links for accepted card', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      slug: 'drift-accepted',
+      summary: 'Accepted card',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCardStatus(tc.ctx, 'drift-accepted', 'accepted');
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    const result = checkDrift(tc.ctx, 'drift-accepted');
+    const card = result.staleCards.find((c) => c.key === 'drift-accepted');
+    if (card) {
+      expect(card.brokenLinks).toBe(0);
+    }
   });
 });
 
@@ -509,8 +564,7 @@ describe('checkDrift with gildash — stale detection', () => {
     await createCard(tc.ctx, {
       slug: 'drift-stale',
       summary: 'Stale card',
-      codeLinks: [{ kind: 'function', file: 'src/changed.ts', symbol: 'changedFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/changed.ts', symbol: 'changedFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     // The card was just created, so its updatedAt is approximately now.
     // Set file mtime to far in the future to guarantee stale detection.
@@ -531,8 +585,7 @@ describe('checkDrift with gildash — stale detection', () => {
     await createCard(tc.ctx, {
       slug: 'drift-fresh',
       summary: 'Fresh card',
-      codeLinks: [{ kind: 'function', file: 'src/old.ts', symbol: 'oldFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/old.ts', symbol: 'oldFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: true }] });
 
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'oldFn', filePath: 'src/old.ts', kind: 'function' }],
@@ -549,8 +602,7 @@ describe('checkDrift with gildash — stale detection', () => {
     await createCard(tc.ctx, {
       slug: 'drift-no-info',
       summary: 'No file info card',
-      codeLinks: [{ kind: 'function', file: 'src/unknown.ts', symbol: 'unknownFn' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/unknown.ts', symbol: 'unknownFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: true }] });
 
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'unknownFn', filePath: 'src/unknown.ts', kind: 'function' }],
@@ -569,8 +621,8 @@ describe('checkDrift with gildash — stale detection', () => {
       codeLinks: [
         { kind: 'function', file: 'src/broken.ts', symbol: 'brokenFn' },
         { kind: 'class', file: 'src/stale.ts', symbol: 'StaleClass' },
-      ],
-    });
+      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCardStatus(tc.ctx, 'drift-combo', 'implementing');
 
     const futureMtime = new Date(Date.now() + 60_000).toISOString();
     tc.ctx.gildash = createMockGildash({

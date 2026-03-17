@@ -10,6 +10,8 @@ import { GildashNotConfiguredError } from '../card/errors';
 export interface SpecSyncResult {
   /** Number of code links auto-created from @spec annotations. */
   created: number;
+  /** Number of @spec annotations that matched an existing code link (skipped). */
+  alreadyLinked: number;
   /** Annotations that could not be linked (no card found for the spec key). */
   unmatched: Array<{ cardKey: string; file: string; symbol: string }>;
 }
@@ -20,11 +22,15 @@ export interface SpecSyncResult {
  * Only creates links that don't already exist (manual links are preserved).
  * Annotations without a matching card key are reported as unmatched.
  */
-export function syncSpecAnnotations(ctx: EmberdeckContext): SpecSyncResult {
+export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSyncResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
 
+  if (typeof ctx.gildash.reindex === 'function') {
+    await ctx.gildash.reindex();
+  }
   const annotations = ctx.gildash.searchAnnotations({ tag: 'spec', limit: 10000 });
   let created = 0;
+  let alreadyLinked = 0;
   const unmatched: SpecSyncResult['unmatched'] = [];
 
   for (const ann of annotations) {
@@ -48,7 +54,10 @@ export function syncSpecAnnotations(ctx: EmberdeckContext): SpecSyncResult {
     const alreadyExists = existing.some(
       (l) => l.file === ann.filePath && l.symbol === ann.symbolName,
     );
-    if (alreadyExists) continue;
+    if (alreadyExists) {
+      alreadyLinked++;
+      continue;
+    }
 
     // Determine kind from gildash symbol search
     let kind = 'unknown';
@@ -76,7 +85,7 @@ export function syncSpecAnnotations(ctx: EmberdeckContext): SpecSyncResult {
     created++;
   }
 
-  return { created, unmatched };
+  return { created, alreadyLinked, unmatched };
 }
 
 // ── Symbol rename/move sync ──
@@ -203,11 +212,15 @@ export interface LinkCoverageResult {
  * Checks how many declared links resolve in gildash, and finds
  * unreferenced symbols in the same files.
  */
-export function getLinkCoverage(
+export async function getLinkCoverage(
   ctx: EmberdeckContext,
   fullKey: string,
-): LinkCoverageResult {
+): Promise<LinkCoverageResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
+
+  if (typeof ctx.gildash.reindex === 'function') {
+    await ctx.gildash.reindex();
+  }
 
   const links = ctx.codeLinkRepo.findByCardKey(fullKey);
   if (links.length === 0) {

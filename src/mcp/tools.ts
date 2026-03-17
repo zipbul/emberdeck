@@ -120,7 +120,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         summary: z.string().describe('One-line summary of the card'),
         type: cardTypeEnum.optional().describe('Card type (feature/bug/refactor/spike/decision)'),
         priority: priorityEnum.optional().describe('Priority (critical/high/medium/low)'),
-        acceptance: z.array(acceptanceSchema).optional().describe('Acceptance criteria [{id, description, verified}]'),
+        acceptance: z.array(acceptanceSchema).describe('Acceptance criteria [{id, description, verified}] — required, at least one'),
         body: z.string().optional().describe('Markdown body'),
         keywords: z.array(z.string()).optional().describe('Keyword list for search'),
         tags: z.array(z.string()).optional().describe('Tag list for classification'),
@@ -134,7 +134,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       summary: string;
       type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
       priority?: 'critical' | 'high' | 'medium' | 'low';
-      acceptance?: Array<{ id: string; description: string; verified: boolean }>;
+      acceptance: Array<{ id: string; description: string; verified: boolean }>;
       body?: string;
       keywords?: string[];
       tags?: string[];
@@ -165,7 +165,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
           summary: z.string().describe('One-line summary'),
           type: cardTypeEnum.optional().describe('Card type'),
           priority: priorityEnum.optional().describe('Priority'),
-          acceptance: z.array(acceptanceSchema).optional().describe('Acceptance criteria'),
+          acceptance: z.array(acceptanceSchema).describe('Acceptance criteria — required'),
           body: z.string().optional().describe('Markdown body'),
           keywords: z.array(z.string()).optional().describe('Keywords'),
           tags: z.array(z.string()).optional().describe('Tags'),
@@ -181,7 +181,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         summary: string;
         type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
         priority?: 'critical' | 'high' | 'medium' | 'low';
-        acceptance?: Array<{ id: string; description: string; verified: boolean }>;
+        acceptance: Array<{ id: string; description: string; verified: boolean }>;
         body?: string;
         keywords?: string[];
         tags?: string[];
@@ -225,7 +225,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Update card fields when the spec evolves or needs refinement. ' +
         'Only pass the fields you want to change; the rest are preserved.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
         summary: z.string().optional().describe('New summary'),
         type: cardTypeEnum.nullable().optional().describe('Card type (null to remove)'),
@@ -237,7 +237,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         relations: z.array(relationSchema).nullable().optional().describe('Relations (null to remove)'),
         codeLinks: z.array(codeLinkSchema).nullable().optional().describe('Code links (null to remove)'),
         constraints: z.record(z.string(), z.unknown()).optional().describe('Constraints'),
-      },
+      }).strict(),
     },
     async (args: {
       key: string;
@@ -590,16 +590,30 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_validate_code_links',
     {
       description:
-        'Validate that a card\'s code links exist in the current symbol index. Requires gildash. ' +
-        'Use to detect broken links after code refactoring or symbol renames.',
+        'Validate that code links exist in the current symbol index. Requires gildash. ' +
+        'Use to detect broken links after code refactoring or symbol renames. ' +
+        'Omit key to validate all cards at once.',
       inputSchema: {
-        key: z.string().describe('Card key'),
+        key: z.string().optional().describe('Card key (omit to validate all cards)'),
       },
     },
-    async (args: { key: string }) => {
+    async (args: { key?: string }) => {
       try {
-        const result = await validateCodeLinks(ctx, args.key);
-        return ok(result);
+        if (args.key) {
+          const result = await validateCodeLinks(ctx, args.key);
+          return ok(result);
+        }
+        // Batch: validate all cards
+        const allCards = ctx.cardRepo.list();
+        const results: Record<string, Awaited<ReturnType<typeof validateCodeLinks>>> = {};
+        for (const card of allCards) {
+          try {
+            results[card.key] = await validateCodeLinks(ctx, card.key);
+          } catch {
+            // Skip cards whose files are missing
+          }
+        }
+        return ok(results);
       } catch (err) {
         return fail(err);
       }
@@ -800,7 +814,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     },
     async () => {
       try {
-        const result = syncSpecAnnotations(ctx);
+        const result = await syncSpecAnnotations(ctx);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -842,7 +856,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     },
     async (args: { key: string }) => {
       try {
-        const result = getLinkCoverage(ctx, args.key);
+        const result = await getLinkCoverage(ctx, args.key);
         return ok(result);
       } catch (err) {
         return fail(err);
