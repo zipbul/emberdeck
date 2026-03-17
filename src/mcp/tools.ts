@@ -114,14 +114,16 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Record a new feature, decision, or spec before implementation. ' +
-        'Use this to capture intent as a card. Requires slug (filename) and summary.',
+        'Use this to capture design knowledge as a card. ' +
+        'Before calling: gather context by reading relevant code and asking the user about policies/constraints. ' +
+        'The body should contain design rationale, invariants, and scope boundaries — not file listings (use codeLinks for that).',
       inputSchema: {
         slug: z.string().describe('Card slug used as filename (e.g. "auth-token")'),
         summary: z.string().describe('One-line summary of the card'),
         type: cardTypeEnum.optional().describe('Card type (feature/bug/refactor/spike/decision)'),
         priority: priorityEnum.optional().describe('Priority (critical/high/medium/low)'),
         acceptance: z.array(acceptanceSchema).describe('Acceptance criteria [{id, description, verified}] — required, at least one'),
-        body: z.string().optional().describe('Markdown body'),
+        body: z.string().optional().describe('Design knowledge: rationale (why this approach, what alternatives were rejected), invariants (what must not break), scope boundaries (what this deliberately does NOT do), edge cases. Never duplicate codeLinks here.'),
         keywords: z.array(z.string()).optional().describe('Keyword list for search'),
         tags: z.array(z.string()).optional().describe('Tag list for classification'),
         relations: z.array(relationSchema).optional().describe('Relations [{type, target}]'),
@@ -155,10 +157,10 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_bulk_create_cards',
     {
       description:
-        'Create multiple cards at once. Use when bootstrapping an existing project with specs, ' +
-        'or when a sub-agent generates cards for an entire feature area. ' +
-        'Relations between cards in the same batch are resolved regardless of order. ' +
-        'Partially succeeds on item failure.',
+        'Create multiple cards at once. Relations between cards in the same batch are resolved regardless of order. ' +
+        'Partially succeeds on item failure. ' +
+        'Each card still requires substantive body content — read the relevant code and gather design knowledge before calling. ' +
+        'Do not use this to mass-produce shallow cards.',
       inputSchema: {
         cards: z.array(z.object({
           slug: z.string().describe('Card slug (e.g. "auth-token")'),
@@ -166,7 +168,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
           type: cardTypeEnum.optional().describe('Card type'),
           priority: priorityEnum.optional().describe('Priority'),
           acceptance: z.array(acceptanceSchema).describe('Acceptance criteria — required'),
-          body: z.string().optional().describe('Markdown body'),
+          body: z.string().optional().describe('Design knowledge: rationale, invariants, scope boundaries, edge cases. Never duplicate codeLinks here.'),
           keywords: z.array(z.string()).optional().describe('Keywords'),
           tags: z.array(z.string()).optional().describe('Tags'),
           relations: z.array(relationSchema).optional().describe('Relations [{type, target}]'),
@@ -224,14 +226,15 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Update card fields when the spec evolves or needs refinement. ' +
-        'Only pass the fields you want to change; the rest are preserved.',
+        'Only pass the fields you want to change; the rest are preserved. ' +
+        'When updating body, ensure it contains design knowledge — not file listings.',
       inputSchema: z.object({
         key: z.string().describe('Card key'),
         summary: z.string().optional().describe('New summary'),
         type: cardTypeEnum.nullable().optional().describe('Card type (null to remove)'),
         priority: priorityEnum.nullable().optional().describe('Priority (null to remove)'),
         acceptance: z.array(acceptanceSchema).nullable().optional().describe('Acceptance criteria (null to remove)'),
-        body: z.string().optional().describe('New body'),
+        body: z.string().optional().describe('Design knowledge: rationale, invariants, scope boundaries, edge cases. Never duplicate codeLinks here.'),
         keywords: z.array(z.string()).nullable().optional().describe('Keywords (null to remove)'),
         tags: z.array(z.string()).nullable().optional().describe('Tags (null to remove)'),
         relations: z.array(relationSchema).nullable().optional().describe('Relations (null to remove)'),
