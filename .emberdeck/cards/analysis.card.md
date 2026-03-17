@@ -1,40 +1,39 @@
 ---
-{key: analysis,summary: "Impact analysis, drift scoring, acceptance tracking, context generation, regression guard",status: draft,type: feature,priority: medium,acceptance: [{id: AC1,description: preChangeCheck identifies affected cards and at-risk AC with currentlyVerified flag,verified: false},{id: AC2,description: "checkDrift calculates weighted 0-1 score, exempting draft/accepted cards from broken link counting",verified: false},{id: AC3,description: regressionGuard returns pass/warn/fail verdict combining link health and Firebat results,verified: false},{id: AC4,description: verifyAcceptance toggles criterion verified flag and records changelog,verified: false},{id: AC5,description: checkInteractions reports sharedFiles and sharedSymbols between card pairs,verified: false}],keywords: [impact,drift,regression,acceptance,context,interactions,risk],tags: [ops,analysis],relations: [{type: depends-on,target: card-queries},{type: depends-on,target: code-links},{type: depends-on,target: persistence}],codeLinks: [{kind: function,file: src/ops/impact.ts,symbol: preChangeCheck},{kind: function,file: src/ops/impact.ts,symbol: regressionGuard},{kind: function,file: src/ops/context.ts,symbol: generateContext},{kind: function,file: src/ops/context.ts,symbol: checkDrift},{kind: function,file: src/ops/context.ts,symbol: checkInteractions},{kind: function,file: src/ops/acceptance.ts,symbol: verifyAcceptance},{kind: function,file: src/ops/acceptance.ts,symbol: listUnverified}]}
+{key: analysis,summary: "Analysis operations: context generation, drift detection, interaction analysis, impact assessment, and regression guards",status: draft,type: decision,priority: high,acceptance: [{id: ac-1,description: "generateContext BFS-traverses the relation graph from a root card, collecting summaries, acceptance criteria, code links, recent changes, and constraints into a ContextPack.",verified: true},{id: ac-2,description: "generateContext defaults: maxCards=20, maxDepth=3, includeBody=false. Body is only included for the root card when opted in.",verified: true},{id: ac-3,description: "checkDrift produces a 0-1 drift score using weighted formula: brokenLinkRatio*0.3 + staleCardRatio*0.3 + unverifiedRatio*0.2 + missingLinkRatio*0.2.",verified: true},{id: ac-4,description: "checkDrift operates on a single card's graph or all cards (when fullKey is omitted).",verified: true},{id: ac-5,description: "checkInteractions detects shared symbols, shared files, existing relations, and potential conflicts between card pairs.",verified: true},{id: ac-6,description: "preChangeCheck finds directly affected cards (via code links) and transitively affected cards (via backward BFS), then identifies at-risk acceptance criteria.",verified: true},{id: ac-7,description: "regressionGuard combines changed file analysis with optional Firebat report, producing a quality gate (pass/warn/fail).",verified: true},{id: ac-8,description: "Risk level calculation: critical if any affected card has critical priority, high if 3+ direct cards or verified acceptance at risk, medium if 1+ direct, low otherwise.",verified: true}],keywords: [generateContext,checkDrift,checkInteractions,preChangeCheck,regressionGuard,ContextPack,DriftResult],tags: [operations,analysis,impact],relations: [{type: depends-on,target: card-queries},{type: depends-on,target: code-links},{type: depends-on,target: persistence}],codeLinks: [{kind: function,file: src/ops/context.ts,symbol: generateContext},{kind: function,file: src/ops/context.ts,symbol: checkDrift},{kind: function,file: src/ops/context.ts,symbol: checkInteractions},{kind: function,file: src/ops/impact.ts,symbol: preChangeCheck},{kind: function,file: src/ops/impact.ts,symbol: regressionGuard}]}
 ---
-## Why
+## Rationale
 
-These are higher-order operations that consume the primitive operations (queries, code links) to answer planning questions: "what will this change break?", "how stale are my specs?", "what's left to verify?".
+Analysis operations compose lower-level queries and code link data into actionable insights. They exist as a separate layer because:
 
-Drift score uses a weighted formula: `brokenLinks*0.3 + staleCards*0.3 + unverifiedAC*0.2 + missingLinks*0.2`. Broken links and stale cards each get 0.3 because they represent active regression risk — code has changed. Unverified acceptance gets 0.2 because it's spec debt, not active regression. `missingLinkRatio` is always 0 (reserved for future @spec auto-detection). Draft/accepted cards are exempt from broken link counting because their code doesn't exist yet.
+- They read from multiple data sources (cards, relations, code links, changelog, gildash)
+- They produce derived metrics (drift scores, risk levels) not stored anywhere
+- They are the primary interface for AI agents making decisions about what to change
 
-`preChangeCheck` reports ALL acceptance criteria on affected cards (both verified and unverified) with a `currentlyVerified` flag. Previously it only reported verified AC, making it impossible to know which unverified criteria might be satisfied by the change. Risk elevation to "high" only happens for verified regressions — unverified AC alone stays "medium".
+### generateContext: Why a ContextPack?
 
-`checkInteractions` detects shared files between card pairs via an explicit `sharedFiles` array, separate from `sharedSymbols`. Cards linking to the same file but different symbols indicates architectural coupling even without symbol overlap.
+AI agents need a compact, structured snapshot of related specs before making changes. Rather than forcing the agent to make 5+ separate calls, `generateContext` assembles everything into one pack. The 20-card limit prevents context window overflow.
 
-`regressionGuard` accepts Firebat scan results as-is (unknown type, parsed internally). This avoids coupling to Firebat's schema — the guard adapts to whatever format is passed.
+### checkDrift: Why a Weighted Score?
 
-## Invariants
+A single 0-1 number is easier for automated workflows to threshold on than multiple boolean flags. The weights reflect relative importance:
+- Broken links and stale cards (0.3 each) are the strongest drift signals
+- Unverified acceptance (0.2) is important but may be intentional during active development
+- Missing link ratio (0.2) is reserved for Phase 2 auto-detection and currently always 0
 
-- Drift score range: 0.0 (fully synchronized) to 1.0 (completely stale), rounded to 2 decimals.
-- Risk levels: `critical` (affected card has priority=critical) > `high` (3+ direct cards OR verified AC at risk) > `medium` (1-2 direct cards) > `low` (only transitive dependents).
-- `generateContext` BFS maxDepth defaults to 3. Only root card's body is included when `includeBody=true`.
-- `verifyAcceptance` flips the `verified` flag on criteria — does NOT validate criterion IDs against the card's actual criteria list.
-- `listUnverified` returns cards with at least one `verified: false` criterion.
+### preChangeCheck + regressionGuard: Two-Phase Impact
+
+`preChangeCheck` is called BEFORE making changes (planning phase). `regressionGuard` is called AFTER changes with optional Firebat static analysis results. This separation allows the agent to:
+1. Assess risk before writing code
+2. Validate quality after writing code
+
+## Key Invariants
+
+- **Drift without gildash**: When gildash is not configured, broken link counting is skipped entirely. The drift score only reflects acceptance health and stale card ratio. This is graceful degradation, not an error.
+- **Stale detection**: A card is "stale" when any of its linked files has a modification time after the card's `updatedAt` timestamp. This uses gildash's `getFileInfo` for mtime.
+- **Interaction analysis is O(n^2)**: It checks all pairs of input cards. This is acceptable because the typical input is a small set (5-10 cards from a BFS).
+- **Firebat integration is loosely coupled**: `regressionGuard` accepts `unknown` for the Firebat report and parses it defensively. This avoids a hard dependency on Firebat's schema.
 
 ## Scope Boundaries
 
-- Does NOT auto-verify acceptance criteria — agent must explicitly call `verifyAcceptance`.
-- Does NOT run tests or execute code — purely static analysis of card/link state.
-- Does NOT garbage-collect changelog — history grows unbounded.
-- Does NOT provide incremental drift — always recalculates from full state.
-- `regressionGuard` does NOT validate Firebat report structure — tolerates any shape.
-- `checkInteractions` does NOT analyze import/dependency graphs — only codeLink overlap.
-
-## Edge Cases
-
-- `preChangeCheck` with no affected cards: returns `riskLevel: 'low'`, empty arrays.
-- `checkDrift` with no cards at all: returns `{ driftScore: 0, summary: 'No cards found.' }`.
-- `checkDrift` with gildash not configured: broken link counting skipped entirely (graceful degradation).
-- `generateContext` for nonexistent card: throws Error.
-- `regressionGuard` with string/number as firebatReport: treated as no issues (graceful).
-- `checkInteractions` with empty card list: returns empty interactions and undefinedRelations.
+- Analysis operations are read-only. They never mutate cards or the database.
+- `verifyAcceptance`, `listUnverified`, and `getCardHistory` (in acceptance.ts) are related but simpler — they query acceptance state without computing derived metrics.

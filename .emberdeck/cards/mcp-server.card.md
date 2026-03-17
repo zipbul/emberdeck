@@ -1,40 +1,34 @@
 ---
-{key: mcp-server,summary: "MCP tool registration — structural typing, Zod schemas, context lifecycle, graceful shutdown",status: draft,type: feature,priority: critical,acceptance: [{id: AC1,description: registerEmberdeckTools registers all ops with Zod input schemas on McpServerLike,verified: false},{id: AC2,description: update_card .strict() rejects unknown input keys,verified: false},{id: AC3,description: setupEmberdeck initializes DB + repos + optional gildash with graceful degradation,verified: false},{id: AC4,description: "teardownEmberdeck closes gildash then DB, safe to call with undefined gildash",verified: false},{id: AC5,description: validate_code_links accepts optional key for batch validation of all cards,verified: false}],keywords: [mcp,tools,zod,setup,teardown,gildash,lifecycle],tags: [infra,mcp],relations: [{type: depends-on,target: card-crud},{type: depends-on,target: card-queries},{type: depends-on,target: code-links},{type: depends-on,target: analysis},{type: depends-on,target: card-sync},{type: depends-on,target: config-system}],codeLinks: [{kind: function,file: src/mcp/tools.ts,symbol: registerEmberdeckTools},{kind: function,file: src/setup.ts,symbol: setupEmberdeck},{kind: function,file: src/setup.ts,symbol: teardownEmberdeck}]}
+{key: mcp-server,summary: "MCP tool registration: exposes all emberdeck operations as MCP tools with zod v4 schemas and structured JSON responses",status: draft,type: decision,priority: high,acceptance: [{id: ac-1,description: registerEmberdeckTools is a single function that registers all tools on a McpServer instance.,verified: true},{id: ac-2,description: "All tools return JSON via the ok() helper (content: [{type: 'text', text: JSON.stringify(data, null, 2)}]).",verified: true},{id: ac-3,description: "Errors are caught and returned via fail() with isError: true, not thrown.",verified: true},{id: ac-4,description: "Tool input schemas use zod v4 (imported from 'zod/v4').",verified: true},{id: ac-5,description: "@modelcontextprotocol/sdk is an optional peer dependency. The MCP module is only imported when the SDK is available.",verified: true},{id: ac-6,description: "Tool descriptions follow AX principles: they describe the tool's role and when to use it, not just what it does.",verified: true},{id: ac-7,description: Every public ops function has a corresponding MCP tool with the emberdeck_ prefix.,verified: true}],keywords: [registerEmberdeckTools,MCP,McpServer,zod,tool-registration],tags: [integration,mcp,api],relations: [{type: depends-on,target: card-crud},{type: depends-on,target: card-queries},{type: depends-on,target: code-links},{type: depends-on,target: analysis},{type: depends-on,target: config-system}],codeLinks: [{kind: function,file: src/mcp/tools.ts,symbol: registerEmberdeckTools}]}
 ---
-## Why
+## Rationale
 
-MCP tool registration uses structural typing (`McpServerLike` interface) instead of importing `@modelcontextprotocol/sdk` directly. This decouples emberdeck from the SDK version — any MCP server implementation with a compatible `registerTool(name, config, callback)` signature works. The SDK is an optional peer dependency, not a hard requirement.
+The MCP layer is the primary interface for AI agents to interact with emberdeck. It wraps the TypeScript API into the MCP tool protocol, which AI assistants (Claude, etc.) can call directly.
 
-Each tool wraps an ops-layer function with try-catch. Success returns `ok({ data })` (JSON stringified), errors return `fail(err)` with `isError: true`. This pattern ensures MCP protocol compliance without leaking internal error types.
+### Why a Single Registration Function?
 
-`update_card` uses `.strict()` on its Zod schema to reject unknown keys. This was added because agents were wrapping fields in a `{ fields: { body: "..." } }` object instead of flat params `{ body: "..." }` — the update silently did nothing. `.strict()` makes this fail with a Zod validation error.
+`registerEmberdeckTools(server, ctx)` registers all tools at once. This was chosen over per-tool registration because:
+- The MCP server is initialized once at startup
+- All tools share the same `EmberdeckContext`
+- Adding a new tool is a single addition to one file, not a new module
 
-`validate_code_links` accepts optional `key` — omit to validate all cards at once (batch mode). This was added to reduce the N tool calls required when checking multiple cards after a multi-file change.
+### Why zod v4?
 
-`setupEmberdeck` initializes DB, creates all 5 repository instances, and optionally opens gildash. Gildash initialization is failure-tolerant — if `Gildash.open()` fails, gildash is silently set to undefined and code-link features are disabled. This supports graceful degradation: emberdeck works without gildash, just without symbol resolution.
+The `@modelcontextprotocol/sdk` requires zod for tool input schema definition. Emberdeck uses `zod/v4` (the modern import path) to avoid compatibility issues with the SDK's schema conversion.
 
-`teardownEmberdeck` closes gildash (async) then DB (sync). Must be awaited before process exit.
+### Error Handling: Return, Don't Throw
 
-## Invariants
+MCP tools should never throw. All errors are caught in each tool handler and returned as `{ isError: true, content: [{ type: 'text', text: errorMessage }] }`. This ensures the AI agent always gets a useful error message rather than a protocol-level failure.
 
-- All tools return `{ content: [{ type: 'text', text: JSON.stringify(data) }] }` on success.
-- All tools return `{ content: [{ type: 'text', text: errorMessage }], isError: true }` on failure.
-- `update_card` rejects unknown input keys via `.strict()`.
-- `validate_code_links` with no key validates all cards, skipping those whose files are missing.
-- `setupEmberdeck` always creates all 5 repositories — none are null.
-- Gildash is set to undefined (not null) when not configured or when initialization fails.
+## Key Invariants
+
+- **1:1 mapping**: Every function exported from `index.ts` operations has a corresponding MCP tool. No hidden functionality.
+- **No business logic in tools.ts**: The MCP layer is purely a thin adapter. Input parsing (zod), calling the ops function, and output formatting (ok/fail) is all it does.
+- **Shared schemas**: Common zod schemas (relationSchema, codeLinkSchema, acceptanceSchema) are defined once and reused across tools to keep definitions DRY.
+- **Optional dependency**: The MCP module imports from `@modelcontextprotocol/sdk` which is an optional peer dep. Projects that don't use MCP don't need to install it.
 
 ## Scope Boundaries
 
-- Does NOT expose raw DB queries — only ops-layer functions.
-- Does NOT manage MCP server lifecycle — caller owns server creation and transport.
-- Does NOT include internal utilities or repository implementations.
-- Does NOT validate MCP protocol compliance — assumes SDK handles framing.
-- Tool descriptions guide agent behavior but do NOT enforce body quality at the tool level.
-
-## Edge Cases
-
-- `setupEmberdeck` with invalid `projectRoot`: gildash silently disabled, no error.
-- `teardownEmberdeck` with undefined gildash: safely skips gildash close.
-- `validate_code_links` batch mode with no cards: returns empty object `{}`.
-- `update_card` with `{ key: "x", fields: { body: "y" } }`: Zod `.strict()` rejects `fields` key.
+- This card covers the MCP tool registration only. The CLI (`cli.ts`) is a separate entry point that uses the same ops functions but with different I/O.
+- Tool descriptions are written for AI agents, not humans. They follow the project's AX (Agent Experience) principles: role-based descriptions, usage hints, and input tolerance guidance.
+- The MCP server itself (transport, lifecycle) is configured by the host process, not by emberdeck. `registerEmberdeckTools` only registers tools on an existing server instance.

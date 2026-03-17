@@ -157,10 +157,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_bulk_create_cards',
     {
       description:
-        'Create multiple cards at once. Relations between cards in the same batch are resolved regardless of order. ' +
-        'Partially succeeds on item failure. ' +
-        'Each card still requires substantive body content — read the relevant code and gather design knowledge before calling. ' +
-        'Do not use this to mass-produce shallow cards.',
+        '[DISABLED] This tool is temporarily disabled. Create cards one at a time using emberdeck_create_card instead — ' +
+        'each card requires careful analysis of the relevant code before creation.',
       inputSchema: {
         cards: z.array(z.object({
           slug: z.string().describe('Card slug (e.g. "auth-token")'),
@@ -177,27 +175,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         })).describe('Array of card inputs (same schema as create_card)'),
       },
     },
-    async (args: {
-      cards: Array<{
-        slug: string;
-        summary: string;
-        type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
-        priority?: 'critical' | 'high' | 'medium' | 'low';
-        acceptance: Array<{ id: string; description: string; verified: boolean }>;
-        body?: string;
-        keywords?: string[];
-        tags?: string[];
-        relations?: Array<{ type: string; target: string }>;
-        codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
-        constraints?: Record<string, unknown>;
-      }>;
-    }) => {
-      try {
-        const result = await bulkCreateCards(ctx, args.cards);
-        return ok(result);
-      } catch (err) {
-        return fail(err);
-      }
+    async () => {
+      return fail(new Error('bulk_create_cards is temporarily disabled. Use emberdeck_create_card to create cards one at a time.'));
     },
   );
 

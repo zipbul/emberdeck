@@ -5,28 +5,38 @@ description: Design knowledge management for codebases using Emberdeck MCP tools
 
 # Emberdeck
 
-Emberdeck keeps design knowledge linked to code. Before changing code, check what design decisions constrain it. After changing code, verify nothing broke. Skipping this leads to silent invariant violations that compound over time.
+Check design knowledge before changing code. Verify consistency after changing code.
+Never directly read/write `.emberdeck/cards/*.card.md` files. Use `emberdeck_*` MCP tools only.
 
-**Never** directly read/write `.emberdeck/cards/*.card.md` files. Use `emberdeck_*` MCP tools only.
+## Before every call to emberdeck_create_card
 
-## Principle
+You MUST first output your analysis to the user showing:
 
-Check before change. Verify after change.
+1. **Most fragile invariant** — what condition in this code is easiest to accidentally break?
+2. **Why this approach** — what alternative was considered and why was it rejected?
+3. **Uninformed agent risk** — what mistake would an agent make if they modified this code without reading this card?
+4. **Scope boundary** — what does this code deliberately NOT do?
+
+If you cannot answer these from the code you've read, you have not analyzed deeply enough — go back and read more. For new features where code doesn't exist yet, ask the user about policies, constraints, and non-goals instead.
+
+After outputting the analysis, ask yourself before proceeding:
+- What am I **most uncertain about** in this analysis?
+- What did I **initially dismiss** that deserves a second look?
+
+Revise if reflection reveals gaps. Then get user confirmation before calling `emberdeck_create_card`.
 
 ## When to act
 
-### User asks to build a feature
+### Building a feature
 
-1. `emberdeck_search_cards` / `emberdeck_find_affected_cards` — find related cards
-2. If cards exist: `emberdeck_get_card` — read design intent, acceptance criteria, constraints
-3. If no card covers this feature: create one first
-   - Read relevant code and ask the user about policies, constraints, non-goals
-   - `emberdeck_create_card` with substantive body (see body guide below)
+1. `emberdeck_find_affected_cards` — find related cards
+2. If cards exist: `emberdeck_get_card` — read design intent, acceptance criteria, constraints. Work within them.
+3. If no card covers this feature: analyze the code, then create a card (the rule above applies).
 4. Write code within the card's constraints
 5. `emberdeck_validate_code_links` — verify consistency
 6. If acceptance criteria are satisfied: `emberdeck_verify_acceptance`
 
-### User asks to fix a bug
+### Fixing a bug
 
 1. `emberdeck_find_affected_cards` — check if the buggy code has a card
 2. If card exists: read it. Fix within the card's invariants.
@@ -38,10 +48,10 @@ Check before change. Verify after change.
 1. `emberdeck_get_relation_graph` — map the blast radius through card dependencies
 2. `emberdeck_pre_change_check` — identify all at-risk acceptance criteria
 3. `emberdeck_check_interactions` — find cross-card conflicts
-4. Update or recreate affected cards before rewriting code
+4. Update or recreate affected cards before rewriting code (the create rule above applies to each new card)
 5. Refactor code, then `emberdeck_validate_code_links` on all affected cards
 
-### User asks to refactor
+### Refactoring
 
 1. `emberdeck_find_affected_cards` on files being refactored
 2. `emberdeck_pre_change_check` — understand impact
@@ -52,7 +62,7 @@ Check before change. Verify after change.
 
 No card action needed.
 
-### User asks about spec health
+### Checking spec health
 
 1. `emberdeck_check_drift` — overall or per-card staleness
 2. `emberdeck_validate_cards` — DB-file consistency
@@ -60,22 +70,13 @@ No card action needed.
 4. `emberdeck_list_unverified` — outstanding acceptance criteria
 5. Report findings and suggest actions
 
-## Creating cards
+## Before every call to emberdeck_update_card (body change)
 
-### When to create
+When updating a card's body, apply the same analysis as creation: re-read the code, verify your 4-point analysis still holds, and show the revised analysis to the user before calling `emberdeck_update_card`.
 
-- New module, feature, or significant component — always
-- Bug fix that reveals a design flaw — create or update
-- Refactor that changes invariants — update existing card
+## Body guide
 
-### When NOT to create
-
-- Trivial fixes, formatting, dependency bumps
-- Changes fully covered by an existing card
-
-### Body guide
-
-The body captures knowledge that code cannot express. Include:
+The body captures knowledge that code cannot express:
 
 - **Why** — design rationale, rejected alternatives, trade-offs
 - **Invariants** — conditions that must hold across changes
@@ -85,23 +86,21 @@ The body captures knowledge that code cannot express. Include:
 
 Do NOT put file paths or function signatures in the body — use `codeLinks` for that.
 
-### Before creating
-
-1. `emberdeck_search_cards` — check for duplicates
-2. Read existing related cards — no contradictions with new card
-3. Understand the relation graph — what depends on what
-4. For existing code: read the source, infer invariants
-5. For new features: ask the user about policies, constraints, non-goals
-6. Draft the body in free-form reasoning first, then structure it
-
-### Fields
+## Card fields
 
 - `slug` — short identifier
 - `summary` — one line
 - `type` — feature / bug / refactor / spike / decision
 - `priority` — critical / high / medium / low
-- `body` — design knowledge (see guide above)
+- `body` — design knowledge (see body guide)
 - `acceptance` — 3-5 testable criteria, `{id, description, verified}`
 - `relations` — `{type, target}` linking to other cards
 - `codeLinks` — `{kind, file, symbol}` linking to code
 - `keywords`, `tags`, `constraints` — as needed
+
+## When to create cards
+
+- New module, feature, or significant component — always
+- Bug fix that reveals a design flaw — create or update
+- Refactor that changes invariants — update existing card
+- Trivial fixes, formatting, dependency bumps — no card needed
