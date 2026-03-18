@@ -12,16 +12,15 @@ Never directly read/write `.emberdeck/cards/*.card.md` files. Use `emberdeck_*` 
 
 You MUST first output your analysis to the user showing:
 
-1. **Most fragile invariant** — what condition in this code is easiest to accidentally break?
-2. **Why this approach** — what alternative was considered and why was it rejected?
-3. **Uninformed agent risk** — what mistake would an agent make if they modified this code without reading this card?
-4. **Scope boundary** — what does this code deliberately NOT do?
+1. **What must this guarantee?** — what behavior must the system always provide, regardless of implementation?
+2. **What is excluded?** — what is deliberately out of scope for this policy?
+3. **What breaks if this policy is violated?** — what cascading failure would an agent cause by ignoring this?
 
-If you cannot answer these from the code you've read, you have not analyzed deeply enough — go back and read more. For new features where code doesn't exist yet, ask the user about policies, constraints, and non-goals instead.
+If you cannot answer these, you have not understood the policy deeply enough — go back and read more. For new features, ask the user about requirements, constraints, and non-goals.
 
-After outputting the analysis, ask yourself before proceeding:
-- What am I **most uncertain about** in this analysis?
-- What did I **initially dismiss** that deserves a second look?
+After outputting the analysis, ask yourself:
+- What am I **most uncertain about**?
+- Does this card **contradict** any existing card?
 
 Revise if reflection reveals gaps. Then get user confirmation before calling `emberdeck_create_card`.
 
@@ -76,15 +75,15 @@ When updating a card's body, apply the same analysis as creation: re-read the co
 
 ## Body guide
 
-The body captures knowledge that code cannot express:
+A card is a policy — it defines what the system MUST guarantee, not how the code implements it. Think of it as a contract: if the code were rewritten from scratch, this card tells the developer what to build.
 
-- **Why** — design rationale, rejected alternatives, trade-offs
-- **Invariants** — conditions that must hold across changes
-- **Scope boundaries** — what this deliberately does NOT do
-- **Edge cases** — boundary behavior, failure modes
-- **Failure history** — past bugs and why they happened
+- **What must be guaranteed** — the non-negotiable behaviors and conditions
+- **What is deliberately excluded** — scope boundaries, non-goals
+- **Under what conditions** — when does this policy apply, when does it not
 
-Do NOT put file paths or function signatures in the body — use `codeLinks` for that.
+Each card covers a single responsibility. Cards do not contradict each other. Together they form the complete policy of the system.
+
+Do NOT describe implementation details (data structures, algorithms, function internals). Do NOT put file paths or function signatures in the body — use `codeLinks` for that.
 
 ## Card fields
 
