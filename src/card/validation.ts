@@ -40,6 +40,7 @@ export interface ValidationInput {
  * Fields are checked in order (summary → body → keywords → tags → relations → codeLinks),
  * so only the first violation is reported even if multiple violations exist.
  *
+ * @spec card-model
  * @param input - The input object to validate. `undefined` fields are skipped.
  * @throws {CardValidationError} On size limit violation.
  */

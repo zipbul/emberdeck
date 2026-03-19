@@ -17,7 +17,7 @@ describe('deleteCard', () => {
   it('should delete file and DB card row when card exists', async () => {
     // Arrange
     tc = await createTestContext();
-    const { filePath } = await createCard(tc.ctx, { slug: 'del-card', summary: 'Del' });
+    const { filePath } = await createCard(tc.ctx, { slug: 'del-card', summary: 'Del', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await deleteCard(tc.ctx, 'del-card');
     // Assert
@@ -28,8 +28,8 @@ describe('deleteCard', () => {
   it('should cascade-delete card_relation rows via FK when card with relations is deleted', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'del-src', summary: 'Src' });
-    await createCard(tc.ctx, { slug: 'del-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'del-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'del-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'del-src', {
       relations: [{ type: 'depends-on', target: 'del-dst' }],
     });
@@ -46,8 +46,7 @@ describe('deleteCard', () => {
       slug: 'del-cls',
       summary: 'Cls',
       keywords: ['kw1'],
-      tags: ['tag1'],
-    });
+      tags: ['tag1'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await deleteCard(tc.ctx, 'del-cls');
     // Assert
@@ -60,8 +59,7 @@ describe('deleteCard', () => {
     tc = await createTestContext();
     const { filePath: createdPath } = await createCard(tc.ctx, {
       slug: 'del-ret',
-      summary: 'Return',
-    });
+      summary: 'Return', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const result = await deleteCard(tc.ctx, 'del-ret');
     // Assert
@@ -82,7 +80,7 @@ describe('deleteCard', () => {
   it('should delete nested slug card and keep parent directory', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'nested/del', summary: 'Nested del' });
+    await createCard(tc.ctx, { slug: 'nested/del', summary: 'Nested del', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await deleteCard(tc.ctx, 'nested/del');
     // Assert
@@ -94,8 +92,8 @@ describe('deleteCard', () => {
   it('should skip cascade implicitly since FK on_delete handles it', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rel-del-src', summary: 'Src' });
-    await createCard(tc.ctx, { slug: 'rel-del-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'rel-del-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'rel-del-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'rel-del-src', {
       relations: [{ type: 'depends-on', target: 'rel-del-dst' }],
     });
@@ -111,7 +109,7 @@ describe('deleteCard', () => {
   it('should return false from existsByKey after card is deleted', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exists-del', summary: 'Exists del' });
+    await createCard(tc.ctx, { slug: 'exists-del', summary: 'Exists del', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await deleteCard(tc.ctx, 'exists-del');
     // Assert
@@ -121,8 +119,8 @@ describe('deleteCard', () => {
   it('should have zero relation rows after deleting card with relations', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'st-del-src', summary: 'Src' });
-    await createCard(tc.ctx, { slug: 'st-del-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'st-del-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'st-del-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'st-del-src', {
       relations: [{ type: 'depends-on', target: 'st-del-dst' }],
     });

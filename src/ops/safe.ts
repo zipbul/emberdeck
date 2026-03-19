@@ -102,6 +102,7 @@ export async function withCardLock<T>(
  * Executes DB action first, then file action.
  * On file failure, attempts DB rollback via compensate.
  * If compensate also fails, throws CompensationError.
+ * @spec card-crud
  */
 export async function safeWriteOperation<T>(
   options: SafeWriteOptions<T>,

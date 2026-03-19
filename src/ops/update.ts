@@ -76,6 +76,7 @@ export interface UpdateCardResult {
  * @returns Updated result (filePath, card).
  * @throws {CardKeyError} When fullKey is invalid.
  * @throws {CardNotFoundError} When no card exists for the given key.
+ * @spec card-crud
  * @throws {RelationTypeError} When a disallowed relation type is used.
  */
 export async function updateCard(
@@ -235,6 +236,7 @@ export async function updateCard(
  * @param fullKey - fullKey of the card to update.
  * @param status - New status value.
  * @returns Updated result (filePath, card).
+ * @spec card-crud
  * @throws {CardNotFoundError} When no card exists for the given key.
  */
 export async function updateCardStatus(

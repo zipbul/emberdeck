@@ -5,7 +5,7 @@ import type { EmberdeckContext } from '../config';
 import type { CardRelation, CardFile, CodeLink, CardType, CardPriority, AcceptanceCriterion } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
-import { CardAlreadyExistsError, RelationTypeError } from '../card/errors';
+import { CardAlreadyExistsError, RelationTypeError, CardValidationError } from '../card/errors';
 import { validateCardInput } from '../card/validation';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
@@ -72,12 +72,16 @@ export interface CreateCardResult {
  * @throws {CardKeyError} When the slug is invalid.
  * @throws {RelationTypeError} When a disallowed relation type is used.
  * @throws {CardAlreadyExistsError} When a card with the same key already exists.
+ * @spec card-crud
  * @throws {CompensationError} When file write fails after DB success and compensation also fails.
  */
 export async function createCard(
   ctx: EmberdeckContext,
   input: CreateCardInput,
 ): Promise<CreateCardResult> {
+  if (!input.acceptance || input.acceptance.length === 0) {
+    throw new CardValidationError('acceptance criteria are required — a card without completion conditions cannot drive planning');
+  }
   validateCardInput({
     summary: input.summary,
     body: input.body,

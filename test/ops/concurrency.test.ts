@@ -24,8 +24,8 @@ describe('ops concurrency', () => {
     tc = await createTestContext();
     // Act — execute two concurrently
     const results = await Promise.allSettled([
-      createCard(tc.ctx, { slug: 'dup', summary: 'First' }),
-      createCard(tc.ctx, { slug: 'dup', summary: 'Second' }),
+      createCard(tc.ctx, { slug: 'dup', summary: 'First', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
+      createCard(tc.ctx, { slug: 'dup', summary: 'Second', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
     ]);
     // Assert — exactly one succeeds, one gets AlreadyExistsError
     const fulfilled = results.filter((r) => r.status === 'fulfilled');
@@ -40,7 +40,7 @@ describe('ops concurrency', () => {
   it('[CR] should serialize concurrent updateCard on the same key', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'target', summary: 'Original' });
+    await createCard(tc.ctx, { slug: 'target', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const results = await Promise.allSettled([
       updateCard(tc.ctx, 'target', { summary: 'Update-A' }),
@@ -61,8 +61,8 @@ describe('ops concurrency', () => {
     tc = await createTestContext();
     // Act
     const results = await Promise.allSettled([
-      createCard(tc.ctx, { slug: 'alpha', summary: 'Alpha' }),
-      createCard(tc.ctx, { slug: 'beta', summary: 'Beta' }),
+      createCard(tc.ctx, { slug: 'alpha', summary: 'Alpha', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
+      createCard(tc.ctx, { slug: 'beta', summary: 'Beta', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
     ]);
     // Assert — both succeed
     expect(results[0].status).toBe('fulfilled');
@@ -76,7 +76,7 @@ describe('ops concurrency', () => {
   it('[CR] should serialize concurrent deleteCard and updateCard on the same key', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'gone', summary: 'Will be gone' });
+    await createCard(tc.ctx, { slug: 'gone', summary: 'Will be gone', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const results = await Promise.allSettled([
       deleteCard(tc.ctx, 'gone'),
@@ -95,10 +95,10 @@ describe('ops concurrency', () => {
   it('[CR] should allow exactly one of concurrent createCard and renameCard targeting the same key', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'old-name', summary: 'Will be renamed' });
+    await createCard(tc.ctx, { slug: 'old-name', summary: 'Will be renamed', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act — createCard("target") and renameCard("old-name", "target") race
     const results = await Promise.allSettled([
-      createCard(tc.ctx, { slug: 'target', summary: 'Created directly' }),
+      createCard(tc.ctx, { slug: 'target', summary: 'Created directly', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
       renameCard(tc.ctx, 'old-name', 'target'),
     ]);
     // Assert — exactly one succeeds, one fails
@@ -115,7 +115,7 @@ describe('ops concurrency', () => {
   it('[CR] should serialize concurrent renameCard on the same old key', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'orig', summary: 'Original' });
+    await createCard(tc.ctx, { slug: 'orig', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const results = await Promise.allSettled([
       renameCard(tc.ctx, 'orig', 'new-a'),

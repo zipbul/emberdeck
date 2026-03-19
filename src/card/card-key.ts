@@ -28,6 +28,7 @@ function assertValidSlug(slug: string): void {
  * Normalizes backslashes to forward slashes in the slug, strips leading/trailing slashes,
  * then validates against the CARD_SLUG_RE pattern.
  *
+ * @spec card-model
  * @param slug - Input slug. Throws CardKeyError if empty.
  * @returns The normalized slug string.
  * @throws {CardKeyError} When the slug is invalid.
@@ -42,6 +43,7 @@ export function normalizeSlug(slug: string): string {
  * Validates the fullKey and returns the normalized slug.
  * Entry point for normalizing keys received from the API at the ops layer.
  *
+ * @spec card-model
  * @param fullKey - Card identifier string.
  * @returns The normalized slug.
  * @throws {CardKeyError} When fullKey is empty or invalid.
@@ -56,6 +58,7 @@ export function parseFullKey(fullKey: string): string {
 /**
  * cardsDir + slug → absolute path to the card file (`*.card.md`).
  *
+ * @spec card-model
  * @example
  * buildCardPath('/data/cards', 'auth-token')
  * // → '/data/cards/auth-token.card.md'

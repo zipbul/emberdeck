@@ -83,7 +83,8 @@ describe('verifyAcceptance', () => {
 
   it('should throw when card has no acceptance criteria', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-ac', summary: 'No AC' });
+    await createCard(tc.ctx, { slug: 'no-ac', summary: 'No AC', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCard(tc.ctx, 'no-ac', { acceptance: null });
     expect(verifyAcceptance(tc.ctx, 'no-ac', 'ac-1')).rejects.toThrow('no acceptance criteria');
   });
 
@@ -117,7 +118,8 @@ describe('listUnverified', () => {
         { id: 'ac-1', description: 'Done', verified: true },
       ],
     });
-    await createCard(tc.ctx, { slug: 'no-ac', summary: 'No acceptance' });
+    await createCard(tc.ctx, { slug: 'no-ac', summary: 'No acceptance', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCard(tc.ctx, 'no-ac', { acceptance: null });
 
     const result = listUnverified(tc.ctx);
     expect(result).toHaveLength(1);
@@ -128,7 +130,7 @@ describe('listUnverified', () => {
 
   it('should return empty array when no unverified cards', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'clean', summary: 'Clean' });
+    await createCard(tc.ctx, { slug: 'clean', summary: 'Clean', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: true }] });
     expect(listUnverified(tc.ctx)).toEqual([]);
   });
 });
@@ -142,7 +144,7 @@ describe('getCardHistory', () => {
 
   it('should record status changes in changelog', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'hist', summary: 'History test' });
+    await createCard(tc.ctx, { slug: 'hist', summary: 'History test', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCardStatus(tc.ctx, 'hist', 'accepted');
     await updateCardStatus(tc.ctx, 'hist', 'implementing');
 
@@ -154,7 +156,7 @@ describe('getCardHistory', () => {
 
   it('should record field changes from updateCard', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'field-hist', summary: 'Original' });
+    await createCard(tc.ctx, { slug: 'field-hist', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'field-hist', { summary: 'Updated' });
 
     const history = getCardHistory(tc.ctx, 'field-hist');
@@ -167,7 +169,7 @@ describe('getCardHistory', () => {
 
   it('should return empty array for card with no history', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-hist', summary: 'No history' });
+    await createCard(tc.ctx, { slug: 'no-hist', summary: 'No history', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     expect(getCardHistory(tc.ctx, 'no-hist')).toEqual([]);
   });
 });
@@ -213,7 +215,8 @@ describe('updateCardStatus — acceptance warnings', () => {
 
   it('should not warn when card has no acceptance criteria', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-ac-warn', summary: 'No AC' });
+    await createCard(tc.ctx, { slug: 'no-ac-warn', summary: 'No AC', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await updateCard(tc.ctx, 'no-ac-warn', { acceptance: null });
     const result = await updateCardStatus(tc.ctx, 'no-ac-warn', 'implemented');
     expect(result.warnings).toBeUndefined();
   });
@@ -249,8 +252,7 @@ describe('Phase 1 — type, priority, acceptance in create/update', () => {
       slug: 'db-check',
       summary: 'DB check',
       type: 'bug',
-      priority: 'critical',
-    });
+      priority: 'critical', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const row = tc.ctx.cardRepo.findByKey('db-check');
     expect(row!.type).toBe('bug');
@@ -259,7 +261,7 @@ describe('Phase 1 — type, priority, acceptance in create/update', () => {
 
   it('should update type and priority', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-p1', summary: 'Update P1' });
+    await createCard(tc.ctx, { slug: 'upd-p1', summary: 'Update P1', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const result = await updateCard(tc.ctx, 'upd-p1', {
       type: 'refactor',
       priority: 'low',
@@ -274,17 +276,16 @@ describe('Phase 1 — type, priority, acceptance in create/update', () => {
     await createCard(tc.ctx, {
       slug: 'rm-type',
       summary: 'Remove type',
-      type: 'feature',
-    });
+      type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const result = await updateCard(tc.ctx, 'rm-type', { type: null });
     expect(result.card.frontmatter.type).toBeUndefined();
   });
 
   it('should list cards sorted by priority', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'low-p', summary: 'Low', priority: 'low' });
-    await createCard(tc.ctx, { slug: 'crit-p', summary: 'Critical', priority: 'critical' });
-    await createCard(tc.ctx, { slug: 'high-p', summary: 'High', priority: 'high' });
+    await createCard(tc.ctx, { slug: 'low-p', summary: 'Low', priority: 'low', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'crit-p', summary: 'Critical', priority: 'critical', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'high-p', summary: 'High', priority: 'high', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = listCards(tc.ctx, { sortBy: 'priority' });
     expect(result[0]!.key).toBe('crit-p');
@@ -294,9 +295,9 @@ describe('Phase 1 — type, priority, acceptance in create/update', () => {
 
   it('should filter by type', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'feat', summary: 'Feature', type: 'feature' });
-    await createCard(tc.ctx, { slug: 'bug', summary: 'Bug', type: 'bug' });
-    await createCard(tc.ctx, { slug: 'no-type', summary: 'No type' });
+    await createCard(tc.ctx, { slug: 'feat', summary: 'Feature', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'bug', summary: 'Bug', type: 'bug', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'no-type', summary: 'No type', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = listCards(tc.ctx, { type: 'feature' });
     expect(result).toHaveLength(1);
@@ -313,11 +314,11 @@ describe('listCards with combined filters', () => {
 
   it('should filter by status + type + sortBy priority simultaneously', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'df-hi', summary: 'Draft feature high', type: 'feature', priority: 'high' });
-    await createCard(tc.ctx, { slug: 'df-lo', summary: 'Draft feature low', type: 'feature', priority: 'low' });
-    await createCard(tc.ctx, { slug: 'af-cr', summary: 'Accepted feature critical', type: 'feature', priority: 'critical' });
+    await createCard(tc.ctx, { slug: 'df-hi', summary: 'Draft feature high', type: 'feature', priority: 'high', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'df-lo', summary: 'Draft feature low', type: 'feature', priority: 'low', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'af-cr', summary: 'Accepted feature critical', type: 'feature', priority: 'critical', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCardStatus(tc.ctx, 'af-cr', 'accepted');
-    await createCard(tc.ctx, { slug: 'db-md', summary: 'Draft bug medium', type: 'bug', priority: 'medium' });
+    await createCard(tc.ctx, { slug: 'db-md', summary: 'Draft bug medium', type: 'bug', priority: 'medium', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const result = listCards(tc.ctx, { status: 'draft', type: 'feature', sortBy: 'priority' });
     expect(result).toHaveLength(2);
@@ -335,7 +336,7 @@ describe('updateCard changelog for type and priority', () => {
 
   it('should record changelog entry when type changes', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-type', summary: 'Type changelog', type: 'feature' });
+    await createCard(tc.ctx, { slug: 'cl-type', summary: 'Type changelog', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'cl-type', { type: 'bug' });
 
     const history = getCardHistory(tc.ctx, 'cl-type');
@@ -347,7 +348,7 @@ describe('updateCard changelog for type and priority', () => {
 
   it('should record changelog entry when priority changes', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-prio', summary: 'Priority changelog', priority: 'low' });
+    await createCard(tc.ctx, { slug: 'cl-prio', summary: 'Priority changelog', priority: 'low', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'cl-prio', { priority: 'critical' });
 
     const history = getCardHistory(tc.ctx, 'cl-prio');
@@ -359,7 +360,7 @@ describe('updateCard changelog for type and priority', () => {
 
   it('should record changelog entries when both type and priority change simultaneously', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-both', summary: 'Both changelog', type: 'feature', priority: 'low' });
+    await createCard(tc.ctx, { slug: 'cl-both', summary: 'Both changelog', type: 'feature', priority: 'low', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'cl-both', { type: 'refactor', priority: 'high' });
 
     const history = getCardHistory(tc.ctx, 'cl-both');
@@ -375,7 +376,7 @@ describe('updateCard changelog for type and priority', () => {
 
   it('should record changelog entry when type is set from null', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-null-type', summary: 'Null type' });
+    await createCard(tc.ctx, { slug: 'cl-null-type', summary: 'Null type', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'cl-null-type', { type: 'bug' });
 
     const history = getCardHistory(tc.ctx, 'cl-null-type');
@@ -387,7 +388,7 @@ describe('updateCard changelog for type and priority', () => {
 
   it('should record changelog entry when type is cleared to null', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-clear-type', summary: 'Clear type', type: 'feature' });
+    await createCard(tc.ctx, { slug: 'cl-clear-type', summary: 'Clear type', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'cl-clear-type', { type: null });
 
     const history = getCardHistory(tc.ctx, 'cl-clear-type');
@@ -399,7 +400,7 @@ describe('updateCard changelog for type and priority', () => {
 
   it('should not record changelog entry when type value is unchanged', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-same-type', summary: 'Same type', type: 'feature' });
+    await createCard(tc.ctx, { slug: 'cl-same-type', summary: 'Same type', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'cl-same-type', { type: 'feature' });
 
     const history = getCardHistory(tc.ctx, 'cl-same-type');

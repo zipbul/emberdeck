@@ -79,14 +79,13 @@ describe('addRelationType / removeRelationType / listRelationTypes', () => {
     // Arrange
     tc = await createTestContext();
     addRelationType(tc.ctx, 'proposed-by');
-    await createCard(tc.ctx, { slug: 'cfg-target', summary: 'Target' });
+    await createCard(tc.ctx, { slug: 'cfg-target', summary: 'Target', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act & Assert: should not throw
     await expect(
       createCard(tc.ctx, {
         slug: 'cfg-user',
         summary: 'User card',
-        relations: [{ type: 'proposed-by', target: 'cfg-target' }],
-      }),
+        relations: [{ type: 'proposed-by', target: 'cfg-target' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
     ).resolves.toBeDefined();
   });
 

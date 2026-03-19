@@ -2,3 +2,4 @@ node_modules
 .emberdeck/*
 !.emberdeck/cards/
 dist
+.gildash

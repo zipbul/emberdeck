@@ -42,6 +42,7 @@ export interface RenameCardResult {
  * @throws {CardKeyError} When any slug is invalid.
  * @throws {CardRenameSamePathError} When source and destination are the same.
  * @throws {CardNotFoundError} When the source card does not exist.
+ * @spec card-crud
  * @throws {CardAlreadyExistsError} When a card with the new key already exists.
  */
 export async function renameCard(

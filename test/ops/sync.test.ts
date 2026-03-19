@@ -49,7 +49,7 @@ describe('syncCardFromFile', () => {
   it('should update existing DB card row when syncing changed file', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'sync-upd', summary: 'Original' });
+    await createCard(tc.ctx, { slug: 'sync-upd', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const filePath = await writeTestCardFile(tc.cardsDir, 'sync-upd', 'Updated by sync');
     // Act
     await syncCardFromFile(tc.ctx, filePath);
@@ -61,7 +61,7 @@ describe('syncCardFromFile', () => {
   it('should update DB relations when syncing file that has relations', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'sync-rel-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'sync-rel-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const content = serializeCardMarkdown(
       {
         key: 'sync-rel-src',
@@ -105,8 +105,8 @@ describe('syncCardFromFile', () => {
   it('should replace relations with empty array when syncing file with no relations', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'sync-norel-src', summary: 'Src' });
-    await createCard(tc.ctx, { slug: 'sync-norel-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'sync-norel-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'sync-norel-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const filePathWithRel = join(tc.cardsDir, 'sync-norel-src.card.md');
     const contentWith = serializeCardMarkdown(
       {
@@ -175,7 +175,7 @@ describe('removeCardByFile', () => {
   it('should delete DB card row when card with matching filePath exists', async () => {
     // Arrange
     tc = await createTestContext();
-    const { filePath } = await createCard(tc.ctx, { slug: 'rm-exists', summary: 'Remove' });
+    const { filePath } = await createCard(tc.ctx, { slug: 'rm-exists', summary: 'Remove', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     removeCardByFile(tc.ctx, filePath);
     // Assert
@@ -293,7 +293,7 @@ describe('bulkSyncCards', () => {
   it('should sync relations to DB when card file contains relations', async () => {
     tc = await createTestContext();
     // Insert dst into DB first via createCard (to satisfy FK)
-    await createCard(tc.ctx, { slug: 'bulk-rel-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'bulk-rel-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const src = serializeCardMarkdown(
       { key: 'bulk-rel-src', summary: 'Src', status: 'draft', relations: [{ type: 'depends-on', target: 'bulk-rel-dst' }] },
       '',
@@ -332,7 +332,7 @@ describe('bulkSyncCards', () => {
   // [HP-7] File already in DB → upsert (no duplicates)
   it('should upsert existing DB row without creating duplicates', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'bulk-upsert', summary: 'Original' });
+    await createCard(tc.ctx, { slug: 'bulk-upsert', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await writeTestCardFile(tc.cardsDir, 'bulk-upsert', 'Updated by bulk');
     await bulkSyncCards(tc.ctx);
     const rows = listCards(tc.ctx).filter((r) => r.key === 'bulk-upsert');
@@ -435,7 +435,7 @@ describe('bulkSyncCards', () => {
   // [ID-1] Repeated calls → no duplicate relation/keyword rows
   it('should not create duplicate relation rows when called multiple times', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'bulk-id-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'bulk-id-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const content = serializeCardMarkdown(
       { key: 'bulk-id-src', summary: 'Src', status: 'draft', relations: [{ type: 'depends-on', target: 'bulk-id-dst' }] },
       '',
@@ -485,7 +485,7 @@ describe('validateCards', () => {
   // [HP-1] Files and DB perfectly in sync → all empty arrays
   it('should return all empty arrays when files and DB rows are perfectly in sync', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'val-sync', summary: 'S' });
+    await createCard(tc.ctx, { slug: 'val-sync', summary: 'S', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const result = await validateCards(tc.ctx);
     expect(result.staleDbRows).toHaveLength(0);
     expect(result.orphanFiles).toHaveLength(0);
@@ -495,7 +495,7 @@ describe('validateCards', () => {
   // [NE-1] Stale DB row (file missing) → included in staleDbRows
   it('should report DB row as stale when its file has been deleted', async () => {
     tc = await createTestContext();
-    const { filePath } = await createCard(tc.ctx, { slug: 'val-stale', summary: 'Stale' });
+    const { filePath } = await createCard(tc.ctx, { slug: 'val-stale', summary: 'Stale', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await unlink(filePath);
     const result = await validateCards(tc.ctx);
     expect(result.staleDbRows.some((r) => r.key === 'val-stale')).toBe(true);
@@ -550,7 +550,7 @@ describe('validateCards', () => {
   // [ED-3] 1 DB row and no file → staleDbRows=[1]
   it('should report single stale DB row when one row exists but its file is gone', async () => {
     tc = await createTestContext();
-    const { filePath } = await createCard(tc.ctx, { slug: 'solo-stale', summary: 'Stale' });
+    const { filePath } = await createCard(tc.ctx, { slug: 'solo-stale', summary: 'Stale', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await unlink(filePath);
     const result = await validateCards(tc.ctx);
     expect(result.staleDbRows).toHaveLength(1);
@@ -561,7 +561,7 @@ describe('validateCards', () => {
   it('should detect stale, orphan, and mismatch issues simultaneously', async () => {
     tc = await createTestContext();
     // stale
-    const { filePath: stalePath } = await createCard(tc.ctx, { slug: 'sim-stale', summary: 'Stale' });
+    const { filePath: stalePath } = await createCard(tc.ctx, { slug: 'sim-stale', summary: 'Stale', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await unlink(stalePath);
     // orphan
     await writeTestCardFile(tc.cardsDir, 'sim-orphan', 'Orphan');
@@ -578,8 +578,8 @@ describe('validateCards', () => {
   // [CO-1] Multiple stale + multiple orphan + multiple mismatch simultaneously
   it('should handle multiple stale rows, orphan files, and mismatches simultaneously', async () => {
     tc = await createTestContext();
-    const { filePath: s1 } = await createCard(tc.ctx, { slug: 'co-stale1', summary: 'S1' });
-    const { filePath: s2 } = await createCard(tc.ctx, { slug: 'co-stale2', summary: 'S2' });
+    const { filePath: s1 } = await createCard(tc.ctx, { slug: 'co-stale1', summary: 'S1', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    const { filePath: s2 } = await createCard(tc.ctx, { slug: 'co-stale2', summary: 'S2', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await unlink(s1);
     await unlink(s2);
     await writeTestCardFile(tc.cardsDir, 'co-orphan1', 'O1');
@@ -640,7 +640,7 @@ describe('validateCards', () => {
   // [ID-1] Repeated validateCards calls → identical results
   it('should return identical results when called twice without any changes', async () => {
     tc = await createTestContext();
-    const { filePath } = await createCard(tc.ctx, { slug: 'id-val', summary: 'Id' });
+    const { filePath } = await createCard(tc.ctx, { slug: 'id-val', summary: 'Id', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await unlink(filePath);
     const r1 = await validateCards(tc.ctx);
     const r2 = await validateCards(tc.ctx);
@@ -670,7 +670,7 @@ describe('exportCardToFile', () => {
   it('should restore all front-matter fields when round-tripping through DB and file', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-rt-tgt', summary: 'Target card' });
+    await createCard(tc.ctx, { slug: 'exp-rt-tgt', summary: 'Target card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     const { filePath } = await createCard(tc.ctx, {
       slug: 'exp-rt-src',
       summary: 'Round-trip source',
@@ -679,8 +679,7 @@ describe('exportCardToFile', () => {
       tags: ['tag1'],
       relations: [{ type: 'depends-on', target: 'exp-rt-tgt' }],
       codeLinks: [{ kind: 'function', file: 'src/foo.ts', symbol: 'foo' }],
-      constraints: { maxSize: 100 },
-    });
+      constraints: { maxSize: 100 }, acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-rt-src');
     // Assert
@@ -700,12 +699,11 @@ describe('exportCardToFile', () => {
   it('should include only forward (non-reverse) relations in the exported file', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-fwd-tgt', summary: 'Target' });
+    await createCard(tc.ctx, { slug: 'exp-fwd-tgt', summary: 'Target', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'exp-fwd-src',
       summary: 'Source',
-      relations: [{ type: 'depends-on', target: 'exp-fwd-tgt' }],
-    });
+      relations: [{ type: 'depends-on', target: 'exp-fwd-tgt' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-fwd-src');
     const text = await Bun.file(exportedPath).text();
@@ -719,7 +717,7 @@ describe('exportCardToFile', () => {
   it('should include keywords in the exported file when card has keywords', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-kw', summary: 'KW card', keywords: ['alpha', 'beta'] });
+    await createCard(tc.ctx, { slug: 'exp-kw', summary: 'KW card', keywords: ['alpha', 'beta'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-kw');
     const text = await Bun.file(exportedPath).text();
@@ -732,7 +730,7 @@ describe('exportCardToFile', () => {
   it('should include tags in the exported file when card has tags', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-tag', summary: 'Tag card', tags: ['release', 'v2'] });
+    await createCard(tc.ctx, { slug: 'exp-tag', summary: 'Tag card', tags: ['release', 'v2'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-tag');
     const text = await Bun.file(exportedPath).text();
@@ -748,8 +746,7 @@ describe('exportCardToFile', () => {
     await createCard(tc.ctx, {
       slug: 'exp-cl',
       summary: 'CL card',
-      codeLinks: [{ kind: 'class', file: 'src/bar.ts', symbol: 'Bar' }],
-    });
+      codeLinks: [{ kind: 'class', file: 'src/bar.ts', symbol: 'Bar' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-cl');
     const text = await Bun.file(exportedPath).text();
@@ -766,8 +763,7 @@ describe('exportCardToFile', () => {
     await createCard(tc.ctx, {
       slug: 'exp-con',
       summary: 'Constraint card',
-      constraints: { maxRetries: 3 },
-    });
+      constraints: { maxRetries: 3 }, acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-con');
     const text = await Bun.file(exportedPath).text();
@@ -785,8 +781,7 @@ describe('exportCardToFile', () => {
     const { filePath } = await createCard(tc.ctx, {
       slug: 'exp-body',
       summary: 'Body card',
-      body: expected,
-    });
+      body: expected, acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const returnedPath = await exportCardToFile(tc.ctx, 'exp-body');
     const text = await Bun.file(returnedPath).text();
@@ -816,12 +811,11 @@ describe('exportCardToFile', () => {
   it('should omit relations field when card only has incoming (reverse) relations', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-rev-tgt', summary: 'Reverse target' });
+    await createCard(tc.ctx, { slug: 'exp-rev-tgt', summary: 'Reverse target', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await createCard(tc.ctx, {
       slug: 'exp-rev-src',
       summary: 'Reverse source',
-      relations: [{ type: 'depends-on', target: 'exp-rev-tgt' }],
-    });
+      relations: [{ type: 'depends-on', target: 'exp-rev-tgt' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act: export the target card which only has a reverse mirror row
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-rev-tgt');
     const text = await Bun.file(exportedPath).text();
@@ -834,7 +828,7 @@ describe('exportCardToFile', () => {
   it('should export minimal front-matter with no optional fields when all are empty', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-min', summary: 'Minimal card' });
+    await createCard(tc.ctx, { slug: 'exp-min', summary: 'Minimal card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-min');
     const text = await Bun.file(exportedPath).text();
@@ -972,7 +966,7 @@ describe('exportCardToFile — type, priority, acceptance round-trip', () => {
 
   it('should include type in exported file when card has type', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-type', summary: 'Type export', type: 'feature' });
+    await createCard(tc.ctx, { slug: 'exp-type', summary: 'Type export', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-type');
     const text = await Bun.file(exportedPath).text();
@@ -982,7 +976,7 @@ describe('exportCardToFile — type, priority, acceptance round-trip', () => {
 
   it('should include priority in exported file when card has priority', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-prio', summary: 'Priority export', priority: 'critical' });
+    await createCard(tc.ctx, { slug: 'exp-prio', summary: 'Priority export', priority: 'critical', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-prio');
     const text = await Bun.file(exportedPath).text();
@@ -1030,13 +1024,13 @@ describe('exportCardToFile — type, priority, acceptance round-trip', () => {
 
   it('should omit type and priority from exported file when card has neither', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'exp-no-tp', summary: 'No type or priority' });
+    await createCard(tc.ctx, { slug: 'exp-no-tp', summary: 'No type or priority', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-no-tp');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCardMarkdown(text);
     expect(parsed.frontmatter.type).toBeUndefined();
     expect(parsed.frontmatter.priority).toBeUndefined();
-    expect(parsed.frontmatter.acceptance).toBeUndefined();
+    expect(parsed.frontmatter.acceptance).toHaveLength(1);
   });
 });

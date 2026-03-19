@@ -112,8 +112,8 @@ describe('Scenario 1: Full Lifecycle — Single Card Through Every Operation', (
     };
 
     // Pre-create relation targets so relations resolve
-    await createCard(ctx, { slug: 'user-session', summary: 'Session management' });
-    await createCard(ctx, { slug: 'api-gateway', summary: 'API gateway routing' });
+    await createCard(ctx, { slug: 'user-session', summary: 'Session management', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(ctx, { slug: 'api-gateway', summary: 'API gateway routing', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const created = await createCard(ctx, createInput);
 
@@ -435,6 +435,7 @@ describe('Scenario 2: Project Bootstrap -> Session Recovery', () => {
         summary: 'User data repository',
         type: 'feature',
         priority: 'high',
+        acceptance: makeAcceptance(1),
         tags: ['db', 'user'],
         codeLinks: [{ kind: 'class', file: 'src/db/user-repo.ts', symbol: 'UserRepository' }],
         relations: [{ type: 'depends-on', target: 'db-connection' }],
@@ -453,6 +454,7 @@ describe('Scenario 2: Project Bootstrap -> Session Recovery', () => {
         summary: 'Spike: investigate caching strategy for token validation',
         type: 'spike',
         priority: 'low',
+        acceptance: makeAcceptance(1),
         tags: ['perf'],
         relations: [{ type: 'references', target: 'auth-token' }],
       },
@@ -461,6 +463,7 @@ describe('Scenario 2: Project Bootstrap -> Session Recovery', () => {
         summary: 'Decision: use RS256 for JWT signing',
         type: 'decision',
         priority: 'medium',
+        acceptance: makeAcceptance(1),
         body: '# ADR: Token Signing Algorithm\n\nWe chose RS256 over HS256 for asymmetric key management.',
         tags: ['adr'],
         relations: [{ type: 'references', target: 'auth-core' }],
@@ -636,6 +639,7 @@ describe('Scenario 4: Concurrent Chaos', () => {
       priority: 'medium' as const,
       keywords: [`kw-${i}`],
       tags: [`tag-${i}`],
+      acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] as AcceptanceCriterion[],
     }));
 
     // Create sequentially first so we have a base
@@ -646,8 +650,8 @@ describe('Scenario 4: Concurrent Chaos', () => {
     // ── Step 2: Concurrent operations ───────────────────────────────────
     const operations = [
       // Create new cards
-      createCard(ctx, { slug: 'new-1', summary: 'New card 1' }),
-      createCard(ctx, { slug: 'new-2', summary: 'New card 2' }),
+      createCard(ctx, { slug: 'new-1', summary: 'New card 1', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
+      createCard(ctx, { slug: 'new-2', summary: 'New card 2', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
 
       // Update existing cards
       updateCard(ctx, 'concurrent-0', { summary: 'Updated 0', keywords: ['updated'] }),
@@ -705,8 +709,8 @@ describe('Scenario 4: Concurrent Chaos', () => {
     const { ctx } = tc;
 
     const results = await Promise.allSettled([
-      createCard(ctx, { slug: 'race-card', summary: 'First' }),
-      createCard(ctx, { slug: 'race-card', summary: 'Second' }),
+      createCard(ctx, { slug: 'race-card', summary: 'First', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
+      createCard(ctx, { slug: 'race-card', summary: 'Second', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }),
     ]);
 
     // One should succeed, one should fail with CardAlreadyExistsError
@@ -725,8 +729,7 @@ describe('Scenario 4: Concurrent Chaos', () => {
       summary: 'Original',
       keywords: ['kw1'],
       tags: ['tag1'],
-      body: 'Original body',
-    });
+      body: 'Original body', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     // These updates target different fields, so both should succeed
     // (withCardLock serializes them in FIFO order)
@@ -757,8 +760,8 @@ describe('Scenario 5: Data Corruption Resistance', () => {
     const { ctx } = tc;
 
     // Create two valid cards
-    await createCard(ctx, { slug: 'healthy-card', summary: 'Healthy card', keywords: ['test'] });
-    await createCard(ctx, { slug: 'victim-card', summary: 'Will be corrupted', keywords: ['victim'] });
+    await createCard(ctx, { slug: 'healthy-card', summary: 'Healthy card', keywords: ['test'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(ctx, { slug: 'victim-card', summary: 'Will be corrupted', keywords: ['victim'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     // Corrupt victim-card file with bad YAML
     const victimPath = buildCardPath(tc.cardsDir, 'victim-card');
@@ -782,7 +785,7 @@ describe('Scenario 5: Data Corruption Resistance', () => {
     tc = await createTestContext();
     const { ctx } = tc;
 
-    await createCard(ctx, { slug: 'ephemeral', summary: 'Will be deleted externally' });
+    await createCard(ctx, { slug: 'ephemeral', summary: 'Will be deleted externally', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     // Externally delete the file (bypass emberdeck)
     const filePath = buildCardPath(tc.cardsDir, 'ephemeral');
@@ -859,7 +862,7 @@ describe('Scenario 6: Edge Case Tornado', () => {
 
     // Create 100 target cards for relations
     for (let i = 0; i < LIMITS.ARRAY_MAX; i++) {
-      await createCard(ctx, { slug: `target-${i}`, summary: `Target ${i}` });
+      await createCard(ctx, { slug: `target-${i}`, summary: `Target ${i}`, acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     }
     const maxRelations = Array.from({ length: LIMITS.ARRAY_MAX }, (_, i) => ({
       type: 'related',
@@ -914,7 +917,7 @@ describe('Scenario 6: Edge Case Tornado', () => {
     tc = await createTestContext();
     const { ctx } = tc;
 
-    const result = await createCard(ctx, { slug: 'minimal', summary: 'Just a summary' });
+    const result = await createCard(ctx, { slug: 'minimal', summary: 'Just a summary', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const card = await getCard(ctx, 'minimal');
     expect(card.frontmatter.key).toBe('minimal');
@@ -922,7 +925,7 @@ describe('Scenario 6: Edge Case Tornado', () => {
     expect(card.frontmatter.status).toBe('draft');
     expect(card.frontmatter.type).toBeUndefined();
     expect(card.frontmatter.priority).toBeUndefined();
-    expect(card.frontmatter.acceptance).toBeUndefined();
+    expect(card.frontmatter.acceptance).toHaveLength(1);
     expect(card.frontmatter.keywords).toBeUndefined();
     expect(card.frontmatter.tags).toBeUndefined();
     expect(card.frontmatter.relations).toBeUndefined();
@@ -1039,7 +1042,7 @@ describe('Scenario 6: Edge Case Tornado', () => {
     tc = await createTestContext();
     const { ctx } = tc;
 
-    await createCard(ctx, { slug: 'status-lifecycle', summary: 'Status lifecycle test' });
+    await createCard(ctx, { slug: 'status-lifecycle', summary: 'Status lifecycle test', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const statuses = ['accepted', 'implementing', 'implemented', 'deprecated'] as const;
     for (const status of statuses) {
@@ -1068,14 +1071,14 @@ describe('Scenario 6: Edge Case Tornado', () => {
     const { ctx } = tc;
 
     // Pre-create a card that will cause a duplicate conflict
-    await createCard(ctx, { slug: 'existing-card', summary: 'Already exists' });
+    await createCard(ctx, { slug: 'existing-card', summary: 'Already exists', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const inputs: CreateCardInput[] = [
-      { slug: 'good-1', summary: 'Good card 1' },
-      { slug: 'existing-card', summary: 'Duplicate - should fail' }, // duplicate
-      { slug: 'good-2', summary: 'Good card 2' },
-      { slug: '!!!invalid!!!', summary: 'Invalid slug' }, // invalid slug
-      { slug: 'good-3', summary: 'Good card 3', relations: [{ type: 'related', target: 'good-1' }] },
+      { slug: 'good-1', summary: 'Good card 1', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { slug: 'existing-card', summary: 'Duplicate - should fail', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }, // duplicate
+      { slug: 'good-2', summary: 'Good card 2', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { slug: '!!!invalid!!!', summary: 'Invalid slug', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] }, // invalid slug
+      { slug: 'good-3', summary: 'Good card 3', relations: [{ type: 'related', target: 'good-1' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
     ];
 
     const result = await bulkCreateCards(ctx, inputs);
@@ -1107,7 +1110,7 @@ describe('Scenario 7: Cross-Feature Interaction', () => {
     const { ctx } = tc;
 
     // ── Step 1: Create card with acceptance + code links + relations ─────
-    await createCard(ctx, { slug: 'dep-card', summary: 'Dependency card' });
+    await createCard(ctx, { slug: 'dep-card', summary: 'Dependency card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     await createCard(ctx, {
       slug: 'cross-feature',
@@ -1220,8 +1223,7 @@ describe('Scenario 7: Cross-Feature Interaction', () => {
     await createCard(ctx, {
       slug: 'overlapping-feature',
       summary: 'Overlapping feature',
-      codeLinks: [{ kind: 'function', file: 'src/feature/handler.ts', symbol: 'handleRequest' }],
-    });
+      codeLinks: [{ kind: 'function', file: 'src/feature/handler.ts', symbol: 'handleRequest' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
 
     const interactions = checkInteractions(ctx, ['cross-feature-v2', 'overlapping-feature']);
     expect(interactions.interactions.length).toBeGreaterThanOrEqual(1);

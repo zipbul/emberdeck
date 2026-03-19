@@ -5,7 +5,7 @@
     "": {
       "name": "emberdeck",
       "dependencies": {
-        "@zipbul/gildash": "0.9.0",
+        "@zipbul/gildash": "0.9.3",
         "@zipbul/result": "^0.0.3",
         "drizzle-orm": "^0.45.1",
       },
@@ -193,7 +193,7 @@
 
     "@types/node": ["@types/node@25.3.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-4K3bqJpXpqfg2XKGK9bpDTc6xO/xoUP/RBWS7AtRMug6zZFaRekiLzjVtAoZMquxoAbzBvy5nxQ7veS5eYzf8A=="],
 
-    "@zipbul/gildash": ["@zipbul/gildash@0.9.0", "", { "dependencies": { "@ast-grep/napi": "^0.41.0", "@parcel/watcher": "^2.5.6", "@zipbul/result": "^0.1.4", "comment-parser": "1.4.5", "drizzle-orm": "^0.45.1", "oxc-parser": "0.115.0" }, "peerDependencies": { "typescript": ">=5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-5l1FTWexv/tYfooWL0C7nFHc+s9B9cq9WyCzH/E6JIRVGyTpequ03uBHAmNQ+qeMlI9Te5d868ng0Xy/JN4ZeA=="],
+    "@zipbul/gildash": ["@zipbul/gildash@0.9.3", "", { "dependencies": { "@ast-grep/napi": "^0.41.0", "@parcel/watcher": "^2.5.6", "@zipbul/result": "^0.1.4", "comment-parser": "1.4.5", "drizzle-orm": "^0.45.1", "oxc-parser": "0.115.0" }, "peerDependencies": { "typescript": ">=5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-PgRdT0iALbyAhV7zDmagP0MSy3TswLhktOcKV9FmB9Nh7nJZGjZbRbrrxQ3S2+yY/L3yLAbbUhIIN3AHGB52ZA=="],
 
     "@zipbul/result": ["@zipbul/result@0.0.3", "", {}, "sha512-qOrmgy4Kgz0/O+E8UdMUZXvlvDzAxHfjuayI4QJLEksXJDdSeiS9hjQg/bQxdWqDRczTU3BzxoQmn5zycGDy3g=="],
 

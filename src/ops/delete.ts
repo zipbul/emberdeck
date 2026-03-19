@@ -18,6 +18,7 @@ import { syncCardFromFile } from './sync';
  * @param fullKey - fullKey of the card to delete.
  * @returns The deleted file path.
  * @throws {CardKeyError} When fullKey is invalid.
+ * @spec card-crud
  * @throws {CardNotFoundError} When no card exists for the given key.
  */
 export async function deleteCard(

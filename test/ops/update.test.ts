@@ -20,7 +20,7 @@ describe('updateCard', () => {
   it('should update summary in file and DB when summary field is provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-summary', summary: 'Old' });
+    await createCard(tc.ctx, { slug: 'upd-summary', summary: 'Old', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-summary', { summary: 'New summary' });
     // Assert
@@ -31,7 +31,7 @@ describe('updateCard', () => {
   it('should update body in file when body field is provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-body', summary: 'Body test', body: 'old body' });
+    await createCard(tc.ctx, { slug: 'upd-body', summary: 'Body test', body: 'old body', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const result = await updateCard(tc.ctx, 'upd-body', { body: 'new body' });
     // Assert
@@ -41,7 +41,7 @@ describe('updateCard', () => {
   it('should replace keywords in DB when keywords array is provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-kw', summary: 'KW', keywords: ['alpha'] });
+    await createCard(tc.ctx, { slug: 'upd-kw', summary: 'KW', keywords: ['alpha'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-kw', { keywords: ['beta', 'gamma'] });
     // Assert
@@ -54,7 +54,7 @@ describe('updateCard', () => {
   it('should replace tags in DB when tags array is provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-tag', summary: 'Tag', tags: ['x'] });
+    await createCard(tc.ctx, { slug: 'upd-tag', summary: 'Tag', tags: ['x'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-tag', { tags: ['y', 'z'] });
     // Assert
@@ -66,7 +66,7 @@ describe('updateCard', () => {
   it('should update constraints in DB when constraints field is provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-cstr', summary: 'Cstr' });
+    await createCard(tc.ctx, { slug: 'upd-cstr', summary: 'Cstr', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-cstr', { constraints: { maxSize: 10 } });
     // Assert
@@ -77,8 +77,8 @@ describe('updateCard', () => {
   it('should replace relations in DB when relations array is provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-rel-src', summary: 'Src' });
-    await createCard(tc.ctx, { slug: 'upd-rel-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'upd-rel-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'upd-rel-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-rel-src', {
       relations: [{ type: 'depends-on', target: 'upd-rel-dst' }],
@@ -91,7 +91,7 @@ describe('updateCard', () => {
   it('should update multiple fields simultaneously when several fields provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-multi', summary: 'Multi', keywords: ['a'] });
+    await createCard(tc.ctx, { slug: 'upd-multi', summary: 'Multi', keywords: ['a'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const result = await updateCard(tc.ctx, 'upd-multi', {
       summary: 'Updated multi',
@@ -108,7 +108,7 @@ describe('updateCard', () => {
   it('should return { filePath, card } with correct shape', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-shape', summary: 'Shape' });
+    await createCard(tc.ctx, { slug: 'upd-shape', summary: 'Shape', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const result = await updateCard(tc.ctx, 'upd-shape', { summary: 'Updated shape' });
     // Assert
@@ -119,7 +119,7 @@ describe('updateCard', () => {
   it('should preserve existing fields when empty fields object is provided', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-nop', summary: 'No change', body: 'preserved' });
+    await createCard(tc.ctx, { slug: 'upd-nop', summary: 'No change', body: 'preserved', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const result = await updateCard(tc.ctx, 'upd-nop', {});
     // Assert
@@ -130,7 +130,7 @@ describe('updateCard', () => {
   it('should preserve existing body when body field is not in update fields', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-body-prsv', summary: 'Preserve', body: 'keep me' });
+    await createCard(tc.ctx, { slug: 'upd-body-prsv', summary: 'Preserve', body: 'keep me', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const result = await updateCard(tc.ctx, 'upd-body-prsv', { summary: 'Changed' });
     // Assert
@@ -140,7 +140,7 @@ describe('updateCard', () => {
   it('should update status in DB when updateCardStatus is called', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'st-card', summary: 'Status' });
+    await createCard(tc.ctx, { slug: 'st-card', summary: 'Status', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCardStatus(tc.ctx, 'st-card', 'accepted');
     // Assert
@@ -151,7 +151,7 @@ describe('updateCard', () => {
   it('should update status in file frontmatter when updateCardStatus is called', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'st-file', summary: 'Status file' });
+    await createCard(tc.ctx, { slug: 'st-file', summary: 'Status file', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     const result = await updateCardStatus(tc.ctx, 'st-file', 'implementing');
     // Assert
@@ -194,7 +194,7 @@ describe('updateCard', () => {
   it('should throw RelationTypeError when relation type is not allowed', async () => {
     // Arrange
     tc = await createTestContext({ allowedRelationTypes: ['related'] });
-    await createCard(tc.ctx, { slug: 'upd-rel-err', summary: 'Rel err' });
+    await createCard(tc.ctx, { slug: 'upd-rel-err', summary: 'Rel err', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act & Assert
     expect(
       updateCard(tc.ctx, 'upd-rel-err', {
@@ -217,7 +217,7 @@ describe('updateCard', () => {
   it('should remove keywords from DB when keywords is null', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'kw-null', summary: 'KW null', keywords: ['x'] });
+    await createCard(tc.ctx, { slug: 'kw-null', summary: 'KW null', keywords: ['x'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'kw-null', { keywords: null });
     // Assert
@@ -227,7 +227,7 @@ describe('updateCard', () => {
   it('should remove keywords from DB when keywords is empty array', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'kw-empty', summary: 'KW empty', keywords: ['x'] });
+    await createCard(tc.ctx, { slug: 'kw-empty', summary: 'KW empty', keywords: ['x'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'kw-empty', { keywords: [] });
     // Assert
@@ -237,7 +237,7 @@ describe('updateCard', () => {
   it('should remove tags from DB when tags is null', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'tag-null', summary: 'Tag null', tags: ['y'] });
+    await createCard(tc.ctx, { slug: 'tag-null', summary: 'Tag null', tags: ['y'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'tag-null', { tags: null });
     // Assert
@@ -247,8 +247,8 @@ describe('updateCard', () => {
   it('should remove relations from DB when relations is null', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rel-null-src', summary: 'Src' });
-    await createCard(tc.ctx, { slug: 'rel-null-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'rel-null-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'rel-null-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'rel-null-src', {
       relations: [{ type: 'depends-on', target: 'rel-null-dst' }],
     });
@@ -261,8 +261,8 @@ describe('updateCard', () => {
   it('should remove relations from DB when relations is empty array', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rel-empty-src', summary: 'Src' });
-    await createCard(tc.ctx, { slug: 'rel-empty-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'rel-empty-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'rel-empty-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'rel-empty-src', {
       relations: [{ type: 'depends-on', target: 'rel-empty-dst' }],
     });
@@ -277,8 +277,8 @@ describe('updateCard', () => {
   it('should remove all classifications when keywords, tags, relations are all null', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'all-null-src', summary: 'All null' });
-    await createCard(tc.ctx, { slug: 'all-null-dst', summary: 'Dst' });
+    await createCard(tc.ctx, { slug: 'all-null-src', summary: 'All null', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { slug: 'all-null-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'all-null-src', {
       keywords: ['a'],
       tags: ['b'],
@@ -299,7 +299,7 @@ describe('updateCard', () => {
   it('should update DB row and file when updateCardStatus is called while DB row is missing', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'st-no-db', summary: 'No DB' });
+    await createCard(tc.ctx, { slug: 'st-no-db', summary: 'No DB', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.cardRepo.deleteByKey('st-no-db');
     // Act (should not throw)
     const result = await updateCardStatus(tc.ctx, 'st-no-db', 'accepted');
@@ -318,8 +318,7 @@ describe('updateCard', () => {
     await createCard(tc.ctx, {
       slug: 'st-constraints-no-db',
       summary: 'With Constraints',
-      constraints: { maxSize: 10 },
-    });
+      constraints: { maxSize: 10 }, acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     tc.ctx.cardRepo.deleteByKey('st-constraints-no-db');
     // Act
     await updateCardStatus(tc.ctx, 'st-constraints-no-db', 'accepted');
@@ -335,7 +334,7 @@ describe('updateCard', () => {
   it('should reflect latest value after multiple consecutive updates', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'multi-upd', summary: 'First' });
+    await createCard(tc.ctx, { slug: 'multi-upd', summary: 'First', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'multi-upd', { summary: 'Second' });
     // Act
     await updateCard(tc.ctx, 'multi-upd', { summary: 'Third' });
@@ -347,7 +346,7 @@ describe('updateCard', () => {
   it('should reflect latest status after multiple status transitions', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'multi-st', summary: 'Status' });
+    await createCard(tc.ctx, { slug: 'multi-st', summary: 'Status', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCardStatus(tc.ctx, 'multi-st', 'accepted');
     await updateCardStatus(tc.ctx, 'multi-st', 'implementing');
     // Act
@@ -362,7 +361,7 @@ describe('updateCard', () => {
   it('should produce identical result when same update is applied twice', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'idp-upd', summary: 'Idempotent' });
+    await createCard(tc.ctx, { slug: 'idp-upd', summary: 'Idempotent', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     await updateCard(tc.ctx, 'idp-upd', { summary: 'Same summary' });
     // Act
     const result = await updateCard(tc.ctx, 'idp-upd', { summary: 'Same summary' });
@@ -382,7 +381,7 @@ describe('updateCard — codeLinks', () => {
   it('should persist codeLinks to DB when updating card with codeLinks field', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-cl', summary: 'CL' });
+    await createCard(tc.ctx, { slug: 'upd-cl', summary: 'CL', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-cl', { codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
     // Assert
@@ -394,7 +393,7 @@ describe('updateCard — codeLinks', () => {
   it('should remove codeLinks from DB when updating with codeLinks: null', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-cl-null', summary: 'CL Null', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
+    await createCard(tc.ctx, { slug: 'upd-cl-null', summary: 'CL Null', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-cl-null', { codeLinks: null });
     // Assert
@@ -404,7 +403,7 @@ describe('updateCard — codeLinks', () => {
   it('should remove codeLinks from DB when updating with empty codeLinks array', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-cl-empty', summary: 'CL Empty', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
+    await createCard(tc.ctx, { slug: 'upd-cl-empty', summary: 'CL Empty', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-cl-empty', { codeLinks: [] });
     // Assert
@@ -414,7 +413,7 @@ describe('updateCard — codeLinks', () => {
   it('should not modify codeLinks in DB when updating without codeLinks field', async () => {
     // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'upd-cl-skip', summary: 'CL Skip', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
+    await createCard(tc.ctx, { slug: 'upd-cl-skip', summary: 'CL Skip', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
     // Act
     await updateCard(tc.ctx, 'upd-cl-skip', { summary: 'Updated summary' });
     // Assert

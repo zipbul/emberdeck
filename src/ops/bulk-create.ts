@@ -30,6 +30,7 @@ export interface BulkCreateResult {
  *
  * @param ctx - EmberdeckContext from setupEmberdeck()
  * @param inputs - Array of card inputs (same schema as createCard)
+ * @spec card-crud
  * @returns Summary with created count, failed count, keys, and errors
  */
 export async function bulkCreateCards(

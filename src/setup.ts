@@ -34,7 +34,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
       } else {
         gildash = result;
       }
-    } catch {
+    } catch (e) {
       gildash = undefined;
     }
   }

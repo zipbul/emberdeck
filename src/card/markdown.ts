@@ -206,6 +206,7 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
   return out;
 }
 
+/** @spec card-model */
 export function parseCardMarkdown(markdown: string): CardFile {
   const normalized = normalizeNewlines(markdown);
   const lines = normalized.split('\n');
@@ -246,6 +247,7 @@ export function parseCardMarkdown(markdown: string): CardFile {
   return { frontmatter, body };
 }
 
+/** @spec card-model */
 export function serializeCardMarkdown(frontmatter: CardFrontmatter, body: string): string {
   const yaml = (Bun.YAML.stringify(frontmatter) ?? '').trimEnd();
   const header = `---\n${yaml}\n---\n`;

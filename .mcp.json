@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "emberdeck": {
+      "type": "stdio",
+      "command": "bun",
+      "args": [
+        "run",
+        "/home/revil/projects/zipbul/emberdeck/cli.ts",
+        "mcp"
+      ]
+    }
+  }
+}
