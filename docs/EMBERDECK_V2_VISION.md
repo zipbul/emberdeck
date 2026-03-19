@@ -42,17 +42,31 @@
 ### 전체 흐름
 
 ```
-Classify (→ human approval)
-  ├→ Onboarding:      Analyze → Spec(Question) → Plan → [Plan Review]* → Execute → Verify → Validate → Commit
-  ├→ Design Change:   Analyze → Spec(Question) → Research → Plan → [Plan Review]* → [Execute → Verify]* → Validate → Commit
-  ├→ New Feature:     Analyze → Spec(Question) → Research → Plan → [Plan Review]* → [Execute → Verify]* → Validate → Commit
-  ├→ Bug Fix:         Analyze → Test(RED) → Execute(GREEN) → Verify → Validate → Commit
-  ├→ Refactoring:     Analyze → Plan → [Plan Review]* → [Execute → Verify]* → Validate → Commit
-  ├→ Exploration:     Analyze → Report
-  └→ No match:        Report to human, do not proceed
+Analyze → Classify (→ human approval)
+  ├→ Onboarding:       Spec(Question) → Plan → [Plan Review]* → Execute → Verify → Validate → Commit
+  ├→ Design Change:    Spec(Question) → Research → Plan → [Plan Review]* → [Execute → Verify]* → Validate → Spec Update → Commit
+  ├→ New Feature:      Spec(Question) → Research → Plan → [Plan Review]* → [Execute → Verify]* → Validate → Commit
+  ├→ Bug Fix:          [Test(RED) → Test Review]* → [Execute(GREEN) → Verify]* → Validate → Commit
+  ├→ Refactoring:      Research(조건부) → Plan → [Plan Review]* → [Execute → Verify]* → Validate → Commit
+  ├→ Chore:            Execute → Verify → Commit
+  ├→ Exploration:      Research → [Report → Report Review]* → Present
+  ├→ Partial Onboard:  대상 영역만 Onboarding 서브플로우
+  ├→ Drift Recovery:   Analyze(전체) → Spec(AC 재확인) → Execute(코드 수정) → Verify → Validate → Commit
+  └→ No match:         Report to human, do not proceed
 ```
 
-`[]*` = Ralph Loop — 리뷰어가 문제 0을 확인할 때까지 자율 반복.
+`[]*` = Ralph Loop — 리뷰어가 문제 0을 확인할 때까지 자율 반복. **모든 루프에 max_iteration 하드 리밋 적용.** 초과 시 현재까지의 결과 + 미해결 문제를 사용자에게 보고, 인간 결정 요청.
+
+| Ralph Loop | max_iteration | 초과 시 |
+|-----------|:---:|---------|
+| Plan Review | 3 | 사용자에게 계획 + 미해결 이슈 보고 |
+| Execute → Verify | 5 | 사용자에게 부분 결과 + 실패 태스크 보고 |
+| Test → Test Review | 3 | 사용자에게 테스트 + 리뷰어 피드백 보고 |
+| Report → Report Review | 2 | 사용자에게 리포트 전달 (리뷰어 코멘트 포함) |
+
+**모순 감지**: 리뷰어가 iteration N에서 "A를 해라"라고 하고 N+1에서 "A를 하지 마라"라고 하면 → 루프 즉시 중단, 양쪽 피드백을 사용자에게 에스컬레이션.
+
+**복합 분류 규칙**: 하나의 요청이 여러 분류에 걸칠 때 → 더 무거운 쪽으로 통합하거나, 순차 분리 (예: "설계 변경 먼저 완료 → 기능 추가"). classify-reviewer가 복합 여부를 공격.
 
 **Spec Skip Condition**: Plan에 설계 결정(근거 포함), 구현 TODO, 영향 범위(수정 파일), 테스트 플랜이 모두 있으면 Spec 스킵. 없으면 별도 Spec 작성 + 인간 승인.
 
@@ -103,28 +117,39 @@ AskUserQuestion(
 | 신호 | 분류 | 판별 방법 |
 |------|------|---------|
 | `.emberdeck/` 없음 또는 카드 0개 | 온보딩 | 파일 시스템 확인 (기계적) |
+| 카드 있지만 영향 영역에 카드 없음 (`card_coverage < threshold`) | 부분 온보딩 | coverage 계산 (기계적) |
+| `drift_score > threshold` | Drift 해소 | drift 계산 (기계적) |
 | 영향받는 카드의 AC가 변경되어야 함 | 설계 변경 | AC와 의도의 충돌 감지 |
 | 영향받는 카드 범위 안에서 새 구현 | 기능 추가 | 카드 존재 + AC 변경 불필요 |
 | 기존 AC를 위반하는 코드의 수정 | 버그 수정 | AC 위반 감지 (기계적) |
 | AC 변경 없이 내부 구조만 변경 | 리팩토링 | 외부 인터페이스 불변 확인 |
-| "이 코드가 뭐 하는 건지 설명해" | 탐색 | 수정 의도 없음 |
+| 의존성 업데이트, CI, 문서, 린트 설정 등 | Chore | 설계 카드 영향 없음 |
+| 수정 의도 없는 질문/설명 요청 | 탐색 | 수정 의도 없음 |
+| 여러 분류에 동시 해당 | 복합 | classify-reviewer가 감지 → 분리 또는 무거운 쪽 통합 |
 | 어떤 분류에도 맞지 않음 | 인간에게 보고 | 진행하지 않음 |
+
+**AC 없는 spec 처리**: 분석에서 관련 spec에 AC가 비어있음을 감지 → 분류와 무관하게 Spec 단계에서 AC 정의를 사용자에게 먼저 요청. AC 없이 실행/검증 진행 불가.
 
 **분류에 따른 단계별 깊이:**
 
-| | Spec(질문) | Research | Plan Review | 실행 중 체크포인트 | Validate 깊이 |
+| | Spec(질문) | Research | Plan Review | 체크포인트 | Validate 깊이 |
 |---|---|---|---|---|---|
-| **온보딩** | 다수 (영역/계약 정의) | 전체 코드베이스 | ✓ | — | 카드 구조 검증 |
-| **설계 변경** | 다수 (범위/새 AC) | 영향 영역 전체 | ✓ | ✓ | 전체 정합성 + 실행 경로 추적 |
+| **온보딩** | 다수 (영역/계약) | 전체 코드베이스 | ✓ | — | 카드 구조 검증 |
+| **부분 온보딩** | 해당 영역 계약 | 해당 영역 | ✓ | — | 해당 영역 카드 검증 |
+| **Drift 해소** | AC 재확인 | 스킵 | ✓ | — | 전체 정합성 |
+| **설계 변경** | 다수 (범위/새 AC) | 영향 전체 | ✓ | ✓ | 전체 + 실행 경로 추적 |
 | **기능 추가** | 2-4개 | 대상 영역 | ✓ | 선택적 | 영향 범위 |
 | **버그 수정** | 0-1개 | 스킵 | 스킵 | — | 해당 AC만 |
-| **리팩토링** | 0-1개 | 대상 영역 | ✓ | — | 전체 AC 보존 확인 |
+| **리팩토링** | 0-1개 | 조건부 (범위 큰 경우) | ✓ | — | 전체 AC 보존 |
+| **Chore** | 0개 | 스킵 | 스킵 | — | Verify만 (lint/test) |
 | **탐색** | 0개 | 대상 영역 | — | — | — (리포트만) |
 
 **→ classify-reviewer 공격:**
-- 분류가 정확한가 (리팩토링으로 분류했는데 실제로는 외부 동작이 바뀌는 건 아닌가)
+- 분류가 정확한가 (리팩토링인데 실제로 외부 동작이 바뀌는 건 아닌가)
 - 영향도를 과소/과대 평가하지 않았는가
-- edge case — 기능 추가 + 설계 변경이 동시에 필요한 경우를 놓치지 않았는가
+- 복합 분류를 놓치지 않았는가 (기능 추가 + 설계 변경 동시)
+- 부분 온보딩/drift 해소가 필요한 상황을 건너뛰지 않았는가
+- Chore로 분류했는데 실제로 설계에 영향을 주는 건 아닌가
 
 **참고 패턴:**
 - pyreez workflow.md — "Every task begins with Classify. You propose a flow, human approves."
@@ -278,6 +303,23 @@ AskUserQuestion(
 
 ---
 
+### 6.5단계: Test — Bug Fix 전용 (RED → Review → GREEN)
+
+Bug Fix 플로우에서만 실행. 코드 수정 전에 **실패하는 테스트를 먼저 작성**.
+
+**수행:**
+1. 위반된 AC를 기반으로 실패 테스트 작성 (RED)
+2. 테스트가 올바른 AC를 검증하는지 확인
+
+**→ test-reviewer 공격:**
+- 테스트가 올바른 AC를 커버하는가 (잘못된 것을 검증하고 있지 않은가)
+- 테스트가 충분히 구체적인가 (항상 실패하는 무의미한 테스트는 아닌가)
+- edge case를 놓치지 않았는가
+
+Ralph Loop: test-reviewer 문제 0까지 반복 (max: 3)
+
+---
+
 ### 7단계: Verify (기계적 검증)
 
 **각 태스크 완료 직후 즉시.** 기계적이고 결정적.
@@ -289,7 +331,7 @@ AskUserQuestion(
 4. AC 중 자동 검증 가능 항목 체크
 5. drift score 재계산
 
-**통과 조건:** 모든 테스트 pass + 타입체크 pass + lint pass. 하나라도 실패 시 executor에게 반환 → 수정 → 재검증. 이것이 Ralph Loop.
+**통과 조건:** 모든 테스트 pass + 타입체크 pass + lint pass. 하나라도 실패 시 executor에게 반환 → 수정 → 재검증. Ralph Loop (max: 5).
 
 **→ execution-reviewer 공격 (Verify 통과 후에도):**
 - 코드가 계획과 일치하는가 (계획에 없는 변경이 있진 않은가)
@@ -350,9 +392,27 @@ Bad: "swappedModels map이 engine.ts에 존재? Yes. PASS."
 
 ---
 
+### 8.5단계: Spec Update — Design Change 전용
+
+설계 변경 플로우에서만 실행. Validate 통과 후, Commit 전.
+
+**수행:** 변경된 설계 결정을 카드에 반영
+- 변경된 AC 업데이트 (예: "세션 기반" → "JWT 기반")
+- 새 code_link 추가 (새 심볼 연결)
+- 카드 status 업데이트
+
+**→ spec-update-reviewer 공격:**
+- 카드 업데이트가 실제 코드 변경과 일치하는가
+- AC가 현재 코드를 정확히 반영하는가
+- 업데이트하지 않은 카드 중에 영향받는 것이 없는가
+
+이 스텝은 **설계 변경에서만** 실행된다. 다른 분류에서는 카드가 바뀌면 안 된다 (카드는 소스 오브 트루스).
+
+---
+
 ### 최종 리포트
 
-Validate 통과 후:
+Validate 통과 후 (Design Change인 경우 Spec Update 후):
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -410,12 +470,14 @@ Validate 통과 후:
 | 스텝 | 에이전트 | 전문 리뷰어 | 공격 대상 |
 |------|---------|-----------|---------|
 | 1. 분석 | analyst | **analysis-reviewer** | 영향 범위 누락, 카드 연결 빠짐, 의존성 미탐지 |
-| 2. 분류 | (기계적 + analyst) | **classify-reviewer** | 분류 오류, edge case, 영향도 과소/과대 |
-| 3. Spec | interviewer | **spec-reviewer** | 빠진 결정, 불필요한 질문, 모호한 답변, scope creep |
+| 2. 분류 | (기계적 + analyst) | **classify-reviewer** | 분류 오류, 복합 분류 누락, 영향도 과소/과대, Chore 오분류 |
+| 3. Spec | interviewer | **spec-reviewer** | 빠진 결정, 불필요한 질문, 모호한 답변, scope creep, AC 없는 spec 미처리 |
 | 4. 리서치 | researcher | **research-reviewer** | 패턴 누락, 재사용 코드 미발견, 제약 미파악 |
 | 5. 계획 | planner | **plan-reviewer** | AC 매핑 누락, 의존성 오류, 태스크 과대/과소, verify 없음 |
+| 5.5 테스트 | test-writer | **test-reviewer** | 잘못된 AC 커버, 불충분한 테스트, edge case 누락 |
 | 6. 실행 | executor | **execution-reviewer** | 계획 불일치, AC 위반, 코드 품질, 미완성 |
 | 7. Validate | validator | **validate-reviewer** | 피상적 검증, 실행 경로 미추적, 형식적 통과 |
+| 7.5 Spec Update | spec-updater | **spec-update-reviewer** | 카드 업데이트 누락, AC 불일치, 영향받는 카드 미업데이트 |
 
 ### 리뷰어의 공통 특성
 
@@ -441,7 +503,7 @@ Validate 통과 후:
 
 ---
 
-## 에이전트 역할 (14개: 7 스텝 + 7 리뷰어)
+## 에이전트 역할 (9 스텝 + 9 리뷰어 = 18개)
 
 도구 접근으로 역할을 기계적으로 강제. 스키마에 없는 도구는 호출 불가능.
 
@@ -453,9 +515,11 @@ Validate 통과 후:
 | **interviewer** | ✓ | ✓(.emberdeck/decisions/만) | | | ✓ | | ✓ |
 | **researcher** | ✓ | ✓(.emberdeck/research/만) | | | | ✓ | ✓ |
 | **planner** | ✓ | ✓(.emberdeck/plans/만) | | | | | ✓ |
+| **test-writer** | ✓ | ✓(테스트 파일만) | ✓(테스트 파일만) | ✓(테스트만) | | | ✓ |
 | **executor** | ✓ | ✓ | ✓ | ✓ | | | ✓ |
 | **verifier** | ✓ | | | ✓(테스트만) | | | ✓ |
 | **validator** | ✓ | | | ✓(테스트만) | | | ✓ |
+| **spec-updater** | ✓ | ✓(.emberdeck/cards/만) | | | | | ✓ |
 
 ### 리뷰어 에이전트 (전부 Read-only + ed-tools)
 
@@ -466,14 +530,36 @@ Validate 통과 후:
 | **spec-reviewer** | ✓ | ✓ | 없음 |
 | **research-reviewer** | ✓ | ✓ | 없음 |
 | **plan-reviewer** | ✓ | ✓ | 없음 |
+| **test-reviewer** | ✓ | ✓ | Bash(테스트 실행만) |
 | **execution-reviewer** | ✓ | ✓ | 없음 |
 | **validate-reviewer** | ✓ | ✓ | 없음 |
+| **spec-update-reviewer** | ✓ | ✓ | 없음 |
+
+### 리뷰어 활성화 규칙 (분류에 따라)
+
+모든 리뷰어가 항상 활성화되는 것은 아님. 분류별로 해당 스텝이 실행될 때만:
+
+| 리뷰어 | 온보딩 | 설계변경 | 기능추가 | 버그수정 | 리팩토링 | Chore | 탐색 |
+|--------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| analysis-reviewer | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| classify-reviewer | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| spec-reviewer | ✓ | ✓ | ✓ | — | — | — | — |
+| research-reviewer | ✓ | ✓ | ✓ | — | 조건부 | — | ✓ |
+| plan-reviewer | ✓ | ✓ | ✓ | — | ✓ | — | — |
+| test-reviewer | — | — | — | ✓ | — | — | — |
+| execution-reviewer | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| validate-reviewer | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| spec-update-reviewer | — | ✓ | — | — | — | — | — |
+
+Chore는 리뷰어 없이 Verify만 (기계적 검증만으로 충분). 탐색은 report-reviewer로 analysis-reviewer가 겸임.
 
 **핵심 제약:**
 - executor만 코드를 수정할 수 있다
 - 리뷰어는 절대 코드를 수정할 수 없다 — 문제만 지적
 - interviewer만 사용자에게 질문할 수 있다
 - executor는 사용자에게 질문할 수 없다
+- spec-updater만 카드를 수정할 수 있다 (설계 변경 플로우에서만 활성화)
+- test-writer는 테스트 파일만 수정할 수 있다 (구현 코드 수정 불가)
 
 ---
 
@@ -565,37 +651,46 @@ emberdeck/
     start.md                  # /ed:start <intent> — 작업 시작
     status.md                 # /ed:status — 현재 상태
     resume.md                 # /ed:resume — 중단 재개
-  agents/                     # 스텝 에이전트 (7개)
+  agents/                     # 스텝 에이전트 (9개)
     ed-analyst.md
     ed-interviewer.md
     ed-researcher.md
     ed-planner.md
+    ed-test-writer.md
     ed-executor.md
     ed-verifier.md
     ed-validator.md
-  reviewers/                  # 리뷰어 에이전트 (7개)
+    ed-spec-updater.md
+  reviewers/                  # 리뷰어 에이전트 (9개)
     analysis-reviewer.md
     classify-reviewer.md
     spec-reviewer.md
     research-reviewer.md
     plan-reviewer.md
+    test-reviewer.md
     execution-reviewer.md
     validate-reviewer.md
+    spec-update-reviewer.md
   workflows/                  # 워크플로우 정의
     analyze.md
     classify.md
     onboarding.md
+    partial-onboard.md
+    drift-recovery.md
     design-change.md
     feature-add.md
     bug-fix.md
     refactor.md
+    chore.md
     exploration.md
     questioning.md
     research.md
     plan-check.md
+    test-write.md
     execute.md
     verify.md
     validate.md
+    spec-update.md
   references/                 # 참조 문서
     card-schema.md
     quality-rules.md
@@ -626,6 +721,60 @@ emberdeck/
   state.json                  # 워크플로우 상태
   emberdeck.db                # 카드 DB (SQLite)
 ```
+
+---
+
+## 실패 복구
+
+모든 스텝에서 상태를 `.emberdeck/state.json`에 영속화. 크래시 시 마지막 완료 스텝부터 재개 가능.
+
+| 실패 유형 | 복구 전략 |
+|---------|---------|
+| ed-tools CLI 오류 | 에러 메시지를 에이전트에 전달, 재시도 1회. 재실패 시 사용자 보고 |
+| gildash 인덱싱 실패 | 대상 경로 확인 후 재시도. 경로 문제 시 사용자에게 경로 확인 요청 |
+| 사용자 무응답 (체크포인트 대기) | 상태 보존, 타임아웃 없이 대기. `/ed:resume`으로 재개 가능 |
+| API 한도 초과 | 대기 후 재시도 (exponential backoff). 지속 시 사용자 보고 |
+| Ralph Loop max_iteration 초과 | 현재까지 결과 + 미해결 문제를 사용자에게 보고 |
+| Validate 실패 (코드 문제) | executor에게 반환 → Execute 재실행 |
+| Validate 실패 (계획 문제) | planner에게 반환 → Plan 재생성 |
+| 프로세스 크래시 | `state.json`에서 마지막 완료 스텝 확인 → `/ed:resume`으로 재개 |
+| git 충돌 | 사용자에게 충돌 상황 보고, 수동 해결 요청 |
+| 리뷰어/에이전트 모순 | 양쪽 피드백을 사용자에게 에스컬레이션 |
+
+**scope 변경 감지**: 실행 중 사용자가 "아 그거 말고 다른 거 해줘"라고 하면:
+1. 현재 워크플로우의 상태를 `.emberdeck/suspended/`에 보존
+2. 새 워크플로우를 1단계(분석)부터 시작
+3. 이전 워크플로우는 `/ed:resume`으로 재개 가능
+
+---
+
+## 스텝 간 데이터 흐름
+
+모든 스텝 간 데이터는 구조화된 형식. ed-tools가 스키마 검증 수행.
+
+| 출력 → 입력 | 형식 | 스키마 |
+|------------|------|-------|
+| Analyze → Classify | JSON (ed-tools) | `AnalysisResult { affected_files, symbols, cards, ac, impact_graph, drift, coverage }` |
+| Classify → Spec/Plan/Execute | 분류 결과 JSON | `ClassifyResult { type, depth_level, rationale, approved: boolean }` |
+| Spec → Plan | 결정 파일 | YAML frontmatter: `{ area, decision, rationale, ac_changes[] }` |
+| Research → Plan | 리서치 파일 | YAML frontmatter: `{ patterns[], reusable[], constraints[] }` |
+| Plan → Execute | TASK-XX.md | XML 구조: `<task>` with `name, related_cards, preserve_ac, files, verify, done` |
+| Execute → Verify | git diff + 변경 파일 | 파일 시스템 (기계적) |
+| Execute → execution-reviewer | 코드 + SUMMARY | YAML frontmatter: `{ task_id, files_changed[], commits[], ac_status[] }` |
+| Verify → Validate | Verify 결과 | JSON: `{ tests_passed, lint_passed, typecheck_passed, broken_links[], drift_score }` |
+| Validate → Commit/Spec Update | Validate 결과 | JSON: `{ all_ac_status[], execution_paths_traced[], design_decisions_confirmed[] }` |
+
+---
+
+## Edge Case 대응
+
+| 상황 | 대응 |
+|------|------|
+| 매우 큰 코드베이스 (10만+ 줄) | gildash CLI 대상 경로 지정 (`ed-tools index src/auth/`), 전체 인덱싱 불필요 |
+| 카드 수 매우 많음 (500+) | BFS maxDepth 제한 (기본 3), ed-tools가 처리 |
+| 동시 사용자 | `.emberdeck/state.json`에 lock 메커니즘. 동시 쓰기 충돌 방지 |
+| git 없는 환경 | atomic commit 스킵, Verify/Validate는 그대로 실행 |
+| emberdeck 밖에서 코드 직접 수정 | 다음 `/ed:start`에서 Analyze가 drift 감지 → Drift Recovery 플로우 제안 |
 
 ---
 
