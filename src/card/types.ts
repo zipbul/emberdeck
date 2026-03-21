@@ -51,8 +51,6 @@ export interface CardFrontmatter {
   codeLinks?: CodeLink[];
   /** List of tags for categorization. Stored as lowercase. */
   tags?: string[];
-  /** Markdown body (design contract). */
-  body?: string;
 }
 
 /**
