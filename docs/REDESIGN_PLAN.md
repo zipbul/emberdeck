@@ -109,7 +109,7 @@ spec          → 특정 영역이 무엇을 보장해야 하는가. 구현이 �
 
 - `card` 테이블: key, summary, status, type, parent, boundaryJson, body, filePath, updatedAt
 - `parent` FK: ON UPDATE CASCADE, ON DELETE SET NULL, 인덱스
-- `card_relation` 테이블: srcCardKey, dstCardKey, isReverse (type 컬럼 없음)
+- `card_relation` 테이블: srcCardKey, dstCardKey, isReverse (type 컬럼 없음, metaJson 컬럼 없음)
 - unique constraint: `(src, dst, isReverse)`
 - `tag` + `card_tag` 테이블 유지 (keywords 테이블 제거)
 - `code_link` 테이블 유지
@@ -148,6 +148,8 @@ spec          → 특정 영역이 무엇을 보장해야 하는가. 구현이 �
 - codeLinks 정합성: validate_code_links가 담당
 - DB↔파일 정합성: validate_cards가 담당 (parent, boundary 필드 추가 반영)
 - **drifted 자동 전환**: active 카드의 codeLinks가 깨지거나, boundary glob이 아무 파일과도 매칭되지 않거나, boundary 내 심볼이 변경되면 status를 drifted로 전환. check_drift가 이를 수행. boundary 비활성은 경고가 아니라 **drifted 전환 트리거**다.
+
+**symbol_changed 감지 메커니즘:** check_drift 실행 시 `ensureReindexed` 후, boundary가 있는 active 카드 중 가장 오래된 `updatedAt`을 산출하고 `gildash.getSymbolChanges(oldestUpdatedAt)`를 **단일 호출**한다. 반환된 변경 목록을 filePath로 인덱싱(`Map<string, SymbolChange[]>`)한 뒤, 각 카드의 boundary glob 매칭 파일에 `card.updatedAt` 이후 변경(added/modified/removed/renamed/moved)이 있으면 `driftType = 'symbol_changed'`로 판정한다. gildash 0.10.0의 확대된 modified 감지(export 상태, 시그니처, decorator, heritage 변경)가 적용된다.
 
 ### relation 생성 순서
 
@@ -310,6 +312,8 @@ tags 필드를 유지한 이유가 카테고리 검색인데, 현재 `list_cards
 | bulk_create_cards | Phase 1에서 **parent 의존성에 따른 위상 정렬 순서로 생성**. 같은 배치 내 parent 참조 보장 |
 | validateCodeLinks | status 분류 업데이트: draft → planned, active/drifted → broken |
 | validate_cards | **재작업 의존성 경고 추가**: active 카드가 draft 카드에 relation → 경고. **draft architecture 빈 트리 경고 제외** |
+| getLinkCoverage | coverageIgnore 패턴 적용. boundary 범위 내 심볼 covered 처리 |
+| syncSymbolChanges | ensureReindexed 적용 |
 
 ### 변경 없는 부분
 
@@ -317,8 +321,6 @@ tags 필드를 유지한 이유가 카테고리 검색인데, 현재 `list_cards
 |------|------|
 | codeLinks `{kind, file, symbol}` | 현상유지 |
 | gildash 연동 (reindex, resolve, validate) | 현상유지 |
-| syncSpecAnnotations / syncSymbolChanges | 현상유지 |
-| getLinkCoverage | 현상유지 |
 | safeWriteOperation / withCardLock / withRetry | 현상유지 |
 | FTS5 인덱스 (key, summary, body) | 현상유지 |
 | CompensationError | 현상유지 |
@@ -568,6 +570,12 @@ interface CardSuggestion {
 5. **SKILL.md 도구 설명 최적화**: 도구 description을 에이전트의 실제 사용 패턴에 맞게 개선. 어떤 상황에서 이 도구를 선택해야 하는지 명확히.
 
 이 고도화는 실사용 피드백 없이 선행하지 않는다. 먼저 풍부하게 만들고, 사용 데이터를 보고 깎는다.
+
+6. **gildash 최신 버전 최적화**: 모든 구현 완료 후 gildash 최신 버전(0.10.0+)에 맞춰 최적화를 재논의한다. 대상:
+   - `searchRelations({ srcFilePathPattern })`: check_interactions의 importDependencies를 boundary glob 단위로 일괄 조회 (per-file `getDependencies` 대체)
+   - `IndexResult.renamedSymbols/movedSymbols`: ensureReindexed가 IndexResult를 캐시하여 syncSymbolChanges와 check_drift가 changelog 조회 없이 직접 활용
+   - `IndexResult.changedRelations`: import 관계 변경 감지를 check_interactions에 통합
+   - 확대된 `modified` 감지: symbol_changed 판정의 정밀도 검증 및 조정
 
 ---
 
