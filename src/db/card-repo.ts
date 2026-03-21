@@ -67,13 +67,14 @@ export class DrizzleCardRepository implements CardRepository {
            FROM card c
            JOIN card_tag ct ON c.key = ct.card_key
            JOIN tag t ON ct.tag_id = t.id
-           WHERE t.name = ?${filter.status ? ' AND c.status = ?' : ''}${filter.type ? ' AND c.type = ?' : ''}${filter.roots ? ' AND c.parent IS NULL' : ''}${filter.updatedSince ? ' AND c.updated_at >= ?' : ''}${filter.sortBy === 'updated_at' ? ' ORDER BY c.updated_at DESC' : ''}`,
+           WHERE t.name = ?${filter.status ? ' AND c.status = ?' : ''}${filter.type ? ' AND c.type = ?' : ''}${filter.parent ? ' AND c.parent = ?' : ''}${filter.roots ? ' AND c.parent IS NULL' : ''}${filter.updatedSince ? ' AND c.updated_at >= ?' : ''}${filter.sortBy === 'updated_at' ? ' ORDER BY c.updated_at DESC' : ''}`,
         )
         .all(
           ...[
             tagName,
             ...(filter.status ? [filter.status] : []),
             ...(filter.type ? [filter.type] : []),
+            ...(filter.parent ? [filter.parent] : []),
             ...(filter.updatedSince ? [filter.updatedSince] : []),
           ],
         ) as CardRow[];

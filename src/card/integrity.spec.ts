@@ -203,6 +203,14 @@ describe('validateRelationTargets', () => {
     expect(() => validateRelationTargets(ctx, 'self', ['self'])).toThrow(CardValidationError);
   });
 
+  it('empty relations array: OK', () => {
+    // Arrange
+    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.card.md' }));
+
+    // Act / Assert
+    expect(() => validateRelationTargets(ctx, 'src', [])).not.toThrow();
+  });
+
   it('multiple targets with one missing: throws CardValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.card.md' }));
@@ -304,6 +312,27 @@ describe('validateActivationGuard', () => {
     }
   });
 
+  it('spec type with undefined codeLinks: throws ActivationGuardError', async () => {
+    // codeLinks not provided → treated as empty
+    try {
+      await validateActivationGuard(ctx, { type: 'spec' });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+    }
+  });
+
+  it('spec type with boundary and no gildash: passes (boundary check skipped)', async () => {
+    // Without gildash, boundary check is skipped — anyMatch defaults to true
+    await expect(
+      validateActivationGuard(ctx, {
+        type: 'spec',
+        codeLinks: [{ file: 'src/a.ts', symbol: 'x' }],
+        boundary: ['src/**'],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it('spec type with codeLinks (gildash=undefined): passes if codeLinks exist', async () => {
     // Without gildash, symbol resolution is skipped — only count check matters
     // Act / Assert
@@ -341,6 +370,18 @@ describe('validateTypeChangeActivation', () => {
 
     // Assert
     expect(result).toBe('active');
+  });
+
+  it('drifted card: returns drifted unchanged', async () => {
+    // Act
+    const result = await validateTypeChangeActivation(
+      ctx,
+      { status: 'drifted', type: 'spec', codeLinks: [] },
+      'architecture',
+    );
+
+    // Assert — not active, so no re-validation
+    expect(result).toBe('drifted');
   });
 
   it('draft card: returns current status unchanged', async () => {

@@ -240,6 +240,44 @@ describe('CardRepository', () => {
     expect(result[1]!.key).toBe('earlier');
   });
 
+  it('list with tag + parent combined filter: returns only matching cards', () => {
+    // Arrange
+    const arch = makeCard({ key: 'arch', type: 'architecture', filePath: '.emberdeck/cards/arch.card.md' });
+    const childA = makeCard({ key: 'child-a', parent: 'arch', filePath: '.emberdeck/cards/child-a.card.md' });
+    const childB = makeCard({ key: 'child-b', parent: 'arch', filePath: '.emberdeck/cards/child-b.card.md' });
+    const other = makeCard({ key: 'other', parent: null, filePath: '.emberdeck/cards/other.card.md' });
+    cardRepo.upsert(arch);
+    cardRepo.upsert(childA);
+    cardRepo.upsert(childB);
+    cardRepo.upsert(other);
+    classificationRepo.replaceTags('child-a', ['security']);
+    classificationRepo.replaceTags('other', ['security']);
+
+    // Act — tag=security AND parent=arch → only child-a
+    const result = cardRepo.list({ tag: 'security', parent: 'arch' });
+
+    // Assert
+    expect(result).toHaveLength(1);
+    expect(result[0]!.key).toBe('child-a');
+  });
+
+  it('findByKey: returns null when card does not exist', () => {
+    expect(cardRepo.findByKey('nonexistent')).toBeNull();
+  });
+
+  it('existsByKey: returns true for existing card, false for missing', () => {
+    cardRepo.upsert(makeCard({ key: 'exists' }));
+    expect(cardRepo.existsByKey('exists')).toBe(true);
+    expect(cardRepo.existsByKey('missing')).toBe(false);
+  });
+
+  it('deleteByKey: removes the card', () => {
+    cardRepo.upsert(makeCard({ key: 'to-delete' }));
+    expect(cardRepo.existsByKey('to-delete')).toBe(true);
+    cardRepo.deleteByKey('to-delete');
+    expect(cardRepo.existsByKey('to-delete')).toBe(false);
+  });
+
   it('findChildren: returns children of the given parent', () => {
     // Arrange
     const parent = makeCard({
@@ -404,6 +442,35 @@ describe('RelationRepository', () => {
     // card-b should no longer have a reverse row
     const bRows = relationRepo.findByCardKey('card-b');
     expect(bRows.filter((r) => r.isReverse && r.dstCardKey === 'card-a')).toHaveLength(0);
+  });
+
+  it('replaceForCard with empty array: clears all relations', () => {
+    // Arrange
+    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.card.md' });
+    const cardB = makeCard({ key: 'card-b', filePath: '.emberdeck/cards/card-b.card.md' });
+    cardRepo.upsert(cardA);
+    cardRepo.upsert(cardB);
+    relationRepo.replaceForCard('card-a', ['card-b']);
+    expect(relationRepo.findByCardKey('card-a').length).toBeGreaterThan(0);
+
+    // Act
+    relationRepo.replaceForCard('card-a', []);
+
+    // Assert
+    expect(relationRepo.findByCardKey('card-a').filter(r => !r.isReverse)).toHaveLength(0);
+  });
+
+  it('replaceForCard: silently skips when target card does not exist (FK violation)', () => {
+    // Arrange
+    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.card.md' });
+    cardRepo.upsert(cardA);
+
+    // Act — target 'ghost' does not exist
+    expect(() => relationRepo.replaceForCard('card-a', ['ghost'])).not.toThrow();
+
+    // Assert — no forward rows created
+    const rows = relationRepo.findByCardKey('card-a');
+    expect(rows.filter(r => !r.isReverse)).toHaveLength(0);
   });
 
   it('findByCardKey: returns RelationRow with id, srcCardKey, dstCardKey, isReverse', () => {
