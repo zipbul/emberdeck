@@ -1,11 +1,8 @@
 import type {
   CardFile,
   CardFrontmatter,
-  CardRelation,
   CardStatus,
   CardType,
-  CardPriority,
-  AcceptanceCriterion,
   CodeLink,
 } from './types';
 import { CardValidationError } from './errors';
@@ -15,13 +12,7 @@ function normalizeNewlines(text: string): string {
 }
 
 function isCardStatus(value: unknown): value is CardStatus {
-  return (
-    value === 'draft' ||
-    value === 'accepted' ||
-    value === 'implementing' ||
-    value === 'implemented' ||
-    value === 'deprecated'
-  );
+  return value === 'draft' || value === 'active' || value === 'drifted';
 }
 
 function asString(value: unknown, field: string): string {
@@ -29,28 +20,6 @@ function asString(value: unknown, field: string): string {
     throw new CardValidationError(`Invalid frontmatter field: ${field}`);
   }
   return value;
-}
-
-function normalizeKeywords(value: unknown): string[] | undefined {
-  if (value == null) return undefined;
-  if (Array.isArray(value)) {
-    const out: string[] = [];
-    for (const item of value) {
-      if (typeof item !== 'string' || item.length === 0) {
-        throw new CardValidationError('Invalid frontmatter field: keywords');
-      }
-      out.push(item);
-    }
-    return out;
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return undefined;
-    return [trimmed];
-  }
-
-  throw new CardValidationError('Invalid frontmatter field: keywords');
 }
 
 function normalizeTags(value: unknown): string[] | undefined {
@@ -64,7 +33,7 @@ function normalizeTags(value: unknown): string[] | undefined {
     if (typeof item !== 'string' || item.length === 0) {
       throw new CardValidationError('Invalid frontmatter field: tags');
     }
-    out.push(item);
+    out.push(item.toLowerCase());
   }
 
   return out;
@@ -91,63 +60,43 @@ function normalizeCodeLinks(value: unknown): CodeLink[] | undefined {
   return out;
 }
 
-const VALID_CARD_TYPES = ['feature', 'bug', 'refactor', 'spike', 'decision'];
-const VALID_PRIORITIES = ['critical', 'high', 'medium', 'low'];
+const VALID_CARD_TYPES = ['architecture', 'spec'];
 
-function normalizeCardType(value: unknown): CardType | undefined {
-  if (value == null) return undefined;
+function normalizeCardType(value: unknown): CardType {
   if (typeof value !== 'string' || !VALID_CARD_TYPES.includes(value)) {
     throw new CardValidationError(`Invalid frontmatter field: type (expected one of: ${VALID_CARD_TYPES.join(', ')})`);
   }
   return value as CardType;
 }
 
-function normalizeCardPriority(value: unknown): CardPriority | undefined {
-  if (value == null) return undefined;
-  if (typeof value !== 'string' || !VALID_PRIORITIES.includes(value)) {
-    throw new CardValidationError(`Invalid frontmatter field: priority (expected one of: ${VALID_PRIORITIES.join(', ')})`);
-  }
-  return value as CardPriority;
-}
-
-function normalizeAcceptance(value: unknown): AcceptanceCriterion[] | undefined {
-  if (value == null) return undefined;
-  if (!Array.isArray(value)) {
-    throw new CardValidationError('Invalid frontmatter field: acceptance');
-  }
-
-  const out: AcceptanceCriterion[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== 'object') {
-      throw new CardValidationError('Invalid frontmatter field: acceptance');
-    }
-    const ac = item as Record<string, unknown>;
-    out.push({
-      id: asString(ac.id, 'acceptance[].id'),
-      description: asString(ac.description, 'acceptance[].description'),
-      verified: ac.verified === true,
-    });
-  }
-  return out;
-}
-
-function normalizeRelations(value: unknown): CardRelation[] | undefined {
+function normalizeRelations(value: unknown): string[] | undefined {
   if (value == null) return undefined;
   if (!Array.isArray(value)) {
     throw new CardValidationError('Invalid frontmatter field: relations');
   }
 
-  const out: CardRelation[] = [];
+  const out: string[] = [];
   for (const item of value) {
-    if (!item || typeof item !== 'object') {
-      throw new CardValidationError('Invalid frontmatter field: relations');
+    if (typeof item !== 'string' || item.length === 0) {
+      throw new CardValidationError('Invalid frontmatter field: relations (each item must be a non-empty string)');
     }
-    const rel = item as Record<string, unknown>;
-    const type = asString(rel.type, 'relations[].type');
-    out.push({
-      type,
-      target: asString(rel.target, 'relations[].target'),
-    });
+    out.push(item);
+  }
+  return out;
+}
+
+function normalizeBoundary(value: unknown): string[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) {
+    throw new CardValidationError('Invalid frontmatter field: boundary');
+  }
+
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || item.length === 0) {
+      throw new CardValidationError('Invalid frontmatter field: boundary (each item must be a non-empty string)');
+    }
+    out.push(item);
   }
   return out;
 }
@@ -168,40 +117,24 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
     key: asString(fm['key'], 'key'),
     summary: asString(fm['summary'], 'summary'),
     status,
+    type: normalizeCardType(fm['type']),
   };
 
-  const cardType = normalizeCardType(fm['type']);
-  if (cardType !== undefined) out.type = cardType;
-
-  const priority = normalizeCardPriority(fm['priority']);
-  if (priority !== undefined) out.priority = priority;
-
-  const acceptance = normalizeAcceptance(fm['acceptance']);
-  if (acceptance !== undefined) out.acceptance = acceptance;
-
-  const tags = normalizeTags(fm['tags']);
-  if (tags !== undefined) {
-    out.tags = tags;
+  if (fm['parent'] != null) {
+    out.parent = asString(fm['parent'], 'parent');
   }
 
-  const keywords = normalizeKeywords(fm['keywords']);
-  if (keywords !== undefined) {
-    out.keywords = keywords;
-  }
-
-  if (fm['constraints'] !== undefined) {
-    out.constraints = fm['constraints'];
-  }
+  const boundary = normalizeBoundary(fm['boundary']);
+  if (boundary !== undefined) out.boundary = boundary;
 
   const relations = normalizeRelations(fm['relations']);
-  if (relations !== undefined) {
-    out.relations = relations;
-  }
+  if (relations !== undefined) out.relations = relations;
 
   const codeLinks = normalizeCodeLinks(fm['codeLinks']);
-  if (codeLinks !== undefined) {
-    out.codeLinks = codeLinks;
-  }
+  if (codeLinks !== undefined) out.codeLinks = codeLinks;
+
+  const tags = normalizeTags(fm['tags']);
+  if (tags !== undefined) out.tags = tags;
 
   return out;
 }

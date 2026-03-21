@@ -5,6 +5,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  foreignKey,
 } from 'drizzle-orm/sqlite-core';
 
 export const card = sqliteTable(
@@ -13,10 +14,9 @@ export const card = sqliteTable(
     key: text('key').primaryKey(),
     summary: text('summary').notNull(),
     status: text('status').notNull(),
-    type: text('type'),
-    priority: text('priority'),
-    acceptanceJson: text('acceptance_json'),
-    constraintsJson: text('constraints_json'),
+    type: text('type').notNull(),
+    parent: text('parent'),
+    boundaryJson: text('boundary_json'),
     body: text('body'),
     filePath: text('file_path').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -25,36 +25,17 @@ export const card = sqliteTable(
     index('idx_card_status').on(table.status),
     index('idx_card_file_path').on(table.filePath),
     index('idx_card_type').on(table.type),
-    index('idx_card_priority').on(table.priority),
+    index('idx_card_parent').on(table.parent),
+    foreignKey({ columns: [table.parent], foreignColumns: [table.key] })
+      .onUpdate('cascade')
+      .onDelete('set null'),
   ],
 );
-
-export const keyword = sqliteTable('keyword', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull().unique(),
-});
 
 export const tag = sqliteTable('tag', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
 });
-
-export const cardKeyword = sqliteTable(
-  'card_keyword',
-  {
-    cardKey: text('card_key')
-      .notNull()
-      .references(() => card.key, { onDelete: 'cascade', onUpdate: 'cascade' }),
-    keywordId: integer('keyword_id')
-      .notNull()
-      .references(() => keyword.id, { onDelete: 'cascade' }),
-  },
-  (table) => [
-    primaryKey({ columns: [table.cardKey, table.keywordId] }),
-    index('idx_card_keyword_card').on(table.cardKey),
-    index('idx_card_keyword_keyword').on(table.keywordId),
-  ],
-);
 
 export const cardTag = sqliteTable(
   'card_tag',
@@ -77,7 +58,6 @@ export const cardRelation = sqliteTable(
   'card_relation',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    type: text('type').notNull(),
     srcCardKey: text('src_card_key')
       .notNull()
       .references(() => card.key, { onDelete: 'cascade', onUpdate: 'cascade' }),
@@ -85,13 +65,11 @@ export const cardRelation = sqliteTable(
       .notNull()
       .references(() => card.key, { onDelete: 'cascade', onUpdate: 'cascade' }),
     isReverse: integer('is_reverse', { mode: 'boolean' }).notNull().default(false),
-    metaJson: text('meta_json'),
   },
   (table) => [
     index('idx_card_relation_src').on(table.srcCardKey),
     index('idx_card_relation_dst').on(table.dstCardKey),
-    index('idx_card_relation_type').on(table.type),
-    uniqueIndex('uq_card_relation').on(table.type, table.srcCardKey, table.dstCardKey, table.isReverse),
+    uniqueIndex('uq_card_relation').on(table.srcCardKey, table.dstCardKey, table.isReverse),
   ],
 );
 

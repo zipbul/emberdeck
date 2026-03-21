@@ -101,7 +101,7 @@
 - [ ] `validateParentExists(ctx, parentKey)`: parent가 존재하지 않는 카드를 가리키면 `ParentValidationError`
 - [ ] `validateParentType(ctx, cardType, parentKey)`: architecture parent는 null 또는 architecture, spec parent는 architecture 또는 spec. 위반 시 `ParentValidationError`
 - [ ] `validateParentCycle(ctx, cardKey, parentKey)`: 조상 체인 순회 (최대 20), 순환 감지 시 `ParentValidationError`
-- [ ] `validateRelationTargets(ctx, relations)`: relation 대상 카드가 모두 DB에 존재하는지 확인. 미존재 시 에러 반환 (REDESIGN_PLAN 128행: "relation 대상이 존재하지 않으면 거부"). 현재 코드는 FK 위반 시 silently skip하므로, 명시적 존재 검사로 변경
+- [ ] `validateRelationTargets(ctx, cardKey, relations)`: relation 대상 카드가 모두 DB에 존재하는지 확인 + **자기 참조 거부** (Phase 1 형식 검증에서 key 컨텍스트 없이 불가하므로 여기서 처리). 미존재 시 에러 반환 (REDESIGN_PLAN 128행: "relation 대상이 존재하지 않으면 거부"). 현재 코드는 FK 위반 시 silently skip하므로, 명시적 존재 검사로 변경
 - [ ] `validateChildrenHierarchy(ctx, cardKey, newType)`: type 변경 시 자식 카드들의 parent-type 계층이 깨지면 에러
 - [ ] `validateActivationGuard(ctx, card)`: status=active 설정 시:
   - architecture: 조건 없음, 통과

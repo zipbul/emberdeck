@@ -4,7 +4,9 @@ import {
   CardNotFoundError,
   CardAlreadyExistsError,
   CardRenameSamePathError,
-  RelationTypeError,
+  ParentValidationError,
+  ActivationGuardError,
+  BoundaryValidationError,
   GildashNotConfiguredError,
 } from './errors';
 
@@ -128,46 +130,69 @@ describe('CardRenameSamePathError', () => {
   });
 });
 
-// ── RelationTypeError ────────────────────────────────────────────────────────
+// ── ParentValidationError ────────────────────────────────────────────────────
 
-describe('RelationTypeError', () => {
-  it('should include type and allowed list in message and set name when constructed', () => {
+describe('ParentValidationError', () => {
+  it('should set message, name, and be instanceof Error when constructed', () => {
     // Arrange / Act
-    const err = new RelationTypeError('unknown', ['depends-on', 'related']);
+    const err = new ParentValidationError('parent not found');
     // Assert
-    expect(err.message).toContain('"unknown"');
-    expect(err.message).toContain('depends-on, related');
-    expect(err.name).toBe('RelationTypeError');
+    expect(err.message).toBe('parent not found');
+    expect(err.name).toBe('ParentValidationError');
     expect(err).toBeInstanceOf(Error);
-    expect(err).toBeInstanceOf(RelationTypeError);
+    expect(err).toBeInstanceOf(ParentValidationError);
   });
 
-  it('should include empty-string type as "" in message when type is empty', () => {
-    // Arrange / Act
-    const err = new RelationTypeError('', ['related']);
-    // Assert
-    expect(err.message).toContain('""');
-  });
-
-  it('should produce empty allowed listing when allowed is empty array', () => {
-    // Arrange / Act
-    const err = new RelationTypeError('bad', []);
-    // Assert
-    expect(err.message).toContain('Allowed: ');
-    // join('') on [] = ''
-    expect(err.message.endsWith('Allowed: ')).toBe(true);
-  });
-
-  it('should produce single-item listing when allowed has one entry', () => {
-    // Arrange / Act
-    const err = new RelationTypeError('bad', ['only-type']);
-    // Assert
-    expect(err.message).toContain('only-type');
-  });
-
-  it('should be catchable as RelationTypeError when thrown', () => {
+  it('should be catchable as ParentValidationError when thrown', () => {
     // Arrange / Act / Assert
-    expect(() => { throw new RelationTypeError('x', ['a']); }).toThrow(RelationTypeError);
+    expect(() => { throw new ParentValidationError('bad parent'); }).toThrow(ParentValidationError);
+  });
+});
+
+// ── ActivationGuardError ─────────────────────────────────────────────────────
+
+describe('ActivationGuardError', () => {
+  it('should set message, name, and unmetConditions when constructed', () => {
+    // Arrange / Act
+    const conditions = ['missing summary', 'no codeLinks'];
+    const err = new ActivationGuardError('activation blocked', conditions);
+    // Assert
+    expect(err.message).toBe('activation blocked');
+    expect(err.name).toBe('ActivationGuardError');
+    expect(err.unmetConditions).toEqual(['missing summary', 'no codeLinks']);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(ActivationGuardError);
+  });
+
+  it('should accept empty unmetConditions array when no conditions given', () => {
+    // Arrange / Act
+    const err = new ActivationGuardError('no conditions', []);
+    // Assert
+    expect(err.unmetConditions).toEqual([]);
+  });
+
+  it('should be catchable as ActivationGuardError when thrown', () => {
+    // Arrange / Act / Assert
+    expect(() => { throw new ActivationGuardError('x', ['c']); }).toThrow(ActivationGuardError);
+  });
+});
+
+// ── BoundaryValidationError ──────────────────────────────────────────────────
+
+describe('BoundaryValidationError', () => {
+  it('should set message, name, and be instanceof Error when constructed', () => {
+    // Arrange / Act
+    const err = new BoundaryValidationError('invalid glob');
+    // Assert
+    expect(err.message).toBe('invalid glob');
+    expect(err.name).toBe('BoundaryValidationError');
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(BoundaryValidationError);
+  });
+
+  it('should be catchable as BoundaryValidationError when thrown', () => {
+    // Arrange / Act / Assert
+    expect(() => { throw new BoundaryValidationError('bad pattern'); }).toThrow(BoundaryValidationError);
   });
 });
 

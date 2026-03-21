@@ -1,51 +1,19 @@
 /**
  * Lifecycle status of a card.
  *
- * - `draft` — Initial authoring in progress. Not yet reviewed.
- * - `accepted` — Review complete. Awaiting implementation.
- * - `implementing` — Implementation in progress.
- * - `implemented` — Implementation complete.
- * - `deprecated` — No longer valid.
+ * - `draft` — Card authoring in progress or intentional rework. codeLinks are treated as planned.
+ * - `active` — Code and spec are structurally aligned.
+ * - `drifted` — Code has diverged from spec. System auto-detects and transitions.
  */
-export type CardStatus =
-  | 'draft'
-  | 'accepted'
-  | 'implementing'
-  | 'implemented'
-  | 'deprecated';
+export type CardStatus = 'draft' | 'active' | 'drifted';
 
 /**
  * Card type classifying the nature of the spec.
+ *
+ * - `architecture` — System structure: what areas exist, boundaries and relationships between them.
+ * - `spec` — What a specific area must guarantee. A contract that survives reimplementation.
  */
-export type CardType = 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
-
-/**
- * Card priority for work ordering.
- */
-export type CardPriority = 'critical' | 'high' | 'medium' | 'low';
-
-/**
- * A single acceptance criterion within a card.
- */
-export interface AcceptanceCriterion {
-  /** Unique identifier within the card (e.g. "ac-1"). */
-  id: string;
-  /** Human-readable description of the criterion. */
-  description: string;
-  /** Whether this criterion has been verified. */
-  verified: boolean;
-}
-
-/**
- * A unidirectional relation record between cards.
- * Reverse relations are auto-generated in the DB and are not directly represented by this interface.
- */
-export interface CardRelation {
-  /** Relation type. Must be a value registered in `EmberdeckContext.allowedRelationTypes`. */
-  type: string;
-  /** The target card's fullKey (e.g. `'auth-token'`, `'api/rate-limit'`). */
-  target: string;
-}
+export type CardType = 'architecture' | 'spec';
 
 /**
  * A record linking a card to a source code symbol (gildash integration).
@@ -71,22 +39,20 @@ export interface CardFrontmatter {
   summary: string;
   /** Current lifecycle status of the card. */
   status: CardStatus;
-  /** Card type (feature, bug, refactor, spike, decision). */
-  type?: CardType;
-  /** Card priority (critical, high, medium, low). */
-  priority?: CardPriority;
-  /** Acceptance criteria checklist. */
-  acceptance?: AcceptanceCriterion[];
-  /** List of tags for categorization. */
-  tags?: string[];
-  /** List of keywords for search. */
-  keywords?: string[];
-  /** Free-form constraints. No schema defined. */
-  constraints?: unknown;
-  /** List of relations to other cards. */
-  relations?: CardRelation[];
+  /** Card type (architecture, spec). Required. */
+  type: CardType;
+  /** Parent card key. Same type or one level up in hierarchy. */
+  parent?: string;
+  /** File/directory glob patterns this card is responsible for. */
+  boundary?: string[];
+  /** List of related card keys. Direction is from the declaring card. */
+  relations?: string[];
   /** List of source code symbol references. */
   codeLinks?: CodeLink[];
+  /** List of tags for categorization. Stored as lowercase. */
+  tags?: string[];
+  /** Markdown body (design contract). */
+  body?: string;
 }
 
 /**

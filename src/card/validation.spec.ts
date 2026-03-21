@@ -9,12 +9,13 @@ describe('validateCardInput', () => {
     // Arrange / Act / Assert
     expect(() =>
       validateCardInput({
+        key: 'my-card',
         summary: 'Normal summary',
         body: 'Normal body',
-        keywords: ['kw1', 'kw2'],
         tags: ['tag1', 'tag2'],
-        relations: [{ type: 'depends-on', target: 'other-card' }],
+        relations: ['other-card'],
         codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'getToken' }],
+        boundary: ['src/auth/**'],
       }),
     ).not.toThrow();
   });
@@ -34,12 +35,28 @@ describe('validateCardInput', () => {
       validateCardInput({
         summary: 'Valid summary',
         body: '',
-        keywords: [],
         tags: [],
         relations: [],
         codeLinks: [],
+        boundary: [],
       }),
     ).not.toThrow();
+  });
+
+  // ── key validation ──
+
+  it('should not throw when key is exactly at KEY_MAX length', () => {
+    // Arrange
+    const key = 'k'.repeat(LIMITS.KEY_MAX);
+    // Act / Assert
+    expect(() => validateCardInput({ key })).not.toThrow();
+  });
+
+  it('should throw CardValidationError when key exceeds KEY_MAX characters', () => {
+    // Arrange
+    const key = 'k'.repeat(LIMITS.KEY_MAX + 1);
+    // Act / Assert
+    expect(() => validateCardInput({ key })).toThrow(CardValidationError);
   });
 
   // ── NE-1: summary empty ──
@@ -69,25 +86,12 @@ describe('validateCardInput', () => {
     ).toThrow(CardValidationError);
   });
 
-  // ── NE-4: keywords count over 100 ──
+  // ── NE-5b: tag item empty string ──
 
-  it('should throw CardValidationError when keywords array exceeds 100 items', () => {
-    // Arrange
-    const tooMany = Array(LIMITS.ARRAY_MAX + 1).fill('kw');
-    // Act / Assert
+  it('should throw CardValidationError when a tag item is empty string', () => {
+    // Arrange / Act / Assert
     expect(() =>
-      validateCardInput({ summary: 'ok', keywords: tooMany }),
-    ).toThrow(CardValidationError);
-  });
-
-  // ── NE-5: keyword item over 100 ──
-
-  it('should throw CardValidationError when a keyword item exceeds 100 characters', () => {
-    // Arrange
-    const longKw = 'k'.repeat(LIMITS.ITEM_MAX + 1);
-    // Act / Assert
-    expect(() =>
-      validateCardInput({ summary: 'ok', keywords: ['valid', longKw] }),
+      validateCardInput({ summary: 'ok', tags: ['valid', ''] }),
     ).toThrow(CardValidationError);
   });
 
@@ -117,21 +121,30 @@ describe('validateCardInput', () => {
 
   it('should throw CardValidationError when relations array exceeds 100 items', () => {
     // Arrange
-    const tooMany = Array(LIMITS.ARRAY_MAX + 1).fill({ type: 'related', target: 'x' });
+    const tooMany = Array(LIMITS.ARRAY_MAX + 1).fill('some-card');
     // Act / Assert
     expect(() =>
       validateCardInput({ summary: 'ok', relations: tooMany }),
     ).toThrow(CardValidationError);
   });
 
-  // ── NE-9: relation target over 200 ──
+  // ── NE-9: relation item over 200 ──
 
-  it('should throw CardValidationError when a relation target exceeds 200 characters', () => {
+  it('should throw CardValidationError when a relation item exceeds 200 characters', () => {
     // Arrange
-    const longTarget = 'r'.repeat(LIMITS.RELATION_TARGET_MAX + 1);
+    const longRel = 'r'.repeat(LIMITS.RELATION_TARGET_MAX + 1);
     // Act / Assert
     expect(() =>
-      validateCardInput({ summary: 'ok', relations: [{ type: 'depends-on', target: longTarget }] }),
+      validateCardInput({ summary: 'ok', relations: [longRel] }),
+    ).toThrow(CardValidationError);
+  });
+
+  // ── NE-9b: relation item empty string ──
+
+  it('should throw CardValidationError when a relation item is empty string', () => {
+    // Arrange / Act / Assert
+    expect(() =>
+      validateCardInput({ summary: 'ok', relations: [''] }),
     ).toThrow(CardValidationError);
   });
 
@@ -174,26 +187,82 @@ describe('validateCardInput', () => {
     ).toThrow(CardValidationError);
   });
 
+  // ── NE-13: codeLink file empty string ──
+
+  it('should throw CardValidationError when a codeLink file is empty string', () => {
+    // Arrange / Act / Assert
+    expect(() =>
+      validateCardInput({
+        summary: 'ok',
+        codeLinks: [{ kind: 'function', file: '', symbol: 'foo' }],
+      }),
+    ).toThrow(CardValidationError);
+  });
+
+  // ── NE-14: codeLink symbol empty string ──
+
+  it('should throw CardValidationError when a codeLink symbol is empty string', () => {
+    // Arrange / Act / Assert
+    expect(() =>
+      validateCardInput({
+        summary: 'ok',
+        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: '' }],
+      }),
+    ).toThrow(CardValidationError);
+  });
+
+  // ── boundary validation ──
+
+  it('should not throw when boundary patterns are valid globs', () => {
+    // Arrange / Act / Assert
+    expect(() =>
+      validateCardInput({ boundary: ['src/**', 'lib/*.ts'] }),
+    ).not.toThrow();
+  });
+
+  it('should throw CardValidationError when boundary pattern is empty string', () => {
+    // Arrange / Act / Assert
+    expect(() =>
+      validateCardInput({ boundary: [''] }),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when boundary array exceeds 50 patterns', () => {
+    // Arrange
+    const tooMany = Array(LIMITS.BOUNDARY_MAX_PATTERNS + 1).fill('src/**');
+    // Act / Assert
+    expect(() =>
+      validateCardInput({ boundary: tooMany }),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when boundary pattern exceeds 500 characters', () => {
+    // Arrange
+    const longPattern = 'a'.repeat(LIMITS.BOUNDARY_PATTERN_MAX + 1);
+    // Act / Assert
+    expect(() =>
+      validateCardInput({ boundary: [longPattern] }),
+    ).toThrow(CardValidationError);
+  });
+
   // ── ED-1: all fields exactly at max limits ──
 
   it('should not throw when all fields are exactly at their maximum limits', () => {
     // Arrange
-    const summary = 'a'.repeat(LIMITS.SUMMARY_MAX);           // 500
-    const body = 'b'.repeat(LIMITS.BODY_MAX);                 // 100000
-    const keywords = Array(LIMITS.ARRAY_MAX).fill('k'.repeat(LIMITS.ITEM_MAX));   // 100×100
-    const tags = Array(LIMITS.ARRAY_MAX).fill('t'.repeat(LIMITS.ITEM_MAX));       // 100×100
-    const relations = Array(LIMITS.ARRAY_MAX).fill({
-      type: 'related',
-      target: 'r'.repeat(LIMITS.RELATION_TARGET_MAX),         // 200
-    });
+    const key = 'k'.repeat(LIMITS.KEY_MAX);                       // 200
+    const summary = 'a'.repeat(LIMITS.SUMMARY_MAX);               // 500
+    const body = 'b'.repeat(LIMITS.BODY_MAX);                     // 100000
+    const tags = Array(LIMITS.ARRAY_MAX).fill('t'.repeat(LIMITS.ITEM_MAX));       // 100x100
+    const relations = Array(LIMITS.ARRAY_MAX).fill('r'.repeat(LIMITS.RELATION_TARGET_MAX)); // 100x200
     const codeLinks = Array(LIMITS.ARRAY_MAX).fill({
       kind: 'function',
-      file: 'f'.repeat(LIMITS.CODE_LINK_FILE_MAX),            // 500
-      symbol: 's'.repeat(LIMITS.CODE_LINK_SYMBOL_MAX),        // 200
+      file: 'f'.repeat(LIMITS.CODE_LINK_FILE_MAX),                // 500
+      symbol: 's'.repeat(LIMITS.CODE_LINK_SYMBOL_MAX),            // 200
     });
+    const boundary = Array(LIMITS.BOUNDARY_MAX_PATTERNS).fill('p'.repeat(LIMITS.BOUNDARY_PATTERN_MAX)); // 50x500
     // Act / Assert
     expect(() =>
-      validateCardInput({ summary, body, keywords, tags, relations, codeLinks }),
+      validateCardInput({ key, summary, body, tags, relations, codeLinks, boundary }),
     ).not.toThrow();
   });
 
@@ -201,15 +270,15 @@ describe('validateCardInput', () => {
 
   it('should throw on summary validation before checking other fields when multiple fields invalid', () => {
     // Arrange
-    const tooManyKeywords = Array(LIMITS.ARRAY_MAX + 1).fill('kw');
+    const tooManyTags = Array(LIMITS.ARRAY_MAX + 1).fill('t');
     // Act
     let thrownError: unknown;
     try {
-      validateCardInput({ summary: '', keywords: tooManyKeywords });
+      validateCardInput({ summary: '', tags: tooManyTags });
     } catch (e) {
       thrownError = e;
     }
-    // Assert: CardValidationError with summary message (not keywords message)
+    // Assert: CardValidationError with summary message (not tags message)
     expect(thrownError).toBeInstanceOf(CardValidationError);
     expect((thrownError as CardValidationError).message).toContain('summary');
   });

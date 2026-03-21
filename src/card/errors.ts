@@ -3,9 +3,6 @@ export { CardKeyError } from './card-key';
 /**
  * Thrown when card data is invalid.
  * Used in various validations such as YAML parse failures, missing required fields, and constraint violations.
- *
- * @example
- * throw new CardValidationError('summary is required');
  */
 export class CardValidationError extends Error {
   constructor(message: string) {
@@ -48,14 +45,38 @@ export class CardRenameSamePathError extends Error {
 }
 
 /**
- * Thrown when a relation type not registered in `allowedRelationTypes` is used.
- * Occurs during `relations` field validation in `createCard` and `updateCard`.
- * Can be resolved by registering the new type with `addRelationType`.
+ * Thrown when parent validation fails.
+ * Covers: non-existent parent, type hierarchy violation, circular reference.
  */
-export class RelationTypeError extends Error {
-  constructor(type: string, allowed: readonly string[]) {
-    super(`Invalid relation type "${type}". Allowed: ${allowed.join(', ')}`);
-    this.name = 'RelationTypeError';
+export class ParentValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ParentValidationError';
+  }
+}
+
+/**
+ * Thrown when activation guard conditions are not met.
+ * Contains the list of unmet conditions for the caller to display.
+ */
+export class ActivationGuardError extends Error {
+  constructor(
+    message: string,
+    public readonly unmetConditions: string[],
+  ) {
+    super(message);
+    this.name = 'ActivationGuardError';
+  }
+}
+
+/**
+ * Thrown when boundary validation fails.
+ * Covers: invalid glob syntax, empty patterns, limit exceeded.
+ */
+export class BoundaryValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BoundaryValidationError';
   }
 }
 

@@ -22,7 +22,7 @@
     "drizzle:migrate": "bunx drizzle-kit migrate --config drizzle.config.ts"
   },
   "dependencies": {
-    "@zipbul/gildash": "0.9.3",
+    "@zipbul/gildash": "0.10.0",
     "@zipbul/result": "^0.0.3",
     "drizzle-orm": "^0.45.1"
   },

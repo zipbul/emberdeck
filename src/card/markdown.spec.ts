@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { parseCardMarkdown, serializeCardMarkdown } from './markdown';
 import { CardValidationError } from './errors';
-import type { CardFrontmatter, CodeLink } from './types';
+import type { CardFrontmatter } from './types';
 
 // ---- Helpers ----
 
@@ -13,6 +13,7 @@ function makeMarkdown(
     key: 'test/card',
     summary: 'A test card',
     status: 'draft',
+    type: 'spec',
     ...overrides,
   };
   const yaml = Object.entries(fm)
@@ -49,6 +50,7 @@ describe('parseCardMarkdown', () => {
     expect(result.frontmatter.key).toBe('test/card');
     expect(result.frontmatter.summary).toBe('A test card');
     expect(result.frontmatter.status).toBe('draft');
+    expect(result.frontmatter.type).toBe('spec');
   });
 
   it('should parse status=draft when status is draft', () => {
@@ -57,28 +59,28 @@ describe('parseCardMarkdown', () => {
     expect(result.frontmatter.status).toBe('draft');
   });
 
-  it('should parse status=accepted when status is accepted', () => {
-    const md = makeMarkdown({ status: 'accepted' });
+  it('should parse status=active when status is active', () => {
+    const md = makeMarkdown({ status: 'active' });
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.status).toBe('accepted');
+    expect(result.frontmatter.status).toBe('active');
   });
 
-  it('should parse status=implementing when status is implementing', () => {
-    const md = makeMarkdown({ status: 'implementing' });
+  it('should parse status=drifted when status is drifted', () => {
+    const md = makeMarkdown({ status: 'drifted' });
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.status).toBe('implementing');
+    expect(result.frontmatter.status).toBe('drifted');
   });
 
-  it('should parse status=implemented when status is implemented', () => {
-    const md = makeMarkdown({ status: 'implemented' });
+  it('should parse type=architecture when type is architecture', () => {
+    const md = makeMarkdown({ type: 'architecture' });
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.status).toBe('implemented');
+    expect(result.frontmatter.type).toBe('architecture');
   });
 
-  it('should parse status=deprecated when status is deprecated', () => {
-    const md = makeMarkdown({ status: 'deprecated' });
+  it('should parse type=spec when type is spec', () => {
+    const md = makeMarkdown({ type: 'spec' });
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.status).toBe('deprecated');
+    expect(result.frontmatter.type).toBe('spec');
   });
 
   it('should parse tags when tags array given', () => {
@@ -90,35 +92,59 @@ describe('parseCardMarkdown', () => {
     expect(result.frontmatter.tags).toEqual(['alpha', 'beta']);
   });
 
-  it('should parse keywords as array when keywords is array', () => {
-    const md = makeMarkdown({ keywords: ['foo', 'bar'] });
+  it('should normalize tags to lowercase when uppercase tags given', () => {
+    // Arrange
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ntags:\n  - Alpha\n  - BETA\n---\n`;
+    // Act
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.keywords).toEqual(['foo', 'bar']);
+    // Assert
+    expect(result.frontmatter.tags).toEqual(['alpha', 'beta']);
   });
 
-  it('should parse keywords as single-element array when keywords is single string', () => {
-    // Build markdown manually to inject string value
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nkeywords: singleword\n---\n`;
+  it('should parse relations as string array when relations given', () => {
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations:\n  - other/card\n---\n`;
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.keywords).toEqual(['singleword']);
+    expect(result.frontmatter.relations).toEqual(['other/card']);
   });
 
-  it('should return undefined keywords when keywords is null in YAML', () => {
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nkeywords: null\n---\n`;
+  it('should parse parent when parent field given', () => {
+    const md = makeMarkdown({ parent: 'parent/card' });
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.keywords).toBeUndefined();
+    expect(result.frontmatter.parent).toBe('parent/card');
   });
 
-  it('should parse relations when relations array given', () => {
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nrelations:\n  - type: depends-on\n    target: other/card\n---\n`;
+  it('should return undefined parent when parent field absent', () => {
+    const md = makeMarkdown();
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.relations).toEqual([{ type: 'depends-on', target: 'other/card' }]);
+    expect(result.frontmatter.parent).toBeUndefined();
   });
 
-  it('should parse constraints when constraints given', () => {
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nconstraints:\n  maxSize: 10\n---\n`;
+  it('should parse boundary when boundary array given', () => {
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nboundary:\n  - src/auth/**\n  - lib/*.ts\n---\n`;
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.constraints).toBeDefined();
+    expect(result.frontmatter.boundary).toEqual(['src/auth/**', 'lib/*.ts']);
+  });
+
+  it('should return undefined boundary when boundary field absent', () => {
+    const md = makeMarkdown();
+    const result = parseCardMarkdown(md);
+    expect(result.frontmatter.boundary).toBeUndefined();
+  });
+
+  it('should throw CardValidationError when boundary item is empty string', () => {
+    expect(() =>
+      parseCardMarkdown(
+        "---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nboundary:\n  - ''\n---\n",
+      ),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when boundary is not array', () => {
+    expect(() =>
+      parseCardMarkdown(
+        '---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nboundary: 123\n---\n',
+      ),
+    ).toThrow(CardValidationError);
   });
 
   it('should return body when body is present after frontmatter', () => {
@@ -137,26 +163,26 @@ describe('parseCardMarkdown', () => {
   });
 
   it('should normalize CRLF to LF when CRLF line endings given', () => {
-    const md = '---\r\nkey: k\r\nsummary: s\r\nstatus: draft\r\n---\r\nbody text';
+    const md = '---\r\nkey: k\r\nsummary: s\r\nstatus: draft\r\ntype: spec\r\n---\r\nbody text';
     const result = parseCardMarkdown(md);
     expect(result.frontmatter.key).toBe('k');
     expect(result.body).toBe('body text');
   });
 
   it('should include --- in body when --- appears after second delimiter', () => {
-    const md = '---\nkey: k\nsummary: s\nstatus: draft\n---\n---\nThis is body\n---';
+    const md = '---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\n---\n---\nThis is body\n---';
     const result = parseCardMarkdown(md);
     expect(result.body).toContain('---');
   });
 
   it('should return empty tags when tags is empty array', () => {
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntags: []\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ntags: []\n---\n`;
     const result = parseCardMarkdown(md);
     expect(result.frontmatter.tags).toEqual([]);
   });
 
   it('should return empty relations when relations is empty array', () => {
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nrelations: []\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations: []\n---\n`;
     const result = parseCardMarkdown(md);
     expect(result.frontmatter.relations).toEqual([]);
   });
@@ -167,51 +193,15 @@ describe('parseCardMarkdown', () => {
     expect(result.frontmatter.tags).toEqual(['only-one']);
   });
 
-  it('should parse constraints=0 when constraints is number zero', () => {
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nconstraints: 0\n---\n`;
-    const result = parseCardMarkdown(md);
-    expect(result.frontmatter.constraints).toBe(0);
-  });
-
-  it('should parse all optional fields together when tags+keywords+relations+constraints given', () => {
+  it('should parse all optional fields together when tags+relations+parent+boundary given', () => {
     // CO — all optional fields
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntags:\n  - t1\nkeywords:\n  - kw1\nrelations:\n  - type: related\n    target: other\nconstraints: true\n---\nbody`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nparent: p\ntags:\n  - t1\nrelations:\n  - other\nboundary:\n  - src/**\n---\nbody`;
     const result = parseCardMarkdown(md);
     expect(result.frontmatter.tags).toEqual(['t1']);
-    expect(result.frontmatter.keywords).toEqual(['kw1']);
-    expect(result.frontmatter.relations).toEqual([{ type: 'related', target: 'other' }]);
-    expect(result.frontmatter.constraints).toBe(true);
+    expect(result.frontmatter.relations).toEqual(['other']);
+    expect(result.frontmatter.parent).toBe('p');
+    expect(result.frontmatter.boundary).toEqual(['src/**']);
     expect(result.body).toBe('body');
-  });
-
-  // HP — type, priority, acceptance
-  it('should parse type=feature when type is feature in frontmatter', () => {
-    // Arrange
-    const md = makeMarkdown({ type: 'feature' });
-    // Act
-    const result = parseCardMarkdown(md);
-    // Assert
-    expect(result.frontmatter.type).toBe('feature');
-  });
-
-  it('should parse priority=high when priority is high in frontmatter', () => {
-    // Arrange
-    const md = makeMarkdown({ priority: 'high' });
-    // Act
-    const result = parseCardMarkdown(md);
-    // Assert
-    expect(result.frontmatter.priority).toBe('high');
-  });
-
-  it('should parse acceptance array when acceptance criteria given in frontmatter', () => {
-    // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nacceptance:\n  - id: AC-1\n    description: must compile\n    verified: false\n---\n`;
-    // Act
-    const result = parseCardMarkdown(md);
-    // Assert
-    expect(result.frontmatter.acceptance).toEqual([
-      { id: 'AC-1', description: 'must compile', verified: false },
-    ]);
   });
 
   // ID
@@ -233,62 +223,68 @@ describe('parseCardMarkdown', () => {
   });
 
   it('should throw CardValidationError when unterminated frontmatter', () => {
-    expect(() => parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft')).toThrow(
+    expect(() => parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntype: spec')).toThrow(
       CardValidationError,
     );
   });
 
   it('should throw CardValidationError when status is missing', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\ntype: spec\n---\n'),
     ).toThrow(CardValidationError);
   });
 
   it('should throw CardValidationError when status is unknown value', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: unknown\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: unknown\ntype: spec\n---\n'),
     ).toThrow(CardValidationError);
   });
 
-  it('should throw CardValidationError when key is missing', () => {
+  it('should throw CardValidationError when old status "accepted" is used', () => {
     expect(() =>
-      parseCardMarkdown('---\nsummary: s\nstatus: draft\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: accepted\ntype: spec\n---\n'),
     ).toThrow(CardValidationError);
   });
 
-  it('should throw CardValidationError when summary is missing', () => {
+  it('should throw CardValidationError when old status "deprecated" is used', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nstatus: draft\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: deprecated\ntype: spec\n---\n'),
     ).toThrow(CardValidationError);
   });
 
-  it('should throw CardValidationError when key is empty string', () => {
+  it('should throw CardValidationError when type is missing', () => {
     expect(() =>
-      parseCardMarkdown("---\nkey: ''\nsummary: s\nstatus: draft\n---\n"),
-    ).toThrow(CardValidationError);
-  });
-
-  it('should throw CardValidationError when summary is empty string', () => {
-    expect(() =>
-      parseCardMarkdown("---\nkey: k\nsummary: ''\nstatus: draft\n---\n"),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\n---\n'),
     ).toThrow(CardValidationError);
   });
 
   it('should throw CardValidationError when type field has invalid value', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntype: card\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntype: feature\n---\n'),
     ).toThrow(CardValidationError);
   });
 
-  it('should throw CardValidationError when priority field has invalid value', () => {
+  it('should throw CardValidationError when key is missing', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\npriority: urgent\n---\n'),
+      parseCardMarkdown('---\nsummary: s\nstatus: draft\ntype: spec\n---\n'),
     ).toThrow(CardValidationError);
   });
 
-  it('should throw CardValidationError when acceptance is not an array', () => {
+  it('should throw CardValidationError when summary is missing', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\nacceptance: not-an-array\n---\n'),
+      parseCardMarkdown('---\nkey: k\nstatus: draft\ntype: spec\n---\n'),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when key is empty string', () => {
+    expect(() =>
+      parseCardMarkdown("---\nkey: ''\nsummary: s\nstatus: draft\ntype: spec\n---\n"),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when summary is empty string', () => {
+    expect(() =>
+      parseCardMarkdown("---\nkey: k\nsummary: ''\nstatus: draft\ntype: spec\n---\n"),
     ).toThrow(CardValidationError);
   });
 
@@ -307,46 +303,26 @@ describe('parseCardMarkdown', () => {
 
   it('should throw CardValidationError when tags is not array', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntags: 123\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ntags: 123\n---\n'),
     ).toThrow(CardValidationError);
   });
 
   it('should throw CardValidationError when tags contains non-string', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntags:\n  - 123\n---\n'),
-    ).toThrow(CardValidationError);
-  });
-
-  it('should throw CardValidationError when keywords contains empty string', () => {
-    expect(() =>
-      parseCardMarkdown("---\nkey: k\nsummary: s\nstatus: draft\nkeywords:\n  - ''\n---\n"),
-    ).toThrow(CardValidationError);
-  });
-
-  it('should throw CardValidationError when keywords is object', () => {
-    expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\nkeywords:\n  foo: bar\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ntags:\n  - 123\n---\n'),
     ).toThrow(CardValidationError);
   });
 
   it('should throw CardValidationError when relations is not array', () => {
     expect(() =>
-      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\nrelations: 123\n---\n'),
+      parseCardMarkdown('---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations: 123\n---\n'),
     ).toThrow(CardValidationError);
   });
 
-  it('should throw CardValidationError when relations item is missing type', () => {
+  it('should throw CardValidationError when relations item is not a string', () => {
     expect(() =>
       parseCardMarkdown(
-        '---\nkey: k\nsummary: s\nstatus: draft\nrelations:\n  - target: other\n---\n',
-      ),
-    ).toThrow(CardValidationError);
-  });
-
-  it('should throw CardValidationError when relations item is missing target', () => {
-    expect(() =>
-      parseCardMarkdown(
-        '---\nkey: k\nsummary: s\nstatus: draft\nrelations:\n  - type: related\n---\n',
+        '---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations:\n  - 123\n---\n',
       ),
     ).toThrow(CardValidationError);
   });
@@ -354,7 +330,23 @@ describe('parseCardMarkdown', () => {
   it('should throw CardValidationError when relations item is null', () => {
     expect(() =>
       parseCardMarkdown(
-        '---\nkey: k\nsummary: s\nstatus: draft\nrelations:\n  - null\n---\n',
+        '---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations:\n  - null\n---\n',
+      ),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when relations item is empty string', () => {
+    expect(() =>
+      parseCardMarkdown(
+        "---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations:\n  - ''\n---\n",
+      ),
+    ).toThrow(CardValidationError);
+  });
+
+  it('should throw CardValidationError when relations item is old-style object {type, target}', () => {
+    expect(() =>
+      parseCardMarkdown(
+        '---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations:\n  - type: depends-on\n    target: other\n---\n',
       ),
     ).toThrow(CardValidationError);
   });
@@ -364,7 +356,7 @@ describe('parseCardMarkdown', () => {
   });
 
   it('should throw CardValidationError when first line has trailing space (not exactly ---)', () => {
-    expect(() => parseCardMarkdown('--- \nkey: k\nsummary: s\nstatus: draft\n---\n')).toThrow(
+    expect(() => parseCardMarkdown('--- \nkey: k\nsummary: s\nstatus: draft\ntype: spec\n---\n')).toThrow(
       CardValidationError,
     );
   });
@@ -407,7 +399,7 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks).toEqual(links);
   });
 
-  // 3. [HP] codeLinks not specified → undefined
+  // 3. [HP] codeLinks not specified -> undefined
   it('should return undefined codeLinks when codeLinks field absent', () => {
     // Arrange
     const md = makeMarkdown();
@@ -417,78 +409,78 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks).toBeUndefined();
   });
 
-  // 4. [HP] codeLinks: null → undefined
+  // 4. [HP] codeLinks: null -> undefined
   it('should return undefined codeLinks when codeLinks is null in YAML', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: null\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks: null\n---\n`;
     // Act
     const result = parseCardMarkdown(md);
     // Assert
     expect(result.frontmatter.codeLinks).toBeUndefined();
   });
 
-  // 5. [ED] codeLinks: [] → empty array
+  // 5. [ED] codeLinks: [] -> empty array
   it('should return empty array codeLinks when codeLinks is empty array', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: []\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks: []\n---\n`;
     // Act
     const result = parseCardMarkdown(md);
     // Assert
     expect(result.frontmatter.codeLinks).toEqual([]);
   });
 
-  // 6. [NE] codeLinks is a number → throw
+  // 6. [NE] codeLinks is a number -> throw
   it('should throw CardValidationError when codeLinks is a number', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks: 42\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks: 42\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 7. [NE] codeLinks is a non-array object → throw
+  // 7. [NE] codeLinks is a non-array object -> throw
   it('should throw CardValidationError when codeLinks is a non-array object', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  kind: function\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  kind: function\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 8. [NE] item is null → throw
+  // 8. [NE] item is null -> throw
   it('should throw CardValidationError when codeLinks item is null', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - null\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  - null\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 9. [NE] item kind is empty string → throw
+  // 9. [NE] item kind is empty string -> throw
   it('should throw CardValidationError when codeLinks item kind is empty string', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: ''\n    file: src/a.ts\n    symbol: foo\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  - kind: ''\n    file: src/a.ts\n    symbol: foo\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 10. [NE] item missing kind key → throw
+  // 10. [NE] item missing kind key -> throw
   it('should throw CardValidationError when codeLinks item is missing kind', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - file: src/a.ts\n    symbol: foo\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  - file: src/a.ts\n    symbol: foo\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 11. [NE] item file is empty string → throw
+  // 11. [NE] item file is empty string -> throw
   it('should throw CardValidationError when codeLinks item file is empty string', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: ''\n    symbol: foo\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  - kind: function\n    file: ''\n    symbol: foo\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
 
-  // 12. [NE] item symbol is empty string → throw
+  // 12. [NE] item symbol is empty string -> throw
   it('should throw CardValidationError when codeLinks item symbol is empty string', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: ''\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: ''\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
@@ -496,18 +488,18 @@ describe('parseCardMarkdown — codeLinks', () => {
   // 13. [HP] codeLinks and relations coexist
   it('should parse both codeLinks and relations when both fields given', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\nrelations:\n  - type: depends-on\n    target: other\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\nrelations:\n  - other\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n---\n`;
     // Act
     const result = parseCardMarkdown(md);
     // Assert
-    expect(result.frontmatter.relations).toEqual([{ type: 'depends-on', target: 'other' }]);
+    expect(result.frontmatter.relations).toEqual(['other']);
     expect(result.frontmatter.codeLinks).toEqual([{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }]);
   });
 
   // 14. [HP] order preservation
   it('should preserve codeLinks order when multiple codeLinks given', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: alpha\n  - kind: class\n    file: src/b.ts\n    symbol: beta\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: alpha\n  - kind: class\n    file: src/b.ts\n    symbol: beta\n---\n`;
     // Act
     const result = parseCardMarkdown(md);
     // Assert
@@ -515,10 +507,10 @@ describe('parseCardMarkdown — codeLinks', () => {
     expect(result.frontmatter.codeLinks![1]!.symbol).toBe('beta');
   });
 
-  // 15. [CO] first item valid, second item kind='' → throw
+  // 15. [CO] first item valid, second item kind='' -> throw
   it('should throw CardValidationError when second codeLinks item has empty kind', () => {
     // Arrange
-    const md = `---\nkey: k\nsummary: s\nstatus: draft\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n  - kind: ''\n    file: src/b.ts\n    symbol: bar\n---\n`;
+    const md = `---\nkey: k\nsummary: s\nstatus: draft\ntype: spec\ncodeLinks:\n  - kind: function\n    file: src/a.ts\n    symbol: foo\n  - kind: ''\n    file: src/b.ts\n    symbol: bar\n---\n`;
     // Act / Assert
     expect(() => parseCardMarkdown(md)).toThrow(CardValidationError);
   });
@@ -527,13 +519,14 @@ describe('parseCardMarkdown — codeLinks', () => {
 // ── codeLinks serialization ──────────────────────────────────────────────────
 
 describe('serializeCardMarkdown — codeLinks', () => {
-  // 16. [HP] frontmatter with codeLinks → YAML includes codeLinks
+  // 16. [HP] frontmatter with codeLinks -> YAML includes codeLinks
   it('should include codeLinks in YAML when codeLinks present in frontmatter', () => {
     // Arrange
     const fm: CardFrontmatter = {
       key: 'k',
       summary: 's',
       status: 'draft',
+      type: 'spec',
       codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' }],
     };
     // Act
@@ -543,23 +536,24 @@ describe('serializeCardMarkdown — codeLinks', () => {
     expect(result).toContain('refreshToken');
   });
 
-  // 17. [HP] frontmatter without codeLinks → YAML excludes codeLinks
+  // 17. [HP] frontmatter without codeLinks -> YAML excludes codeLinks
   it('should not include codeLinks in YAML when codeLinks absent from frontmatter', () => {
     // Arrange
-    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft' };
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec' };
     // Act
     const result = serializeCardMarkdown(fm, '');
     // Assert
     expect(result).not.toContain('codeLinks');
   });
 
-  // 18. [HP] round-trip: parse→serialize preserves codeLinks values
+  // 18. [HP] round-trip: parse->serialize preserves codeLinks values
   it('should preserve codeLinks after round-trip parse then serialize then parse', () => {
     // Arrange
     const original: CardFrontmatter = {
       key: 'auth/token',
       summary: 'Token spec',
-      status: 'implementing',
+      status: 'active',
+      type: 'spec',
       codeLinks: [
         { kind: 'function', file: 'src/auth/token.ts', symbol: 'refreshToken' },
         { kind: 'class', file: 'src/auth/TokenService.ts', symbol: 'TokenService' },
@@ -577,7 +571,7 @@ describe('serializeCardMarkdown', () => {
   // HP
   it('should return header+body format when called with frontmatter and body', () => {
     // Arrange
-    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft' };
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec' };
     const body = 'body content';
     // Act
     const result = serializeCardMarkdown(fm, body);
@@ -588,7 +582,7 @@ describe('serializeCardMarkdown', () => {
 
   it('should output --- delimiters when serializing frontmatter', () => {
     // Arrange
-    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft' };
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec' };
     // Act
     const result = serializeCardMarkdown(fm, '');
     // Assert
@@ -599,7 +593,7 @@ describe('serializeCardMarkdown', () => {
 
   it('should return header only when body is empty string', () => {
     // Arrange
-    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft' };
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec' };
     // Act
     const result = serializeCardMarkdown(fm, '');
     // Assert
@@ -607,22 +601,38 @@ describe('serializeCardMarkdown', () => {
   });
 
   it('should include tags when tags present in frontmatter', () => {
-    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', tags: ['t1', 't2'] };
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec', tags: ['t1', 't2'] };
     const result = serializeCardMarkdown(fm, '');
     expect(result).toContain('t1');
     expect(result).toContain('t2');
   });
 
+  it('should include parent when parent present in frontmatter', () => {
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec', parent: 'parent/card' };
+    const result = serializeCardMarkdown(fm, '');
+    expect(result).toContain('parent');
+    expect(result).toContain('parent/card');
+  });
+
+  it('should include boundary when boundary present in frontmatter', () => {
+    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec', boundary: ['src/**'] };
+    const result = serializeCardMarkdown(fm, '');
+    expect(result).toContain('boundary');
+    expect(result).toContain('src/**');
+  });
+
   // CO — round-trip
-  it('should yield same frontmatter after round-trip parse→serialize→parse', () => {
+  it('should yield same frontmatter after round-trip parse->serialize->parse', () => {
     // Arrange
     const original: CardFrontmatter = {
       key: 'spec/api',
       summary: 'API spec',
-      status: 'accepted',
+      status: 'active',
+      type: 'architecture',
       tags: ['api', 'v2'],
-      keywords: ['rest'],
-      relations: [{ type: 'depends-on', target: 'core/module' }],
+      relations: ['core/module'],
+      parent: 'spec/root',
+      boundary: ['src/api/**'],
     };
     const body = '## Details\ncontent here';
     // Act
@@ -632,48 +642,32 @@ describe('serializeCardMarkdown', () => {
     expect(reparsed.frontmatter.key).toBe(original.key);
     expect(reparsed.frontmatter.summary).toBe(original.summary);
     expect(reparsed.frontmatter.status).toBe(original.status);
+    expect(reparsed.frontmatter.type).toBe(original.type);
     expect(reparsed.frontmatter.tags).toEqual(original.tags);
-    expect(reparsed.frontmatter.keywords).toEqual(original.keywords);
     expect(reparsed.frontmatter.relations).toEqual(original.relations);
+    expect(reparsed.frontmatter.parent).toBe(original.parent);
+    expect(reparsed.frontmatter.boundary).toEqual(original.boundary);
     expect(reparsed.body).toBe(body);
   });
 
-  it('should preserve constraints after round-trip when constraints given', () => {
-    // Arrange
-    const fm: CardFrontmatter = {
-      key: 'k',
-      summary: 's',
-      status: 'draft',
-      constraints: { maxSize: 10, required: true },
-    };
-    // Act
-    const serialized = serializeCardMarkdown(fm, '');
-    const reparsed = parseCardMarkdown(serialized);
-    // Assert
-    expect(reparsed.frontmatter.constraints).toEqual(fm.constraints);
-  });
-
-  it('should preserve type, priority, and acceptance after round-trip', () => {
+  it('should preserve type and parent after round-trip', () => {
     // Arrange
     const fm: CardFrontmatter = {
       key: 'spec/round',
       summary: 'Round-trip spec',
       status: 'draft',
-      type: 'feature',
-      priority: 'high',
-      acceptance: [
-        { id: 'AC-1', description: 'must compile', verified: false },
-        { id: 'AC-2', description: 'tests pass', verified: true },
-      ],
+      type: 'architecture',
+      parent: 'root',
+      boundary: ['src/**', 'lib/**'],
     };
     const body = '## Notes\nround-trip body';
     // Act
     const serialized = serializeCardMarkdown(fm, body);
     const reparsed = parseCardMarkdown(serialized);
     // Assert
-    expect(reparsed.frontmatter.type).toBe('feature');
-    expect(reparsed.frontmatter.priority).toBe('high');
-    expect(reparsed.frontmatter.acceptance).toEqual(fm.acceptance);
+    expect(reparsed.frontmatter.type).toBe('architecture');
+    expect(reparsed.frontmatter.parent).toBe('root');
+    expect(reparsed.frontmatter.boundary).toEqual(['src/**', 'lib/**']);
     expect(reparsed.body).toBe(body);
   });
 });

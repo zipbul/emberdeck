@@ -6,7 +6,7 @@ import { DrizzleRelationRepository } from './db/relation-repo';
 import { DrizzleClassificationRepository } from './db/classification-repo';
 import { DrizzleCodeLinkRepository } from './db/code-link-repo';
 import { DrizzleChangelogRepository } from './db/changelog-repo';
-import { DEFAULT_RELATION_TYPES, type EmberdeckContext, type EmberdeckOptions } from './config';
+import type { EmberdeckContext, EmberdeckOptions } from './config';
 
 /**
  * Initializes the emberdeck context.
@@ -15,9 +15,6 @@ import { DEFAULT_RELATION_TYPES, type EmberdeckContext, type EmberdeckOptions } 
  * 2. Creates repository instances.
  * 3. If `projectRoot` is specified, initializes gildash.
  *    On initialization failure, gildash is set to `undefined` and the code link feature is disabled.
- *
- * @param options - Initialization options.
- * @returns The initialized `EmberdeckContext`.
  */
 export async function setupEmberdeck(options: EmberdeckOptions): Promise<EmberdeckContext> {
   const db = createEmberdeckDb(options.dbPath);
@@ -47,7 +44,8 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
     classificationRepo: new DrizzleClassificationRepository(db),
     codeLinkRepo: new DrizzleCodeLinkRepository(db),
     changelogRepo: new DrizzleChangelogRepository(db),
-    allowedRelationTypes: options.allowedRelationTypes ?? [...DEFAULT_RELATION_TYPES],
+    coverageIgnore: options.coverageIgnore ?? [],
+    regressionThreshold: options.regressionThreshold ?? 0,
     gildash,
   };
 }
@@ -57,8 +55,6 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
  *
  * Closes the gildash index and the SQLite DB connection.
  * Should be called before process exit or when recreating the context.
- *
- * @param ctx - The context to tear down.
  */
 export async function teardownEmberdeck(ctx: EmberdeckContext): Promise<void> {
   await ctx.gildash?.close();

@@ -9,16 +9,22 @@ export const LIMITS = {
   SUMMARY_MAX: 500,
   /** Maximum length of body (character count) */
   BODY_MAX: 100_000,
-  /** Maximum item count for array fields (keywords, tags, relations, codeLinks) */
+  /** Maximum item count for array fields (tags, relations, codeLinks) */
   ARRAY_MAX: 100,
-  /** Maximum length of individual keywords/tags items */
+  /** Maximum length of individual tag items */
   ITEM_MAX: 100,
-  /** Maximum length of relations[].target */
+  /** Maximum length of relations[] items (card keys) */
   RELATION_TARGET_MAX: 200,
   /** Maximum length of codeLinks[].symbol */
   CODE_LINK_SYMBOL_MAX: 200,
   /** Maximum length of codeLinks[].file */
   CODE_LINK_FILE_MAX: 500,
+  /** Maximum length of card key */
+  KEY_MAX: 200,
+  /** Maximum number of boundary patterns */
+  BOUNDARY_MAX_PATTERNS: 50,
+  /** Maximum length of each boundary pattern */
+  BOUNDARY_PATTERN_MAX: 500,
 } as const;
 
 /**
@@ -26,26 +32,33 @@ export const LIMITS = {
  * If a field is `undefined`, validation for that field is skipped.
  */
 export interface ValidationInput {
+  key?: string;
   summary?: string;
   body?: string;
-  keywords?: string[];
   tags?: string[];
-  relations?: Array<{ type: string; target: string }>;
+  relations?: string[];
   codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
+  boundary?: string[];
 }
 
 /**
  * Validates size limits of card input values.
  * Throws {@link CardValidationError} on violation.
- * Fields are checked in order (summary → body → keywords → tags → relations → codeLinks),
- * so only the first violation is reported even if multiple violations exist.
+ * Fields are checked in order, so only the first violation is reported.
  *
  * @spec card-model
  * @param input - The input object to validate. `undefined` fields are skipped.
  * @throws {CardValidationError} On size limit violation.
  */
 export function validateCardInput(input: ValidationInput): void {
-  const { summary, body, keywords, tags, relations, codeLinks } = input;
+  const { key, summary, body, tags, relations, codeLinks, boundary } = input;
+
+  // ── key ────────────────────────────────────────────────────
+  if (key !== undefined && key.length > LIMITS.KEY_MAX) {
+    throw new CardValidationError(
+      `key exceeds maximum length of ${LIMITS.KEY_MAX} characters (got ${key.length})`,
+    );
+  }
 
   // ── summary ──────────────────────────────────────────────
   if (summary !== undefined) {
@@ -64,25 +77,6 @@ export function validateCardInput(input: ValidationInput): void {
     throw new CardValidationError(
       `body exceeds maximum length of ${LIMITS.BODY_MAX} characters (got ${body.length})`,
     );
-  }
-
-  // ── keywords ─────────────────────────────────────────────
-  if (keywords !== undefined) {
-    if (keywords.length > LIMITS.ARRAY_MAX) {
-      throw new CardValidationError(
-        `keywords array exceeds maximum of ${LIMITS.ARRAY_MAX} items (got ${keywords.length})`,
-      );
-    }
-    for (const kw of keywords) {
-      if (kw.length === 0) {
-        throw new CardValidationError('keyword item must not be empty');
-      }
-      if (kw.length > LIMITS.ITEM_MAX) {
-        throw new CardValidationError(
-          `keyword item exceeds maximum length of ${LIMITS.ITEM_MAX} characters`,
-        );
-      }
-    }
   }
 
   // ── tags ─────────────────────────────────────────────────
@@ -112,12 +106,16 @@ export function validateCardInput(input: ValidationInput): void {
       );
     }
     for (const rel of relations) {
-      if (rel.target.length > LIMITS.RELATION_TARGET_MAX) {
+      if (rel.length === 0) {
+        throw new CardValidationError('relation item must not be empty');
+      }
+      if (rel.length > LIMITS.RELATION_TARGET_MAX) {
         throw new CardValidationError(
-          `relation target exceeds maximum length of ${LIMITS.RELATION_TARGET_MAX} characters`,
+          `relation item exceeds maximum length of ${LIMITS.RELATION_TARGET_MAX} characters`,
         );
       }
     }
+    // Self-reference check requires card key context — done at ops layer
   }
 
   // ── codeLinks ─────────────────────────────────────────────
@@ -128,6 +126,12 @@ export function validateCardInput(input: ValidationInput): void {
       );
     }
     for (const link of codeLinks) {
+      if (link.file.length === 0) {
+        throw new CardValidationError('codeLink file must not be empty');
+      }
+      if (link.symbol.length === 0) {
+        throw new CardValidationError('codeLink symbol must not be empty');
+      }
       if (link.symbol.length > LIMITS.CODE_LINK_SYMBOL_MAX) {
         throw new CardValidationError(
           `codeLink symbol exceeds maximum length of ${LIMITS.CODE_LINK_SYMBOL_MAX} characters`,
@@ -137,6 +141,31 @@ export function validateCardInput(input: ValidationInput): void {
         throw new CardValidationError(
           `codeLink file path exceeds maximum length of ${LIMITS.CODE_LINK_FILE_MAX} characters`,
         );
+      }
+    }
+  }
+
+  // ── boundary ──────────────────────────────────────────────
+  if (boundary !== undefined) {
+    if (boundary.length > LIMITS.BOUNDARY_MAX_PATTERNS) {
+      throw new CardValidationError(
+        `boundary array exceeds maximum of ${LIMITS.BOUNDARY_MAX_PATTERNS} patterns (got ${boundary.length})`,
+      );
+    }
+    for (const pattern of boundary) {
+      if (pattern.length === 0) {
+        throw new CardValidationError('boundary pattern must not be empty');
+      }
+      if (pattern.length > LIMITS.BOUNDARY_PATTERN_MAX) {
+        throw new CardValidationError(
+          `boundary pattern exceeds maximum length of ${LIMITS.BOUNDARY_PATTERN_MAX} characters`,
+        );
+      }
+      // Validate glob syntax
+      try {
+        new Bun.Glob(pattern);
+      } catch {
+        throw new CardValidationError(`boundary pattern is not valid glob syntax: "${pattern}"`);
       }
     }
   }

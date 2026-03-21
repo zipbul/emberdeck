@@ -4,23 +4,12 @@
  * Searches for and loads `.emberdeck.jsonc` or `.emberdeck.json`.
  * Parses JSONC (including comments) with `Bun.JSONC.parse`,
  * strictly validates all fields, and returns the result using the `Result` pattern.
- *
- * @example
- * ```ts
- * const result = await loadConfig();
- * if (isErr(result)) {
- *   console.error(result.data);
- *   process.exit(1);
- * }
- * const options = result; // EmberdeckFileConfig
- * ```
  */
 
 import { resolve, dirname } from 'node:path';
-import { err, isErr } from '@zipbul/result';
+import { err } from '@zipbul/result';
 import { findPackageRoot } from './fs/package-root';
-import type { Result, Err } from '@zipbul/result';
-import { DEFAULT_RELATION_TYPES } from './config';
+import type { Result } from '@zipbul/result';
 
 // ── Types ──
 
@@ -30,7 +19,8 @@ export interface EmberdeckFileConfig {
   dbPath: string;
   projectRoot?: string;
   gildashIgnore?: string[];
-  allowedRelationTypes: readonly string[];
+  coverageIgnore: string[];
+  regressionThreshold: number;
 }
 
 /** Config error data */
@@ -61,6 +51,7 @@ function assertStringArray(
   obj: Record<string, unknown>,
   key: string,
   errors: ValidationErrors,
+  allowEmpty = false,
 ): void {
   if (!(key in obj)) return;
   const val = obj[key];
@@ -73,8 +64,29 @@ function assertStringArray(
       errors.push(`"${key}[${i}]": must be a string (received ${typeof val[i]})`);
     }
   }
-  if (val.length === 0) {
+  if (!allowEmpty && val.length === 0) {
     errors.push(`"${key}": must not be empty`);
+  }
+}
+
+function assertNumber(
+  obj: Record<string, unknown>,
+  key: string,
+  errors: ValidationErrors,
+  min?: number,
+  max?: number,
+): void {
+  if (!(key in obj)) return;
+  const val = obj[key];
+  if (typeof val !== 'number') {
+    errors.push(`"${key}": must be a number (received ${typeof val})`);
+    return;
+  }
+  if (min !== undefined && val < min) {
+    errors.push(`"${key}": must be >= ${min} (received ${val})`);
+  }
+  if (max !== undefined && val > max) {
+    errors.push(`"${key}": must be <= ${max} (received ${val})`);
   }
 }
 
@@ -83,7 +95,8 @@ const KNOWN_TOP_KEYS = new Set([
   'dbPath',
   'projectRoot',
   'gildashIgnore',
-  'allowedRelationTypes',
+  'coverageIgnore',
+  'regressionThreshold',
 ]);
 
 // ── Core ──
@@ -121,7 +134,10 @@ export function validateRawConfig(
 
   // ── String array fields ──
   assertStringArray(obj, 'gildashIgnore', errors);
-  assertStringArray(obj, 'allowedRelationTypes', errors);
+  assertStringArray(obj, 'coverageIgnore', errors, true);
+
+  // ── Number fields ──
+  assertNumber(obj, 'regressionThreshold', errors, 0, 1);
 
   if (errors.length > 0) {
     return err({
@@ -153,16 +169,21 @@ export function validateRawConfig(
     ? (obj['gildashIgnore'] as string[])
     : undefined;
 
-  const allowedRelationTypes = Array.isArray(obj['allowedRelationTypes'])
-    ? (obj['allowedRelationTypes'] as string[])
-    : [...DEFAULT_RELATION_TYPES];
+  const coverageIgnore = Array.isArray(obj['coverageIgnore'])
+    ? (obj['coverageIgnore'] as string[])
+    : [];
+
+  const regressionThreshold = typeof obj['regressionThreshold'] === 'number'
+    ? obj['regressionThreshold']
+    : 0;
 
   return {
     cardsDir,
     dbPath,
     projectRoot,
     gildashIgnore,
-    allowedRelationTypes,
+    coverageIgnore,
+    regressionThreshold,
   };
 }
 
@@ -211,8 +232,6 @@ export async function loadConfigFromPath(
 /**
  * Automatically searches for `.emberdeck.jsonc` or `.emberdeck.json` from CWD.
  * If found, loads and validates it; if not found, creates a config with defaults.
- *
- * @param cwd - Directory to start searching from. Default: `process.cwd()`
  */
 export async function loadConfig(
   cwd?: string,
@@ -260,6 +279,7 @@ export function buildDefaultConfig(baseDir: string): EmberdeckFileConfig {
     dbPath: resolve(baseDir, DEFAULT_DB_PATH),
     projectRoot: undefined,
     gildashIgnore: undefined,
-    allowedRelationTypes: [...DEFAULT_RELATION_TYPES],
+    coverageIgnore: [],
+    regressionThreshold: 0,
   };
 }

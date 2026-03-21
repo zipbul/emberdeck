@@ -140,7 +140,7 @@
 - [ ] key 길이 검증 추가 (최대 200자)
 - [ ] boundary 검증 추가: 빈 문자열 거부, 최대 50개, 패턴당 최대 500자, 유효한 glob 문법
 - [ ] tags 저장 시 lowercase 정규화 로직 추가
-- [ ] relations 검증 변경: `{type, target}[]` → `string[]`, 빈 문자열 거부, 자기 참조 거부
+- [ ] relations 검증 변경: `{type, target}[]` → `string[]`, 빈 문자열 거부 (자기 참조 거부는 key 컨텍스트 필요 → Phase 2 `validateRelationTargets`에서 처리)
 - [ ] codeLinks file/symbol 빈 문자열 거부 (기존 확인 후 보강)
 - [ ] `normalizeRelations` 반환 타입 `string[]`로 변경
 - [ ] `ValidationInput`에서 `keywords?` 제거, `boundary?` 추가
