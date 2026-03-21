@@ -143,9 +143,10 @@ describe('ops/link', () => {
     tc.ctx.codeLinkRepo.replaceForCard('spec/b', [{ kind: 'function', file: 'src/b.ts', symbol: 'fn' }]);
     const result = await findCardsBySymbol(tc.ctx, 'fn');
     expect(result).toHaveLength(2);
-    const keys = result.map((r) => r.key);
+    const keys = result.map((r) => r.card.key);
     expect(keys).toContain('spec/a');
     expect(keys).toContain('spec/b');
+    expect(result.every((r) => r.matchType === 'codeLink')).toBe(true);
   });
 
   // 7. [HP] findCardsBySymbol: filePath → filtered
@@ -156,7 +157,8 @@ describe('ops/link', () => {
     tc.ctx.codeLinkRepo.replaceForCard('spec/b', [{ kind: 'function', file: 'src/b.ts', symbol: 'fn' }]);
     const result = await findCardsBySymbol(tc.ctx, 'fn', 'src/a.ts');
     expect(result).toHaveLength(1);
-    expect(result[0]!.key).toBe('spec/a');
+    expect(result[0]!.card.key).toBe('spec/a');
+    expect(result[0]!.matchType).toBe('codeLink');
   });
 
   // 8. [HP] findCardsBySymbol: multiple links same card → deduplicated
@@ -168,7 +170,7 @@ describe('ops/link', () => {
     ]);
     const result = await findCardsBySymbol(tc.ctx, 'fn');
     expect(result).toHaveLength(1);
-    expect(result[0]!.key).toBe('spec/a');
+    expect(result[0]!.card.key).toBe('spec/a');
   });
 
   // 9. [HP] findAffectedCards: 1 file, 1 card → that card
@@ -320,7 +322,7 @@ describe('ops/link', () => {
     ]);
     const result = await findCardsBySymbol(tc.ctx, 'FeatureService');
     expect(result).toHaveLength(1);
-    expect(result[0]!.key).toBe('spec/feature');
+    expect(result[0]!.card.key).toBe('spec/feature');
   });
 
   // 25. [ID] validateCodeLinks twice → identical result

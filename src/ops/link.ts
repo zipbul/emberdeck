@@ -91,25 +91,52 @@ export async function resolveCardCodeLinks(
   return result;
 }
 
+export interface SymbolMatchResult {
+  card: CardRow;
+  matchType: 'codeLink' | 'boundary';
+}
+
 /**
  * Returns the list of cards that reference the given symbol name (+ optional file path).
+ * Matches via codeLinks first, then via boundary glob patterns.
  */
 export async function findCardsBySymbol(
   ctx: EmberdeckContext,
   symbolName: string,
   filePath?: string,
-): Promise<CardRow[]> {
+): Promise<SymbolMatchResult[]> {
   await ensureReindexed(ctx);
 
-  const rows = ctx.codeLinkRepo.findBySymbol(symbolName, filePath);
   const seen = new Set<string>();
-  const result: CardRow[] = [];
+  const result: SymbolMatchResult[] = [];
+
+  // 1. codeLink-based matches
+  const rows = ctx.codeLinkRepo.findBySymbol(symbolName, filePath);
   for (const row of rows) {
     if (seen.has(row.cardKey)) continue;
     seen.add(row.cardKey);
     const card = ctx.cardRepo.findByKey(row.cardKey);
-    if (card) result.push(card);
+    if (card) result.push({ card, matchType: 'codeLink' });
   }
+
+  // 2. boundary glob matches (only when filePath is provided)
+  if (filePath) {
+    const allCards = ctx.cardRepo.list();
+    for (const card of allCards) {
+      if (seen.has(card.key)) continue;
+      if (!card.boundaryJson) continue;
+      const boundaries: string[] = JSON.parse(card.boundaryJson);
+      for (const pattern of boundaries) {
+        const glob = new Bun.Glob(pattern);
+        if (glob.match(filePath)) {
+          seen.add(card.key);
+          result.push({ card, matchType: 'boundary' });
+          break;
+        }
+      }
+    }
+  }
+
   return result;
 }
 

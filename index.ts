@@ -41,11 +41,15 @@ export {
   listCardRelations,
   getCardContext,
   getRelationGraph,
+  getCardTree,
   type CardContext,
+  type RelatedCard,
+  type GetCardContextOptions,
   type GetCardResult,
   type SearchCardsOptions,
   type RelationGraphNode,
   type RelationGraphOptions,
+  type CardTreeNode,
 } from './src/ops/query';
 export {
   syncCardFromFile,
@@ -64,6 +68,7 @@ export {
   type ResolvedCodeLink,
   type BrokenLink,
   type ValidateCodeLinksResult,
+  type SymbolMatchResult,
 } from './src/ops/link';
 export {
   checkDrift,

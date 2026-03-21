@@ -65,14 +65,33 @@ export function getRelationGraph(
   return result;
 }
 
+export interface RelatedCard {
+  card: CardRow;
+  depth: number;
+  direction: 'forward' | 'backward';
+}
+
 export interface CardContext {
   card: CardFile;
   codeLinks: ResolvedCodeLink[];
   upstreamCards: CardRow[];
   downstreamCards: CardRow[];
+  /** Cards at depth 2+ discovered by BFS. Only present when depth > 1. */
+  related?: RelatedCard[];
+  /** True when BFS traversal was cut short by the depth limit. */
+  truncated?: boolean;
 }
 
-export async function getCardContext(ctx: EmberdeckContext, fullKey: string): Promise<CardContext> {
+export interface GetCardContextOptions {
+  /** BFS traversal depth. 1 = direct relations only (default). >1 = multi-hop BFS. */
+  depth?: number;
+}
+
+export async function getCardContext(
+  ctx: EmberdeckContext,
+  fullKey: string,
+  options?: GetCardContextOptions,
+): Promise<CardContext> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
   if (!(await Bun.file(filePath).exists())) throw new CardNotFoundError(key);
@@ -93,7 +112,35 @@ export async function getCardContext(ctx: EmberdeckContext, fullKey: string): Pr
     .map((r) => ctx.cardRepo.findByKey(r.dstCardKey))
     .filter((r): r is CardRow => r !== null);
 
-  return { card, codeLinks, upstreamCards, downstreamCards };
+  const depth = options?.depth ?? 1;
+  if (depth <= 1) {
+    return { card, codeLinks, upstreamCards, downstreamCards };
+  }
+
+  // BFS traversal for depth > 1
+  const graphNodes = getRelationGraph(ctx, fullKey, { maxDepth: depth, direction: 'both' });
+
+  // Depth-1 nodes are already in upstream/downstream. Collect depth-2+ with full card data.
+  const related: RelatedCard[] = [];
+  for (const node of graphNodes) {
+    if (node.depth <= 1) continue;
+    const row = ctx.cardRepo.findByKey(node.key);
+    if (row) related.push({ card: row, depth: node.depth, direction: node.direction });
+  }
+
+  // Check truncation: any node at maxDepth that still has unvisited neighbors
+  const visited = new Set([key, ...graphNodes.map((n) => n.key)]);
+  let truncated = false;
+  for (const node of graphNodes) {
+    if (node.depth !== depth) continue;
+    const neighbors = ctx.relationRepo.findByCardKey(node.key);
+    if (neighbors.some((r) => !visited.has(r.dstCardKey) && ctx.cardRepo.existsByKey(r.dstCardKey))) {
+      truncated = true;
+      break;
+    }
+  }
+
+  return { card, codeLinks, upstreamCards, downstreamCards, related, truncated };
 }
 
 /**
@@ -179,4 +226,55 @@ export function searchCards(
 export function listCardRelations(ctx: EmberdeckContext, fullKey: string): RelationRow[] {
   const key = parseFullKey(fullKey);
   return ctx.relationRepo.findByCardKey(key);
+}
+
+// ---- Card Tree ----
+
+export interface CardTreeNode {
+  key: string;
+  summary: string;
+  type: string;
+  status: string;
+  depth: number;
+  children: CardTreeNode[];
+  /** True when this node has children beyond maxDepth. */
+  truncated?: boolean;
+}
+
+/**
+ * Builds a parent/child hierarchy tree starting from the given card.
+ *
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKey - Root card key.
+ * @param maxDepth - Maximum tree depth (default 10, capped at 20).
+ * @returns Recursive tree structure.
+ * @throws {CardNotFoundError} When the root card does not exist.
+ */
+export function getCardTree(
+  ctx: EmberdeckContext,
+  fullKey: string,
+  maxDepth?: number,
+): CardTreeNode {
+  const key = parseFullKey(fullKey);
+  const root = ctx.cardRepo.findByKey(key);
+  if (!root) throw new CardNotFoundError(key);
+
+  const effectiveMaxDepth = Math.min(maxDepth ?? 10, 20);
+
+  function buildNode(row: CardRow, depth: number): CardTreeNode {
+    const childRows = ctx.cardRepo.findChildren(row.key);
+    const atLimit = depth >= effectiveMaxDepth;
+
+    return {
+      key: row.key,
+      summary: row.summary,
+      type: row.type,
+      status: row.status,
+      depth,
+      children: atLimit ? [] : childRows.map((c) => buildNode(c, depth + 1)),
+      ...(atLimit && childRows.length > 0 ? { truncated: true } : {}),
+    };
+  }
+
+  return buildNode(root, 0);
 }

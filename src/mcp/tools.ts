@@ -20,6 +20,7 @@ import {
   listCardRelations,
   getCardContext,
   getRelationGraph,
+  getCardTree,
 } from '../ops/query';
 import {
   syncCardFromFile,
@@ -379,15 +380,39 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_get_card_context',
     {
       description:
-        'Get a single card\'s full context: the card itself, its relations, and code links. ' +
-        'Use for a quick look at one card\'s dependencies and connected symbols.',
+        'Get a card\'s context: the card itself, relations, code links, and optionally deeper graph. ' +
+        'depth=1 (default) returns direct relations. depth>1 does BFS traversal for multi-hop context. ' +
+        'Response includes truncated=true when the depth limit cuts off further nodes.',
       inputSchema: z.object({
         key: z.string().describe('Card key'),
+        depth: z.number().optional().describe('BFS traversal depth (default: 1 = direct relations only)'),
       }).strict(),
     },
-    async (args: { key: string }) => {
+    async (args: { key: string; depth?: number }) => {
       try {
-        const result = await getCardContext(ctx, args.key);
+        const result = await getCardContext(ctx, args.key, { depth: args.depth });
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_get_card_tree',
+    {
+      description:
+        'Get the parent/child hierarchy tree starting from a card. ' +
+        'Use to visualize the card structure and understand how specs are organized. ' +
+        'Returns a recursive tree with key, summary, type, status, depth, and children.',
+      inputSchema: z.object({
+        key: z.string().describe('Root card key'),
+        maxDepth: z.number().optional().describe('Max tree depth (default: 10, max: 20)'),
+      }).strict(),
+    },
+    async (args: { key: string; maxDepth?: number }) => {
+      try {
+        const result = getCardTree(ctx, args.key, args.maxDepth);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -550,11 +575,12 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_find_cards_by_symbol',
     {
       description:
-        'Find cards that reference a given symbol name. ' +
-        'Use when investigating a symbol to discover its related specs.',
+        'Find cards that reference a given symbol name via codeLinks or boundary patterns. ' +
+        'Each result includes matchType ("codeLink" or "boundary") indicating how the card was matched. ' +
+        'Provide filePath to also match cards whose boundary globs cover that file.',
       inputSchema: z.object({
         symbolName: z.string().describe('Symbol name to search for'),
-        filePath: z.string().optional().describe('File path filter (optional)'),
+        filePath: z.string().optional().describe('File path — also matches boundary patterns when provided'),
       }).strict(),
     },
     async (args: { symbolName: string; filePath?: string }) => {
