@@ -45,7 +45,10 @@ import {
   syncSpecAnnotations,
   syncSymbolChanges,
   getLinkCoverage,
+  getUncoveredSymbols,
+  suggestCardScope,
 } from '../ops/spec-sync';
+import { analyze } from '../ops/analyze';
 
 // ---- Helpers ----
 
@@ -782,6 +785,80 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: { key: string }) => {
       try {
         const result = await getLinkCoverage(ctx, args.key);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // ── Coverage & Analysis ──
+
+  server.registerTool(
+    'emberdeck_get_uncovered_symbols',
+    {
+      description:
+        'Find symbols not linked to any card via codeLinks or boundary globs. ' +
+        'Use to identify gaps in spec coverage and decide which symbols need cards. ' +
+        'Applies coverageIgnore patterns automatically. Requires gildash.',
+      inputSchema: z.object({
+        files: z.array(z.string()).optional().describe('Specific files to check (default: all indexed files)'),
+        kinds: z.array(z.string()).optional().describe('Filter by symbol kind (function, class, interface, etc.)'),
+        exportedOnly: z.boolean().optional().describe('Only exported symbols (default: false)'),
+        excludePatterns: z.array(z.string()).optional().describe('Additional glob patterns to exclude'),
+      }).strict(),
+    },
+    async (args: {
+      files?: string[];
+      kinds?: string[];
+      exportedOnly?: boolean;
+      excludePatterns?: string[];
+    }) => {
+      try {
+        const result = await getUncoveredSymbols(ctx, args);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_suggest_card_scope',
+    {
+      description:
+        'Analyze directory structure and symbols to suggest where new cards should be created. ' +
+        'Groups uncovered symbols by directory and suggests architecture or spec cards. ' +
+        'Does not create cards — returns suggestions for review. Requires gildash.',
+      inputSchema: z.object({
+        path: z.string().optional().describe('Directory path to analyze (default: project root)'),
+        maxDepth: z.number().optional().describe('Max directory depth to explore (default: 3)'),
+      }).strict(),
+    },
+    async (args: { path?: string; maxDepth?: number }) => {
+      try {
+        const result = await suggestCardScope(ctx, args);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_analyze',
+    {
+      description:
+        'Full project health report: card counts, drift detection, symbol coverage, and stale boundaries. ' +
+        'Combines check_drift and coverage analysis into a single view. ' +
+        'Use at session start or after bulk changes to understand overall spec health.',
+      inputSchema: z.object({
+        includeBody: z.boolean().optional().describe('Include card body text in drifted card entries (default: false)'),
+      }).strict(),
+    },
+    async (args: { includeBody?: boolean }) => {
+      try {
+        const result = await analyze(ctx, args);
         return ok(result);
       } catch (err) {
         return fail(err);

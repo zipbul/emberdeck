@@ -95,10 +95,26 @@ export {
   syncSpecAnnotations,
   syncSymbolChanges,
   getLinkCoverage,
+  getUncoveredSymbols,
+  suggestCardScope,
   type SpecSyncResult,
   type SymbolSyncResult,
   type LinkCoverageResult,
+  type UncoveredResult,
+  type UncoveredSymbol,
+  type GetUncoveredSymbolsOptions,
+  type CardSuggestion,
+  type SuggestCardScopeOptions,
 } from './src/ops/spec-sync';
+export {
+  analyze,
+  type AnalyzeResult,
+  type AnalyzeHealth,
+  type AnalyzeCoverage,
+  type UnlinkedSymbol,
+  type DriftedCardSummary,
+  type AnalyzeOptions,
+} from './src/ops/analyze';
 
 // ---- Repository interfaces (for testing/mocking) ----
 export type {
