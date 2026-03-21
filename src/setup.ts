@@ -38,6 +38,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
 
   return {
     cardsDir: options.cardsDir,
+    projectRoot: options.projectRoot,
     db,
     cardRepo: new DrizzleCardRepository(db),
     relationRepo: new DrizzleRelationRepository(db),

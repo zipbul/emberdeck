@@ -289,7 +289,7 @@ describe('syncSymbolChanges', () => {
       }],
     });
 
-    const result = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(result.updated).toBe(1);
     expect(result.changes[0]!.changeType).toBe('renamed');
     expect(result.changes[0]!.newSymbol).toBe('newName');
@@ -319,7 +319,7 @@ describe('syncSymbolChanges', () => {
       }],
     });
 
-    const result = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(result.updated).toBe(1);
     expect(result.changes[0]!.newFile).toBe('src/new-path.ts');
 
@@ -348,7 +348,7 @@ describe('syncSymbolChanges', () => {
       }],
     });
 
-    const result = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(result.broken).toBe(1);
     expect(result.updated).toBe(0);
 
@@ -361,7 +361,7 @@ describe('syncSymbolChanges', () => {
 
   it('should throw GildashNotConfiguredError when gildash is not set', async () => {
     tc = await createTestContext();
-    expect(() => syncSymbolChanges(tc.ctx, '2020-01-01')).toThrow(GildashNotConfiguredError);
+    await expect(syncSymbolChanges(tc.ctx, '2020-01-01')).rejects.toThrow(GildashNotConfiguredError);
   });
 
   // ── ED ──
@@ -370,7 +370,7 @@ describe('syncSymbolChanges', () => {
     tc = await createTestContext();
     tc.ctx.gildash = createMockGildash({ getSymbolChanges: () => [] });
 
-    const result = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(result.updated).toBe(0);
     expect(result.broken).toBe(0);
     expect(result.changes).toHaveLength(0);
@@ -397,7 +397,7 @@ describe('syncSymbolChanges', () => {
       }],
     });
 
-    const result = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(result.updated).toBe(0);
     expect(result.broken).toBe(0);
   });
@@ -427,7 +427,7 @@ describe('syncSymbolChanges', () => {
 
     // oldName is null → oldName = symbolName = 'sameName', same as current
     // This means the link matches but new name is same → still counts as update
-    const result = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(result.updated).toBe(1);
   });
 
@@ -455,7 +455,7 @@ describe('syncSymbolChanges', () => {
       ],
     });
 
-    const result = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(result.updated).toBe(1);
     expect(result.broken).toBe(1);
     expect(result.changes).toHaveLength(2);
@@ -476,9 +476,9 @@ describe('syncSymbolChanges', () => {
     }];
     tc.ctx.gildash = createMockGildash({ getSymbolChanges: () => mockChanges });
 
-    syncSymbolChanges(tc.ctx, '2020-01-01');
+    await syncSymbolChanges(tc.ctx, '2020-01-01');
     // Second call: oldName 'old' no longer exists in code links (now 'new')
-    const r2 = syncSymbolChanges(tc.ctx, '2020-01-01');
+    const r2 = await syncSymbolChanges(tc.ctx, '2020-01-01');
     expect(r2.updated).toBe(0);
   });
 });

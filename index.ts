@@ -57,9 +57,9 @@ export {
   type CardValidationResult,
 } from './src/ops/sync';
 export {
+  ensureReindexed,
   resolveCardCodeLinks,
   findCardsBySymbol,
-  findAffectedCards,
   validateCodeLinks,
   type ResolvedCodeLink,
   type BrokenLink,
@@ -69,8 +69,14 @@ export {
   checkDrift,
   checkInteractions,
   type DriftResult,
+  type DriftCard,
+  type DriftHealth,
+  type DriftType,
+  type SymbolChangeDetail,
   type CheckDriftOptions,
   type InteractionResult,
+  type CardInteraction,
+  type ImportDependency,
 } from './src/ops/context';
 export {
   preChangeCheck,

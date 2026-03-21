@@ -150,8 +150,8 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
     expect(validation.staleDbRows).toHaveLength(0);
 
     // -- Step 7: checkDrift --
-    const drift = checkDrift(ctx, 'auth/jwt-token');
-    expect(typeof drift.driftScore).toBe('number');
+    const drift = await checkDrift(ctx, 'auth/jwt-token');
+    expect(drift.health).toBeDefined();
 
     // -- Step 8: getCardContext --
     const context = await getCardContext(ctx, 'auth/jwt-token');
@@ -312,9 +312,9 @@ describe('Scenario 4: Impact Analysis -- preChangeCheck + regressionGuard', () =
     expect(impact.riskLevel).not.toBe('low');
 
     // Regression guard
-    const guard = regressionGuard(ctx, ['src/base.ts']);
-    expect(guard.qualityGate).toBe('warn');
-    expect(guard.affectedCardCount).toBeGreaterThanOrEqual(2);
+    const guard = await regressionGuard(ctx, ['src/base.ts']);
+    expect(guard.passOrFail).toBe('pass');
+    expect(guard.affectedCards.length).toBeGreaterThanOrEqual(2);
 
     // Check interactions
     const interactions = checkInteractions(ctx, ['impact/base', 'impact/middle']);

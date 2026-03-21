@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'bun:test';
 
 import {
   createCard,
+  updateCardStatus,
   preChangeCheck,
   regressionGuard,
 } from '../../index';
@@ -117,6 +118,35 @@ describe('preChangeCheck', () => {
     expect(result.affectedCards).toHaveLength(0);
     expect(result.riskLevel).toBe('low');
   });
+
+  it('should detect cards affected by boundary matching', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'bnd-card',
+      summary: 'Boundary card',
+      type: 'spec',
+      boundary: ['src/auth/**'],
+    });
+
+    const result = preChangeCheck(tc.ctx, ['src/auth/login.ts']);
+    const affected = result.affectedCards.find((c) => c.key === 'bnd-card');
+    expect(affected).toBeDefined();
+    expect(affected!.linkType).toBe('boundary');
+  });
+
+  it('should include newUncoveredFiles for files not matched by any card', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'covered',
+      summary: 'Covered',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/covered.ts', symbol: 'fn' }],
+    });
+
+    const result = preChangeCheck(tc.ctx, ['src/covered.ts', 'src/uncovered.ts']);
+    expect(result.newUncoveredFiles).toContain('src/uncovered.ts');
+    expect(result.newUncoveredFiles).not.toContain('src/covered.ts');
+  });
 });
 
 describe('regressionGuard', () => {
@@ -126,38 +156,14 @@ describe('regressionGuard', () => {
     await tc?.cleanup();
   });
 
-  it('should pass when no issues and no affected cards', async () => {
+  it('should pass when no affected cards', async () => {
     tc = await createTestContext();
-    const result = regressionGuard(tc.ctx, ['src/clean.ts']);
-    expect(result.qualityGate).toBe('pass');
-    expect(result.recommendation).toContain('passed');
+    const result = await regressionGuard(tc.ctx, ['src/clean.ts']);
+    expect(result.passOrFail).toBe('pass');
+    expect(result.driftedRatio).toBe(0);
   });
 
-  it('should warn when firebat reports non-critical issues', async () => {
-    tc = await createTestContext();
-    const firebatReport = {
-      issues: [
-        { file: 'src/a.ts', rule: 'no-unused', message: 'Unused var', severity: 'warning' },
-      ],
-    };
-
-    const result = regressionGuard(tc.ctx, ['src/a.ts'], firebatReport);
-    expect(result.qualityGate).toBe('warn');
-    expect(result.newIssues).toHaveLength(1);
-  });
-
-  it('should fail when firebat reports critical issues', async () => {
-    tc = await createTestContext();
-    const firebatReport = [
-      { file: 'src/a.ts', rule: 'security', message: 'SQL injection', severity: 'critical' },
-    ];
-
-    const result = regressionGuard(tc.ctx, ['src/a.ts'], firebatReport);
-    expect(result.qualityGate).toBe('fail');
-    expect(result.recommendation).toContain('Critical');
-  });
-
-  it('should warn when affected cards exist', async () => {
+  it('should pass when affected cards are not drifted', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
       key: 'guard-card',
@@ -166,46 +172,35 @@ describe('regressionGuard', () => {
       codeLinks: [{ kind: 'function', file: 'src/guarded.ts', symbol: 'fn' }],
     });
 
-    const result = regressionGuard(tc.ctx, ['src/guarded.ts']);
-    expect(result.qualityGate).toBe('warn');
-    expect(result.affectedCardCount).toBeGreaterThanOrEqual(1);
+    const result = await regressionGuard(tc.ctx, ['src/guarded.ts']);
+    expect(result.passOrFail).toBe('pass');
+    expect(result.affectedCards.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('should handle null firebatReport gracefully', async () => {
+  it('should fail when affected cards are drifted and threshold is 0', async () => {
     tc = await createTestContext();
-    const result = regressionGuard(tc.ctx, ['src/a.ts'], null);
-    expect(result.qualityGate).toBe('pass');
+    await createCard(tc.ctx, {
+      key: 'drifted-card',
+      summary: 'Drifted',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/drift.ts', symbol: 'fn' }],
+    });
+    await updateCardStatus(tc.ctx, 'drifted-card', 'drifted');
+
+    const result = await regressionGuard(tc.ctx, ['src/drift.ts']);
+    expect(result.passOrFail).toBe('fail');
+    expect(result.driftedRatio).toBeGreaterThan(0);
   });
 
-  it('should handle undefined firebatReport gracefully', async () => {
+  it('should pass with empty changedFiles', async () => {
     tc = await createTestContext();
-    const result = regressionGuard(tc.ctx, ['src/a.ts'], undefined);
-    expect(result.qualityGate).toBe('pass');
+    const result = await regressionGuard(tc.ctx, []);
+    expect(result.passOrFail).toBe('pass');
   });
 
-  it('should fail when firebat reports error severity issues', async () => {
+  it('should return threshold in result', async () => {
     tc = await createTestContext();
-    const result = regressionGuard(tc.ctx, ['src/a.ts'], [
-      { severity: 'error', message: 'Type mismatch' },
-    ]);
-    expect(result.qualityGate).toBe('fail');
-  });
-
-  it('should pass with empty changedFiles and no firebat', async () => {
-    tc = await createTestContext();
-    const result = regressionGuard(tc.ctx, []);
-    expect(result.qualityGate).toBe('pass');
-  });
-
-  it('should pass gracefully when firebatReport is a string', async () => {
-    tc = await createTestContext();
-    const result = regressionGuard(tc.ctx, ['src/a.ts'], 'scan completed' as any);
-    expect(result.qualityGate).toBe('pass');
-  });
-
-  it('should pass gracefully when firebatReport is a number', async () => {
-    tc = await createTestContext();
-    const result = regressionGuard(tc.ctx, ['src/a.ts'], 42 as any);
-    expect(result.qualityGate).toBe('pass');
+    const result = await regressionGuard(tc.ctx, []);
+    expect(result.threshold).toBe(0);
   });
 });

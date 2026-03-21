@@ -2,41 +2,75 @@ import type { EmberdeckContext } from '../config';
 import type { CodeLinkRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { getRelationGraph } from './query';
+import { readCardFile } from '../fs/reader';
+import { writeCardFile } from '../fs/writer';
 
 // ── check_drift ──
 
-export interface StaleCard {
+export type DriftType = 'broken_link' | 'boundary_inactive' | 'symbol_changed';
+
+export interface SymbolChangeDetail {
+  changeType: string;
+  symbolName: string;
+  filePath: string;
+}
+
+export interface DriftCard {
   key: string;
-  lastCardUpdate: string;
-  codeChangesAfter: number;
+  summary: string;
+  status: 'active' | 'drifted';
+  driftType?: DriftType;
   brokenLinks: number;
+  totalLinks: number;
+  /** Symbol changes detected in boundary files (only when driftType=symbol_changed). */
+  symbolChanges?: SymbolChangeDetail[];
+}
+
+export interface DriftHealth {
+  total: number;
+  active: number;
+  drifted: number;
+  draft: number;
 }
 
 export interface DriftResult {
-  driftScore: number;
-  staleCards: StaleCard[];
-  summary: string;
+  cards: DriftCard[];
+  health: DriftHealth;
 }
 
 export interface CheckDriftOptions {
   maxDepth?: number;
+  autoTransition?: boolean;
+}
+
+interface SymbolChangeInfo {
+  changeType: string;
+  symbolName: string;
+  filePath: string;
+  changedAt: string;
 }
 
 /**
- * Calculate drift score for a card (and its graph) or all cards.
+ * Detect drift for cards in scope.
  *
- * Drift score formula (weighted sum, range 0-1):
- *   brokenLinkRatio     * 0.4
- * + staleCardRatio      * 0.4
- * + missingLinkRatio    * 0.2 (0 without @spec auto-detection)
+ * For each non-draft card, determines whether it is drifted by checking:
+ *   1. broken_link — code links that no longer resolve
+ *   2. boundary_inactive — boundary globs that match no files
+ *   3. symbol_changed — symbols in boundary files changed after card was last updated
+ *
+ * When autoTransition=true (default), active cards found drifted are
+ * automatically transitioned to 'drifted' status (DB + file).
+ * Draft cards are excluded from drift analysis.
  */
-export function checkDrift(
+export async function checkDrift(
   ctx: EmberdeckContext,
   fullKey?: string,
   options?: CheckDriftOptions,
-): DriftResult {
+): Promise<DriftResult> {
   const maxDepth = options?.maxDepth ?? 3;
+  const autoTransition = options?.autoTransition ?? true;
 
+  // Determine target cards
   let targetKeys: string[];
   if (fullKey) {
     const rootKey = parseFullKey(fullKey);
@@ -47,94 +81,197 @@ export function checkDrift(
   }
 
   if (targetKeys.length === 0) {
-    return { driftScore: 0, staleCards: [], summary: 'No cards found.' };
+    return { cards: [], health: { total: 0, active: 0, drifted: 0, draft: 0 } };
   }
 
-  let totalLinks = 0;
-  let brokenLinks = 0;
-  let staleCount = 0;
-  const staleCards: StaleCard[] = [];
+  // Collect symbol changes for symbol_changed detection (single gildash call)
+  const symbolChangesByFile = await collectSymbolChanges(ctx, targetKeys);
+
+  const driftCards: DriftCard[] = [];
+  let healthActive = 0;
+  let healthDrifted = 0;
+  let healthDraft = 0;
 
   for (const key of targetKeys) {
     const row = ctx.cardRepo.findByKey(key);
     if (!row) continue;
 
-    const cardUpdatedAt = new Date(row.updatedAt).getTime();
+    if (row.status === 'draft') {
+      healthDraft++;
+      continue;
+    }
 
-    // Count code link health via gildash symbol validation
+    // Active or drifted card — analyze drift
     const links = ctx.codeLinkRepo.findByCardKey(key);
-    let cardBrokenLinks = 0;
-    let cardCodeChangesAfter = 0;
-    let cardIsStale = false;
-    const isPlanning = row.status === 'draft';
+    const totalLinks = links.length;
+    let brokenLinks = 0;
 
-    for (const link of links) {
-      totalLinks++;
-      if (ctx.gildash) {
-        // Validate symbol exists in gildash index
+    // Check code link health via gildash
+    if (ctx.gildash) {
+      for (const link of links) {
         const results = ctx.gildash.searchSymbols({
           text: link.symbol,
           exact: true,
           filePath: link.file,
         });
         if (!Array.isArray(results)) {
-          if (!isPlanning) cardBrokenLinks++;
+          brokenLinks++;
         } else {
           const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
-          if (!found && !isPlanning) cardBrokenLinks++;
-        }
-
-        // Check if linked file was modified after the card was last updated
-        const fileInfo = ctx.gildash.getFileInfo(link.file);
-        if (fileInfo) {
-          const fileMtime = fileInfo.mtimeMs;
-          if (fileMtime > cardUpdatedAt) {
-            cardCodeChangesAfter++;
-            cardIsStale = true;
-          }
+          if (!found) brokenLinks++;
         }
       }
-      // Without gildash, broken link counting is skipped (graceful degradation)
     }
 
-    if (cardIsStale) staleCount++;
-    brokenLinks += cardBrokenLinks;
+    // Determine drift type (first match wins: broken_link > boundary_inactive > symbol_changed)
+    let driftType: DriftType | undefined;
 
-    staleCards.push({
+    if (brokenLinks > 0) {
+      driftType = 'broken_link';
+    }
+
+    // boundary_inactive: boundary globs match no files on disk
+    if (!driftType && row.status === 'active' && ctx.projectRoot) {
+      const boundary = parseBoundary(row.boundaryJson);
+      if (boundary.length > 0) {
+        let anyMatch = false;
+        for (const pattern of boundary) {
+          const glob = new Bun.Glob(pattern);
+          for (const _ of glob.scanSync({ cwd: ctx.projectRoot })) {
+            anyMatch = true;
+            break;
+          }
+          if (anyMatch) break;
+        }
+        if (!anyMatch) {
+          driftType = 'boundary_inactive';
+        }
+      }
+    }
+
+    // symbol_changed: symbols in boundary files changed after card's updatedAt
+    let detectedSymbolChanges: SymbolChangeDetail[] | undefined;
+    if (!driftType && row.status === 'active' && symbolChangesByFile) {
+      const boundary = parseBoundary(row.boundaryJson);
+      if (boundary.length > 0) {
+        const cardUpdatedAt = row.updatedAt;
+        const collected: SymbolChangeDetail[] = [];
+        for (const [filePath, changes] of symbolChangesByFile) {
+          for (const pattern of boundary) {
+            const glob = new Bun.Glob(pattern);
+            if (glob.match(filePath)) {
+              for (const change of changes) {
+                if (change.changedAt > cardUpdatedAt) {
+                  collected.push({
+                    changeType: change.changeType,
+                    symbolName: change.symbolName,
+                    filePath: change.filePath,
+                  });
+                }
+              }
+            }
+          }
+        }
+        if (collected.length > 0) {
+          driftType = 'symbol_changed';
+          detectedSymbolChanges = collected;
+        }
+      }
+    }
+
+    const currentStatus = row.status as 'active' | 'drifted';
+    const shouldTransition = !!driftType && currentStatus === 'active' && autoTransition;
+    const finalStatus: 'active' | 'drifted' = shouldTransition ? 'drifted' : currentStatus;
+
+    // Perform auto-transition
+    if (shouldTransition) {
+      ctx.cardRepo.upsert({ ...row, status: 'drifted', updatedAt: new Date().toISOString() });
+      try {
+        const cardFile = await readCardFile(row.filePath);
+        cardFile.frontmatter.status = 'drifted';
+        await writeCardFile(row.filePath, cardFile);
+      } catch {
+        // File update failed, DB already updated — acceptable for drift transition
+      }
+    }
+
+    if (finalStatus === 'active') healthActive++;
+    else healthDrifted++;
+
+    driftCards.push({
       key,
-      lastCardUpdate: row.updatedAt,
-      codeChangesAfter: cardCodeChangesAfter,
-      brokenLinks: cardBrokenLinks,
+      summary: row.summary,
+      status: finalStatus,
+      ...(driftType ? { driftType } : {}),
+      brokenLinks,
+      totalLinks,
+      ...(detectedSymbolChanges ? { symbolChanges: detectedSymbolChanges } : {}),
     });
   }
 
-  // Calculate ratios
-  const brokenLinkRatio = totalLinks > 0 ? brokenLinks / totalLinks : 0;
-  const missingLinkRatio = 0; // @spec auto-detection — graceful degradation
-  const staleCardRatio = targetKeys.length > 0 ? staleCount / targetKeys.length : 0;
-
-  const driftScore = Math.min(1, Math.max(0,
-    brokenLinkRatio * 0.4 +
-    staleCardRatio * 0.4 +
-    missingLinkRatio * 0.2,
-  ));
-
-  // Filter to only report cards with issues
-  const problemCards = staleCards.filter(
-    (c) => c.brokenLinks > 0 || c.codeChangesAfter > 0,
-  );
-
-  const totalCards = targetKeys.length;
-  const issueCount = problemCards.length;
-  const summary = issueCount > 0
-    ? `${issueCount} of ${totalCards} cards have issues (${brokenLinks} broken links, ${staleCount} stale).`
-    : `All ${totalCards} cards are in good health.`;
-
   return {
-    driftScore: Math.round(driftScore * 100) / 100,
-    staleCards: problemCards,
-    summary,
+    cards: driftCards,
+    health: {
+      total: targetKeys.length,
+      active: healthActive,
+      drifted: healthDrifted,
+      draft: healthDraft,
+    },
   };
+}
+
+// ── check_drift helpers ──
+
+function parseBoundary(boundaryJson: string | null): string[] {
+  if (!boundaryJson) return [];
+  try {
+    const parsed = JSON.parse(boundaryJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function collectSymbolChanges(
+  ctx: EmberdeckContext,
+  targetKeys: string[],
+): Promise<Map<string, SymbolChangeInfo[]> | null> {
+  if (!ctx.gildash || typeof ctx.gildash.getSymbolChanges !== 'function') return null;
+
+  // Find oldest updatedAt among active cards with boundary
+  let oldestUpdatedAt: string | null = null;
+  for (const key of targetKeys) {
+    const row = ctx.cardRepo.findByKey(key);
+    if (!row || row.status !== 'active') continue;
+    const boundary = parseBoundary(row.boundaryJson);
+    if (boundary.length === 0) continue;
+    if (!oldestUpdatedAt || row.updatedAt < oldestUpdatedAt) {
+      oldestUpdatedAt = row.updatedAt;
+    }
+  }
+
+  if (!oldestUpdatedAt) return null;
+
+  try {
+    const changes = ctx.gildash.getSymbolChanges(oldestUpdatedAt, {
+      changeTypes: ['added', 'modified', 'removed', 'renamed', 'moved'],
+    });
+    const map = new Map<string, SymbolChangeInfo[]>();
+    for (const change of changes) {
+      const file = change.filePath;
+      const existing = map.get(file) ?? [];
+      existing.push({
+        changeType: change.changeType,
+        symbolName: change.symbolName,
+        filePath: change.filePath,
+        changedAt: change.changedAt,
+      });
+      map.set(file, existing);
+    }
+    return map;
+  } catch {
+    return null;
+  }
 }
 
 // ── check_interactions ──
@@ -144,11 +281,19 @@ export interface SharedSymbol {
   symbol: string;
 }
 
+export interface ImportDependency {
+  from: string;
+  to: string;
+  file: string;
+}
+
 export interface CardInteraction {
   pair: [string, string];
   sharedSymbols: SharedSymbol[];
   /** Files that both cards have code links to (different symbols, same file). */
   sharedFiles: string[];
+  /** Import-level dependencies between the two cards' files. */
+  importDependencies: ImportDependency[];
   hasRelation: boolean;
   potentialConflicts: string[];
 }
@@ -165,7 +310,8 @@ export interface InteractionResult {
 
 /**
  * Analyze interactions between a set of cards.
- * Detects shared code symbols, existing relations, and potential conflicts.
+ * Detects shared code symbols, shared files, import dependencies,
+ * existing relations, and potential conflicts.
  */
 export function checkInteractions(
   ctx: EmberdeckContext,
@@ -186,6 +332,32 @@ export function checkInteractions(
       fileMap.set(link.file, existing);
     }
     linkMap.set(key, fileMap);
+  }
+
+  // Build file sets for import dependency detection (codeLink files + boundary files)
+  const cardFilesSets = new Map<string, Set<string>>();
+  for (const key of keys) {
+    const files = new Set((linkMap.get(key) ?? new Map()).keys());
+    // Also add boundary-expanded files if projectRoot available
+    if (ctx.projectRoot) {
+      const row = ctx.cardRepo.findByKey(key);
+      if (row?.boundaryJson) {
+        try {
+          const boundary: string[] = JSON.parse(row.boundaryJson);
+          if (Array.isArray(boundary)) {
+            for (const pattern of boundary) {
+              const glob = new Bun.Glob(pattern);
+              for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
+                files.add(file);
+              }
+            }
+          }
+        } catch {
+          // skip
+        }
+      }
+    }
+    cardFilesSets.set(key, files);
   }
 
   // Check all pairs
@@ -228,6 +400,13 @@ export function checkInteractions(
       }
       const sharedFiles = [...sharedFileSet];
 
+      // Detect import dependencies via gildash
+      const importDependencies = detectImportDependencies(
+        ctx, keyA, keyB,
+        cardFilesSets.get(keyA) ?? new Set(),
+        cardFilesSets.get(keyB) ?? new Set(),
+      );
+
       // Detect potential conflicts
       const potentialConflicts: string[] = [];
       if (sharedFiles.length > 0 && !hasRelation) {
@@ -237,11 +416,18 @@ export function checkInteractions(
       }
 
       // Only include pairs with some interaction
-      if (sharedSymbols.length > 0 || sharedFiles.length > 0 || hasRelation || potentialConflicts.length > 0) {
+      if (
+        sharedSymbols.length > 0 ||
+        sharedFiles.length > 0 ||
+        importDependencies.length > 0 ||
+        hasRelation ||
+        potentialConflicts.length > 0
+      ) {
         interactions.push({
           pair: [keyA, keyB],
           sharedSymbols,
           sharedFiles,
+          importDependencies,
           hasRelation,
           potentialConflicts,
         });
@@ -258,4 +444,59 @@ export function checkInteractions(
   }
 
   return { interactions, undefinedRelations };
+}
+
+/**
+ * Detect import-level dependencies between two cards' file sets using gildash.
+ * Returns empty array if gildash is not available or doesn't support getDependencies.
+ */
+function detectImportDependencies(
+  ctx: EmberdeckContext,
+  keyA: string,
+  keyB: string,
+  filesA: Set<string>,
+  filesB: Set<string>,
+): ImportDependency[] {
+  if (!ctx.gildash || typeof (ctx.gildash as any).getDependencies !== 'function') {
+    return [];
+  }
+
+  const deps: ImportDependency[] = [];
+  const gildash = ctx.gildash as any;
+
+  // Check A → B
+  for (const fileA of filesA) {
+    try {
+      const fileDeps = gildash.getDependencies(fileA);
+      if (!Array.isArray(fileDeps)) continue;
+      for (const dep of fileDeps) {
+        const depFile = typeof dep === 'string' ? dep : dep?.filePath;
+        if (depFile && filesB.has(depFile)) {
+          deps.push({ from: keyA, to: keyB, file: fileA });
+          break;
+        }
+      }
+    } catch {
+      // graceful degradation
+    }
+  }
+
+  // Check B → A
+  for (const fileB of filesB) {
+    try {
+      const fileDeps = gildash.getDependencies(fileB);
+      if (!Array.isArray(fileDeps)) continue;
+      for (const dep of fileDeps) {
+        const depFile = typeof dep === 'string' ? dep : dep?.filePath;
+        if (depFile && filesA.has(depFile)) {
+          deps.push({ from: keyB, to: keyA, file: fileB });
+          break;
+        }
+      }
+    } catch {
+      // graceful degradation
+    }
+  }
+
+  return deps;
 }

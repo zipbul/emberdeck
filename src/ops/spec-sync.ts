@@ -1,9 +1,7 @@
-import type { AnnotationSearchResult, SymbolChange } from '@zipbul/gildash';
-
 import type { EmberdeckContext } from '../config';
 import type { CodeLink } from '../card/types';
-import type { CardRow, CodeLinkRow } from '../db/repository';
 import { GildashNotConfiguredError } from '../card/errors';
+import { ensureReindexed } from './link';
 
 // ── @spec annotation sync ──
 
@@ -14,6 +12,10 @@ export interface SpecSyncResult {
   alreadyLinked: number;
   /** Annotations that could not be linked (no card found for the spec key). */
   unmatched: Array<{ cardKey: string; file: string; symbol: string }>;
+  /** Code links that exist but have no corresponding @spec annotation in source. */
+  markerMissing: Array<{ cardKey: string; file: string; symbol: string }>;
+  /** @spec annotations found but code link not registered (subset of created, informational). */
+  linkMissing: Array<{ cardKey: string; file: string; symbol: string }>;
 }
 
 /**
@@ -21,17 +23,29 @@ export interface SpecSyncResult {
  *
  * Only creates links that don't already exist (manual links are preserved).
  * Annotations without a matching card key are reported as unmatched.
+ *
+ * Also detects:
+ * - markerMissing: code links that have no @spec annotation in source
+ * - linkMissing: @spec annotations that were just created as new links
  */
 export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSyncResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
 
-  if (typeof ctx.gildash.reindex === 'function') {
-    await ctx.gildash.reindex();
-  }
+  await ensureReindexed(ctx);
+
   const annotations = ctx.gildash.searchAnnotations({ tag: 'spec', limit: 10000 });
   let created = 0;
   let alreadyLinked = 0;
   const unmatched: SpecSyncResult['unmatched'] = [];
+  const linkMissing: SpecSyncResult['linkMissing'] = [];
+
+  // Build a set of annotation keys for marker-missing detection
+  const annotationKeys = new Set<string>();
+  for (const ann of annotations) {
+    if (ann.symbolName && ann.value.trim()) {
+      annotationKeys.add(`${ann.value.trim()}:${ann.filePath}:${ann.symbolName}`);
+    }
+  }
 
   for (const ann of annotations) {
     const cardKey = ann.value.trim();
@@ -83,9 +97,23 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
     ];
     ctx.codeLinkRepo.replaceForCard(cardKey, newLinks);
     created++;
+    linkMissing.push({ cardKey, file: ann.filePath, symbol: ann.symbolName });
   }
 
-  return { created, alreadyLinked, unmatched };
+  // Detect marker-missing: code links that have no @spec annotation
+  const markerMissing: SpecSyncResult['markerMissing'] = [];
+  const allCards = ctx.cardRepo.list();
+  for (const card of allCards) {
+    const links = ctx.codeLinkRepo.findByCardKey(card.key);
+    for (const link of links) {
+      const annotKey = `${card.key}:${link.file}:${link.symbol}`;
+      if (!annotationKeys.has(annotKey)) {
+        markerMissing.push({ cardKey: card.key, file: link.file, symbol: link.symbol });
+      }
+    }
+  }
+
+  return { created, alreadyLinked, unmatched, markerMissing, linkMissing };
 }
 
 // ── Symbol rename/move sync ──
@@ -113,11 +141,13 @@ export interface SymbolSyncResult {
  * - Moved symbols: update the file path in code links.
  * - Deleted symbols: no auto-delete — reported for manual review.
  */
-export function syncSymbolChanges(
+export async function syncSymbolChanges(
   ctx: EmberdeckContext,
   since: Date | string,
-): SymbolSyncResult {
+): Promise<SymbolSyncResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
+
+  await ensureReindexed(ctx);
 
   const changes = ctx.gildash.getSymbolChanges(since, {
     changeTypes: ['renamed', 'moved', 'removed'],
@@ -210,7 +240,8 @@ export interface LinkCoverageResult {
  * Calculate code link coverage for a card.
  *
  * Checks how many declared links resolve in gildash, and finds
- * unreferenced symbols in the same files.
+ * unreferenced symbols in the same files. Applies coverageIgnore
+ * patterns to exclude symbols from unreferenced list.
  */
 export async function getLinkCoverage(
   ctx: EmberdeckContext,
@@ -218,13 +249,30 @@ export async function getLinkCoverage(
 ): Promise<LinkCoverageResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
 
-  if (typeof ctx.gildash.reindex === 'function') {
-    await ctx.gildash.reindex();
-  }
+  await ensureReindexed(ctx);
 
   const links = ctx.codeLinkRepo.findByCardKey(fullKey);
   if (links.length === 0) {
     return { declared: 0, resolved: 0, broken: 0, coverage: 1, unreferenced: [] };
+  }
+
+  // Collect boundary-covered files for this card
+  const boundaryFiles = new Set<string>();
+  const row = ctx.cardRepo.findByKey(fullKey);
+  if (row?.boundaryJson && ctx.projectRoot) {
+    try {
+      const boundary: string[] = JSON.parse(row.boundaryJson);
+      if (Array.isArray(boundary)) {
+        for (const pattern of boundary) {
+          const glob = new Bun.Glob(pattern);
+          for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
+            boundaryFiles.add(file);
+          }
+        }
+      }
+    } catch {
+      // skip invalid boundary
+    }
   }
 
   let resolved = 0;
@@ -252,9 +300,24 @@ export async function getLinkCoverage(
     else broken++;
   }
 
-  // Find unreferenced symbols in the same files
+  // Find unreferenced symbols in linked files
+  // Symbols in boundary-matched files are considered covered (excluded from unreferenced)
   const unreferenced: LinkCoverageResult['unreferenced'] = [];
   for (const file of linkedFiles) {
+    // Skip files matching coverageIgnore patterns
+    let ignored = false;
+    for (const pattern of ctx.coverageIgnore) {
+      const glob = new Bun.Glob(pattern);
+      if (glob.match(file)) {
+        ignored = true;
+        break;
+      }
+    }
+    if (ignored) continue;
+
+    // Symbols in boundary-covered files are considered covered
+    if (boundaryFiles.has(file)) continue;
+
     const fileSymbols = ctx.gildash!.getSymbolsByFile(file);
     if (!fileSymbols) continue;
     for (const sym of fileSymbols) {

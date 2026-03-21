@@ -1210,15 +1210,13 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       expect(result.isError).toBeFalsy();
       const data = parseText(result) as {
-        driftScore: number;
-        staleCards: unknown[];
-        summary: string;
+        cards: unknown[];
+        health: { total: number; active: number; drifted: number; draft: number };
       };
-      expect(typeof data.driftScore).toBe('number');
-      expect(data.driftScore).toBeGreaterThanOrEqual(0);
-      expect(data.driftScore).toBeLessThanOrEqual(1);
-      expect(data.staleCards).toBeArray();
-      expect(typeof data.summary).toBe('string');
+      expect(data.cards).toBeArray();
+      expect(data.health).toBeDefined();
+      expect(typeof data.health.total).toBe('number');
+      expect(typeof data.health.draft).toBe('number');
     });
 
     it('should check interactions between cards with shared code links', async () => {
@@ -1291,14 +1289,15 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       expect(result.isError).toBeFalsy();
       const data = parseText(result) as {
-        qualityGate: string;
-        newIssues: unknown[];
-        affectedCardCount: number;
-        recommendation: string;
+        passOrFail: string;
+        driftedRatio: number;
+        affectedCards: unknown[];
+        threshold: number;
       };
-      expect(data.qualityGate).toBe('pass');
-      expect(data.newIssues).toEqual([]);
-      expect(typeof data.recommendation).toBe('string');
+      expect(data.passOrFail).toBe('pass');
+      expect(data.driftedRatio).toBe(0);
+      expect(data.affectedCards).toEqual([]);
+      expect(typeof data.threshold).toBe('number');
     });
   });
 

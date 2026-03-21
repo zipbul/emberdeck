@@ -1,10 +1,8 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-
 import { mock } from 'bun:test';
 
 import {
   createCard,
-  updateCard,
   updateCardStatus,
   checkDrift,
   checkInteractions,
@@ -18,12 +16,12 @@ describe('checkDrift', () => {
     await tc?.cleanup();
   });
 
-  it('should return 0 drift for healthy card', async () => {
+  it('should return healthy result for card with no issues', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'healthy', summary: 'Healthy card', type: 'spec' });
-    const result = checkDrift(tc.ctx, 'healthy');
-    expect(result.driftScore).toBe(0);
-    expect(result.staleCards).toHaveLength(0);
+    const result = await checkDrift(tc.ctx, 'healthy');
+    expect(result.health.draft).toBe(1);
+    expect(result.cards).toHaveLength(0);
   });
 
   it('should check all cards when key is omitted', async () => {
@@ -31,15 +29,15 @@ describe('checkDrift', () => {
     await createCard(tc.ctx, { key: 'all-a', summary: 'A', type: 'spec' });
     await createCard(tc.ctx, { key: 'all-b', summary: 'B', type: 'spec' });
 
-    const result = checkDrift(tc.ctx);
-    expect(result.summary).toContain('2');
+    const result = await checkDrift(tc.ctx);
+    expect(result.health.total).toBe(2);
   });
 
-  it('should return 0 for empty project', async () => {
+  it('should return empty for empty project', async () => {
     tc = await createTestContext();
-    const result = checkDrift(tc.ctx);
-    expect(result.driftScore).toBe(0);
-    expect(result.summary).toContain('No cards');
+    const result = await checkDrift(tc.ctx);
+    expect(result.health.total).toBe(0);
+    expect(result.cards).toHaveLength(0);
   });
 
   it('should include related cards in drift scope via BFS', async () => {
@@ -56,9 +54,152 @@ describe('checkDrift', () => {
       relations: ['drift-root'],
     });
 
-    const result = checkDrift(tc.ctx, 'drift-child');
+    const result = await checkDrift(tc.ctx, 'drift-child');
     // Both cards should be in scope
-    expect(result.summary).toBeDefined();
+    expect(result.health.total).toBe(2);
+  });
+
+  it('should count active and drifted cards in health', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'h-active',
+      summary: 'Active',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+    });
+    await updateCardStatus(tc.ctx, 'h-active', 'active');
+    await createCard(tc.ctx, { key: 'h-draft', summary: 'Draft', type: 'spec' });
+
+    const result = await checkDrift(tc.ctx, undefined, { autoTransition: false });
+    expect(result.health.active).toBe(1);
+    expect(result.health.draft).toBe(1);
+  });
+
+  it('should skip draft cards from drift analysis', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'draft-skip',
+      summary: 'Draft',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    // Draft cards are not in the cards array at all
+    const result = await checkDrift(tc.ctx, 'draft-skip');
+    expect(result.cards).toHaveLength(0);
+    expect(result.health.draft).toBe(1);
+  });
+});
+
+// ── Mock Gildash Factory ──
+
+function createMockGildash(overrides: {
+  searchAnnotations?: (...args: unknown[]) => unknown[];
+  searchSymbols?: (...args: unknown[]) => unknown;
+  getSymbolChanges?: (...args: unknown[]) => unknown[];
+  getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
+  getFileInfo?: (...args: unknown[]) => unknown;
+} = {}) {
+  return {
+    searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
+    searchSymbols: mock(overrides.searchSymbols ?? (() => [])),
+    getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
+    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? (() => [])),
+    getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
+    close: mock(() => Promise.resolve()),
+  } as any;
+}
+
+describe('checkDrift with gildash — broken link detection', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should detect broken links and set driftType to broken_link', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'drift-broken',
+      summary: 'Broken link card',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    await updateCardStatus(tc.ctx, 'drift-broken', 'active');
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    const result = await checkDrift(tc.ctx, 'drift-broken');
+    expect(result.cards.length).toBeGreaterThanOrEqual(1);
+    const card = result.cards.find((c) => c.key === 'drift-broken');
+    expect(card).toBeDefined();
+    expect(card!.brokenLinks).toBe(1);
+    expect(card!.driftType).toBe('broken_link');
+    expect(card!.status).toBe('drifted');
+  });
+
+  it('should report zero broken links when searchSymbols finds the symbol', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'drift-ok',
+      summary: 'OK link card',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
+    });
+    await updateCardStatus(tc.ctx, 'drift-ok', 'active');
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [{ name: 'okFn', filePath: 'src/ok.ts', kind: 'function' }],
+      getFileInfo: () => null,
+    });
+
+    const result = await checkDrift(tc.ctx, 'drift-ok');
+    const card = result.cards.find((c) => c.key === 'drift-ok');
+    expect(card).toBeDefined();
+    expect(card!.brokenLinks).toBe(0);
+    expect(card!.status).toBe('active');
+    expect(card!.driftType).toBeUndefined();
+  });
+
+  it('should NOT count broken links for draft card', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'drift-draft',
+      summary: 'Draft card',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    // status defaults to 'draft'
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    const result = await checkDrift(tc.ctx, 'drift-draft');
+    // Draft cards are excluded from drift analysis
+    expect(result.health.draft).toBe(1);
+    expect(result.cards).toHaveLength(0);
+  });
+
+  it('should respect autoTransition=false', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'no-trans',
+      summary: 'No transition',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    await updateCardStatus(tc.ctx, 'no-trans', 'active');
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+    });
+
+    const result = await checkDrift(tc.ctx, 'no-trans', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'no-trans');
+    expect(card).toBeDefined();
+    expect(card!.driftType).toBe('broken_link');
+    // Status NOT transitioned because autoTransition=false
+    expect(card!.status).toBe('active');
   });
 });
 
@@ -197,141 +338,24 @@ describe('checkInteractions', () => {
     expect(result.interactions[0]!.sharedFiles).toEqual(['src/shared.ts']);
     expect(result.interactions[0]!.sharedSymbols).toHaveLength(0);
   });
-});
 
-// ── Mock Gildash Factory ──
-
-function createMockGildash(overrides: {
-  searchAnnotations?: (...args: unknown[]) => unknown[];
-  searchSymbols?: (...args: unknown[]) => unknown;
-  getSymbolChanges?: (...args: unknown[]) => unknown[];
-  getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
-  getFileInfo?: (...args: unknown[]) => unknown;
-} = {}) {
-  return {
-    searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
-    searchSymbols: mock(overrides.searchSymbols ?? (() => [])),
-    getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
-    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? (() => [])),
-    getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
-    close: mock(() => Promise.resolve()),
-  } as any;
-}
-
-describe('checkDrift with gildash — broken link detection', () => {
-  let tc: TestContext;
-
-  afterEach(async () => {
-    await tc?.cleanup();
-  });
-
-  it('should detect broken links when searchSymbols returns empty array', async () => {
+  it('should include importDependencies field (empty without gildash)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      key: 'drift-broken',
-      summary: 'Broken link card',
+      key: 'id-a',
+      summary: 'A',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'funcA' }],
     });
-    await updateCardStatus(tc.ctx, 'drift-broken', 'active');
-    tc.ctx.gildash = createMockGildash({
-      searchSymbols: () => [],
-      getFileInfo: () => null,
-    });
-
-    const result = checkDrift(tc.ctx, 'drift-broken');
-    expect(result.driftScore).toBeGreaterThan(0);
-    expect(result.staleCards.length).toBeGreaterThanOrEqual(1);
-    const card = result.staleCards.find((c) => c.key === 'drift-broken');
-    expect(card).toBeDefined();
-    expect(card!.brokenLinks).toBe(1);
-  });
-
-  it('should report zero broken links when searchSymbols finds the symbol', async () => {
-    tc = await createTestContext();
     await createCard(tc.ctx, {
-      key: 'drift-ok',
-      summary: 'OK link card',
+      key: 'id-b',
+      summary: 'B',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
-    });
-    tc.ctx.gildash = createMockGildash({
-      searchSymbols: () => [{ name: 'okFn', filePath: 'src/ok.ts', kind: 'function' }],
-      getFileInfo: () => null,
+      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'funcB' }],
     });
 
-    const result = checkDrift(tc.ctx, 'drift-ok');
-    const card = result.staleCards.find((c) => c.key === 'drift-ok');
-    if (card) {
-      expect(card.brokenLinks).toBe(0);
-    }
-  });
-
-  it('should NOT count broken links for draft card', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      key: 'drift-draft',
-      summary: 'Draft card',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-    });
-    // status defaults to 'draft'
-    tc.ctx.gildash = createMockGildash({
-      searchSymbols: () => [],
-      getFileInfo: () => null,
-    });
-
-    const result = checkDrift(tc.ctx, 'drift-draft');
-    const card = result.staleCards.find((c) => c.key === 'drift-draft');
-    if (card) {
-      expect(card.brokenLinks).toBe(0);
-    }
-  });
-});
-
-describe('checkDrift with gildash — stale detection', () => {
-  let tc: TestContext;
-
-  afterEach(async () => {
-    await tc?.cleanup();
-  });
-
-  it('should detect stale card when getFileInfo returns mtime newer than card updated_at', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      key: 'drift-stale',
-      summary: 'Stale card',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/changed.ts', symbol: 'changedFn' }],
-    });
-
-    tc.ctx.gildash = createMockGildash({
-      searchSymbols: () => [{ name: 'changedFn', filePath: 'src/changed.ts', kind: 'function' }],
-      getFileInfo: () => ({ mtimeMs: Date.now() + 60_000 }),
-    });
-
-    const result = checkDrift(tc.ctx, 'drift-stale');
-    expect(result.driftScore).toBeGreaterThan(0);
-    const card = result.staleCards.find((c) => c.key === 'drift-stale');
-    expect(card).toBeDefined();
-    expect(card!.codeChangesAfter).toBeGreaterThanOrEqual(1);
-  });
-
-  it('should not detect stale when getFileInfo returns null', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      key: 'drift-no-info',
-      summary: 'No file info card',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/unknown.ts', symbol: 'unknownFn' }],
-    });
-
-    tc.ctx.gildash = createMockGildash({
-      searchSymbols: () => [{ name: 'unknownFn', filePath: 'src/unknown.ts', kind: 'function' }],
-      getFileInfo: () => null,
-    });
-
-    const result = checkDrift(tc.ctx, 'drift-no-info');
-    expect(result.staleCards).toHaveLength(0);
+    const result = checkInteractions(tc.ctx, ['id-a', 'id-b']);
+    // No gildash, so no interactions found
+    expect(result.interactions).toHaveLength(0);
   });
 });

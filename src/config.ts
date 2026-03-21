@@ -26,6 +26,8 @@ export interface EmberdeckOptions {
  */
 export interface EmberdeckContext {
   cardsDir: string;
+  /** Project root directory. Available when projectRoot was specified in options. */
+  projectRoot?: string;
   db: EmberdeckDb;
   cardRepo: CardRepository;
   relationRepo: RelationRepository;

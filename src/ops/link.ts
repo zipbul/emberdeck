@@ -7,6 +7,7 @@ import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { GildashNotConfiguredError, CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
+import { writeCardFile } from '../fs/writer';
 
 // ---- Public Types ----
 
@@ -26,9 +27,9 @@ export interface ValidateCodeLinksResult {
   declared: number;
   /** Number of links that resolved successfully. */
   valid: number;
-  /** Links that could not be resolved (on implementing+ cards). */
+  /** Links that could not be resolved (on active/drifted cards). */
   broken: BrokenLink[];
-  /** Links that could not be resolved on draft/accepted cards (expected — code not yet written). */
+  /** Links that could not be resolved on draft cards (expected — code not yet written). */
   planned: BrokenLink[];
 }
 
@@ -43,6 +44,16 @@ async function readCard(ctx: EmberdeckContext, fullKey: string) {
   return readCardFile(filePath);
 }
 
+/**
+ * Ensure gildash symbol index is up-to-date before operations that depend on it.
+ * No-op if gildash is not configured or does not support reindex.
+ */
+export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
+  if (ctx.gildash && typeof ctx.gildash.reindex === 'function') {
+    await ctx.gildash.reindex();
+  }
+}
+
 // ---- Operations ----
 
 /**
@@ -55,9 +66,7 @@ export async function resolveCardCodeLinks(
 ): Promise<ResolvedCodeLink[]> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
 
-  if (typeof ctx.gildash.reindex === 'function') {
-    await ctx.gildash.reindex();
-  }
+  await ensureReindexed(ctx);
 
   const cardFile = await readCard(ctx, fullKey);
   const codeLinks = cardFile.frontmatter.codeLinks ?? [];
@@ -85,11 +94,13 @@ export async function resolveCardCodeLinks(
 /**
  * Returns the list of cards that reference the given symbol name (+ optional file path).
  */
-export function findCardsBySymbol(
+export async function findCardsBySymbol(
   ctx: EmberdeckContext,
   symbolName: string,
   filePath?: string,
-): CardRow[] {
+): Promise<CardRow[]> {
+  await ensureReindexed(ctx);
+
   const rows = ctx.codeLinkRepo.findBySymbol(symbolName, filePath);
   const seen = new Set<string>();
   const result: CardRow[] = [];
@@ -104,12 +115,15 @@ export function findCardsBySymbol(
 
 /**
  * Given a list of changed files, returns the cards that reference symbols in those files via codeLinks.
+ * Internal function — not part of the public API. Use preChangeCheck instead.
  */
 export async function findAffectedCards(
   ctx: EmberdeckContext,
   changedFiles: string[],
 ): Promise<CardRow[]> {
   if (changedFiles.length === 0) return [];
+
+  await ensureReindexed(ctx);
 
   const seen = new Set<string>();
   for (const file of changedFiles) {
@@ -130,6 +144,9 @@ export async function findAffectedCards(
 /**
  * Validates that all of a card's codeLinks exist in the current symbol index.
  * Returns declared/valid/broken counts for unambiguous interpretation.
+ *
+ * When broken links are detected on an active card, the card is automatically
+ * transitioned to 'drifted' status (DB + file).
  */
 export async function validateCodeLinks(
   ctx: EmberdeckContext,
@@ -137,9 +154,7 @@ export async function validateCodeLinks(
 ): Promise<ValidateCodeLinksResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
 
-  if (typeof ctx.gildash.reindex === 'function') {
-    await ctx.gildash.reindex();
-  }
+  await ensureReindexed(ctx);
 
   const cardFile = await readCard(ctx, fullKey);
   const codeLinks = cardFile.frontmatter.codeLinks ?? [];
@@ -174,5 +189,22 @@ export async function validateCodeLinks(
       valid++;
     }
   }
+
+  // Auto-transition: active card with broken links → drifted
+  if (broken.length > 0 && status === 'active') {
+    const key = parseFullKey(fullKey);
+    const row = ctx.cardRepo.findByKey(key);
+    if (row) {
+      ctx.cardRepo.upsert({ ...row, status: 'drifted', updatedAt: new Date().toISOString() });
+      try {
+        cardFile.frontmatter.status = 'drifted';
+        const filePath = buildCardPath(ctx.cardsDir, key);
+        await writeCardFile(filePath, cardFile);
+      } catch {
+        // File update failed, DB already updated
+      }
+    }
+  }
+
   return { declared: codeLinks.length, valid, broken, planned };
 }

@@ -559,7 +559,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     },
     async (args: { symbolName: string; filePath?: string }) => {
       try {
-        const result = findCardsBySymbol(ctx, args.symbolName, args.filePath);
+        const result = await findCardsBySymbol(ctx, args.symbolName, args.filePath);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -573,7 +573,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Validate that code links exist in the current symbol index. Requires gildash. ' +
         'Use to detect broken links after code refactoring or symbol renames. ' +
-        'Omit key to validate all cards at once.',
+        'Omit key to validate all cards at once. ' +
+        'Active cards with broken links are automatically transitioned to drifted.',
       inputSchema: z.object({
         key: z.string().optional().describe('Card key (omit to validate all cards)'),
       }).strict(),
@@ -607,17 +608,22 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_check_drift',
     {
       description:
-        'Calculate a drift score (0=synchronized, 1=completely stale) for a card and its relation graph. ' +
-        'Use before marking a card as active, at session start for project health, or to find stale areas. ' +
+        'Detect drift for cards — broken code links, inactive boundaries, or changed symbols. ' +
+        'Returns per-card drift status and project health summary. ' +
+        'Set autoTransition=false to report only without transitioning active→drifted. ' +
         'Omit key to check all cards.',
       inputSchema: z.object({
         key: z.string().optional().describe('Starting card key (omit for all cards)'),
         maxDepth: z.number().optional().describe('Max BFS depth (default: 3)'),
+        autoTransition: z.boolean().optional().describe('Auto-transition active→drifted (default: true)'),
       }).strict(),
     },
-    async (args: { key?: string; maxDepth?: number }) => {
+    async (args: { key?: string; maxDepth?: number; autoTransition?: boolean }) => {
       try {
-        const result = checkDrift(ctx, args.key, { maxDepth: args.maxDepth });
+        const result = await checkDrift(ctx, args.key, {
+          maxDepth: args.maxDepth,
+          autoTransition: args.autoTransition,
+        });
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -630,7 +636,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Analyze interactions between a set of cards. Detects shared code symbols, ' +
-        'existing relations, and potential conflicts. ' +
+        'shared files, import dependencies, existing relations, and potential conflicts. ' +
         'Use before modifying multiple related features to understand cross-card dependencies.',
       inputSchema: z.object({
         cards: z.array(z.string()).describe('Array of card keys to analyze'),
@@ -653,7 +659,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Analyze impact before changing specific files or symbols. ' +
-        'Returns directly and transitively affected cards and risk level. ' +
+        'Returns directly affected, boundary-matched, and transitively affected cards. ' +
+        'Includes per-card link status and lists uncovered files. ' +
         'Use before code changes to understand what specs may need review.',
       inputSchema: z.object({
         files: z.array(z.string()).describe('File paths that will be changed'),
@@ -674,16 +681,16 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_regression_guard',
     {
       description:
-        'Quality gate combining changed file analysis with optional Firebat scan results. ' +
-        'Use after code changes to check for regressions. Pass Firebat output directly without format conversion.',
+        'Quality gate based on drifted card ratio among affected cards. ' +
+        'Fails if the drifted ratio exceeds the configured threshold (default: 0 = any drift fails). ' +
+        'Use after code changes to verify design alignment before committing.',
       inputSchema: z.object({
         changedFiles: z.array(z.string()).describe('Changed file paths'),
-        firebatReport: z.unknown().optional().describe('Firebat scan result (pass as-is, any format)'),
       }).strict(),
     },
-    async (args: { changedFiles: string[]; firebatReport?: unknown }) => {
+    async (args: { changedFiles: string[] }) => {
       try {
-        const result = regressionGuard(ctx, args.changedFiles, args.firebatReport);
+        const result = await regressionGuard(ctx, args.changedFiles);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -699,7 +706,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Scan @spec annotations in source code and auto-create code links for matching cards. ' +
         'Use after adding @spec comments to source files, or during bulk sync. ' +
-        'Requires gildash. Manual links are preserved.',
+        'Requires gildash. Manual links are preserved. ' +
+        'Also detects marker-missing (link exists but no @spec) and link-missing (@spec but no link).',
       inputSchema: z.object({}).strict(),
     },
     async () => {
@@ -725,7 +733,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     },
     async (args: { since: string }) => {
       try {
-        const result = syncSymbolChanges(ctx, args.since);
+        const result = await syncSymbolChanges(ctx, args.since);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -739,6 +747,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Check code link coverage for a card: how many links resolve, how many are broken, ' +
         'and what symbols in linked files are not yet connected. ' +
+        'Applies coverageIgnore patterns to exclude files from unreferenced list. ' +
         'Use to find gaps in code-spec traceability. Requires gildash.',
       inputSchema: z.object({
         key: z.string().describe('Card key'),
