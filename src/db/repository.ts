@@ -6,10 +6,9 @@ export interface CardRow {
   key: string;
   summary: string;
   status: string;
-  type: string | null;
-  priority: string | null;
-  acceptanceJson: string | null;
-  constraintsJson: string | null;
+  type: string;
+  parent: string | null;
+  boundaryJson: string | null;
   body: string | null;
   filePath: string;
   updatedAt: string;
@@ -27,11 +26,9 @@ export interface ChangelogRow {
 
 export interface RelationRow {
   id: number;
-  type: string;
   srcCardKey: string;
   dstCardKey: string;
   isReverse: boolean;
-  metaJson: string | null;
 }
 
 export interface CodeLinkRow {
@@ -45,7 +42,11 @@ export interface CodeLinkRow {
 export interface CardListFilter {
   status?: CardStatus;
   type?: string;
-  sortBy?: 'priority' | 'updated_at';
+  parent?: string;
+  tag?: string;
+  roots?: boolean;
+  updatedSince?: string;
+  sortBy?: 'updated_at';
 }
 
 // ---- Repository interfaces ----
@@ -58,24 +59,23 @@ export interface CardRepository {
   existsByKey(key: string): boolean;
   list(filter?: CardListFilter): CardRow[];
   search(query: string): CardRow[];
+  findChildren(key: string): CardRow[];
+  findAncestors(key: string): CardRow[];
 }
 
 export interface RelationRepository {
   /** Replace all relations for a card. Automatically handles bidirectional isReverse entries. */
-  replaceForCard(cardKey: string, relations: { type: string; target: string }[]): void;
+  replaceForCard(cardKey: string, relations: string[]): void;
   findByCardKey(cardKey: string): RelationRow[];
   deleteByCardKey(cardKey: string): void;
 }
 
 export interface ClassificationRepository {
-  /** Replace all keyword mappings for a card. Unregistered keywords are auto-created. */
-  replaceKeywords(cardKey: string, names: string[]): void;
   /** Replace all tag mappings for a card. Unregistered tags are auto-created. */
   replaceTags(cardKey: string, names: string[]): void;
-  findKeywordsByCard(cardKey: string): string[];
   findTagsByCard(cardKey: string): string[];
   deleteByCardKey(cardKey: string): void;
-  /** Delete keyword/tag rows not linked to any card. */
+  /** Delete tag rows not linked to any card. */
   pruneOrphans(): void;
 }
 

@@ -1,4 +1,6 @@
-import { CardValidationError } from './errors';
+import { CardValidationError, ParentValidationError, ActivationGuardError } from './errors';
+import type { EmberdeckContext } from '../config';
+import type { CardType } from './types';
 
 /**
  * Per-field maximum size constants applied by `validateCardInput`.
@@ -168,5 +170,172 @@ export function validateCardInput(input: ValidationInput): void {
         throw new CardValidationError(`boundary pattern is not valid glob syntax: "${pattern}"`);
       }
     }
+  }
+}
+
+// ── Integrity validators (require DB context) ─────────────────────────────
+
+const MAX_PARENT_DEPTH = 20;
+
+/**
+ * Validates that the parent card exists in the DB.
+ */
+export function validateParentExists(ctx: EmberdeckContext, parentKey: string): void {
+  if (!ctx.cardRepo.existsByKey(parentKey)) {
+    throw new ParentValidationError(`Parent card not found: "${parentKey}"`);
+  }
+}
+
+/**
+ * Validates parent-type hierarchy rules:
+ * - architecture: parent must be null or architecture
+ * - spec: parent must be architecture or spec
+ */
+export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
+  const parent = ctx.cardRepo.findByKey(parentKey);
+  if (!parent) {
+    throw new ParentValidationError(`Parent card not found: "${parentKey}"`);
+  }
+  const parentType = parent.type as CardType;
+
+  if (cardType === 'architecture') {
+    if (parentType !== 'architecture') {
+      throw new ParentValidationError(
+        `architecture card parent must be architecture (got "${parentType}")`,
+      );
+    }
+  } else if (cardType === 'spec') {
+    if (parentType !== 'architecture' && parentType !== 'spec') {
+      throw new ParentValidationError(
+        `spec card parent must be architecture or spec (got "${parentType}")`,
+      );
+    }
+  }
+}
+
+/**
+ * Detects circular parent references by walking the ancestor chain (max 20 depth).
+ */
+export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, parentKey: string): void {
+  let current: string | null = parentKey;
+  for (let i = 0; i < MAX_PARENT_DEPTH && current; i++) {
+    if (current === cardKey) {
+      throw new ParentValidationError(`Circular parent reference detected: "${cardKey}" → ... → "${cardKey}"`);
+    }
+    const row = ctx.cardRepo.findByKey(current);
+    current = row?.parent ?? null;
+  }
+}
+
+/**
+ * Validates that all relation targets exist in the DB and none is a self-reference.
+ */
+export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, relations: string[]): void {
+  for (const target of relations) {
+    if (target === cardKey) {
+      throw new CardValidationError(`Relation self-reference not allowed: "${cardKey}"`);
+    }
+    if (!ctx.cardRepo.existsByKey(target)) {
+      throw new CardValidationError(`Relation target not found: "${target}"`);
+    }
+  }
+}
+
+/**
+ * Validates that changing a card's type won't break children's parent-type hierarchy.
+ */
+export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string, newType: CardType): void {
+  const children = ctx.cardRepo.findChildren(cardKey);
+  for (const child of children) {
+    const childType = child.type as CardType;
+    if (newType === 'spec' && childType === 'architecture') {
+      throw new ParentValidationError(
+        `Cannot change to spec: child "${child.key}" is architecture (architecture cannot have spec parent)`,
+      );
+    }
+  }
+}
+
+/**
+ * Activation guard: validates that a card meets the conditions for active status.
+ * - architecture: no conditions
+ * - spec: codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
+ */
+export async function validateActivationGuard(
+  ctx: EmberdeckContext,
+  card: { type: CardType; codeLinks?: Array<{ file: string; symbol: string }>; boundary?: string[] },
+): Promise<void> {
+  if (card.type === 'architecture') return;
+
+  // spec activation conditions
+  const unmet: string[] = [];
+
+  const links = card.codeLinks ?? [];
+  if (links.length === 0) {
+    unmet.push('spec card must have at least 1 codeLink');
+  } else if (ctx.gildash) {
+    for (const link of links) {
+      const results = ctx.gildash.searchSymbols({
+        text: link.symbol,
+        exact: true,
+        filePath: link.file,
+      });
+      const found = Array.isArray(results)
+        ? results.find((s) => s.name === link.symbol && s.filePath === link.file)
+        : null;
+      if (!found) {
+        unmet.push(`codeLink '${link.file}:${link.symbol}' unresolved`);
+      }
+    }
+  }
+
+  if (card.boundary && card.boundary.length > 0) {
+    let anyMatch = false;
+    for (const pattern of card.boundary) {
+      const glob = new Bun.Glob(pattern);
+      // Check if at least one file matches (scan project root)
+      if (ctx.gildash) {
+        const files = ctx.gildash.listIndexedFiles();
+        for (const f of files) {
+          if (glob.match(f.filePath)) {
+            anyMatch = true;
+            break;
+          }
+        }
+      } else {
+        // Without gildash, skip boundary check
+        anyMatch = true;
+      }
+      if (anyMatch) break;
+    }
+    if (!anyMatch) {
+      unmet.push(`boundary patterns match no indexed files`);
+    }
+  }
+
+  if (unmet.length > 0) {
+    throw new ActivationGuardError('Activation conditions not met', unmet);
+  }
+}
+
+/**
+ * Re-validates activation guard when type changes on an active card.
+ * Returns 'draft' if the new type's conditions are unmet, otherwise returns the current status.
+ */
+export async function validateTypeChangeActivation(
+  ctx: EmberdeckContext,
+  card: { status: string; type: CardType; codeLinks?: Array<{ file: string; symbol: string }>; boundary?: string[] },
+  newType: CardType,
+): Promise<string> {
+  if (card.status !== 'active') return card.status;
+
+  try {
+    await validateActivationGuard(ctx, { ...card, type: newType });
+    return card.status;
+  } catch (e) {
+    if (e instanceof ActivationGuardError) {
+      return 'draft'; // force to draft
+    }
+    throw e;
   }
 }

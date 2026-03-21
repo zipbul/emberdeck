@@ -7,7 +7,7 @@ import { cardRelation } from './schema';
 export class DrizzleRelationRepository implements RelationRepository {
   constructor(private db: EmberdeckDb) {}
 
-  replaceForCard(cardKey: string, relations: { type: string; target: string }[]): void {
+  replaceForCard(cardKey: string, relations: string[]): void {
     // Delete only the relations owned by this card:
     //   - forward (isReverse=false): relations declared by this card
     //   - reverse mirror (isReverse=true, dstCardKey=cardKey): auto-reverse of this card's declarations
@@ -21,16 +21,15 @@ export class DrizzleRelationRepository implements RelationRepository {
       .where(and(eq(cardRelation.dstCardKey, cardKey), eq(cardRelation.isReverse, true)))
       .run();
 
-    // 2. Insert new relations (forward + reverse)
+    // Insert new relations (forward + reverse)
     // FK guard: if target card does not exist, FK violation → skip
-    for (const rel of relations) {
+    for (const target of relations) {
       try {
         this.db
           .insert(cardRelation)
           .values({
-            type: rel.type,
             srcCardKey: cardKey,
-            dstCardKey: rel.target,
+            dstCardKey: target,
             isReverse: false,
           })
           .run();
@@ -38,8 +37,7 @@ export class DrizzleRelationRepository implements RelationRepository {
         this.db
           .insert(cardRelation)
           .values({
-            type: rel.type,
-            srcCardKey: rel.target,
+            srcCardKey: target,
             dstCardKey: cardKey,
             isReverse: true,
           })

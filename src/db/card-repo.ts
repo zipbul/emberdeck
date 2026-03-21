@@ -1,10 +1,10 @@
-import { eq, and, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, desc, isNull, gte } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
 import type { CardRepository, CardRow, CardListFilter } from './repository';
 import { card } from './schema';
 
-const PRIORITY_ORDER = ['critical', 'high', 'medium', 'low'];
+const MAX_ANCESTOR_DEPTH = 20;
 
 export class DrizzleCardRepository implements CardRepository {
   constructor(private db: EmberdeckDb) {}
@@ -29,9 +29,8 @@ export class DrizzleCardRepository implements CardRepository {
           summary: row.summary,
           status: row.status,
           type: row.type,
-          priority: row.priority,
-          acceptanceJson: row.acceptanceJson,
-          constraintsJson: row.constraintsJson,
+          parent: row.parent,
+          boundaryJson: row.boundaryJson,
           body: row.body,
           filePath: row.filePath,
           updatedAt: row.updatedAt,
@@ -53,17 +52,35 @@ export class DrizzleCardRepository implements CardRepository {
     const conditions = [];
     if (filter?.status) conditions.push(eq(card.status, filter.status));
     if (filter?.type) conditions.push(eq(card.type, filter.type));
+    if (filter?.parent) conditions.push(eq(card.parent, filter.parent));
+    if (filter?.roots) conditions.push(isNull(card.parent));
+    if (filter?.updatedSince) conditions.push(gte(card.updatedAt, filter.updatedSince));
+
+    // tag filter requires JOIN
+    if (filter?.tag) {
+      const tagName = filter.tag.toLowerCase();
+      const rows = this.db.$client
+        .prepare(
+          `SELECT c.key, c.summary, c.status, c.type, c.parent,
+                  c.boundary_json AS boundaryJson, c.body,
+                  c.file_path AS filePath, c.updated_at AS updatedAt
+           FROM card c
+           JOIN card_tag ct ON c.key = ct.card_key
+           JOIN tag t ON ct.tag_id = t.id
+           WHERE t.name = ?${filter.status ? ' AND c.status = ?' : ''}${filter.type ? ' AND c.type = ?' : ''}${filter.roots ? ' AND c.parent IS NULL' : ''}${filter.updatedSince ? ' AND c.updated_at >= ?' : ''}${filter.sortBy === 'updated_at' ? ' ORDER BY c.updated_at DESC' : ''}`,
+        )
+        .all(
+          ...[
+            tagName,
+            ...(filter.status ? [filter.status] : []),
+            ...(filter.type ? [filter.type] : []),
+            ...(filter.updatedSince ? [filter.updatedSince] : []),
+          ],
+        ) as CardRow[];
+      return rows;
+    }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-    if (filter?.sortBy === 'priority') {
-      // Sort by priority order: critical > high > medium > low, nulls last
-      const priorityCase = sql`CASE ${card.priority} ${PRIORITY_ORDER.map((p, i) => sql`WHEN ${p} THEN ${i}`).reduce((a, b) => sql`${a} ${b}`)} ELSE 999 END`;
-      if (where) {
-        return this.db.select().from(card).where(where).orderBy(asc(priorityCase)).all() as CardRow[];
-      }
-      return this.db.select().from(card).orderBy(asc(priorityCase)).all() as CardRow[];
-    }
 
     if (filter?.sortBy === 'updated_at') {
       if (where) {
@@ -83,13 +100,9 @@ export class DrizzleCardRepository implements CardRepository {
     try {
       return this.db.$client
         .prepare(
-          `SELECT c.key, c.summary, c.status,
-                  c.type, c.priority,
-                  c.acceptance_json AS acceptanceJson,
-                  c.constraints_json AS constraintsJson,
-                  c.body,
-                  c.file_path AS filePath,
-                  c.updated_at AS updatedAt
+          `SELECT c.key, c.summary, c.status, c.type, c.parent,
+                  c.boundary_json AS boundaryJson, c.body,
+                  c.file_path AS filePath, c.updated_at AS updatedAt
            FROM card c
            JOIN card_fts f ON c.rowid = f.rowid
            WHERE card_fts MATCH ?`,
@@ -102,5 +115,23 @@ export class DrizzleCardRepository implements CardRepository {
       }
       throw e;
     }
+  }
+
+  findChildren(key: string): CardRow[] {
+    return this.db.select().from(card).where(eq(card.parent, key)).all() as CardRow[];
+  }
+
+  findAncestors(key: string): CardRow[] {
+    const ancestors: CardRow[] = [];
+    let current = this.findByKey(key);
+
+    for (let i = 0; i < MAX_ANCESTOR_DEPTH && current?.parent; i++) {
+      const parent = this.findByKey(current.parent);
+      if (!parent) break;
+      ancestors.push(parent);
+      current = parent;
+    }
+
+    return ancestors;
   }
 }
