@@ -91,7 +91,7 @@ spec          → 특정 영역이 무엇을 보장해야 하는가. 구현이 �
 ## 확정: 제거된 필드
 
 - acceptance → 검증 조건은 스펙이 아니다. 코드-스펙 정합성은 상태(status)가 증명한다. 테스트 코드가 검증이다.
-- priority → 에이전트는 find_affected_cards로 관련 카드를 가져옴. 우선순위 필터링 불필요.
+- priority → 에이전트는 pre_change_check로 관련 카드를 가져옴. 우선순위 필터링 불필요.
 - keywords → tags로 통합. 두 필드의 구분이 불가능했음.
 - constraints → body에 담으면 되는 내용. 쿼리하는 API 없음.
 - inScope/outOfScope → body에 담으면 되는 내용. 구조화해도 쿼리 API 없음.
@@ -159,7 +159,7 @@ parent: null인 spec 카드는 **쓰기 시 허용**된다. 거부하지 않는�
 
 ### 기존 코드 버그 수정 (재설계와 함께 해결)
 
-- **rename 후 참조 파일 미갱신**: rename 시 영향받는 모든 카드 파일을 재작성 (relations, parent 필드). body 본문에서 구 key가 발견되면 응답에 `bodyReferencesFound: string[]` 반환 (자동 치환하지 않음, 에이전트가 판단). **rename을 card_changelog에 기록** (field="key", oldValue, newValue). 이전 key로 검색 가능하게 함.
+- **rename 후 참조 파일 미갱신**: rename 시 영향받는 모든 카드 파일을 재작성 (relations, parent 필드). body 본문에서 구 key가 발견되면 응답에 `bodyReferencesFound: string[]` 반환 (자동 치환하지 않음, 에이전트가 판단). **rename을 card_changelog에 기록** (field="key", oldValue, newValue). **newKey가 기존 카드와 중복이면 에러 반환** (`CardAlreadyExistsError`). FK CASCADE로 rename 시 changelog 포함 모든 테이블이 새 key로 자동 갱신되므로, 이전 key로의 직접 검색은 불가. rename 이력은 `get_card(key, includeHistory: true)`로 확인.
 - **delete 후 참조 파일 미갱신**: delete 시 자식 카드 파일에서 parent 필드 제거 + **relation으로 참조하는 카드 파일에서 해당 key 제거**. DB CASCADE와 파일 상태를 일치시킴.
 - bulkSync 시 중복 key 파일이 조용히 덮어씀 (데이터 소실 위험). 해결: 중복 key 감지 시 에러 반환.
 
@@ -453,9 +453,9 @@ interface CardSuggestion {
 | `create_card` | 카드 생성 (status 지정 시 activation guard 적용) | `key, summary, type, status?, parent?, relations?, codeLinks?, boundary?, tags?, body` |
 | `get_card` | 카드 조회 | `key, includeHistory?` |
 | `update_card` | 카드 수정 (.strict() 적용, status 지정 시 activation guard 적용) | `key, summary?, type?, status?, parent?, relations?, codeLinks?, boundary?, tags?, body?` |
-| `delete_card` | 카드 삭제 (자식/참조 카드 파일 자동 갱신) | `key, force?` |
+| `delete_card` | 카드 삭제 (자식/참조 카드 파일 자동 갱신. force: 자식이 있어도 즉시 삭제, 자식 parent=null 처리) | `key, force?` |
 | `rename_card` | 카드 key 변경 (참조 파일 자동 갱신, body 참조 보고, changelog 기록) | `oldKey, newKey` |
-| `list_cards` | 카드 목록 | `type?, status?, parent?, tag?, roots?, updatedSince?` |
+| `list_cards` | 카드 목록 | `type?, status?, parent?, tag?, roots?, updatedSince?` (updatedSince: ISO 8601 문자열, 예 "2025-03-01T00:00:00Z") |
 | `search_cards` | FTS5 전문 검색 | `query, type?, status?` |
 | `bulk_create_cards` | 다수 카드 생성 (위상 정렬 → 생성 → 관계. status 지정 시 activation guard 적용) | `cards[]` |
 | `bulk_sync_cards` | 파일↔DB 전체 동기화 | `dryRun?` |
@@ -491,7 +491,7 @@ interface CardSuggestion {
 | 도구 | 설명 | 주요 옵션 |
 |------|------|-----------|
 | `analyze` | 프로젝트 전체 건강도 (driftedCards 포함) | `includeBody?` |
-| `check_drift` | 전체 카드 drift 감지 + driftType 분류 + 자동 전환 | `autoTransition?` |
+| `check_drift` | 전체 카드 drift 감지 + driftType 분류 + 자동 전환 (autoTransition 기본 true, false면 판정만 보고하고 status 전환하지 않음) | `autoTransition?` |
 | `pre_change_check` | 변경 전 영향도 분석 (find_affected_cards 통합, newUncoveredFiles 포함) | `files[]` |
 | `check_interactions` | 카드 간 상호작용 (sharedFiles + sharedSymbols + importDependencies) | `cards[]` |
 | `validate_cards` | 전체 카드셋 일괄 진단 (고아, 계층위반, boundary, 재작업 의존성 등) | — |
