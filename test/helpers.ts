@@ -10,9 +10,7 @@ export interface TestContext {
   cleanup: () => Promise<void>;
 }
 
-export async function createTestContext(
-  options?: { allowedRelationTypes?: readonly string[] },
-): Promise<TestContext> {
+export async function createTestContext(): Promise<TestContext> {
   const tmpDir = await mkdtemp(join(tmpdir(), 'emberdeck_test_'));
   const cardsDir = join(tmpDir, 'cards');
   await mkdir(cardsDir, { recursive: true });
@@ -20,7 +18,6 @@ export async function createTestContext(
   const ctx = await setupEmberdeck({
     cardsDir,
     dbPath: ':memory:',
-    allowedRelationTypes: options?.allowedRelationTypes,
   });
 
   return {

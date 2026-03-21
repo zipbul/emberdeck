@@ -13,7 +13,6 @@ mock.module('@zipbul/gildash', () => ({
 
 // Dynamically import SUT after mock is registered
 const { setupEmberdeck, teardownEmberdeck } = await import('../src/setup');
-const { DEFAULT_RELATION_TYPES } = await import('../src/config');
 
 // ---- Helpers ----
 
@@ -60,26 +59,6 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '/proj' });
     // Assert
     expect(ctx.gildash).toBe(gildash);
-    await teardownEmberdeck(ctx);
-  });
-
-  // 3. [HP] allowedRelationTypes specified → ctx.allowedRelationTypes as-is
-  it('should use provided allowedRelationTypes when specified', async () => {
-    // Arrange
-    const types = ['custom-a', 'custom-b'] as const;
-    // Act
-    const ctx = await setupEmberdeck({ ...BASE_OPTS, allowedRelationTypes: types });
-    // Assert
-    expect(ctx.allowedRelationTypes).toEqual(types);
-    await teardownEmberdeck(ctx);
-  });
-
-  // 4. [HP] allowedRelationTypes not specified → DEFAULT_RELATION_TYPES used
-  it('should use DEFAULT_RELATION_TYPES when allowedRelationTypes is not provided', async () => {
-    // Arrange / Act
-    const ctx = await setupEmberdeck(BASE_OPTS);
-    // Assert
-    expect(ctx.allowedRelationTypes).toEqual([...DEFAULT_RELATION_TYPES]);
     await teardownEmberdeck(ctx);
   });
 
@@ -171,27 +150,6 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     // Assert
     expect(ctx.gildash).toBeUndefined();
     expect(mockGildashOpen).not.toHaveBeenCalled();
-    await teardownEmberdeck(ctx);
-  });
-
-  // 13. [ED] allowedRelationTypes = [] → ctx.allowedRelationTypes = []
-  it('should set allowedRelationTypes to empty array when provided as empty array', async () => {
-    // Arrange / Act
-    const ctx = await setupEmberdeck({ ...BASE_OPTS, allowedRelationTypes: [] });
-    // Assert
-    expect(ctx.allowedRelationTypes).toEqual([]);
-    await teardownEmberdeck(ctx);
-  });
-
-  // 14. [CO] projectRoot specified + Gildash.open Err + allowedRelationTypes not set → gildash=undefined + DEFAULT
-  it('should fallback to DEFAULT_RELATION_TYPES and undefined gildash when open fails and types not set', async () => {
-    // Arrange
-    mockGildashOpen.mockImplementation(async () => makeGildashErr());
-    // Act
-    const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '/proj' });
-    // Assert
-    expect(ctx.gildash).toBeUndefined();
-    expect(ctx.allowedRelationTypes).toEqual([...DEFAULT_RELATION_TYPES]);
     await teardownEmberdeck(ctx);
   });
 

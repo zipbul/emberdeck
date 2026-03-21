@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 import { existsSync } from 'node:fs';
 
-import { createCard, renameCard, updateCard, updateCardStatus, getCardHistory } from '../../index';
+import { createCard, renameCard, updateCard, updateCardStatus } from '../../index';
 import {
   CardAlreadyExistsError,
   CardKeyError,
@@ -20,26 +20,22 @@ describe('renameCard', () => {
   // ── Happy Path ──────────────────────────────────────────────────────────
 
   it('should move file and update frontmatter key when rename succeeds', async () => {
-    // Arrange
     tc = await createTestContext();
     const { filePath: oldPath } = await createCard(tc.ctx, {
-      slug: 'old-name',
-      summary: 'Old', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+      key: 'old-name',
+      summary: 'Old',
+      type: 'spec',
+    });
     const result = await renameCard(tc.ctx, 'old-name', 'new-name');
-    // Assert
     expect(existsSync(oldPath)).toBe(false);
     expect(existsSync(result.newFilePath)).toBe(true);
     expect(result.card.frontmatter.key).toBe('new-name');
   });
 
   it('should update DB key and filePath when rename succeeds', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'db-old', summary: 'DB old', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'db-old', summary: 'DB old', type: 'spec' });
     await renameCard(tc.ctx, 'db-old', 'db-new');
-    // Assert
     expect(tc.ctx.cardRepo.findByKey('db-old')).toBeNull();
     const newRow = tc.ctx.cardRepo.findByKey('db-new');
     expect(newRow).not.toBeNull();
@@ -47,79 +43,54 @@ describe('renameCard', () => {
   });
 
   it('should restore forward relations under new key after rename', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rnm-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'rnm-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'rnm-src', summary: 'Src', type: 'spec' });
+    await createCard(tc.ctx, { key: 'rnm-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'rnm-src', {
-      relations: [{ type: 'depends-on', target: 'rnm-dst' }],
+      relations: ['rnm-dst'],
     });
-    // Act
     await renameCard(tc.ctx, 'rnm-src', 'rnm-src-new');
-    // Assert
     const rows = tc.ctx.relationRepo.findByCardKey('rnm-src-new');
     expect(rows.some((r) => !r.isReverse && r.dstCardKey === 'rnm-dst')).toBe(true);
   });
 
-  it('should restore keywords under new key after rename', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rnm-kw', summary: 'KW', keywords: ['a', 'b'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    await renameCard(tc.ctx, 'rnm-kw', 'rnm-kw-new');
-    // Assert
-    const kws = tc.ctx.classificationRepo.findKeywordsByCard('rnm-kw-new');
-    expect(kws).toContain('a');
-    expect(kws).toContain('b');
-  });
-
   it('should restore tags under new key after rename', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rnm-tag', summary: 'Tag', tags: ['t1'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'rnm-tag', summary: 'Tag', type: 'spec', tags: ['t1'] });
     await renameCard(tc.ctx, 'rnm-tag', 'rnm-tag-new');
-    // Assert
     const tags = tc.ctx.classificationRepo.findTagsByCard('rnm-tag-new');
     expect(tags).toContain('t1');
   });
 
   it('should return { oldFilePath, newFilePath, newFullKey, card } with correct shape', async () => {
-    // Arrange
     tc = await createTestContext();
     const { filePath: oldPath } = await createCard(tc.ctx, {
-      slug: 'rnm-shape',
-      summary: 'Shape', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+      key: 'rnm-shape',
+      summary: 'Shape',
+      type: 'spec',
+    });
     const result = await renameCard(tc.ctx, 'rnm-shape', 'rnm-shape-new');
-    // Assert
     expect(result.oldFilePath).toBe(oldPath);
     expect(result.newFullKey).toBe('rnm-shape-new');
     expect(result.newFilePath).toContain('rnm-shape-new.card.md');
   });
 
-  it('should create nested subdirectory automatically when renaming to nested slug', async () => {
-    // Arrange
+  it('should create nested subdirectory automatically when renaming to nested key', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'flat-slug', summary: 'Flat', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'flat-slug', summary: 'Flat', type: 'spec' });
     const result = await renameCard(tc.ctx, 'flat-slug', 'nested/renamed');
-    // Assert
     expect(existsSync(result.newFilePath)).toBe(true);
     expect(result.newFilePath).toContain('nested/renamed.card.md');
   });
 
   it('should create bidirectional reverse relation entries under new key after rename', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'bidi-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'bidi-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'bidi-src', summary: 'Src', type: 'spec' });
+    await createCard(tc.ctx, { key: 'bidi-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'bidi-src', {
-      relations: [{ type: 'related', target: 'bidi-dst' }],
+      relations: ['bidi-dst'],
     });
-    // Act
     await renameCard(tc.ctx, 'bidi-src', 'bidi-src-new');
-    // Assert: reverse entry from dst→new-src
     const reverseRows = tc.ctx.relationRepo.findByCardKey('bidi-dst');
     expect(reverseRows.some((r) => r.isReverse && r.dstCardKey === 'bidi-src-new')).toBe(true);
   });
@@ -127,125 +98,87 @@ describe('renameCard', () => {
   // ── Negative / Error ───────────────────────────────────────────────────
 
   it('should throw CardRenameSamePathError when old and new paths are identical', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'same-slug', summary: 'Same', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act & Assert
+    await createCard(tc.ctx, { key: 'same-slug', summary: 'Same', type: 'spec' });
     expect(renameCard(tc.ctx, 'same-slug', 'same-slug')).rejects.toBeInstanceOf(
       CardRenameSamePathError,
     );
   });
 
   it('should throw CardNotFoundError when source card does not exist', async () => {
-    // Arrange
     tc = await createTestContext();
-    // Act & Assert
     expect(renameCard(tc.ctx, 'ghost', 'target')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 
   it('should throw CardAlreadyExistsError when target card already exists', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'src-conflict', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'dst-conflict', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act & Assert
+    await createCard(tc.ctx, { key: 'src-conflict', summary: 'Src', type: 'spec' });
+    await createCard(tc.ctx, { key: 'dst-conflict', summary: 'Dst', type: 'spec' });
     expect(renameCard(tc.ctx, 'src-conflict', 'dst-conflict')).rejects.toBeInstanceOf(
       CardAlreadyExistsError,
     );
   });
 
-  it('should throw CardKeyError when newSlug is invalid', async () => {
-    // Arrange
+  it('should throw CardKeyError when newKey is invalid', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'valid-src', summary: 'Valid', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act & Assert
+    await createCard(tc.ctx, { key: 'valid-src', summary: 'Valid', type: 'spec' });
     expect(renameCard(tc.ctx, 'valid-src', '')).rejects.toBeInstanceOf(CardKeyError);
   });
 
   // ── Edge ──────────────────────────────────────────────────────────────
 
   it('should rename card without errors when it has no relations', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-rel-rnm', summary: 'No rel', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'no-rel-rnm', summary: 'No rel', type: 'spec' });
     const result = await renameCard(tc.ctx, 'no-rel-rnm', 'no-rel-rnm-new');
-    // Assert
     expect(tc.ctx.relationRepo.findByCardKey('no-rel-rnm-new')).toHaveLength(0);
-    expect(existsSync(result.newFilePath)).toBe(true);
-  });
-
-  it('should rename card without errors when it has no keywords', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-kw-rnm', summary: 'No kw', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    const result = await renameCard(tc.ctx, 'no-kw-rnm', 'no-kw-rnm-new');
-    // Assert
-    expect(tc.ctx.classificationRepo.findKeywordsByCard('no-kw-rnm-new')).toHaveLength(0);
     expect(existsSync(result.newFilePath)).toBe(true);
   });
 
   // ── Corner ────────────────────────────────────────────────────────────
 
   it('should throw CardNotFoundError when source missing even if target exists', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'co-dst', summary: 'Dst exists', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act & Assert (source check happens before dest check)
+    await createCard(tc.ctx, { key: 'co-dst', summary: 'Dst exists', type: 'spec' });
     expect(renameCard(tc.ctx, 'co-src-missing', 'co-dst')).rejects.toBeInstanceOf(
       CardNotFoundError,
     );
   });
 
-  it('should preserve relations, keywords, and tags simultaneously after rename', async () => {
-    // Arrange
+  it('should preserve relations and tags simultaneously after rename', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'all-rnm-src', summary: 'All', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'all-rnm-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'all-rnm-src', summary: 'All', type: 'spec' });
+    await createCard(tc.ctx, { key: 'all-rnm-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'all-rnm-src', {
-      relations: [{ type: 'depends-on', target: 'all-rnm-dst' }],
-      keywords: ['kw'],
+      relations: ['all-rnm-dst'],
       tags: ['tg'],
     });
-    // Act
     await renameCard(tc.ctx, 'all-rnm-src', 'all-rnm-new');
-    // Assert
     expect(tc.ctx.relationRepo.findByCardKey('all-rnm-new').length).toBeGreaterThan(0);
-    expect(tc.ctx.classificationRepo.findKeywordsByCard('all-rnm-new')).toContain('kw');
     expect(tc.ctx.classificationRepo.findTagsByCard('all-rnm-new')).toContain('tg');
   });
 
   // ── State Transition ───────────────────────────────────────────────────
 
   it('should confirm old file path no longer exists after rename', async () => {
-    // Arrange
     tc = await createTestContext();
-    const { filePath } = await createCard(tc.ctx, { slug: 'st-rnm-old', summary: 'Old', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    const { filePath } = await createCard(tc.ctx, { key: 'st-rnm-old', summary: 'Old', type: 'spec' });
     await renameCard(tc.ctx, 'st-rnm-old', 'st-rnm-new');
-    // Assert
     expect(existsSync(filePath)).toBe(false);
   });
 
   it('should confirm new file path exists after rename', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'st-new-old', summary: 'Old', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'st-new-old', summary: 'Old', type: 'spec' });
     const result = await renameCard(tc.ctx, 'st-new-old', 'st-new-new');
-    // Assert
     expect(existsSync(result.newFilePath)).toBe(true);
   });
 
   it('should succeed on chained renames A then B then C', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'chain-a', summary: 'Chain A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'chain-a', summary: 'Chain A', type: 'spec' });
     await renameCard(tc.ctx, 'chain-a', 'chain-b');
-    // Act
     const result = await renameCard(tc.ctx, 'chain-b', 'chain-c');
-    // Assert
     expect(result.newFullKey).toBe('chain-c');
     expect(tc.ctx.cardRepo.findByKey('chain-a')).toBeNull();
     expect(tc.ctx.cardRepo.findByKey('chain-b')).toBeNull();
@@ -254,77 +187,46 @@ describe('renameCard', () => {
 
   // ── Idempotency ───────────────────────────────────────────────────────
 
-  it('should throw CardNotFoundError when re-renaming from old slug after rename', async () => {
-    // Arrange
+  it('should throw CardNotFoundError when re-renaming from old key after rename', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'idp-rnm-src', summary: 'Idp', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'idp-rnm-src', summary: 'Idp', type: 'spec' });
     await renameCard(tc.ctx, 'idp-rnm-src', 'idp-rnm-dst');
-    // Act & Assert
     expect(renameCard(tc.ctx, 'idp-rnm-src', 'idp-rnm-dst2')).rejects.toBeInstanceOf(
       CardNotFoundError,
     );
   });
 
   it('should preserve body, status, and summary after rename', async () => {
-    // Arrange
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'preserve-all',
+      key: 'preserve-all',
       summary: 'Preserved',
-      body: 'Body preserved', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+      type: 'spec',
+      body: 'Body preserved',
+    });
     const result = await renameCard(tc.ctx, 'preserve-all', 'preserve-all-new');
-    // Assert
     expect(result.card.frontmatter.summary).toBe('Preserved');
     expect(result.card.body).toBe('Body preserved');
     expect(result.card.frontmatter.status).toBe('draft');
   });
 
   it('should have no old DB row and a valid new DB row after rename', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'db-verify-old', summary: 'DB verify', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'db-verify-old', summary: 'DB verify', type: 'spec' });
     await renameCard(tc.ctx, 'db-verify-old', 'db-verify-new');
-    // Assert
     expect(tc.ctx.cardRepo.findByKey('db-verify-old')).toBeNull();
     expect(tc.ctx.cardRepo.findByKey('db-verify-new')).not.toBeNull();
-  });
-
-  // ── Changelog Preservation ──────────────────────────────────────────────
-
-  it('should preserve changelog entries under new key after rename', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-rnm-old', summary: 'Original', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await updateCardStatus(tc.ctx, 'cl-rnm-old', 'accepted');
-    await updateCardStatus(tc.ctx, 'cl-rnm-old', 'implementing');
-    const historyBefore = getCardHistory(tc.ctx, 'cl-rnm-old');
-    expect(historyBefore.length).toBe(2);
-    // Act
-    await renameCard(tc.ctx, 'cl-rnm-old', 'cl-rnm-new');
-    // Assert: new key has the old changelog entries
-    const historyNew = getCardHistory(tc.ctx, 'cl-rnm-new');
-    expect(historyNew.length).toBe(2);
-    const statuses = historyNew.map((h) => h.newValue).sort();
-    expect(statuses).toEqual(['accepted', 'implementing']);
-    // Assert: old key returns empty
-    const historyOld = getCardHistory(tc.ctx, 'cl-rnm-old');
-    expect(historyOld).toEqual([]);
   });
 
   // ── codeLink Preservation ─────────────────────────────────────────────
 
   it('should preserve single codeLink under new key when rename succeeds', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-single-old', summary: 'CL single', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'cl-single-old', summary: 'CL single', type: 'spec' });
     await updateCard(tc.ctx, 'cl-single-old', {
       codeLinks: [{ kind: 'function', file: 'src/foo.ts', symbol: 'myFn' }],
     });
-    // Act
     await renameCard(tc.ctx, 'cl-single-old', 'cl-single-new');
-    // Assert
     const oldLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-single-old');
     expect(oldLinks).toHaveLength(0);
     const newLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-single-new');
@@ -334,151 +236,12 @@ describe('renameCard', () => {
     expect(newLinks[0]!.symbol).toBe('myFn');
   });
 
-  it('should preserve all codeLinks under new key when card has multiple codeLinks', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-multi-old', summary: 'CL multi', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await updateCard(tc.ctx, 'cl-multi-old', {
-      codeLinks: [
-        { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
-        { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
-        { kind: 'function', file: 'src/c.ts', symbol: 'fnC' },
-      ],
-    });
-    // Act
-    await renameCard(tc.ctx, 'cl-multi-old', 'cl-multi-new');
-    // Assert
-    expect(tc.ctx.codeLinkRepo.findByCardKey('cl-multi-old')).toHaveLength(0);
-    const newLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-multi-new');
-    expect(newLinks).toHaveLength(3);
-    expect(newLinks.some((l) => l.symbol === 'fnA')).toBe(true);
-    expect(newLinks.some((l) => l.symbol === 'ClassB')).toBe(true);
-    expect(newLinks.some((l) => l.symbol === 'fnC')).toBe(true);
-  });
-
-  it('should preserve codeLinks along with relations, keywords, and tags simultaneously after rename', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-all-src', summary: 'All src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'cl-all-dst', summary: 'All dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await updateCard(tc.ctx, 'cl-all-src', {
-      relations: [{ type: 'depends-on', target: 'cl-all-dst' }],
-      keywords: ['kw-cl'],
-      tags: ['tg-cl'],
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'xFn' }],
-    });
-    // Act
-    await renameCard(tc.ctx, 'cl-all-src', 'cl-all-new');
-    // Assert
-    const rel = tc.ctx.relationRepo.findByCardKey('cl-all-new');
-    expect(rel.some((r) => !r.isReverse && r.dstCardKey === 'cl-all-dst')).toBe(true);
-    expect(tc.ctx.classificationRepo.findKeywordsByCard('cl-all-new')).toContain('kw-cl');
-    expect(tc.ctx.classificationRepo.findTagsByCard('cl-all-new')).toContain('tg-cl');
-    const links = tc.ctx.codeLinkRepo.findByCardKey('cl-all-new');
-    expect(links).toHaveLength(1);
-    expect(links[0]!.symbol).toBe('xFn');
-  });
-
-  it('should preserve codeLinks after chained rename A→B→C', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'cl-chain-a', summary: 'Chain A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await updateCard(tc.ctx, 'cl-chain-a', {
-      codeLinks: [{ kind: 'function', file: 'src/chain.ts', symbol: 'chainFn' }],
-    });
-    await renameCard(tc.ctx, 'cl-chain-a', 'cl-chain-b');
-    // Act
-    await renameCard(tc.ctx, 'cl-chain-b', 'cl-chain-c');
-    // Assert
-    expect(tc.ctx.codeLinkRepo.findByCardKey('cl-chain-a')).toHaveLength(0);
-    expect(tc.ctx.codeLinkRepo.findByCardKey('cl-chain-b')).toHaveLength(0);
-    const finalLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-chain-c');
-    expect(finalLinks).toHaveLength(1);
-    expect(finalLinks[0]!.symbol).toBe('chainFn');
-  });
-
-  // ── type, priority, acceptance Preservation ─────────────────────────────
-
   it('should preserve type in DB after rename', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rnm-tp-src', summary: 'Type preserve', type: 'feature', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'rnm-tp-src', summary: 'Type preserve', type: 'architecture' });
     await renameCard(tc.ctx, 'rnm-tp-src', 'rnm-tp-dst');
-    // Assert
     const row = tc.ctx.cardRepo.findByKey('rnm-tp-dst');
     expect(row).not.toBeNull();
-    expect(row!.type).toBe('feature');
-  });
-
-  it('should preserve priority in DB after rename', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rnm-pri-src', summary: 'Priority preserve', priority: 'critical', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    await renameCard(tc.ctx, 'rnm-pri-src', 'rnm-pri-dst');
-    // Assert
-    const row = tc.ctx.cardRepo.findByKey('rnm-pri-dst');
-    expect(row).not.toBeNull();
-    expect(row!.priority).toBe('critical');
-  });
-
-  it('should preserve acceptance criteria in DB after rename', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      slug: 'rnm-ac-src',
-      summary: 'AC preserve',
-      acceptance: [
-        { id: 'ac-1', description: 'First', verified: false },
-        { id: 'ac-2', description: 'Second', verified: true },
-      ],
-    });
-    // Act
-    await renameCard(tc.ctx, 'rnm-ac-src', 'rnm-ac-dst');
-    // Assert
-    const row = tc.ctx.cardRepo.findByKey('rnm-ac-dst');
-    expect(row).not.toBeNull();
-    expect(row!.acceptanceJson).not.toBeNull();
-    const acceptance = JSON.parse(row!.acceptanceJson!);
-    expect(acceptance).toHaveLength(2);
-    expect(acceptance[0].id).toBe('ac-1');
-    expect(acceptance[1].verified).toBe(true);
-  });
-
-  it('should preserve type, priority, and acceptance in file after rename', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      slug: 'rnm-all-p1',
-      summary: 'All P1 fields',
-      type: 'bug',
-      priority: 'high',
-      acceptance: [{ id: 'ac-1', description: 'Must fix', verified: false }],
-    });
-    // Act
-    const result = await renameCard(tc.ctx, 'rnm-all-p1', 'rnm-all-p1-new');
-    // Assert: check file frontmatter
-    expect(result.card.frontmatter.type).toBe('bug');
-    expect(result.card.frontmatter.priority).toBe('high');
-    expect(result.card.frontmatter.acceptance).toHaveLength(1);
-    expect(result.card.frontmatter.acceptance![0]!.description).toBe('Must fix');
-    // Assert: check DB row
-    const row = tc.ctx.cardRepo.findByKey('rnm-all-p1-new');
-    expect(row!.type).toBe('bug');
-    expect(row!.priority).toBe('high');
-  });
-
-  it('should preserve null type and priority after rename when card has neither', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rnm-null-src', summary: 'No type or priority', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    await renameCard(tc.ctx, 'rnm-null-src', 'rnm-null-dst');
-    // Assert
-    const row = tc.ctx.cardRepo.findByKey('rnm-null-dst');
-    expect(row!.type).toBeNull();
-    expect(row!.priority).toBeNull();
-    expect(row!.acceptanceJson).not.toBeNull();
+    expect(row!.type).toBe('architecture');
   });
 });

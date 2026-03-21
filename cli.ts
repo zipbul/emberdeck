@@ -128,7 +128,6 @@ async function runMcp(): Promise<void> {
     cardsDir: config.cardsDir,
     dbPath: config.dbPath,
     projectRoot: config.projectRoot,
-    allowedRelationTypes: config.allowedRelationTypes,
     gildashIgnore: config.gildashIgnore,
   });
 

@@ -2,11 +2,18 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { CardRelation, CardFile, CodeLink, CardType, CardPriority, AcceptanceCriterion } from '../card/types';
+import type { CardFile, CodeLink, CardType, CardStatus } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
-import { CardAlreadyExistsError, RelationTypeError, CardValidationError } from '../card/errors';
-import { validateCardInput } from '../card/validation';
+import { CardAlreadyExistsError } from '../card/errors';
+import {
+  validateCardInput,
+  validateParentExists,
+  validateParentType,
+  validateParentCycle,
+  validateRelationTargets,
+  validateActivationGuard,
+} from '../card/validation';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
@@ -19,28 +26,26 @@ import { withCardLock, withRetry, safeWriteOperation } from './safe';
  * Input parameters passed to `createCard`.
  */
 export interface CreateCardInput {
-  /** Slug that becomes the card filename. Only alphanumeric, hyphens, underscores, dots, and slashes are allowed. */
-  slug: string;
+  /** Card key used as filename. Only alphanumeric, hyphens, underscores, dots, and slashes are allowed. */
+  key: string;
   /** One-line summary of the card (required). */
   summary: string;
-  /** Card type (optional). */
-  type?: CardType;
-  /** Card priority (optional). */
-  priority?: CardPriority;
-  /** Acceptance criteria (optional). */
-  acceptance?: AcceptanceCriterion[];
+  /** Card type (required). */
+  type: CardType;
+  /** Card status (optional, default: 'draft'). If 'active', activation guard is applied. */
+  status?: CardStatus;
+  /** Parent card key (optional). */
+  parent?: string;
+  /** File/directory glob patterns this card is responsible for (optional). */
+  boundary?: string[];
   /** Markdown body (optional). */
   body?: string;
-  /** List of keywords for search (optional). */
-  keywords?: string[];
   /** List of tags for classification (optional). */
   tags?: string[];
-  /** List of relations to other cards (optional). Each type must be in allowedRelationTypes. */
-  relations?: CardRelation[];
-  /** List of source code symbol references (optional). Can be validated via gildash when projectRoot is configured. */
+  /** List of related card keys (optional). */
+  relations?: string[];
+  /** List of source code symbol references (optional). */
   codeLinks?: CodeLink[];
-  /** Free-form constraints (optional). Must be JSON-serializable. */
-  constraints?: unknown;
 }
 
 /**
@@ -49,7 +54,7 @@ export interface CreateCardInput {
 export interface CreateCardResult {
   /** Absolute path of the newly created card file. */
   filePath: string;
-  /** fullKey of the created card (= normalized slug). */
+  /** fullKey of the created card (= normalized key). */
   fullKey: string;
   /** Complete data of the created card (frontmatter + body). */
   card: CardFile;
@@ -58,8 +63,8 @@ export interface CreateCardResult {
 /**
  * Creates a new design card.
  *
- * 1. Normalizes the slug and computes the file path.
- * 2. Validates relation types, then checks for duplicate keys.
+ * 1. Normalizes the key and computes the file path.
+ * 2. Validates inputs, then checks for duplicate keys.
  * 3. Atomically executes a DB transaction (card, relations, classifications, code links) and file write.
  * 4. Rolls back the DB if file write fails (`safeWriteOperation`).
  *
@@ -69,9 +74,10 @@ export interface CreateCardResult {
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param input - Card data to create.
  * @returns Creation result (filePath, fullKey, card).
- * @throws {CardKeyError} When the slug is invalid.
- * @throws {RelationTypeError} When a disallowed relation type is used.
+ * @throws {CardKeyError} When the key is invalid.
  * @throws {CardAlreadyExistsError} When a card with the same key already exists.
+ * @throws {ParentValidationError} When parent validation fails.
+ * @throws {ActivationGuardError} When activation conditions are not met.
  * @spec card-crud
  * @throws {CompensationError} When file write fails after DB success and compensation also fails.
  */
@@ -79,46 +85,55 @@ export async function createCard(
   ctx: EmberdeckContext,
   input: CreateCardInput,
 ): Promise<CreateCardResult> {
-  if (!input.acceptance || input.acceptance.length === 0) {
-    throw new CardValidationError('acceptance criteria are required — a card without completion conditions cannot drive planning');
-  }
   validateCardInput({
     summary: input.summary,
     body: input.body,
-    keywords: input.keywords,
     tags: input.tags,
     relations: input.relations,
     codeLinks: input.codeLinks,
+    boundary: input.boundary,
   });
-  const slug = normalizeSlug(input.slug);
+  const slug = normalizeSlug(input.key);
   const fullKey = slug;
   const filePath = buildCardPath(ctx.cardsDir, slug);
+  const status = input.status ?? 'draft';
 
   return withCardLock(ctx, fullKey, () =>
     withRetry(async () => {
-      if (input.relations) {
-        for (const rel of input.relations) {
-          if (!ctx.allowedRelationTypes.includes(rel.type)) {
-            throw new RelationTypeError(rel.type, ctx.allowedRelationTypes);
-          }
-        }
-      }
-
       const exists = await Bun.file(filePath).exists();
       if (exists) {
         throw new CardAlreadyExistsError(fullKey);
       }
 
+      // Parent validation
+      if (input.parent) {
+        validateParentExists(ctx, input.parent);
+        validateParentType(ctx, input.type, input.parent);
+        validateParentCycle(ctx, fullKey, input.parent);
+      }
+
+      // Relation target validation
+      if (input.relations && input.relations.length > 0) {
+        validateRelationTargets(ctx, fullKey, input.relations);
+      }
+
+      // Activation guard
+      if (status === 'active') {
+        await validateActivationGuard(ctx, {
+          type: input.type,
+          codeLinks: input.codeLinks,
+          boundary: input.boundary,
+        });
+      }
+
       const frontmatter = {
         key: fullKey,
         summary: input.summary,
-        status: 'draft' as const,
-        ...(input.type ? { type: input.type } : {}),
-        ...(input.priority ? { priority: input.priority } : {}),
-        ...(input.acceptance && input.acceptance.length > 0 ? { acceptance: input.acceptance } : {}),
-        ...(input.constraints !== undefined ? { constraints: input.constraints } : {}),
-        ...(input.keywords && input.keywords.length > 0 ? { keywords: input.keywords } : {}),
-        ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
+        status,
+        type: input.type,
+        ...(input.parent ? { parent: input.parent } : {}),
+        ...(input.boundary && input.boundary.length > 0 ? { boundary: input.boundary } : {}),
+        ...(input.tags && input.tags.length > 0 ? { tags: input.tags.map((t) => t.toLowerCase()) } : {}),
         ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
         ...(input.codeLinks && input.codeLinks.length > 0 ? { codeLinks: input.codeLinks } : {}),
       };
@@ -140,13 +155,12 @@ export async function createCard(
             const row: CardRow = {
               key: fullKey,
               summary: input.summary,
-              status: 'draft',
-              type: input.type ?? null,
-              priority: input.priority ?? null,
-              acceptanceJson: input.acceptance && input.acceptance.length > 0
-                ? JSON.stringify(input.acceptance)
+              status,
+              type: input.type,
+              parent: input.parent ?? null,
+              boundaryJson: input.boundary && input.boundary.length > 0
+                ? JSON.stringify(input.boundary)
                 : null,
-              constraintsJson: input.constraints !== undefined ? JSON.stringify(input.constraints) : null,
               body,
               filePath,
               updatedAt: now,
@@ -156,11 +170,8 @@ export async function createCard(
             if (input.relations && input.relations.length > 0) {
               relationRepo.replaceForCard(fullKey, input.relations);
             }
-            if (input.keywords && input.keywords.length > 0) {
-              classRepo.replaceKeywords(fullKey, input.keywords);
-            }
             if (input.tags && input.tags.length > 0) {
-              classRepo.replaceTags(fullKey, input.tags);
+              classRepo.replaceTags(fullKey, input.tags.map((t) => t.toLowerCase()));
             }
             if (input.codeLinks && input.codeLinks.length > 0) {
               codeLinkRepo.replaceForCard(fullKey, input.codeLinks);

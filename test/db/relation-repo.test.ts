@@ -29,10 +29,9 @@ function insertCard(key: string, filePath = `/cards/${key}.card.md`): void {
     key,
     summary: `Card ${key}`,
     status: 'draft',
-    type: null,
-    priority: null,
-    acceptanceJson: null,
-    constraintsJson: null,
+    type: 'spec',
+    parent: null,
+    boundaryJson: null,
     body: null,
     filePath,
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -49,10 +48,10 @@ describe('DrizzleRelationRepository', () => {
     insertCard('src');
     insertCard('dst');
     // Act
-    repo.replaceForCard('src', [{ type: 'depends-on', target: 'dst' }]);
+    repo.replaceForCard('src', ['dst']);
     // Assert
     const rows = repo.findByCardKey('src');
-    expect(rows.some((r) => r.isReverse === false && r.type === 'depends-on')).toBe(true);
+    expect(rows.some((r) => r.isReverse === false)).toBe(true);
   });
 
   it('should insert a reverse relation (isReverse=true) when replaceForCard is called and target card exists', () => {
@@ -60,8 +59,8 @@ describe('DrizzleRelationRepository', () => {
     insertCard('src');
     insertCard('dst');
     // Act
-    repo.replaceForCard('src', [{ type: 'depends-on', target: 'dst' }]);
-    // Assert — reverse row: dst→src isReverse=true
+    repo.replaceForCard('src', ['dst']);
+    // Assert — reverse row: dst->src isReverse=true
     const rows = repo.findByCardKey('dst');
     expect(rows.some((r) => r.isReverse === true && r.dstCardKey === 'src')).toBe(true);
   });
@@ -72,15 +71,12 @@ describe('DrizzleRelationRepository', () => {
     insertCard('dst1');
     insertCard('dst2');
     // Act
-    repo.replaceForCard('src', [
-      { type: 'depends-on', target: 'dst1' },
-      { type: 'references', target: 'dst2' },
-    ]);
+    repo.replaceForCard('src', ['dst1', 'dst2']);
     // Assert
     const srcRows = repo.findByCardKey('src');
     const dst1Rows = repo.findByCardKey('dst1');
     const dst2Rows = repo.findByCardKey('dst2');
-    // forward: src→dst1, src→dst2 (2), reverse: dst1→src, dst2→src (2)
+    // forward: src->dst1, src->dst2 (2), reverse: dst1->src, dst2->src (2)
     expect(srcRows.length + dst1Rows.length + dst2Rows.length).toBe(4);
   });
 
@@ -88,7 +84,7 @@ describe('DrizzleRelationRepository', () => {
     // Arrange
     insertCard('a');
     insertCard('b');
-    repo.replaceForCard('a', [{ type: 'related', target: 'b' }]);
+    repo.replaceForCard('a', ['b']);
     // Act
     const rows = repo.findByCardKey('a');
     // Assert: only forward rows from 'a'
@@ -100,9 +96,9 @@ describe('DrizzleRelationRepository', () => {
     insertCard('x');
     insertCard('y');
     insertCard('z');
-    repo.replaceForCard('x', [{ type: 'depends-on', target: 'y' }]);
+    repo.replaceForCard('x', ['y']);
     // Act
-    repo.replaceForCard('x', [{ type: 'references', target: 'z' }]);
+    repo.replaceForCard('x', ['z']);
     // Assert: old rel gone, new rel present
     const rows = repo.findByCardKey('x');
     expect(rows.every((r) => r.dstCardKey !== 'y')).toBe(true);
@@ -113,7 +109,7 @@ describe('DrizzleRelationRepository', () => {
     // Arrange
     insertCard('p');
     insertCard('q');
-    repo.replaceForCard('p', [{ type: 'related', target: 'q' }]);
+    repo.replaceForCard('p', ['q']);
     // Act
     repo.replaceForCard('p', []);
     // Assert
@@ -124,7 +120,7 @@ describe('DrizzleRelationRepository', () => {
     // Arrange
     insertCard('m');
     insertCard('n');
-    repo.replaceForCard('m', [{ type: 'related', target: 'n' }]);
+    repo.replaceForCard('m', ['n']);
     // Act
     repo.deleteByCardKey('m');
     // Assert: forward + reverse for 'm' gone
@@ -136,10 +132,10 @@ describe('DrizzleRelationRepository', () => {
   it('should not throw and skip the relation when replaceForCard target card does not exist (FK catch)', () => {
     // Arrange
     insertCard('source');
-    // 'missing-target' does not exist in card table → FK violation → try-catch スキップ
+    // 'missing-target' does not exist in card table -> FK violation -> try-catch skip
     // Act / Assert
     expect(() =>
-      repo.replaceForCard('source', [{ type: 'depends-on', target: 'missing-target' }]),
+      repo.replaceForCard('source', ['missing-target']),
     ).not.toThrow();
     // no rows inserted
     expect(repo.findByCardKey('source')).toEqual([]);
@@ -172,11 +168,11 @@ describe('DrizzleRelationRepository', () => {
     insertCard('t1');
     insertCard('t2');
     // Act
-    repo.replaceForCard('s', [{ type: 'depends-on', target: 't1' }]);
-    repo.replaceForCard('s', [{ type: 'related', target: 't2' }]);
+    repo.replaceForCard('s', ['t1']);
+    repo.replaceForCard('s', ['t2']);
     // Assert
     const rows = repo.findByCardKey('s');
-    expect(rows.every((r) => r.type === 'related')).toBe(true);
+    expect(rows.every((r) => r.dstCardKey === 't2')).toBe(true);
   });
 
   // ID
@@ -184,7 +180,7 @@ describe('DrizzleRelationRepository', () => {
     // Arrange
     insertCard('del2');
     insertCard('del2-dst');
-    repo.replaceForCard('del2', [{ type: 'related', target: 'del2-dst' }]);
+    repo.replaceForCard('del2', ['del2-dst']);
     // Act / Assert
     expect(() => {
       repo.deleteByCardKey('del2');
@@ -199,10 +195,7 @@ describe('DrizzleRelationRepository', () => {
     insertCard('exists-dst');
     // 'no-exists-dst' not inserted
     // Act
-    repo.replaceForCard('src2', [
-      { type: 'depends-on', target: 'exists-dst' },
-      { type: 'references', target: 'no-exists-dst' },
-    ]);
+    repo.replaceForCard('src2', ['exists-dst', 'no-exists-dst']);
     // Assert: only exists-dst relation present
     const rows = repo.findByCardKey('src2');
     expect(rows.some((r) => r.dstCardKey === 'exists-dst')).toBe(true);
@@ -220,19 +213,19 @@ describe('DrizzleRelationRepository', () => {
     const testRepo = new DrizzleRelationRepository(fakeDb);
     // Act & Assert
     expect(() =>
-      testRepo.replaceForCard('src', [{ type: 'depends-on', target: 'dst' }]),
+      testRepo.replaceForCard('src', ['dst']),
     ).toThrow('disk I/O error');
   });
 
   // NE — UNIQUE constraint
-  it('should throw UNIQUE constraint error when duplicate (type, src_card_key, dst_card_key) is inserted directly', () => {
+  it('should throw UNIQUE constraint error when duplicate (src_card_key, dst_card_key, isReverse) is inserted directly', () => {
     // Arrange
     insertCard('src-u');
     insertCard('dst-u');
-    db.insert(cardRelation).values({ type: 'depends-on', srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run();
+    db.insert(cardRelation).values({ srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run();
     // Act & Assert
     expect(() =>
-      db.insert(cardRelation).values({ type: 'depends-on', srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run(),
+      db.insert(cardRelation).values({ srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run(),
     ).toThrow();
   });
 
@@ -240,9 +233,9 @@ describe('DrizzleRelationRepository', () => {
   it('should silently skip FK violation without throwing in replaceForCard', () => {
     // Arrange
     insertCard('warn-src');
-    // Act — target does not exist → FK violation silently skipped
+    // Act — target does not exist -> FK violation silently skipped
     expect(() =>
-      repo.replaceForCard('warn-src', [{ type: 'depends-on', target: 'nonexistent-dst' }]),
+      repo.replaceForCard('warn-src', ['nonexistent-dst']),
     ).not.toThrow();
     // Assert — no rows inserted
     expect(repo.findByCardKey('warn-src')).toEqual([]);

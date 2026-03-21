@@ -15,9 +15,9 @@ describe('bulkCreateCards', () => {
   it('should create multiple cards and return correct counts', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { slug: 'card-a', summary: 'Card A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
-      { slug: 'card-b', summary: 'Card B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
-      { slug: 'card-c', summary: 'Card C', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { key: 'card-a', summary: 'Card A', type: 'spec' },
+      { key: 'card-b', summary: 'Card B', type: 'spec' },
+      { key: 'card-c', summary: 'Card C', type: 'spec' },
     ]);
     expect(result.created).toBe(3);
     expect(result.failed).toBe(0);
@@ -29,31 +29,29 @@ describe('bulkCreateCards', () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       {
-        slug: 'full-card',
+        key: 'full-card',
         summary: 'Full card',
+        type: 'spec',
         body: '# Body',
-        keywords: ['kw1'],
         tags: ['tag1'],
         codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }],
-        acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }],
       },
     ]);
     expect(result.created).toBe(1);
     const row = tc.ctx.cardRepo.findByKey('full-card');
     expect(row).not.toBeNull();
-    expect(tc.ctx.classificationRepo.findKeywordsByCard('full-card')).toContain('kw1');
   });
 
   it('should resolve intra-batch relations regardless of order', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       {
-        slug: 'depends-first',
+        key: 'depends-first',
         summary: 'Depends on target',
-        relations: [{ type: 'depends-on', target: 'target-second' }],
-        acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }],
+        type: 'spec',
+        relations: ['target-second'],
       },
-      { slug: 'target-second', summary: 'Target card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { key: 'target-second', summary: 'Target card', type: 'spec' },
     ]);
     expect(result.created).toBe(2);
     expect(result.failed).toBe(0);
@@ -66,29 +64,29 @@ describe('bulkCreateCards', () => {
 
   it('should skip failed items and continue creating the rest', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'existing', summary: 'Already exists', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'existing', summary: 'Already exists', type: 'spec' });
     const result = await bulkCreateCards(tc.ctx, [
-      { slug: 'new-card', summary: 'New card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
-      { slug: 'existing', summary: 'Duplicate', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
-      { slug: 'another-new', summary: 'Another new', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { key: 'new-card', summary: 'New card', type: 'spec' },
+      { key: 'existing', summary: 'Duplicate', type: 'spec' },
+      { key: 'another-new', summary: 'Another new', type: 'spec' },
     ]);
     expect(result.created).toBe(2);
     expect(result.failed).toBe(1);
     expect(result.keys).toEqual(['new-card', 'another-new']);
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]!.slug).toBe('existing');
+    expect(result.errors[0]!.key).toBe('existing');
   });
 
-  it('should report error for invalid slug', async () => {
+  it('should report error for invalid key', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { slug: '../evil', summary: 'Bad slug', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
-      { slug: 'good-card', summary: 'Good card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { key: '../evil', summary: 'Bad key', type: 'spec' },
+      { key: 'good-card', summary: 'Good card', type: 'spec' },
     ]);
     expect(result.created).toBe(1);
     expect(result.failed).toBe(1);
     expect(result.keys).toEqual(['good-card']);
-    expect(result.errors[0]!.slug).toBe('../evil');
+    expect(result.errors[0]!.key).toBe('../evil');
   });
 
   // ── Edge Cases ──
@@ -105,7 +103,7 @@ describe('bulkCreateCards', () => {
   it('should handle single card input', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { slug: 'solo', summary: 'Solo card', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { key: 'solo', summary: 'Solo card', type: 'spec' },
     ]);
     expect(result.created).toBe(1);
     expect(result.keys).toEqual(['solo']);
@@ -114,74 +112,49 @@ describe('bulkCreateCards', () => {
   // ── Mutual Relations ──
 
   it('should create both cards and succeed with mutual relations in same batch', async () => {
-    // Mutual relations (a depends-on b AND b depends-on a) in the same batch.
-    // The unique constraint now includes is_reverse, so the reverse mirror row
-    // (b→a, isReverse=true) and b's forward relation (b→a, isReverse=false) do not collide.
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       {
-        slug: 'a',
+        key: 'a',
         summary: 'Card A',
-        relations: [{ type: 'depends-on', target: 'b' }],
-        acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }],
+        type: 'spec',
+        relations: ['b'],
       },
       {
-        slug: 'b',
+        key: 'b',
         summary: 'Card B',
-        relations: [{ type: 'depends-on', target: 'a' }],
-        acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }],
+        type: 'spec',
+        relations: ['a'],
       },
     ]);
-    // Both cards exist in DB
     expect(tc.ctx.cardRepo.findByKey('a')).not.toBeNull();
     expect(tc.ctx.cardRepo.findByKey('b')).not.toBeNull();
-    // Both cards created, both relations applied, zero errors
     expect(result.created).toBe(2);
     expect(result.failed).toBe(0);
     expect(result.errors).toEqual([]);
-    // a depends-on b (forward)
     const aRelations = tc.ctx.relationRepo.findByCardKey('a');
     const aForward = aRelations.find((r) => !r.isReverse && r.dstCardKey === 'b');
     expect(aForward).not.toBeUndefined();
-    // b depends-on a (forward)
     const bRelations = tc.ctx.relationRepo.findByCardKey('b');
     const bForward = bRelations.find((r) => !r.isReverse && r.dstCardKey === 'a');
     expect(bForward).not.toBeUndefined();
   });
 
-  // ── Duplicate Slugs in Same Batch ──
+  // ── Duplicate Keys in Same Batch ──
 
-  it('should fail second item when batch contains duplicate slugs', async () => {
+  it('should fail second item when batch contains duplicate keys', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { slug: 'dup', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
-      { slug: 'dup', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
+      { key: 'dup', summary: 'A', type: 'spec' },
+      { key: 'dup', summary: 'B', type: 'spec' },
     ]);
     expect(result.created).toBe(1);
     expect(result.failed).toBe(1);
     expect(result.keys).toEqual(['dup']);
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]!.slug).toBe('dup');
-    // Verify the first card's summary persists
+    expect(result.errors[0]!.key).toBe('dup');
     const row = tc.ctx.cardRepo.findByKey('dup');
     expect(row).not.toBeNull();
     expect(row!.summary).toBe('A');
-  });
-
-  it('should report relation error when relation type is not allowed', async () => {
-    tc = await createTestContext({ allowedRelationTypes: [] });
-    const result = await bulkCreateCards(tc.ctx, [
-      { slug: 'card-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] },
-      {
-        slug: 'card-b',
-        summary: 'B',
-        relations: [{ type: 'depends-on', target: 'card-a' }],
-        acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }],
-      },
-    ]);
-    // card-b created without relations, but relation update fails
-    expect(result.errors.length).toBeGreaterThanOrEqual(1);
-    const relError = result.errors.find((e) => e.slug === 'card-b');
-    expect(relError).toBeDefined();
   });
 });

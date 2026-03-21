@@ -146,7 +146,7 @@ export async function validateCodeLinks(
   if (codeLinks.length === 0) return { declared: 0, valid: 0, broken: [], planned: [] };
 
   const status = cardFile.frontmatter.status;
-  const isPlanning = status === 'draft' || status === 'accepted';
+  const isPlanning = status === 'draft';
 
   const broken: BrokenLink[] = [];
   const planned: BrokenLink[] = [];

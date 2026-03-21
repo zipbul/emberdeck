@@ -5,7 +5,7 @@ import { readCardFile } from '../../src/fs/reader';
 // parseCardMarkdown/serializeCardMarkdown are pure functions (no I/O) — real impl used.
 // Only Bun.file (I/O) is spied on.
 
-const VALID_MARKDOWN = '---\nkey: test/card\nsummary: A test card\nstatus: draft\n---\nbody content';
+const VALID_MARKDOWN = '---\nkey: test/card\nsummary: A test card\nstatus: draft\ntype: spec\n---\nbody content';
 
 // ---- Tests ----
 

@@ -47,7 +47,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should create code link from @spec annotation matching an existing card', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'auth-token', summary: 'Auth token', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'auth-token', summary: 'Auth token', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'auth-token', filePath: 'src/auth.ts', symbolName: 'generateToken', source: 'line' },
@@ -70,8 +70,8 @@ describe('syncSpecAnnotations', () => {
 
   it('should create multiple code links from multiple annotations', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'card-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'card-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'card-a', summary: 'A', type: 'spec' as const });
+    await createCard(tc.ctx, { key: 'card-b', summary: 'B', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'card-a', filePath: 'src/a.ts', symbolName: 'fnA', source: 'jsdoc' },
@@ -126,7 +126,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should skip annotation with null symbolName', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'orphan', summary: 'Orphan', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'orphan', summary: 'Orphan', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'orphan', filePath: 'src/x.ts', symbolName: null, source: 'block' },
@@ -149,9 +149,9 @@ describe('syncSpecAnnotations', () => {
   it('should not create duplicate link when link already exists', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'dup-link',
+      key: 'dup-link',
       summary: 'Dup',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'existing' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'existing' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'dup-link', filePath: 'src/a.ts', symbolName: 'existing', source: 'line' },
@@ -169,9 +169,9 @@ describe('syncSpecAnnotations', () => {
   it('should preserve existing manual links when adding new annotation link', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'preserve',
+      key: 'preserve',
       summary: 'Preserve',
-      codeLinks: [{ kind: 'class', file: 'src/old.ts', symbol: 'OldClass' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'class', file: 'src/old.ts', symbol: 'OldClass' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'preserve', filePath: 'src/new.ts', symbolName: 'newFn', source: 'jsdoc' },
@@ -190,7 +190,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should set kind to unknown when searchSymbols returns error Result', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'err-sym', summary: 'Error symbol', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'err-sym', summary: 'Error symbol', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'err-sym', filePath: 'src/err.ts', symbolName: 'badFn', source: 'line' },
@@ -205,7 +205,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should set kind to unknown when searchSymbols finds no match', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-match', summary: 'No match', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'no-match', summary: 'No match', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'no-match', filePath: 'src/x.ts', symbolName: 'ghost', source: 'line' },
@@ -236,7 +236,7 @@ describe('syncSpecAnnotations', () => {
 
   it('should return same result when called twice with same state', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'idem', summary: 'Idempotent', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'idem', summary: 'Idempotent', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'idem', filePath: 'src/i.ts', symbolName: 'fn', source: 'line' },
@@ -271,9 +271,9 @@ describe('syncSymbolChanges', () => {
   it('should update symbol name on rename', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'rename-card',
+      key: 'rename-card',
       summary: 'Rename',
-      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'oldName' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'oldName' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'renamed',
@@ -301,9 +301,9 @@ describe('syncSymbolChanges', () => {
   it('should update file path on move', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'move-card',
+      key: 'move-card',
       summary: 'Move',
-      codeLinks: [{ kind: 'class', file: 'src/old-path.ts', symbol: 'MyClass' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'class', file: 'src/old-path.ts', symbol: 'MyClass' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'moved',
@@ -330,9 +330,9 @@ describe('syncSymbolChanges', () => {
   it('should report removed symbols as broken without deleting links', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'del-card',
+      key: 'del-card',
       summary: 'Deleted',
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'deletedFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'deletedFn' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'removed',
@@ -379,9 +379,9 @@ describe('syncSymbolChanges', () => {
   it('should skip changes with no matching code links', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'unrelated',
+      key: 'unrelated',
       summary: 'Unrelated',
-      codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'otherFn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'otherFn' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'renamed',
@@ -407,9 +407,9 @@ describe('syncSymbolChanges', () => {
   it('should handle rename where oldName is null (uses symbolName as fallback)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'fallback',
+      key: 'fallback',
       summary: 'Fallback',
-      codeLinks: [{ kind: 'function', file: 'src/f.ts', symbol: 'sameName' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/f.ts', symbol: 'sameName' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [{
         changeType: 'renamed',
@@ -434,12 +434,12 @@ describe('syncSymbolChanges', () => {
   it('should handle multiple changes affecting the same card', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'multi-change',
+      key: 'multi-change',
       summary: 'Multi',
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
         { kind: 'function', file: 'src/b.ts', symbol: 'fnB' },
-      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      ], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       getSymbolChanges: () => [
         {
@@ -466,9 +466,9 @@ describe('syncSymbolChanges', () => {
   it('should be idempotent when called twice with same changes', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'idem-sync',
+      key: 'idem-sync',
       summary: 'Idem',
-      codeLinks: [{ kind: 'function', file: 'src/i.ts', symbol: 'old' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/i.ts', symbol: 'old' }], type: 'spec' as const });
     const mockChanges = [{
       changeType: 'renamed' as const, symbolName: 'new', symbolKind: 'function',
       filePath: 'src/i.ts', oldName: 'old', oldFilePath: null,
@@ -499,12 +499,12 @@ describe('getLinkCoverage', () => {
   it('should return full coverage when all links resolve', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'full-cov',
+      key: 'full-cov',
       summary: 'Full coverage',
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
         { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
-      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      ], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: ({ text, filePath }: any) => {
         if (text === 'fnA') return [{ name: 'fnA', filePath: 'src/a.ts', kind: 'function' }];
@@ -524,12 +524,12 @@ describe('getLinkCoverage', () => {
   it('should report broken links and reduced coverage', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'partial-cov',
+      key: 'partial-cov',
       summary: 'Partial',
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'exists' },
         { kind: 'function', file: 'src/b.ts', symbol: 'missing' },
-      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      ], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: ({ text }: any) => {
         if (text === 'exists') return [{ name: 'exists', filePath: 'src/a.ts', kind: 'function' }];
@@ -548,9 +548,9 @@ describe('getLinkCoverage', () => {
   it('should find unreferenced symbols in linked files', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'unref',
+      key: 'unref',
       summary: 'Unreferenced',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fnA' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fnA' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'fnA', filePath: 'src/a.ts', kind: 'function' }],
       getSymbolsByFile: (...args: unknown[]) => {
@@ -573,7 +573,7 @@ describe('getLinkCoverage', () => {
 
   it('should throw GildashNotConfiguredError when gildash is not set', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-gildash', summary: 'No gildash', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'no-gildash', summary: 'No gildash', type: 'spec' as const });
     await expect(getLinkCoverage(tc.ctx, 'no-gildash')).rejects.toThrow(GildashNotConfiguredError);
   });
 
@@ -581,7 +581,7 @@ describe('getLinkCoverage', () => {
 
   it('should return coverage 1 and empty arrays for card with no code links', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'no-links', summary: 'No links', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'no-links', summary: 'No links', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash();
 
     const result = await getLinkCoverage(tc.ctx, 'no-links');
@@ -595,9 +595,9 @@ describe('getLinkCoverage', () => {
   it('should handle searchSymbols returning non-array (error Result)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'err-search',
+      key: 'err-search',
       summary: 'Error search',
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => ({ data: 'error', isErr: true }), // non-array
       getSymbolsByFile: () => [],
@@ -611,9 +611,9 @@ describe('getLinkCoverage', () => {
   it('should handle getSymbolsByFile returning null', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'null-syms',
+      key: 'null-syms',
       summary: 'Null symbols',
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'fn', filePath: 'src/x.ts', kind: 'function' }],
       getSymbolsByFile: () => null,
@@ -628,12 +628,12 @@ describe('getLinkCoverage', () => {
   it('should count all links as broken when none resolve', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'all-broken',
+      key: 'all-broken',
       summary: 'All broken',
       codeLinks: [
         { kind: 'function', file: 'src/a.ts', symbol: 'gone1' },
         { kind: 'function', file: 'src/b.ts', symbol: 'gone2' },
-      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      ], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
       getSymbolsByFile: () => [],
@@ -648,9 +648,9 @@ describe('getLinkCoverage', () => {
   it('should call gildash.reindex() before calculating coverage', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'reindex-cov',
+      key: 'reindex-cov',
       summary: 'Reindex coverage',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }], type: 'spec' as const });
     const mockReindex = mock(() => Promise.resolve());
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [{ name: 'fn', filePath: 'src/a.ts', kind: 'function' }],

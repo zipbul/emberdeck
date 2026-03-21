@@ -2,17 +2,23 @@ import type { EmberdeckContext } from '../config';
 import type {
   CardFile,
   CardFrontmatter,
-  CardRelation,
   CardStatus,
   CardType,
-  CardPriority,
-  AcceptanceCriterion,
   CodeLink,
 } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
-import { CardNotFoundError, RelationTypeError } from '../card/errors';
-import { validateCardInput } from '../card/validation';
+import { CardNotFoundError } from '../card/errors';
+import {
+  validateCardInput,
+  validateParentExists,
+  validateParentType,
+  validateParentCycle,
+  validateRelationTargets,
+  validateChildrenHierarchy,
+  validateActivationGuard,
+  validateTypeChangeActivation,
+} from '../card/validation';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
@@ -31,22 +37,20 @@ import { syncCardFromFile } from './sync';
 export interface UpdateCardFields {
   /** New summary. If undefined, kept as-is. */
   summary?: string;
-  /** Card type. null to remove. */
-  type?: CardType | null;
-  /** Card priority. null to remove. */
-  priority?: CardPriority | null;
-  /** Acceptance criteria. null to remove. */
-  acceptance?: AcceptanceCriterion[] | null;
+  /** Card type. */
+  type?: CardType;
+  /** Card status. */
+  status?: CardStatus;
+  /** Parent card key. null to remove parent. */
+  parent?: string | null;
+  /** Boundary glob patterns. */
+  boundary?: string[];
   /** New body. If undefined, kept as-is. */
   body?: string;
-  /** Keywords. null or empty array deletes the field. */
-  keywords?: string[] | null;
   /** Tags. null or empty array deletes the field. */
   tags?: string[] | null;
-  /** Constraints. If undefined, kept as-is. */
-  constraints?: unknown;
-  /** Relations list. null or empty array deletes the field. */
-  relations?: CardRelation[] | null;
+  /** Relations list (string[]). null or empty array deletes the field. */
+  relations?: string[] | null;
   /** Code links list. null or empty array deletes the field. */
   codeLinks?: CodeLink[] | null;
 }
@@ -59,7 +63,7 @@ export interface UpdateCardResult {
   filePath: string;
   /** Complete updated card data. */
   card: CardFile;
-  /** Warnings (e.g. unverified acceptance criteria on status transition). */
+  /** Warnings (e.g. type change forced status to draft). */
   warnings?: string[];
 }
 
@@ -76,8 +80,9 @@ export interface UpdateCardResult {
  * @returns Updated result (filePath, card).
  * @throws {CardKeyError} When fullKey is invalid.
  * @throws {CardNotFoundError} When no card exists for the given key.
+ * @throws {ParentValidationError} When parent validation fails.
+ * @throws {ActivationGuardError} When activation conditions are not met.
  * @spec card-crud
- * @throws {RelationTypeError} When a disallowed relation type is used.
  */
 export async function updateCard(
   ctx: EmberdeckContext,
@@ -87,10 +92,10 @@ export async function updateCard(
   validateCardInput({
     summary: fields.summary,
     body: fields.body,
-    keywords: fields.keywords ?? undefined,
     tags: fields.tags ?? undefined,
     relations: fields.relations ?? undefined,
     codeLinks: fields.codeLinks ?? undefined,
+    boundary: fields.boundary,
   });
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
@@ -106,48 +111,73 @@ export async function updateCard(
         throw new CardNotFoundError(key);
       }
 
-      if (fields.relations && fields.relations !== null) {
-        for (const rel of fields.relations) {
-          if (!ctx.allowedRelationTypes.includes(rel.type)) {
-            throw new RelationTypeError(rel.type, ctx.allowedRelationTypes);
-          }
-        }
-      }
-
       const prev = current.frontmatter;
       const next: CardFrontmatter = { ...prev };
+      const warnings: string[] = [];
+
       if (fields.summary !== undefined) next.summary = fields.summary;
       if (fields.type !== undefined) {
-        if (fields.type === null) delete next.type;
-        else next.type = fields.type;
+        next.type = fields.type;
       }
-      if (fields.priority !== undefined) {
-        if (fields.priority === null) delete next.priority;
-        else next.priority = fields.priority;
+      if (fields.parent !== undefined) {
+        if (fields.parent === null) {
+          delete next.parent;
+        } else {
+          validateParentExists(ctx, fields.parent);
+          validateParentType(ctx, next.type, fields.parent);
+          validateParentCycle(ctx, key, fields.parent);
+          next.parent = fields.parent;
+        }
       }
-      if (fields.acceptance !== undefined) {
-        if (fields.acceptance === null || fields.acceptance.length === 0) delete next.acceptance;
-        else next.acceptance = fields.acceptance;
-      }
-      if (fields.keywords !== undefined) {
-        if (fields.keywords === null || fields.keywords.length === 0) delete next.keywords;
-        else next.keywords = fields.keywords;
+      if (fields.boundary !== undefined) {
+        if (fields.boundary.length === 0) {
+          delete next.boundary;
+        } else {
+          next.boundary = fields.boundary;
+        }
       }
       if (fields.tags !== undefined) {
         if (fields.tags === null || fields.tags.length === 0) delete next.tags;
-        else next.tags = fields.tags;
-      }
-      if (fields.constraints !== undefined) {
-        if (fields.constraints === null) delete next.constraints;
-        else next.constraints = fields.constraints;
+        else next.tags = fields.tags.map((t) => t.toLowerCase());
       }
       if (fields.relations !== undefined) {
         if (fields.relations === null || fields.relations.length === 0) delete next.relations;
-        else next.relations = fields.relations;
+        else {
+          validateRelationTargets(ctx, key, fields.relations);
+          next.relations = fields.relations;
+        }
       }
       if (fields.codeLinks !== undefined) {
         if (fields.codeLinks === null || fields.codeLinks.length === 0) delete next.codeLinks;
         else next.codeLinks = fields.codeLinks;
+      }
+
+      // Type change on active card: re-validate activation, may force to draft
+      if (fields.type !== undefined && fields.type !== prev.type) {
+        validateChildrenHierarchy(ctx, key, fields.type);
+        const newStatus = await validateTypeChangeActivation(
+          ctx,
+          { status: next.status, type: fields.type, codeLinks: next.codeLinks, boundary: next.boundary },
+          fields.type,
+        );
+        if (newStatus !== next.status) {
+          warnings.push(`Type changed to ${fields.type}: status forced to ${newStatus} (activation conditions unmet)`);
+          next.status = newStatus as CardStatus;
+        }
+      }
+
+      // Status change
+      if (fields.status !== undefined) {
+        next.status = fields.status;
+      }
+
+      // Activation guard when status=active
+      if (next.status === 'active' && (fields.status === 'active' || prev.status !== 'active')) {
+        await validateActivationGuard(ctx, {
+          type: next.type,
+          codeLinks: next.codeLinks,
+          boundary: next.boundary,
+        });
       }
 
       const nextBody = fields.body !== undefined ? fields.body : current.body;
@@ -155,7 +185,7 @@ export async function updateCard(
 
       const now = new Date().toISOString();
 
-      return safeWriteOperation({
+      const result = await safeWriteOperation({
         dbAction: () => {
           ctx.db.transaction((tx) => {
             const d = txDb(tx);
@@ -169,10 +199,9 @@ export async function updateCard(
               key,
               summary: next.summary,
               status: next.status,
-              type: next.type ?? null,
-              priority: next.priority ?? null,
-              acceptanceJson: next.acceptance ? JSON.stringify(next.acceptance) : null,
-              constraintsJson: next.constraints !== undefined ? JSON.stringify(next.constraints) : null,
+              type: next.type,
+              parent: next.parent ?? null,
+              boundaryJson: next.boundary ? JSON.stringify(next.boundary) : null,
               body: nextBody,
               filePath,
               updatedAt: now,
@@ -187,23 +216,22 @@ export async function updateCard(
             if (fields.type !== undefined && fields.type !== (prev.type ?? null)) {
               changelogRepo.insert({ cardKey: key, field: 'type', oldValue: prev.type ?? null, newValue: fields.type, changedAt: now, changedBy });
             }
-            if (fields.priority !== undefined && fields.priority !== (prev.priority ?? null)) {
-              changelogRepo.insert({ cardKey: key, field: 'priority', oldValue: prev.priority ?? null, newValue: fields.priority, changedAt: now, changedBy });
+            if (fields.status !== undefined && fields.status !== prev.status) {
+              changelogRepo.insert({ cardKey: key, field: 'status', oldValue: prev.status, newValue: fields.status, changedAt: now, changedBy });
+            }
+            if (fields.parent !== undefined && fields.parent !== (prev.parent ?? null)) {
+              changelogRepo.insert({ cardKey: key, field: 'parent', oldValue: prev.parent ?? null, newValue: fields.parent, changedAt: now, changedBy });
+            }
+            if (fields.boundary !== undefined) {
+              changelogRepo.insert({ cardKey: key, field: 'boundary', oldValue: prev.boundary ? JSON.stringify(prev.boundary) : null, newValue: next.boundary ? JSON.stringify(next.boundary) : null, changedAt: now, changedBy });
             }
             if (fields.body !== undefined && fields.body !== current.body) {
               changelogRepo.insert({ cardKey: key, field: 'body', oldValue: null, newValue: null, changedAt: now, changedBy });
-            }
-            if (fields.acceptance !== undefined) {
-              changelogRepo.insert({ cardKey: key, field: 'acceptance', oldValue: prev.acceptance ? JSON.stringify(prev.acceptance) : null, newValue: next.acceptance ? JSON.stringify(next.acceptance) : null, changedAt: now, changedBy });
             }
 
             if (fields.relations !== undefined) {
               relationRepo.replaceForCard(key, next.relations ?? []);
               changelogRepo.insert({ cardKey: key, field: 'relations', oldValue: prev.relations ? JSON.stringify(prev.relations) : null, newValue: next.relations ? JSON.stringify(next.relations) : null, changedAt: now, changedBy });
-            }
-            if (fields.keywords !== undefined) {
-              classRepo.replaceKeywords(key, next.keywords ?? []);
-              changelogRepo.insert({ cardKey: key, field: 'keywords', oldValue: prev.keywords ? JSON.stringify(prev.keywords) : null, newValue: next.keywords ? JSON.stringify(next.keywords) : null, changedAt: now, changedBy });
             }
             if (fields.tags !== undefined) {
               classRepo.replaceTags(key, next.tags ?? []);
@@ -214,7 +242,9 @@ export async function updateCard(
               changelogRepo.insert({ cardKey: key, field: 'codeLinks', oldValue: prev.codeLinks ? JSON.stringify(prev.codeLinks) : null, newValue: next.codeLinks ? JSON.stringify(next.codeLinks) : null, changedAt: now, changedBy });
             }
           });
-          return { filePath, card } as UpdateCardResult;
+          const r: UpdateCardResult = { filePath, card };
+          if (warnings.length > 0) r.warnings = warnings;
+          return r;
         },
         fileAction: async () => {
           await writeCardFile(filePath, card);
@@ -223,6 +253,7 @@ export async function updateCard(
           await syncCardFromFile(ctx, filePath);
         },
       });
+      return result;
     }),
   );
 }
@@ -230,19 +261,20 @@ export async function updateCard(
 /**
  * Changes only the card's status.
  *
- * A status-only shortcut helper for `updateCard`. Other fields are left unchanged.
- *
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param fullKey - fullKey of the card to update.
  * @param status - New status value.
+ * @param reason - Optional reason for the status change (recorded in changelog).
  * @returns Updated result (filePath, card).
  * @spec card-crud
  * @throws {CardNotFoundError} When no card exists for the given key.
+ * @throws {ActivationGuardError} When activation conditions are not met for active status.
  */
 export async function updateCardStatus(
   ctx: EmberdeckContext,
   fullKey: string,
   status: CardStatus,
+  reason?: string,
 ): Promise<UpdateCardResult> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
@@ -258,21 +290,21 @@ export async function updateCardStatus(
         throw new CardNotFoundError(key);
       }
 
+      // Activation guard for active status
+      if (status === 'active') {
+        await validateActivationGuard(ctx, {
+          type: current.frontmatter.type,
+          codeLinks: current.frontmatter.codeLinks,
+          boundary: current.frontmatter.boundary,
+        });
+      }
+
       const oldStatus = current.frontmatter.status;
       const card: CardFile = {
         filePath,
         frontmatter: { ...current.frontmatter, status },
         body: current.body,
       };
-
-      // Check for unverified acceptance criteria when transitioning to 'implemented'
-      const warnings: string[] = [];
-      if (status === 'implemented' && current.frontmatter.acceptance) {
-        const unverified = current.frontmatter.acceptance.filter((ac) => !ac.verified);
-        for (const ac of unverified) {
-          warnings.push(`${ac.id}: unverified. Review recommended before marking as implemented.`);
-        }
-      }
 
       const now = new Date().toISOString();
 
@@ -290,13 +322,10 @@ export async function updateCardStatus(
                   key,
                   summary: current.frontmatter.summary,
                   status,
-                  type: current.frontmatter.type ?? null,
-                  priority: current.frontmatter.priority ?? null,
-                  acceptanceJson: current.frontmatter.acceptance
-                    ? JSON.stringify(current.frontmatter.acceptance)
-                    : null,
-                  constraintsJson: current.frontmatter.constraints !== undefined
-                    ? JSON.stringify(current.frontmatter.constraints)
+                  type: current.frontmatter.type,
+                  parent: current.frontmatter.parent ?? null,
+                  boundaryJson: current.frontmatter.boundary
+                    ? JSON.stringify(current.frontmatter.boundary)
                     : null,
                   body: current.body,
                   filePath,
@@ -306,20 +335,19 @@ export async function updateCardStatus(
 
             // Record status change in changelog
             if (oldStatus !== status) {
+              const newValue = reason ? `${status} (${reason})` : status;
               changelogRepo.insert({
                 cardKey: key,
                 field: 'status',
                 oldValue: oldStatus,
-                newValue: status,
+                newValue,
                 changedAt: now,
                 changedBy: 'agent',
               });
             }
           });
 
-          const result: UpdateCardResult = { filePath, card };
-          if (warnings.length > 0) result.warnings = warnings;
-          return result;
+          return { filePath, card } as UpdateCardResult;
         },
         fileAction: async () => {
           await writeCardFile(filePath, card);

@@ -8,7 +8,7 @@ import { serializeCardMarkdown } from '../../src/card/markdown';
 // Only Bun.write / Bun.file (I/O) are spied on.
 
 const CARD_FIXTURE: CardFile = {
-  frontmatter: { key: 'k', summary: 's', status: 'draft' },
+  frontmatter: { key: 'k', summary: 's', status: 'draft', type: 'spec' },
   body: 'body',
   filePath: '/cards/k.card.md',
 };

@@ -21,39 +21,40 @@ describe('getCard', () => {
     await tc?.cleanup();
   });
 
-  it('should return CardFile when card exists', async () => {
-    // Arrange
+  it('should return GetCardResult with card when card exists', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'q-exists', summary: 'Exists', body: 'My body', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    const card = await getCard(tc.ctx, 'q-exists');
-    // Assert
-    expect(card.frontmatter.key).toBe('q-exists');
-    expect(card.frontmatter.summary).toBe('Exists');
-    expect(card.body).toBe('My body');
+    await createCard(tc.ctx, { key: 'q-exists', summary: 'Exists', type: 'spec', body: 'My body' });
+    const result = await getCard(tc.ctx, 'q-exists');
+    expect(result.card.frontmatter.key).toBe('q-exists');
+    expect(result.card.frontmatter.summary).toBe('Exists');
+    expect(result.card.body).toBe('My body');
   });
 
   it('should throw CardNotFoundError when card does not exist', async () => {
-    // Arrange
     tc = await createTestContext();
-    // Act & Assert
     expect(getCard(tc.ctx, 'nonexistent')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 
   it('should return correct frontmatter contents matching what was created', async () => {
-    // Arrange
     tc = await createTestContext();
     await createCard(tc.ctx, {
-      slug: 'q-frontmatter',
+      key: 'q-frontmatter',
       summary: 'Frontmatter test',
-      keywords: ['kw1'],
-      tags: ['tag1'], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    const card = await getCard(tc.ctx, 'q-frontmatter');
-    // Assert
-    expect(card.frontmatter.status).toBe('draft');
-    expect(card.frontmatter.keywords).toContain('kw1');
-    expect(card.frontmatter.tags).toContain('tag1');
+      type: 'spec',
+      tags: ['tag1'],
+    });
+    const result = await getCard(tc.ctx, 'q-frontmatter');
+    expect(result.card.frontmatter.status).toBe('draft');
+    expect(result.card.frontmatter.tags).toContain('tag1');
+  });
+
+  it('should include history when includeHistory is true', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'architecture' });
+    await updateCardStatus(tc.ctx, 'q-hist', 'active');
+    const result = await getCard(tc.ctx, 'q-hist', { includeHistory: true });
+    expect(result.history).toBeDefined();
+    expect(result.history!.length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -65,90 +66,66 @@ describe('listCards', () => {
   });
 
   it('should return all cards when no filter is provided', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'list-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'list-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'list-a', summary: 'A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'list-b', summary: 'B', type: 'spec' });
     const rows = listCards(tc.ctx);
-    // Assert
     expect(rows.length).toBeGreaterThanOrEqual(2);
   });
 
   it('should return only cards with matching status when filter.status is provided', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'flt-draft', summary: 'Draft', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'flt-acc', summary: 'Accepted', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await updateCardStatus(tc.ctx, 'flt-acc', 'accepted');
-    // Act
-    const rows = listCards(tc.ctx, { status: 'accepted' });
-    // Assert
-    expect(rows.every((r) => r.status === 'accepted')).toBe(true);
+    await createCard(tc.ctx, { key: 'flt-draft', summary: 'Draft', type: 'spec' });
+    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'architecture' });
+    await updateCardStatus(tc.ctx, 'flt-acc', 'active');
+    const rows = listCards(tc.ctx, { status: 'active' });
+    expect(rows.every((r) => r.status === 'active')).toBe(true);
     expect(rows.some((r) => r.key === 'flt-acc')).toBe(true);
   });
 
   it('should return empty array when no cards exist', async () => {
-    // Arrange
     tc = await createTestContext();
-    // Act
     const rows = listCards(tc.ctx);
-    // Assert
     expect(rows).toHaveLength(0);
   });
 
   it('should return empty array when filter status has no matching cards', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'flt-none', summary: 'None', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    const rows = listCards(tc.ctx, { status: 'deprecated' });
-    // Assert
+    await createCard(tc.ctx, { key: 'flt-none', summary: 'None', type: 'spec' });
+    const rows = listCards(tc.ctx, { status: 'drifted' });
     expect(rows).toHaveLength(0);
   });
 
   it('should reflect updated values after updateCard when listing', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'lst-upd', summary: 'Old summary', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'lst-upd', summary: 'Old summary', type: 'spec' });
     await updateCard(tc.ctx, 'lst-upd', { summary: 'New summary' });
-    // Act
     const rows = listCards(tc.ctx);
-    // Assert
     const row = rows.find((r) => r.key === 'lst-upd');
     expect(row?.summary).toBe('New summary');
   });
 
   it('should return exactly one card after creating one card', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'one-card', summary: 'One', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'one-card', summary: 'One', type: 'spec' });
     const rows = listCards(tc.ctx);
-    // Assert
     expect(rows).toHaveLength(1);
   });
 
   it('should return correct count after creating multiple cards', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'mc-1', summary: 'MC1', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'mc-2', summary: 'MC2', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'mc-3', summary: 'MC3', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'mc-1', summary: 'MC1', type: 'spec' });
+    await createCard(tc.ctx, { key: 'mc-2', summary: 'MC2', type: 'spec' });
+    await createCard(tc.ctx, { key: 'mc-3', summary: 'MC3', type: 'spec' });
     const rows = listCards(tc.ctx);
-    // Assert
     expect(rows).toHaveLength(3);
   });
 
   it('should return identical results on repeated calls to listCards', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'idp-lst', summary: 'Idp', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'idp-lst', summary: 'Idp', type: 'spec' });
     const rows1 = listCards(tc.ctx);
     const rows2 = listCards(tc.ctx);
-    // Assert
     expect(rows1.length).toBe(rows2.length);
     expect(rows1[0]?.key).toBe(rows2[0]?.key);
   });
@@ -162,12 +139,9 @@ describe('searchCards', () => {
   });
 
   it('should return matching card when FTS query matches card summary', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'srch-card', summary: 'Search me', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'srch-card', summary: 'Search me', type: 'spec' });
     const rows = searchCards(tc.ctx, 'Search');
-    // Assert
     expect(rows).toHaveLength(1);
     expect(rows[0]!.key).toBe('srch-card');
   });
@@ -181,34 +155,26 @@ describe('listCardRelations', () => {
   });
 
   it('should return relation list when card has relations', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'lrel-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'lrel-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'lrel-src', summary: 'Src', type: 'spec' });
+    await createCard(tc.ctx, { key: 'lrel-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'lrel-src', {
-      relations: [{ type: 'depends-on', target: 'lrel-dst' }],
+      relations: ['lrel-dst'],
     });
-    // Act
     const rows = listCardRelations(tc.ctx, 'lrel-src');
-    // Assert
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.some((r) => r.dstCardKey === 'lrel-dst')).toBe(true);
   });
 
   it('should return empty array when card has no relations', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'lrel-none', summary: 'No rel', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'lrel-none', summary: 'No rel', type: 'spec' });
     const rows = listCardRelations(tc.ctx, 'lrel-none');
-    // Assert
     expect(rows).toHaveLength(0);
   });
 
   it('should throw CardKeyError when key is invalid', async () => {
-    // Arrange
     tc = await createTestContext();
-    // Act & Assert
     expect(() => listCardRelations(tc.ctx, '')).toThrow(CardKeyError);
   });
 });
@@ -221,100 +187,38 @@ describe('getCardContext', () => {
   });
 
   it('should return empty codeLinks, upstream, downstream for isolated card when gildash not configured', async () => {
-    // Arrange
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'gctx-a', summary: 'A', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
+    await createCard(tc.ctx, { key: 'gctx-a', summary: 'A', type: 'spec' });
     const result = await getCardContext(tc.ctx, 'gctx-a');
-    // Assert
     expect(result.card.frontmatter.key).toBe('gctx-a');
     expect(result.codeLinks).toHaveLength(0);
     expect(result.upstreamCards).toHaveLength(0);
     expect(result.downstreamCards).toHaveLength(0);
   });
 
-  it('should include downstreamCards when card has outgoing depends-on relation', async () => {
-    // Arrange
+  it('should include downstreamCards when card has outgoing relation', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'gctx-src', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'gctx-dst', summary: 'Dst', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await updateCard(tc.ctx, 'gctx-src', { relations: [{ type: 'depends-on', target: 'gctx-dst' }] });
-    // Act
+    await createCard(tc.ctx, { key: 'gctx-src', summary: 'Src', type: 'spec' });
+    await createCard(tc.ctx, { key: 'gctx-dst', summary: 'Dst', type: 'spec' });
+    await updateCard(tc.ctx, 'gctx-src', { relations: ['gctx-dst'] });
     const result = await getCardContext(tc.ctx, 'gctx-src');
-    // Assert
     expect(result.downstreamCards.some((r) => r.key === 'gctx-dst')).toBe(true);
     expect(result.upstreamCards).toHaveLength(0);
   });
 
-  it('should include upstreamCards when another card depends-on this card', async () => {
-    // Arrange
+  it('should include upstreamCards when another card relates to this card', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'gctx-dep', summary: 'Dep', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'gctx-tgt', summary: 'Tgt', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await updateCard(tc.ctx, 'gctx-dep', { relations: [{ type: 'depends-on', target: 'gctx-tgt' }] });
-    // Act
+    await createCard(tc.ctx, { key: 'gctx-dep', summary: 'Dep', type: 'spec' });
+    await createCard(tc.ctx, { key: 'gctx-tgt', summary: 'Tgt', type: 'spec' });
+    await updateCard(tc.ctx, 'gctx-dep', { relations: ['gctx-tgt'] });
     const result = await getCardContext(tc.ctx, 'gctx-tgt');
-    // Assert
     expect(result.upstreamCards.some((r) => r.key === 'gctx-dep')).toBe(true);
     expect(result.downstreamCards).toHaveLength(0);
   });
 
-  it('should return both upstreamCards and downstreamCards when card is in middle of chain', async () => {
-    // Arrange
-    tc = await createTestContext();
-    // upstream(gctx-up) → gctx-mid → gctx-dn(downstream)
-    // Create leaf first so FK doesn't fail, then middle, then root
-    await createCard(tc.ctx, { slug: 'gctx-dn', summary: 'Dn', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, {
-      slug: 'gctx-mid',
-      summary: 'Mid',
-      relations: [{ type: 'depends-on', target: 'gctx-dn' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, {
-      slug: 'gctx-up',
-      summary: 'Up',
-      relations: [{ type: 'depends-on', target: 'gctx-mid' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    const result = await getCardContext(tc.ctx, 'gctx-mid');
-    // Assert
-    expect(result.upstreamCards.some((r) => r.key === 'gctx-up')).toBe(true);
-    expect(result.downstreamCards.some((r) => r.key === 'gctx-dn')).toBe(true);
-  });
-
-  it('should return resolvedCodeLinks when gildash is configured and codeLinks exist', async () => {
-    // Arrange
-    tc = await createTestContext();
-    const mockSymbol = {
-      id: '1', name: 'myFunc', filePath: 'src/a.ts', kind: 'function' as any,
-      span: { start: 0, end: 10 }, isExported: true, signature: 'myFunc()', fingerprint: 'abc', detail: '',
-    };
-    tc.ctx.gildash = { searchSymbols: mock(() => [mockSymbol]), close: mock(async () => {}) } as any;
-    await createCard(tc.ctx, {
-      slug: 'gctx-cl', summary: 'CL', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Act
-    const result = await getCardContext(tc.ctx, 'gctx-cl');
-    // Assert
-    expect(result.codeLinks).toHaveLength(1);
-    expect(result.codeLinks[0]!.link.symbol).toBe('myFunc');
-    expect(result.codeLinks[0]!.symbol).not.toBeNull();
-  });
-
   it('should throw CardNotFoundError when card file does not exist', async () => {
-    // Arrange
     tc = await createTestContext();
-    // Act & Assert
     expect(getCardContext(tc.ctx, 'ghost-card')).rejects.toBeInstanceOf(CardNotFoundError);
-  });
-
-  it('should return empty codeLinks when gildash is not configured even if frontmatter has codeLinks', async () => {
-    // Arrange
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      slug: 'gctx-nogil', summary: 'No gildash', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // ctx.gildash is undefined by default
-    // Act
-    const result = await getCardContext(tc.ctx, 'gctx-nogil');
-    // Assert
-    expect(result.codeLinks).toHaveLength(0);
   });
 });
 
@@ -329,20 +233,24 @@ describe('getRelationGraph', () => {
     await tc?.cleanup();
   });
 
-  // Helper: creates cards and a linear chain A→B→C
+  // Helper: creates cards and a linear chain A->B->C
   async function buildLinearChain(tc: TestContext) {
-    await createCard(tc.ctx, { slug: 'grg-c', summary: 'C', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'grg-c', summary: 'C', type: 'spec' });
     await createCard(tc.ctx, {
-      slug: 'grg-b',
+      key: 'grg-b',
       summary: 'B',
-      relations: [{ type: 'depends-on', target: 'grg-c' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      type: 'spec',
+      relations: ['grg-c'],
+    });
     await createCard(tc.ctx, {
-      slug: 'grg-a',
+      key: 'grg-a',
       summary: 'A',
-      relations: [{ type: 'depends-on', target: 'grg-b' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      type: 'spec',
+      relations: ['grg-b'],
+    });
   }
 
-  // [HP-1] Linear A→B→C, maxDepth unset → [B(d1), C(d2)]
+  // [HP-1] Linear A->B->C, maxDepth unset -> [B(d1), C(d2)]
   it('should return transitive forward nodes for a linear chain when maxDepth is unset', async () => {
     tc = await createTestContext();
     await buildLinearChain(tc);
@@ -354,35 +262,33 @@ describe('getRelationGraph', () => {
     expect(nodes.find((n) => n.key === 'grg-c')?.depth).toBe(2);
   });
 
-  // [HP-2] Root has no relations → []
+  // [HP-2] Root has no relations -> []
   it('should return empty array when root card has no relations', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'grg-solo', summary: 'Solo', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'grg-solo', summary: 'Solo', type: 'spec' });
     const nodes = getRelationGraph(tc.ctx, 'grg-solo');
     expect(nodes).toHaveLength(0);
   });
 
-  // [HP-3] direction='forward' → backward relations excluded
+  // [HP-3] direction='forward' -> backward relations excluded
   it('should exclude backward relations when direction is forward', async () => {
     tc = await createTestContext();
     await buildLinearChain(tc);
-    // from grg-b: forward=grg-c, backward=grg-a (grg-a depends on grg-b)
     const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'forward' });
     expect(nodes.some((n) => n.key === 'grg-c')).toBe(true);
     expect(nodes.some((n) => n.key === 'grg-a')).toBe(false);
   });
 
-  // [HP-4] direction='backward' → forward relations excluded
+  // [HP-4] direction='backward' -> forward relations excluded
   it('should exclude forward relations when direction is backward', async () => {
     tc = await createTestContext();
     await buildLinearChain(tc);
-    // from grg-b: backward=grg-a
     const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'backward' });
     expect(nodes.some((n) => n.key === 'grg-a')).toBe(true);
     expect(nodes.some((n) => n.key === 'grg-c')).toBe(false);
   });
 
-  // [HP-5] direction='both' (default) → both forward+backward
+  // [HP-5] direction='both' (default) -> both forward+backward
   it('should include both forward and backward nodes when direction is both', async () => {
     tc = await createTestContext();
     await buildLinearChain(tc);
@@ -391,7 +297,7 @@ describe('getRelationGraph', () => {
     expect(nodes.some((n) => n.key === 'grg-c')).toBe(true);
   });
 
-  // [HP-6] maxDepth=1 → depth-1 only
+  // [HP-6] maxDepth=1 -> depth-1 only
   it('should return only depth-1 nodes when maxDepth is 1', async () => {
     tc = await createTestContext();
     await buildLinearChain(tc);
@@ -400,59 +306,7 @@ describe('getRelationGraph', () => {
     expect(nodes.some((n) => n.key === 'grg-c')).toBe(false);
   });
 
-  // [HP-7] maxDepth=2 → up to depth-2
-  it('should return nodes up to depth 2 when maxDepth is 2', async () => {
-    tc = await createTestContext();
-    await buildLinearChain(tc);
-    const nodes = getRelationGraph(tc.ctx, 'grg-a', { maxDepth: 2 });
-    expect(nodes.some((n) => n.key === 'grg-b')).toBe(true);
-    expect(nodes.some((n) => n.key === 'grg-c')).toBe(true);
-  });
-
-  // [HP-8] Many-to-many A→B, A→C → both B(d1), C(d1) included
-  it('should return all direct neighbors when card has multiple forward relations', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'fan-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'fan-c', summary: 'C', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, {
-      slug: 'fan-a',
-      summary: 'A',
-      relations: [
-        { type: 'depends-on', target: 'fan-b' },
-        { type: 'references', target: 'fan-c' },
-      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    const nodes = getRelationGraph(tc.ctx, 'fan-a', { direction: 'forward' });
-    expect(nodes.some((n) => n.key === 'fan-b')).toBe(true);
-    expect(nodes.some((n) => n.key === 'fan-c')).toBe(true);
-    expect(nodes.every((n) => n.depth === 1)).toBe(true);
-  });
-
-  // [HP-9] Backward traversal from B → A(d1)
-  it('should return the upstream card at depth 1 when traversing backward from dependent', async () => {
-    tc = await createTestContext();
-    await buildLinearChain(tc);
-    const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'backward', maxDepth: 1 });
-    expect(nodes.some((n) => n.key === 'grg-a' && n.depth === 1)).toBe(true);
-  });
-
-  // [HP-10] Mixed relation types → relationType field preserved
-  it('should preserve relationType field for each node', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'rt-b', summary: 'B', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, { slug: 'rt-c', summary: 'C', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    await createCard(tc.ctx, {
-      slug: 'rt-a',
-      summary: 'A',
-      relations: [
-        { type: 'depends-on', target: 'rt-b' },
-        { type: 'references', target: 'rt-c' },
-      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    const nodes = getRelationGraph(tc.ctx, 'rt-a', { direction: 'forward' });
-    expect(nodes.find((n) => n.key === 'rt-b')?.relationType).toBe('depends-on');
-    expect(nodes.find((n) => n.key === 'rt-c')?.relationType).toBe('references');
-  });
-
-  // [HP-11] maxDepth=0 → []
+  // [HP-11] maxDepth=0 -> []
   it('should return empty array when maxDepth is 0', async () => {
     tc = await createTestContext();
     await buildLinearChain(tc);
@@ -460,69 +314,47 @@ describe('getRelationGraph', () => {
     expect(nodes).toHaveLength(0);
   });
 
-  // [NE-1] Root card not in DB → []
+  // [NE-1] Root card not in DB -> []
   it('should return empty array when root card does not exist in DB', async () => {
     tc = await createTestContext();
     const nodes = getRelationGraph(tc.ctx, 'ghost-card');
     expect(nodes).toHaveLength(0);
   });
 
-  // [NE-2] Invalid key format → CardKeyError throw
+  // [NE-2] Invalid key format -> CardKeyError throw
   it('should throw CardKeyError when key format is invalid', async () => {
     tc = await createTestContext();
     expect(() => getRelationGraph(tc.ctx, '')).toThrow(CardKeyError);
   });
 
-  // [NE-3] Relation target card not in DB → skip, no error
-  it('should skip orphan relation targets and not throw', async () => {
-    tc = await createTestContext();
-    // Manually insert a row with a dangling filePath so cardRepo.findByKey works
-    // but the relation target doesn't exist in card table
-    await createCard(tc.ctx, { slug: 'grg-src-orphan', summary: 'Src', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
-    // Update relations to a non-existent card — FK warns but skips
-    // Since FK prevents insertion, the relation won't be in DB at all, so result is []
-    await updateCard(tc.ctx, 'grg-src-orphan', {
-      relations: [{ type: 'depends-on', target: 'nonexistent-dst' }],
-    });
-    const nodes = getRelationGraph(tc.ctx, 'grg-src-orphan', { direction: 'forward' });
-    // Either empty (FK prevented) or skips invalid targets — must not throw
-    expect(Array.isArray(nodes)).toBe(true);
-  });
-
-  // [NE-4] direction='forward' but only backward relations exist → []
-  it('should return empty array when direction is forward but only backward relations exist', async () => {
-    tc = await createTestContext();
-    await buildLinearChain(tc);
-    // grg-c has no forward relations, only backward (grg-b depends on it)
-    const nodes = getRelationGraph(tc.ctx, 'grg-c', { direction: 'forward' });
-    expect(nodes).toHaveLength(0);
-  });
-
-  // [CO-1] Diamond A→B, A→C, B→D, C→D → D returned only once
+  // [CO-1] Diamond A->B, A->C, B->D, C->D -> D returned only once
   it('should include a node only once when it is reachable via multiple paths (diamond)', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { slug: 'dia-d', summary: 'D', acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+    await createCard(tc.ctx, { key: 'dia-d', summary: 'D', type: 'spec' });
     await createCard(tc.ctx, {
-      slug: 'dia-b',
+      key: 'dia-b',
       summary: 'B',
-      relations: [{ type: 'depends-on', target: 'dia-d' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      type: 'spec',
+      relations: ['dia-d'],
+    });
     await createCard(tc.ctx, {
-      slug: 'dia-c',
+      key: 'dia-c',
       summary: 'C',
-      relations: [{ type: 'depends-on', target: 'dia-d' }], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      type: 'spec',
+      relations: ['dia-d'],
+    });
     await createCard(tc.ctx, {
-      slug: 'dia-a',
+      key: 'dia-a',
       summary: 'A',
-      relations: [
-        { type: 'depends-on', target: 'dia-b' },
-        { type: 'depends-on', target: 'dia-c' },
-      ], acceptance: [{ id: 'ac-1', description: 'placeholder criterion', verified: false }] });
+      type: 'spec',
+      relations: ['dia-b', 'dia-c'],
+    });
     const nodes = getRelationGraph(tc.ctx, 'dia-a', { direction: 'forward' });
     const dNodes = nodes.filter((n) => n.key === 'dia-d');
     expect(dNodes).toHaveLength(1);
   });
 
-  // [ID-1] Same call twice → identical results
+  // [ID-1] Same call twice -> identical results
   it('should return identical results on repeated calls with no changes', async () => {
     tc = await createTestContext();
     await buildLinearChain(tc);

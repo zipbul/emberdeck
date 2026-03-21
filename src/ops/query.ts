@@ -1,18 +1,17 @@
 import type { EmberdeckContext } from '../config';
-import type { CardFile } from '../card/types';
-import type { CardRow, CardListFilter, RelationRow } from '../db/repository';
+import type { CardFile, CardStatus, CardType } from '../card/types';
+import type { CardRow, CardListFilter, RelationRow, ChangelogRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { resolveCardCodeLinks, type ResolvedCodeLink } from './link';
 
 /**
- * A relation graph node containing the card's unique identifier and its position info in the DB.
+ * A relation graph node containing the card's unique identifier and its position info in the graph.
  */
 export interface RelationGraphNode {
   key: string;
   depth: number;
-  relationType: string;
   direction: 'forward' | 'backward';
 }
 
@@ -57,7 +56,6 @@ export function getRelationGraph(
       result.push({
         key: neighborKey,
         depth: currentDepth + 1,
-        relationType: rel.type,
         direction: isForward ? 'forward' : 'backward',
       });
       queue.push([neighborKey, currentDepth + 1]);
@@ -99,40 +97,76 @@ export async function getCardContext(ctx: EmberdeckContext, fullKey: string): Pr
 }
 
 /**
- * Reads a card from its file and returns it.
+ * Extended result for getCard with optional history.
+ */
+export interface GetCardResult {
+  card: CardFile;
+  history?: ChangelogRow[];
+}
+
+/**
+ * Reads a card from its file and returns it, optionally with changelog history.
  *
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param fullKey - fullKey of the card to retrieve.
- * @returns The complete frontmatter + body.
+ * @param options - Optional: includeHistory to get changelog.
+ * @returns The complete frontmatter + body, optionally with history.
  * @throws {CardNotFoundError} When the file does not exist.
  */
-export async function getCard(ctx: EmberdeckContext, fullKey: string): Promise<CardFile> {
+export async function getCard(
+  ctx: EmberdeckContext,
+  fullKey: string,
+  options?: { includeHistory?: boolean },
+): Promise<GetCardResult> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
   if (!(await Bun.file(filePath).exists())) throw new CardNotFoundError(key);
-  return readCardFile(filePath);
+  const card = await readCardFile(filePath);
+
+  const result: GetCardResult = { card };
+  if (options?.includeHistory) {
+    result.history = ctx.changelogRepo.findByCardKey(key);
+  }
+  return result;
 }
 
 /**
  * Lists cards from the DB.
  *
  * @param ctx - Context created by `setupEmberdeck()`.
- * @param filter - Optional filter. Supports status, type, and sortBy (priority | updated_at).
+ * @param filter - Optional filter. Supports status, type, parent, tag, roots, updatedSince, sortBy.
  * @returns Array of DB rows (no file reads, lightweight query).
  */
 export function listCards(ctx: EmberdeckContext, filter?: CardListFilter): CardRow[] {
   return ctx.cardRepo.list(filter);
 }
 
+export interface SearchCardsOptions {
+  type?: CardType;
+  status?: CardStatus;
+}
+
 /**
- * Searches cards using FTS5 full-text search.
+ * Searches cards using FTS5 full-text search, with optional type/status filters.
  *
  * @param ctx - Context created by `setupEmberdeck()`.
- * @param query - Search query. Returns an empty array if the query is empty.
+ * @param query - Search query text. Returns an empty array if the query is empty.
+ * @param options - Optional type and status filters.
  * @returns Array of DB rows matching the search.
  */
-export function searchCards(ctx: EmberdeckContext, query: string): CardRow[] {
-  return ctx.cardRepo.search(query);
+export function searchCards(
+  ctx: EmberdeckContext,
+  query: string,
+  options?: SearchCardsOptions,
+): CardRow[] {
+  const results = ctx.cardRepo.search(query);
+  if (!options) return results;
+
+  return results.filter((row) => {
+    if (options.type && row.type !== options.type) return false;
+    if (options.status && row.status !== options.status) return false;
+    return true;
+  });
 }
 
 /**

@@ -3,16 +3,6 @@
  *
  * Exposes all emberdeck public APIs as MCP tools.
  * An external MCP server passes its McpServer instance and this function registers all tool definitions.
- *
- * @example
- * ```ts
- * import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
- * import { setupEmberdeck, registerEmberdeckTools } from 'emberdeck';
- *
- * const ctx = await setupEmberdeck({ cardsDir: './cards', dbPath: './cards.db' });
- * const server = new McpServer({ name: 'my-server', version: '1.0.0' });
- * registerEmberdeckTools(server, ctx);
- * ```
  */
 
 import { z } from 'zod/v4';
@@ -40,16 +30,9 @@ import {
 import {
   resolveCardCodeLinks,
   findCardsBySymbol,
-  findAffectedCards,
   validateCodeLinks,
 } from '../ops/link';
 import {
-  verifyAcceptance,
-  listUnverified,
-  getCardHistory,
-} from '../ops/acceptance';
-import {
-  generateContext,
   checkDrift,
   checkInteractions,
 } from '../ops/context';
@@ -76,16 +59,9 @@ function fail(err: unknown) {
 
 // ---- Shared Schemas ----
 
-const relationSchema = z.object({ type: z.string(), target: z.string() });
 const codeLinkSchema = z.object({ kind: z.string(), file: z.string(), symbol: z.string() });
-const statusEnum = z.enum(['draft', 'accepted', 'implementing', 'implemented', 'deprecated']);
-const cardTypeEnum = z.enum(['feature', 'bug', 'refactor', 'spike', 'decision']);
-const priorityEnum = z.enum(['critical', 'high', 'medium', 'low']);
-const acceptanceSchema = z.object({
-  id: z.string(),
-  description: z.string(),
-  verified: z.boolean().default(false),
-});
+const statusEnum = z.enum(['draft', 'active', 'drifted']);
+const cardTypeEnum = z.enum(['architecture', 'spec']);
 
 // ---- McpServer Type ----
 
@@ -113,36 +89,34 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_create_card',
     {
       description:
-        'Record a new feature, decision, or spec before implementation. ' +
+        'Record a new architecture or spec card before implementation. ' +
         'Use this to capture design knowledge as a card. ' +
         'Before calling: gather context by reading relevant code and asking the user about policies/constraints. ' +
         'The body should contain design rationale, invariants, and scope boundaries — not file listings (use codeLinks for that).',
-      inputSchema: {
-        slug: z.string().describe('Card slug used as filename (e.g. "auth-token")'),
+      inputSchema: z.object({
+        key: z.string().describe('Card key used as filename (e.g. "auth-token")'),
         summary: z.string().describe('One-line summary of the card'),
-        type: cardTypeEnum.optional().describe('Card type (feature/bug/refactor/spike/decision)'),
-        priority: priorityEnum.optional().describe('Priority (critical/high/medium/low)'),
-        acceptance: z.array(acceptanceSchema).describe('Acceptance criteria [{id, description, verified}] — required, at least one'),
-        body: z.string().optional().describe('Design knowledge: rationale (why this approach, what alternatives were rejected), invariants (what must not break), scope boundaries (what this deliberately does NOT do), edge cases. Never duplicate codeLinks here.'),
-        keywords: z.array(z.string()).optional().describe('Keyword list for search'),
+        type: cardTypeEnum.describe('Card type (architecture/spec)'),
+        status: statusEnum.optional().describe('Initial status (default: draft). If active, activation guard is applied'),
+        parent: z.string().optional().describe('Parent card key'),
+        boundary: z.array(z.string()).optional().describe('File/directory glob patterns this card is responsible for'),
+        body: z.string().optional().describe('Design knowledge: rationale, invariants, scope boundaries, edge cases. Never duplicate codeLinks here.'),
         tags: z.array(z.string()).optional().describe('Tag list for classification'),
-        relations: z.array(relationSchema).optional().describe('Relations [{type, target}]'),
+        relations: z.array(z.string()).optional().describe('Related card keys'),
         codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
-        constraints: z.record(z.string(), z.unknown()).optional().describe('Constraints (key-value)'),
-      },
+      }).strict(),
     },
     async (args: {
-      slug: string;
+      key: string;
       summary: string;
-      type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
-      priority?: 'critical' | 'high' | 'medium' | 'low';
-      acceptance: Array<{ id: string; description: string; verified: boolean }>;
+      type: 'architecture' | 'spec';
+      status?: 'draft' | 'active' | 'drifted';
+      parent?: string;
+      boundary?: string[];
       body?: string;
-      keywords?: string[];
       tags?: string[];
-      relations?: Array<{ type: string; target: string }>;
+      relations?: string[];
       codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
-      constraints?: Record<string, unknown>;
     }) => {
       try {
         const result = await createCard(ctx, args);
@@ -157,26 +131,44 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_bulk_create_cards',
     {
       description:
-        '[DISABLED] This tool is temporarily disabled. Create cards one at a time using emberdeck_create_card instead — ' +
-        'each card requires careful analysis of the relevant code before creation.',
-      inputSchema: {
+        'Create multiple cards at once. Cards are topologically sorted by parent dependency. ' +
+        'Relations are applied after all cards are created to handle intra-batch references. ' +
+        'Each card requires careful analysis of the relevant code before creation.',
+      inputSchema: z.object({
         cards: z.array(z.object({
-          slug: z.string().describe('Card slug (e.g. "auth-token")'),
+          key: z.string().describe('Card key (e.g. "auth-token")'),
           summary: z.string().describe('One-line summary'),
-          type: cardTypeEnum.optional().describe('Card type'),
-          priority: priorityEnum.optional().describe('Priority'),
-          acceptance: z.array(acceptanceSchema).describe('Acceptance criteria — required'),
-          body: z.string().optional().describe('Design knowledge: rationale, invariants, scope boundaries, edge cases. Never duplicate codeLinks here.'),
-          keywords: z.array(z.string()).optional().describe('Keywords'),
+          type: cardTypeEnum.describe('Card type'),
+          status: statusEnum.optional().describe('Initial status (default: draft)'),
+          parent: z.string().optional().describe('Parent card key'),
+          boundary: z.array(z.string()).optional().describe('Boundary glob patterns'),
+          body: z.string().optional().describe('Design knowledge'),
           tags: z.array(z.string()).optional().describe('Tags'),
-          relations: z.array(relationSchema).optional().describe('Relations [{type, target}]'),
+          relations: z.array(z.string()).optional().describe('Related card keys'),
           codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
-          constraints: z.record(z.string(), z.unknown()).optional().describe('Constraints'),
-        })).describe('Array of card inputs (same schema as create_card)'),
-      },
+        }).strict()).describe('Array of card inputs'),
+      }).strict(),
     },
-    async () => {
-      return fail(new Error('bulk_create_cards is temporarily disabled. Use emberdeck_create_card to create cards one at a time.'));
+    async (args: {
+      cards: Array<{
+        key: string;
+        summary: string;
+        type: 'architecture' | 'spec';
+        status?: 'draft' | 'active' | 'drifted';
+        parent?: string;
+        boundary?: string[];
+        body?: string;
+        tags?: string[];
+        relations?: string[];
+        codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
+      }>;
+    }) => {
+      try {
+        const result = await bulkCreateCards(ctx, args.cards);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
     },
   );
 
@@ -185,14 +177,18 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Read a card\'s full content (frontmatter + body). ' +
-        'Use before implementation to review the spec, or to inspect card details.',
-      inputSchema: {
+        'Use before implementation to review the spec, or to inspect card details. ' +
+        'Set includeHistory=true to also get the changelog.',
+      inputSchema: z.object({
         key: z.string().describe('Card key (e.g. "auth-token")'),
-      },
+        includeHistory: z.boolean().optional().describe('Include changelog history (default: false)'),
+      }).strict(),
     },
-    async (args: { key: string }) => {
+    async (args: { key: string; includeHistory?: boolean }) => {
       try {
-        const result = await getCard(ctx, args.key);
+        const result = await getCard(ctx, args.key, {
+          includeHistory: args.includeHistory,
+        });
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -210,29 +206,27 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       inputSchema: z.object({
         key: z.string().describe('Card key'),
         summary: z.string().optional().describe('New summary'),
-        type: cardTypeEnum.nullable().optional().describe('Card type (null to remove)'),
-        priority: priorityEnum.nullable().optional().describe('Priority (null to remove)'),
-        acceptance: z.array(acceptanceSchema).nullable().optional().describe('Acceptance criteria (null to remove)'),
-        body: z.string().optional().describe('Design knowledge: rationale, invariants, scope boundaries, edge cases. Never duplicate codeLinks here.'),
-        keywords: z.array(z.string()).nullable().optional().describe('Keywords (null to remove)'),
+        type: cardTypeEnum.optional().describe('New card type'),
+        status: statusEnum.optional().describe('New status'),
+        parent: z.string().nullable().optional().describe('Parent card key (null to remove parent)'),
+        boundary: z.array(z.string()).optional().describe('Boundary glob patterns'),
+        body: z.string().optional().describe('Design knowledge: rationale, invariants, scope boundaries, edge cases.'),
         tags: z.array(z.string()).nullable().optional().describe('Tags (null to remove)'),
-        relations: z.array(relationSchema).nullable().optional().describe('Relations (null to remove)'),
+        relations: z.array(z.string()).nullable().optional().describe('Related card keys (null to remove)'),
         codeLinks: z.array(codeLinkSchema).nullable().optional().describe('Code links (null to remove)'),
-        constraints: z.record(z.string(), z.unknown()).optional().describe('Constraints'),
       }).strict(),
     },
     async (args: {
       key: string;
       summary?: string;
-      type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision' | null;
-      priority?: 'critical' | 'high' | 'medium' | 'low' | null;
-      acceptance?: Array<{ id: string; description: string; verified: boolean }> | null;
+      type?: 'architecture' | 'spec';
+      status?: 'draft' | 'active' | 'drifted';
+      parent?: string | null;
+      boundary?: string[];
       body?: string;
-      keywords?: string[] | null;
       tags?: string[] | null;
-      relations?: Array<{ type: string; target: string }> | null;
+      relations?: string[] | null;
       codeLinks?: Array<{ kind: string; file: string; symbol: string }> | null;
-      constraints?: Record<string, unknown>;
     }) => {
       try {
         const { key, ...fields } = args;
@@ -248,16 +242,18 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_update_card_status',
     {
       description:
-        'Transition a card through its lifecycle (draft/accepted/implementing/implemented/deprecated). ' +
-        'Use after review to accept a spec, or after implementation to mark it done.',
-      inputSchema: {
+        'Transition a card through its lifecycle (draft/active/drifted). ' +
+        'Activation guard is applied when transitioning to active. ' +
+        'Use reason to document why the status changed.',
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
         status: statusEnum.describe('New status'),
-      },
+        reason: z.string().optional().describe('Reason for the status change (recorded in changelog)'),
+      }).strict(),
     },
-    async (args: { key: string; status: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated' }) => {
+    async (args: { key: string; status: 'draft' | 'active' | 'drifted'; reason?: string }) => {
       try {
-        const result = await updateCardStatus(ctx, args.key, args.status);
+        const result = await updateCardStatus(ctx, args.key, args.status, args.reason);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -270,14 +266,16 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Permanently remove a card (DB + file). ' +
-        'Use when a spec is no longer relevant. Prefer deprecating over deleting if history matters.',
-      inputSchema: {
+        'Use when a spec is no longer relevant. ' +
+        'Set force=true to delete even if the card has children (children will become orphans).',
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
-      },
+        force: z.boolean().optional().describe('Force delete even with children (default: false)'),
+      }).strict(),
     },
-    async (args: { key: string }) => {
+    async (args: { key: string; force?: boolean }) => {
       try {
-        const result = await deleteCard(ctx, args.key);
+        const result = await deleteCard(ctx, args.key, { force: args.force });
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -289,12 +287,13 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_rename_card',
     {
       description:
-        'Rename a card key (moves file + updates DB). ' +
-        'Use when the original slug no longer reflects the card\'s scope.',
-      inputSchema: {
+        'Rename a card key (moves file + updates DB + updates referencing cards). ' +
+        'Use when the original slug no longer reflects the card\'s scope. ' +
+        'Returns bodyReferencesFound if other cards mention the old key in their body text.',
+      inputSchema: z.object({
         key: z.string().describe('Current card key'),
         newSlug: z.string().describe('New slug'),
-      },
+      }).strict(),
     },
     async (args: { key: string; newSlug: string }) => {
       try {
@@ -312,23 +311,35 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_list_cards',
     {
       description:
-        'List all cards, optionally filtered by status. ' +
+        'List all cards, optionally filtered by status, type, parent, tag, or roots. ' +
         'Use at session start to see what specs exist, or to find cards in a specific lifecycle stage.',
-      inputSchema: {
-        status: statusEnum.optional().describe('Filter by status (optional)'),
-        type: cardTypeEnum.optional().describe('Filter by card type (optional)'),
-        sortBy: z.enum(['priority', 'updated_at']).optional().describe('Sort order (optional)'),
-      },
+      inputSchema: z.object({
+        status: statusEnum.optional().describe('Filter by status'),
+        type: cardTypeEnum.optional().describe('Filter by card type'),
+        parent: z.string().optional().describe('Filter by parent card key'),
+        tag: z.string().optional().describe('Filter by tag name'),
+        roots: z.boolean().optional().describe('Only root cards (no parent)'),
+        updatedSince: z.string().optional().describe('ISO timestamp — only cards updated after this time'),
+        sortBy: z.enum(['updated_at']).optional().describe('Sort order'),
+      }).strict(),
     },
     async (args: {
-      status?: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated';
-      type?: 'feature' | 'bug' | 'refactor' | 'spike' | 'decision';
-      sortBy?: 'priority' | 'updated_at';
+      status?: 'draft' | 'active' | 'drifted';
+      type?: 'architecture' | 'spec';
+      parent?: string;
+      tag?: string;
+      roots?: boolean;
+      updatedSince?: string;
+      sortBy?: 'updated_at';
     }) => {
       try {
         const filter: Record<string, unknown> = {};
         if (args.status) filter.status = args.status;
         if (args.type) filter.type = args.type;
+        if (args.parent) filter.parent = args.parent;
+        if (args.tag) filter.tag = args.tag;
+        if (args.roots) filter.roots = args.roots;
+        if (args.updatedSince) filter.updatedSince = args.updatedSince;
         if (args.sortBy) filter.sortBy = args.sortBy;
         const result = listCards(ctx, Object.keys(filter).length > 0 ? filter as any : undefined);
         return ok(result);
@@ -343,14 +354,20 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Full-text search over card summaries and bodies. ' +
-        'Use before implementing a feature or fixing a bug to check if a related spec already exists.',
-      inputSchema: {
+        'Use before implementing a feature or fixing a bug to check if a related spec already exists. ' +
+        'Optionally filter results by type and status.',
+      inputSchema: z.object({
         query: z.string().describe('Search query text'),
-      },
+        type: cardTypeEnum.optional().describe('Filter by card type'),
+        status: statusEnum.optional().describe('Filter by status'),
+      }).strict(),
     },
-    async (args: { query: string }) => {
+    async (args: { query: string; type?: 'architecture' | 'spec'; status?: 'draft' | 'active' | 'drifted' }) => {
       try {
-        const result = searchCards(ctx, args.query);
+        const result = searchCards(ctx, args.query, {
+          type: args.type,
+          status: args.status,
+        });
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -364,9 +381,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Get a single card\'s full context: the card itself, its relations, and code links. ' +
         'Use for a quick look at one card\'s dependencies and connected symbols.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
-      },
+      }).strict(),
     },
     async (args: { key: string }) => {
       try {
@@ -384,11 +401,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'BFS-traverse the card relation graph from a starting card. ' +
         'Use to understand how specs connect to each other and to find transitive dependencies.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().describe('Starting card key'),
         maxDepth: z.number().optional().describe('Max traversal depth'),
         direction: z.enum(['forward', 'backward', 'both']).optional().describe('Traversal direction'),
-      },
+      }).strict(),
     },
     async (args: { key: string; maxDepth?: number; direction?: 'forward' | 'backward' | 'both' }) => {
       try {
@@ -409,9 +426,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'List all relations for a card (forward + reverse). ' +
         'Use to quickly check what a card depends on and what depends on it.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
-      },
+      }).strict(),
     },
     async (args: { key: string }) => {
       try {
@@ -431,9 +448,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Sync a card file that was edited outside emberdeck into the DB. ' +
         'Use after manual file edits to keep DB in sync.',
-      inputSchema: {
+      inputSchema: z.object({
         filePath: z.string().describe('Absolute path to the .card.md file'),
-      },
+      }).strict(),
     },
     async (args: { filePath: string }) => {
       try {
@@ -450,10 +467,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Scan a directory for all .card.md files and sync them into the DB. ' +
-        'Use after bulk file changes or initial project setup to ensure DB reflects disk state.',
-      inputSchema: {
+        'Detects duplicate keys and reports them as errors. ' +
+        'Use after bulk file changes or initial project setup.',
+      inputSchema: z.object({
         dirPath: z.string().optional().describe('Directory to scan (defaults to cardsDir)'),
-      },
+      }).strict(),
     },
     async (args: { dirPath?: string }) => {
       try {
@@ -470,10 +488,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Check consistency between card files and DB (read-only). ' +
-        'Use to detect stale DB rows, orphan files, or key mismatches before making changes.',
-      inputSchema: {
+        'Detects stale DB rows, orphan files, key mismatches, broken parents, ' +
+        'type hierarchy violations, broken relations, boundary overlaps, and rework dependencies.',
+      inputSchema: z.object({
         dirPath: z.string().optional().describe('Directory to validate (defaults to cardsDir)'),
-      },
+      }).strict(),
     },
     async (args: { dirPath?: string }) => {
       try {
@@ -491,9 +510,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Regenerate a card file from DB state (reverse sync). ' +
         'Use when DB is the source of truth and the file needs to be recreated.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
-      },
+      }).strict(),
     },
     async (args: { key: string }) => {
       try {
@@ -513,9 +532,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Resolve a card\'s code links against the symbol index. Requires gildash. ' +
         'Use to verify that declared code links point to real symbols in the codebase.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
-      },
+      }).strict(),
     },
     async (args: { key: string }) => {
       try {
@@ -533,34 +552,14 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Find cards that reference a given symbol name. ' +
         'Use when investigating a symbol to discover its related specs.',
-      inputSchema: {
+      inputSchema: z.object({
         symbolName: z.string().describe('Symbol name to search for'),
         filePath: z.string().optional().describe('File path filter (optional)'),
-      },
+      }).strict(),
     },
     async (args: { symbolName: string; filePath?: string }) => {
       try {
         const result = findCardsBySymbol(ctx, args.symbolName, args.filePath);
-        return ok(result);
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
-
-  server.registerTool(
-    'emberdeck_find_affected_cards',
-    {
-      description:
-        'Given a list of changed files, find cards whose code links reference symbols in those files. ' +
-        'Use after code changes to identify which specs may need review or updates.',
-      inputSchema: {
-        changedFiles: z.array(z.string()).describe('Array of changed file paths'),
-      },
-    },
-    async (args: { changedFiles: string[] }) => {
-      try {
-        const result = await findAffectedCards(ctx, args.changedFiles);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -575,9 +574,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         'Validate that code links exist in the current symbol index. Requires gildash. ' +
         'Use to detect broken links after code refactoring or symbol renames. ' +
         'Omit key to validate all cards at once.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().optional().describe('Card key (omit to validate all cards)'),
-      },
+      }).strict(),
     },
     async (args: { key?: string }) => {
       try {
@@ -602,110 +601,19 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     },
   );
 
-  // ── Acceptance & History ──
-
-  server.registerTool(
-    'emberdeck_verify_acceptance',
-    {
-      description:
-        'Mark one or more acceptance criteria as verified (or unverified). ' +
-        'Use after implementing and testing a criterion to track verification progress.',
-      inputSchema: {
-        key: z.string().describe('Card key'),
-        criterionIds: z.union([z.string(), z.array(z.string())]).describe('Criterion ID(s) to update'),
-        verified: z.boolean().optional().describe('Verified status (default: true)'),
-      },
-    },
-    async (args: { key: string; criterionIds: string | string[]; verified?: boolean }) => {
-      try {
-        const result = await verifyAcceptance(ctx, args.key, args.criterionIds, args.verified ?? true);
-        return ok(result);
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
-
-  server.registerTool(
-    'emberdeck_list_unverified',
-    {
-      description:
-        'List all cards with unverified acceptance criteria. ' +
-        'Use at session start to find specs that still need verification, or before a release.',
-      inputSchema: {},
-    },
-    async () => {
-      try {
-        const result = listUnverified(ctx);
-        return ok(result);
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
-
-  server.registerTool(
-    'emberdeck_get_card_history',
-    {
-      description:
-        'Get the changelog history for a card (field changes with timestamps and actors). ' +
-        'Use to understand why a spec changed or to review recent modifications.',
-      inputSchema: {
-        key: z.string().describe('Card key'),
-        limit: z.number().optional().describe('Max entries to return (default: 100)'),
-      },
-    },
-    async (args: { key: string; limit?: number }) => {
-      try {
-        const result = getCardHistory(ctx, args.key, args.limit);
-        return ok(result);
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
-
   // ── Context Engine ──
-
-  server.registerTool(
-    'emberdeck_generate_context',
-    {
-      description:
-        'Generate a multi-card context pack from a starting card via BFS relation traversal. ' +
-        'Use at session start or when context degrades to quickly restore project context. ' +
-        'Returns card summaries, relation graph, acceptance criteria, code links, and recent changes.',
-      inputSchema: {
-        key: z.string().describe('Starting card key'),
-        maxCards: z.number().optional().describe('Max cards to include (default: 20)'),
-        maxDepth: z.number().optional().describe('Max BFS depth (default: 3)'),
-        includeBody: z.boolean().optional().describe('Include the starting card body (default: false)'),
-      },
-    },
-    async (args: { key: string; maxCards?: number; maxDepth?: number; includeBody?: boolean }) => {
-      try {
-        const result = await generateContext(ctx, args.key, {
-          maxCards: args.maxCards,
-          maxDepth: args.maxDepth,
-          includeBody: args.includeBody,
-        });
-        return ok(result);
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
 
   server.registerTool(
     'emberdeck_check_drift',
     {
       description:
         'Calculate a drift score (0=synchronized, 1=completely stale) for a card and its relation graph. ' +
-        'Use before marking a card as implemented, at session start for project health, or to find stale areas. ' +
+        'Use before marking a card as active, at session start for project health, or to find stale areas. ' +
         'Omit key to check all cards.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().optional().describe('Starting card key (omit for all cards)'),
         maxDepth: z.number().optional().describe('Max BFS depth (default: 3)'),
-      },
+      }).strict(),
     },
     async (args: { key?: string; maxDepth?: number }) => {
       try {
@@ -724,9 +632,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         'Analyze interactions between a set of cards. Detects shared code symbols, ' +
         'existing relations, and potential conflicts. ' +
         'Use before modifying multiple related features to understand cross-card dependencies.',
-      inputSchema: {
+      inputSchema: z.object({
         cards: z.array(z.string()).describe('Array of card keys to analyze'),
-      },
+      }).strict(),
     },
     async (args: { cards: string[] }) => {
       try {
@@ -745,12 +653,12 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Analyze impact before changing specific files or symbols. ' +
-        'Returns directly and transitively affected cards, at-risk acceptance criteria, and risk level. ' +
+        'Returns directly and transitively affected cards and risk level. ' +
         'Use before code changes to understand what specs may need review.',
-      inputSchema: {
+      inputSchema: z.object({
         files: z.array(z.string()).describe('File paths that will be changed'),
         symbols: z.array(z.string()).optional().describe('Specific symbols being changed (optional)'),
-      },
+      }).strict(),
     },
     async (args: { files: string[]; symbols?: string[] }) => {
       try {
@@ -768,10 +676,10 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Quality gate combining changed file analysis with optional Firebat scan results. ' +
         'Use after code changes to check for regressions. Pass Firebat output directly without format conversion.',
-      inputSchema: {
+      inputSchema: z.object({
         changedFiles: z.array(z.string()).describe('Changed file paths'),
         firebatReport: z.unknown().optional().describe('Firebat scan result (pass as-is, any format)'),
-      },
+      }).strict(),
     },
     async (args: { changedFiles: string[]; firebatReport?: unknown }) => {
       try {
@@ -790,9 +698,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Scan @spec annotations in source code and auto-create code links for matching cards. ' +
-        'Use after adding @spec comments to source files, or during bulk sync to discover code-spec connections. ' +
+        'Use after adding @spec comments to source files, or during bulk sync. ' +
         'Requires gildash. Manual links are preserved.',
-      inputSchema: {},
+      inputSchema: z.object({}).strict(),
     },
     async () => {
       try {
@@ -811,9 +719,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         'Update code links after symbol renames/moves detected by gildash. ' +
         'Use after refactoring to keep code links in sync with renamed or moved symbols. ' +
         'Requires gildash. Deleted symbols are reported but not auto-removed.',
-      inputSchema: {
+      inputSchema: z.object({
         since: z.string().describe('ISO timestamp — sync changes after this time'),
-      },
+      }).strict(),
     },
     async (args: { since: string }) => {
       try {
@@ -832,9 +740,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         'Check code link coverage for a card: how many links resolve, how many are broken, ' +
         'and what symbols in linked files are not yet connected. ' +
         'Use to find gaps in code-spec traceability. Requires gildash.',
-      inputSchema: {
+      inputSchema: z.object({
         key: z.string().describe('Card key'),
-      },
+      }).strict(),
     },
     async (args: { key: string }) => {
       try {

@@ -1,20 +1,11 @@
 // ---- Setup ----
 export { setupEmberdeck, teardownEmberdeck } from './src/setup';
 export type { EmberdeckOptions, EmberdeckContext } from './src/config';
-export {
-  DEFAULT_RELATION_TYPES,
-  addRelationType,
-  removeRelationType,
-  listRelationTypes,
-} from './src/config';
 
 // ---- Types ----
 export type {
   CardStatus,
   CardType,
-  CardPriority,
-  AcceptanceCriterion,
-  CardRelation,
   CardFrontmatter,
   CardFile,
   CodeLink,
@@ -25,7 +16,9 @@ export {
   CardNotFoundError,
   CardAlreadyExistsError,
   CardRenameSamePathError,
-  RelationTypeError,
+  ParentValidationError,
+  ActivationGuardError,
+  BoundaryValidationError,
   GildashNotConfiguredError,
   CompensationError,
 } from './src/card/errors';
@@ -39,7 +32,7 @@ export {
   type UpdateCardFields,
   type UpdateCardResult,
 } from './src/ops/update';
-export { deleteCard } from './src/ops/delete';
+export { deleteCard, type DeleteCardOptions } from './src/ops/delete';
 export { renameCard, type RenameCardResult } from './src/ops/rename';
 export {
   getCard,
@@ -49,6 +42,8 @@ export {
   getCardContext,
   getRelationGraph,
   type CardContext,
+  type GetCardResult,
+  type SearchCardsOptions,
   type RelationGraphNode,
   type RelationGraphOptions,
 } from './src/ops/query';
@@ -71,18 +66,8 @@ export {
   type ValidateCodeLinksResult,
 } from './src/ops/link';
 export {
-  verifyAcceptance,
-  listUnverified,
-  getCardHistory,
-  type VerifyAcceptanceResult,
-  type UnverifiedCard,
-} from './src/ops/acceptance';
-export {
-  generateContext,
   checkDrift,
   checkInteractions,
-  type ContextPack,
-  type GenerateContextOptions,
   type DriftResult,
   type CheckDriftOptions,
   type InteractionResult,
@@ -93,7 +78,6 @@ export {
   type PreChangeResult,
   type RegressionResult,
   type AffectedCard,
-  type AtRiskAcceptance,
   type RiskLevel,
 } from './src/ops/impact';
 export {

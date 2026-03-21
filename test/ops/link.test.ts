@@ -38,7 +38,7 @@ afterEach(async () => {
 async function createCard(
   key: string,
   codeLinks?: CodeLink[],
-  status: 'draft' | 'accepted' | 'implementing' | 'implemented' | 'deprecated' = 'draft',
+  status: 'draft' | 'active' | 'drifted' = 'draft',
 ): Promise<void> {
   const slug = normalizeSlug(key);
   const filePath = buildCardPath(tc.ctx.cardsDir, slug);
@@ -48,6 +48,7 @@ async function createCard(
       key: slug,
       summary: `Card ${slug}`,
       status,
+      type: 'spec',
       ...(codeLinks !== undefined ? { codeLinks } : {}),
     },
     body: '',
@@ -61,10 +62,9 @@ function insertInDb(key: string): void {
     key: slug,
     summary: `Card ${slug}`,
     status: 'draft',
-    type: null,
-    priority: null,
-    acceptanceJson: null,
-    constraintsJson: null,
+    type: 'spec',
+    parent: null,
+    boundaryJson: null,
     body: null,
     filePath: buildCardPath(tc.ctx.cardsDir, slug),
     updatedAt: new Date().toISOString(),
@@ -409,7 +409,7 @@ describe('ops/link', () => {
   // 26. [HP] validateCodeLinks: implementing card with broken link → broken (not planned)
   it('should put broken links in broken array for implementing card', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
-    await createCard('impl/card', [link], 'implementing');
+    await createCard('impl/card', [link], 'active');
     mockSearchSymbols.mockReturnValue([]);
     const result = await validateCodeLinks(tc.ctx, 'impl/card');
     expect(result.declared).toBe(1);
@@ -419,25 +419,25 @@ describe('ops/link', () => {
     expect(result.planned).toHaveLength(0);
   });
 
-  // 27. [HP] validateCodeLinks: accepted card with broken link → planned (not broken)
-  it('should put broken links in planned array for accepted card', async () => {
+  // 27. [HP] validateCodeLinks: drifted card with broken link -> broken (not planned)
+  it('should put broken links in broken array for drifted card', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
-    await createCard('acc/card', [link], 'accepted');
+    await createCard('drf/card', [link], 'drifted');
     mockSearchSymbols.mockReturnValue([]);
-    const result = await validateCodeLinks(tc.ctx, 'acc/card');
+    const result = await validateCodeLinks(tc.ctx, 'drf/card');
     expect(result.declared).toBe(1);
     expect(result.valid).toBe(0);
-    expect(result.broken).toHaveLength(0);
-    expect(result.planned).toHaveLength(1);
-    expect(result.planned[0]!.reason).toBe('symbol-not-found');
+    expect(result.broken).toHaveLength(1);
+    expect(result.broken[0]!.reason).toBe('symbol-not-found');
+    expect(result.planned).toHaveLength(0);
   });
 
-  // 28. [HP] validateCodeLinks: accepted card with file-not-indexed → planned
-  it('should put file-not-indexed links in planned array for accepted card', async () => {
+  // 28. [HP] validateCodeLinks: draft card with file-not-indexed -> planned
+  it('should put file-not-indexed links in planned array for draft card', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
-    await createCard('acc/err', [link], 'accepted');
+    await createCard('draft/err', [link], 'draft');
     mockSearchSymbols.mockReturnValue(gildashErr());
-    const result = await validateCodeLinks(tc.ctx, 'acc/err');
+    const result = await validateCodeLinks(tc.ctx, 'draft/err');
     expect(result.planned).toHaveLength(1);
     expect(result.planned[0]!.reason).toBe('file-not-indexed');
     expect(result.broken).toHaveLength(0);
@@ -446,7 +446,7 @@ describe('ops/link', () => {
   // 29. [HP] validateCodeLinks: implementing card with valid links → all valid, empty broken/planned
   it('should return valid count and empty broken/planned for implementing card with valid links', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
-    await createCard('impl/ok', [link], 'implementing');
+    await createCard('impl/ok', [link], 'active');
     mockSearchSymbols.mockReturnValue([fakeSymbol]);
     const result = await validateCodeLinks(tc.ctx, 'impl/ok');
     expect(result.declared).toBe(1);

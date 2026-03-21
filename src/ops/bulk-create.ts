@@ -13,18 +13,55 @@ export interface BulkCreateResult {
   /** Successfully created card keys. */
   keys: string[];
   /** Error details for each failed card. */
-  errors: Array<{ slug: string; message: string }>;
+  errors: Array<{ key: string; message: string }>;
+}
+
+/**
+ * Topologically sort cards so parents are created before children.
+ * Cards without parents come first.
+ */
+function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
+  const keySet = new Set(inputs.map((i) => i.key));
+  const noParent: CreateCardInput[] = [];
+  const withParent: CreateCardInput[] = [];
+
+  for (const input of inputs) {
+    if (!input.parent || !keySet.has(input.parent)) {
+      noParent.push(input);
+    } else {
+      withParent.push(input);
+    }
+  }
+
+  const sorted = [...noParent];
+  const created = new Set(noParent.map((i) => i.key));
+  const remaining = [...withParent];
+  let iterations = 0;
+  const maxIterations = remaining.length * remaining.length + 1;
+
+  while (remaining.length > 0 && iterations < maxIterations) {
+    iterations++;
+    const idx = remaining.findIndex((i) => !i.parent || created.has(i.parent));
+    if (idx === -1) break; // circular or unresolvable
+    const item = remaining.splice(idx, 1)[0]!;
+    sorted.push(item);
+    created.add(item.key);
+  }
+
+  // Append any remaining (unresolvable) items at the end
+  sorted.push(...remaining);
+  return sorted;
 }
 
 /**
  * Create multiple cards at once.
  *
  * Processing order:
- * 1. Create all cards without relations first.
- * 2. Update relations for all cards that had them.
+ * 1. Topologically sort by parent dependency (parents first).
+ * 2. Create all cards without relations first.
+ * 3. Update relations for all cards that had them.
  *
- * This ensures intra-batch relations (card A depends-on card B,
- * where both are in the same batch) resolve regardless of array order.
+ * This ensures intra-batch parent references and relations resolve regardless of input order.
  *
  * Failed items are skipped; remaining items continue (partial success).
  *
@@ -38,12 +75,15 @@ export async function bulkCreateCards(
   inputs: CreateCardInput[],
 ): Promise<BulkCreateResult> {
   const keys: string[] = [];
-  const errors: Array<{ slug: string; message: string }> = [];
+  const errors: Array<{ key: string; message: string }> = [];
+
+  // Topologically sort by parent dependency
+  const sorted = topologicalSort(inputs);
 
   // Phase 1: Create all cards without relations
   const pendingRelations: Array<{ key: string; input: CreateCardInput }> = [];
 
-  for (const input of inputs) {
+  for (const input of sorted) {
     const { relations, ...rest } = input;
     try {
       const result = await createCard(ctx, rest);
@@ -53,31 +93,21 @@ export async function bulkCreateCards(
       }
     } catch (err) {
       errors.push({
-        slug: input.slug,
+        key: input.key,
         message: err instanceof Error ? err.message : String(err),
       });
     }
   }
 
   // Phase 2: Apply relations for successfully created cards.
-  // We collect ALL declared relations first, then apply them per card in one shot.
-  // This prevents mutual relations (A→B + B→A) from overwriting each other's reverse mirrors.
   if (pendingRelations.length > 0) {
-    // Build a merged relation map: cardKey → all forward relations it should own
-    const relationMap = new Map<string, Array<{ type: string; target: string }>>();
-    for (const { key, input } of pendingRelations) {
-      if (input.relations) {
-        relationMap.set(key, [...(relationMap.get(key) ?? []), ...input.relations]);
-      }
-    }
-
     const { updateCard } = await import('../ops/update');
-    for (const [key, relations] of relationMap) {
+    for (const { key, input } of pendingRelations) {
       try {
-        await updateCard(ctx, key, { relations });
+        await updateCard(ctx, key, { relations: input.relations });
       } catch (err) {
         errors.push({
-          slug: key,
+          key,
           message: `relation update failed: ${err instanceof Error ? err.message : String(err)}`,
         });
         const idx = keys.indexOf(key);

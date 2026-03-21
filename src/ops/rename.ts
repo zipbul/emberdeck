@@ -1,6 +1,5 @@
 import { mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { sql } from 'drizzle-orm';
 
 import type { EmberdeckContext } from '../config';
 import type { CardFile } from '../card/types';
@@ -22,6 +21,8 @@ export interface RenameCardResult {
   newFullKey: string;
   /** New card data (with updated frontmatter). */
   card: CardFile;
+  /** Card keys that contain the old key in their body text. */
+  bodyReferencesFound?: string[];
 }
 
 /**
@@ -30,8 +31,10 @@ export interface RenameCardResult {
  * 1. Moves the source file to the new path (OS rename).
  * 2. Updates the frontmatter key field to the new key.
  * 3. UPDATEs the card row's key in the DB. FK CASCADE UPDATE propagates
- *    to all referencing tables (relations, keywords, tags, codeLinks, changelog).
- * 4. If the DB update fails, restores the file to its original state.
+ *    to all referencing tables (relations, tags, codeLinks, changelog).
+ * 4. Updates referencing cards' files (relations, parent fields).
+ * 5. Records key change in changelog.
+ * 6. If the DB update fails, restores the file to its original state.
  *
  * Locks both keys in alphabetical order to prevent deadlocks.
  *
@@ -67,6 +70,36 @@ export async function renameCard(
         if (!(await Bun.file(oldFilePath).exists())) throw new CardNotFoundError(oldKey);
         if (await Bun.file(newFilePath).exists()) throw new CardAlreadyExistsError(newFullKey);
 
+        // Collect all cards that reference this key (relations or parent)
+        const allCards = ctx.cardRepo.list();
+        const referencingCards: Array<{ key: string; filePath: string }> = [];
+        const bodyReferencesFound: string[] = [];
+
+        for (const row of allCards) {
+          if (row.key === oldKey) continue;
+
+          // Check parent
+          if (row.parent === oldKey) {
+            referencingCards.push({ key: row.key, filePath: row.filePath });
+            continue;
+          }
+
+          // Check relations
+          const relations = ctx.relationRepo.findByCardKey(row.key);
+          const hasRelation = relations.some((r) => !r.isReverse && r.dstCardKey === oldKey);
+          if (hasRelation) {
+            referencingCards.push({ key: row.key, filePath: row.filePath });
+          }
+        }
+
+        // Check body text for references to old key
+        for (const row of allCards) {
+          if (row.key === oldKey) continue;
+          if (row.body && row.body.includes(oldKey)) {
+            bodyReferencesFound.push(row.key);
+          }
+        }
+
         await mkdir(dirname(newFilePath), { recursive: true });
         await rename(oldFilePath, newFilePath);
 
@@ -81,12 +114,52 @@ export async function renameCard(
         const now = new Date().toISOString();
         try {
           // UPDATE the key in-place. FK ON UPDATE CASCADE propagates to all
-          // referencing tables (relations, keywords, tags, codeLinks, changelog),
+          // referencing tables (relations, tags, codeLinks, changelog),
           // preserving incoming relations from other cards.
           ctx.db.$client.run(
             `UPDATE card SET key = ?, file_path = ?, updated_at = ? WHERE key = ?`,
             [newFullKey, newFilePath, now, oldKey],
           );
+
+          // Record key change in changelog
+          ctx.changelogRepo.insert({
+            cardKey: newFullKey,
+            field: 'key',
+            oldValue: oldKey,
+            newValue: newFullKey,
+            changedAt: now,
+            changedBy: 'agent',
+          });
+
+          // Update referencing cards' files (relations, parent)
+          for (const ref of referencingCards) {
+            try {
+              const refFile = await readCardFile(ref.filePath);
+              const updatedFm = { ...refFile.frontmatter };
+              let changed = false;
+
+              // Update parent reference
+              if (updatedFm.parent === oldKey) {
+                updatedFm.parent = newFullKey;
+                changed = true;
+              }
+
+              // Update relations references
+              if (updatedFm.relations) {
+                const newRelations = updatedFm.relations.map((r) => r === oldKey ? newFullKey : r);
+                if (newRelations.some((r, i) => r !== updatedFm.relations![i])) {
+                  updatedFm.relations = newRelations;
+                  changed = true;
+                }
+              }
+
+              if (changed) {
+                await writeCardFile(ref.filePath, { ...refFile, frontmatter: updatedFm });
+              }
+            } catch {
+              // Best effort — file may not exist
+            }
+          }
         } catch (dbErr) {
           // DB update failed -> restore file to original state
           await rename(newFilePath, oldFilePath);
@@ -100,7 +173,11 @@ export async function renameCard(
           throw dbErr;
         }
 
-        return { oldFilePath, newFilePath, newFullKey, card };
+        const result: RenameCardResult = { oldFilePath, newFilePath, newFullKey, card };
+        if (bodyReferencesFound.length > 0) {
+          result.bodyReferencesFound = bodyReferencesFound;
+        }
+        return result;
       }),
     ),
   );

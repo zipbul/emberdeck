@@ -53,7 +53,6 @@ describe('validateRawConfig', () => {
       dbPath: './my.db',
       projectRoot: './proj',
       gildashIgnore: ['node_modules', 'dist'],
-      allowedRelationTypes: ['depends-on', 'custom'],
     };
     const filePath = join(tmpDir, '.emberdeck.jsonc');
     const result = validateRawConfig(raw, filePath);
@@ -63,7 +62,6 @@ describe('validateRawConfig', () => {
     expect(config.dbPath).toBe(resolve(tmpDir, './my.db'));
     expect(config.projectRoot).toBe(resolve(tmpDir, './proj'));
     expect(config.gildashIgnore).toEqual(['node_modules', 'dist']);
-    expect(config.allowedRelationTypes).toEqual(['depends-on', 'custom']);
   });
 
   // ── invalid: top-level type ──
@@ -229,8 +227,7 @@ describe('buildDefaultConfig', () => {
     expect(config.dbPath).toBe(resolve('/base', DEFAULT_DB_PATH));
     expect(config.projectRoot).toBeUndefined();
     expect(config.gildashIgnore).toBeUndefined();
-    expect(config.allowedRelationTypes).toEqual([
-      'depends-on', 'references', 'related', 'extends', 'conflicts',
-    ]);
+    expect(config.projectRoot).toBeUndefined();
+    expect(config.gildashIgnore).toBeUndefined();
   });
 });

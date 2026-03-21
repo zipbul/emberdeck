@@ -1,6 +1,4 @@
 import type { EmberdeckContext } from '../config';
-import type { AcceptanceCriterion } from '../card/types';
-import type { CardRow, CodeLinkRow } from '../db/repository';
 import { getRelationGraph } from './query';
 
 // ── pre_change_check ──
@@ -12,20 +10,10 @@ export interface AffectedCard {
   via?: string;
 }
 
-export interface AtRiskAcceptance {
-  cardKey: string;
-  criterionId: string;
-  description: string;
-  relatedSymbol: string;
-  /** true = previously verified (regression risk), false = unverified (needs verification). */
-  currentlyVerified: boolean;
-}
-
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
 export interface PreChangeResult {
   affectedCards: AffectedCard[];
-  atRiskAcceptance: AtRiskAcceptance[];
   riskLevel: RiskLevel;
   suggestedActions: string[];
 }
@@ -35,8 +23,7 @@ export interface PreChangeResult {
  *
  * 1. Find cards with direct code links to the given files/symbols.
  * 2. BFS backward to find cards that transitively depend on affected cards.
- * 3. Identify at-risk acceptance criteria.
- * 4. Calculate risk level and suggest actions.
+ * 3. Calculate risk level and suggest actions.
  */
 export function preChangeCheck(
   ctx: EmberdeckContext,
@@ -78,43 +65,10 @@ export function preChangeCheck(
     }
   }
 
-  // Find at-risk acceptance criteria
-  const atRiskAcceptance: AtRiskAcceptance[] = [];
-  for (const [key] of directCards) {
-    const row = ctx.cardRepo.findByKey(key);
-    if (!row?.acceptanceJson) continue;
-    const criteria = JSON.parse(row.acceptanceJson) as AcceptanceCriterion[];
-    const links = ctx.codeLinkRepo.findByCardKey(key);
-    const affectedSymbols = links
-      .filter((l) => files.includes(l.file) && (!symbolSet || symbolSet.has(l.symbol)))
-      .map((l) => l.symbol);
-
-    for (const ac of criteria) {
-      for (const sym of affectedSymbols) {
-        atRiskAcceptance.push({
-          cardKey: key,
-          criterionId: ac.id,
-          description: ac.description,
-          relatedSymbol: sym,
-          currentlyVerified: ac.verified,
-        });
-        break; // One per criterion is enough
-      }
-    }
-  }
-
   // Calculate risk level
   let riskLevel: RiskLevel = 'low';
-  const allAffectedKeys = [...directCards.keys(), ...transitiveCards];
-  const hasCritical = allAffectedKeys.some((key) => {
-    const row = ctx.cardRepo.findByKey(key);
-    return row?.priority === 'critical';
-  });
 
-  const verifiedAtRisk = atRiskAcceptance.filter((a) => a.currentlyVerified);
-  if (hasCritical) {
-    riskLevel = 'critical';
-  } else if (directCards.size >= 3 || verifiedAtRisk.length > 0) {
+  if (directCards.size >= 3) {
     riskLevel = 'high';
   } else if (directCards.size >= 1) {
     riskLevel = 'medium';
@@ -124,9 +78,9 @@ export function preChangeCheck(
 
   // Generate suggested actions
   const suggestedActions: string[] = [];
-  for (const risk of atRiskAcceptance) {
+  for (const card of affectedCards.filter((c) => c.linkType === 'direct')) {
     suggestedActions.push(
-      `Re-verify ${risk.cardKey} criterion ${risk.criterionId} (${risk.description}).`,
+      `Review card "${card.key}" — ${card.affectedLinks} code link(s) affected.`,
     );
   }
   for (const card of affectedCards.filter((c) => c.linkType === 'transitive')) {
@@ -135,7 +89,7 @@ export function preChangeCheck(
     );
   }
 
-  return { affectedCards, atRiskAcceptance, riskLevel, suggestedActions };
+  return { affectedCards, riskLevel, suggestedActions };
 }
 
 // ── regression_guard ──
@@ -143,7 +97,7 @@ export function preChangeCheck(
 export interface RegressionResult {
   qualityGate: 'pass' | 'warn' | 'fail';
   newIssues: unknown[];
-  affectedAcceptance: AtRiskAcceptance[];
+  affectedCardCount: number;
   recommendation: string;
 }
 
@@ -159,7 +113,7 @@ interface FirebatIssue {
  * Regression guard combining changed file analysis with optional Firebat report.
  *
  * Accepts Firebat scan results as-is (unknown type, parsed internally).
- * Cross-references with card acceptance criteria to determine quality gate status.
+ * Cross-references with affected cards to determine quality gate status.
  */
 export function regressionGuard(
   ctx: EmberdeckContext,
@@ -187,15 +141,15 @@ export function regressionGuard(
     }
   }
 
-  // Find affected acceptance criteria
+  // Find affected cards
   const impact = preChangeCheck(ctx, changedFiles);
-  const affectedAcceptance = impact.atRiskAcceptance;
+  const affectedCardCount = impact.affectedCards.length;
 
   // Determine quality gate
   const hasCriticalIssues = newIssues.some(
     (i) => i.severity === 'critical' || i.severity === 'error',
   );
-  const hasWarnings = newIssues.length > 0 || affectedAcceptance.length > 0;
+  const hasWarnings = newIssues.length > 0 || affectedCardCount > 0;
 
   let qualityGate: 'pass' | 'warn' | 'fail';
   if (hasCriticalIssues) {
@@ -213,7 +167,7 @@ export function regressionGuard(
   } else if (qualityGate === 'warn') {
     const parts: string[] = [];
     if (newIssues.length > 0) parts.push(`${newIssues.length} quality issue(s)`);
-    if (affectedAcceptance.length > 0) parts.push(`${affectedAcceptance.length} at-risk acceptance criteria`);
+    if (affectedCardCount > 0) parts.push(`${affectedCardCount} affected card(s)`);
     recommendation = `Review needed: ${parts.join(', ')}.`;
   } else {
     recommendation = 'All checks passed. Safe to proceed.';
@@ -222,7 +176,7 @@ export function regressionGuard(
   return {
     qualityGate,
     newIssues,
-    affectedAcceptance,
+    affectedCardCount,
     recommendation,
   };
 }
