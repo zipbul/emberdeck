@@ -12,6 +12,8 @@ export interface BulkCreateResult {
   failed: number;
   /** Successfully created card keys. */
   keys: string[];
+  /** Cards created but whose relation update failed — exist in DB without intended relations. */
+  partialKeys: string[];
   /** Error details for each failed card. */
   errors: Array<{ key: string; message: string }>;
 }
@@ -100,6 +102,7 @@ export async function bulkCreateCards(
   }
 
   // Phase 2: Apply relations for successfully created cards.
+  const partialKeys: string[] = [];
   if (pendingRelations.length > 0) {
     const { updateCard } = await import('../ops/update');
     for (const { key, input } of pendingRelations) {
@@ -112,6 +115,7 @@ export async function bulkCreateCards(
         });
         const idx = keys.indexOf(key);
         if (idx !== -1) keys.splice(idx, 1);
+        partialKeys.push(key);
       }
     }
   }
@@ -120,6 +124,7 @@ export async function bulkCreateCards(
     created: keys.length,
     failed: errors.length,
     keys,
+    partialKeys,
     errors,
   };
 }

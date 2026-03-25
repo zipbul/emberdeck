@@ -15,6 +15,7 @@ import { deleteCard } from '../ops/delete';
 import { renameCard } from '../ops/rename';
 import {
   getCard,
+  getCards,
   listCards,
   searchCards,
   listCardRelations,
@@ -43,12 +44,13 @@ import {
 } from '../ops/impact';
 import {
   syncSpecAnnotations,
+  writeSpecAnnotations,
   syncSymbolChanges,
   getLinkCoverage,
   getUncoveredSymbols,
   suggestCardScope,
 } from '../ops/spec-sync';
-import { analyze } from '../ops/analyze';
+import { analyze, getOnboardingSummary } from '../ops/analyze';
 
 // ---- Helpers ----
 
@@ -94,8 +96,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Record a new intent or spec card before implementation. ' +
-        'Use this to capture design knowledge as a card. ' +
-        'Before calling: gather context by reading relevant code and asking the user about policies/constraints. ' +
+        'Use to capture design decisions, constraints, and contracts as a card. ' +
         'The body should contain design rationale, invariants, and scope boundaries — not file listings (use codeLinks for that).',
       inputSchema: z.object({
         key: z.string().describe('Card key used as filename (e.g. "auth-token")'),
@@ -137,7 +138,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Create multiple cards at once. Cards are topologically sorted by parent dependency. ' +
         'Relations are applied after all cards are created to handle intra-batch references. ' +
-        'Each card requires careful analysis of the relevant code before creation.',
+        'Use when onboarding a new area or splitting a large spec into multiple cards at once.',
       inputSchema: z.object({
         cards: z.array(z.object({
           key: z.string().describe('Card key (e.g. "auth-token")'),
@@ -201,13 +202,36 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   );
 
   server.registerTool(
+    'emberdeck_get_cards',
+    {
+      description:
+        'Read multiple cards in one call. Use after pre_change_check to load all affected cards ' +
+        'at once instead of calling get_card repeatedly.',
+      inputSchema: z.object({
+        keys: z.array(z.string()).describe('Array of card keys to read'),
+        includeHistory: z.boolean().optional().describe('Include changelog history for each card (default: false)'),
+      }).strict(),
+    },
+    async (args: { keys: string[]; includeHistory?: boolean }) => {
+      try {
+        const result = await getCards(ctx, args.keys, {
+          includeHistory: args.includeHistory,
+        });
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
     'emberdeck_update_card',
     {
       description:
         'Update card fields when the spec evolves or needs refinement. ' +
+        'Use when a feature extends an existing spec or contracts change after implementation. ' +
         'Only pass the fields you want to change; the rest are preserved. ' +
-        'Use bodyPatches for efficient partial body edits (search-and-replace, applied sequentially) instead of sending the full body. ' +
-        'body and bodyPatches are mutually exclusive.',
+        'bodyPatches allows efficient partial body edits (search-and-replace); mutually exclusive with body.',
       inputSchema: z.object({
         key: z.string().describe('Card key'),
         summary: z.string().optional().describe('New summary'),
@@ -253,8 +277,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Transition a card through its lifecycle (draft/active/drifted). ' +
-        'Activation guard is applied when transitioning to active. ' +
-        'Use reason to document why the status changed.',
+        'Use after implementation is verified to activate a draft, or to mark a card as drifted. ' +
+        'Activation guard is applied when transitioning to active.',
       inputSchema: z.object({
         key: z.string().describe('Card key'),
         status: statusEnum.describe('New status'),
@@ -522,8 +546,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Check consistency between card files and DB (read-only). ' +
+        'Use after bulk changes or when card integrity is uncertain. ' +
         'Detects stale DB rows, orphan files, key mismatches, broken parents, ' +
-        'type hierarchy violations, broken relations, boundary overlaps, and rework dependencies.',
+        'type hierarchy violations, broken relations, and boundary overlaps.',
       inputSchema: z.object({
         dirPath: z.string().optional().describe('Directory to validate (defaults to cardsDir)'),
       }).strict(),
@@ -585,8 +610,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Find cards that reference a given symbol name via codeLinks or boundary patterns. ' +
-        'Each result includes matchType ("codeLink" or "boundary") indicating how the card was matched. ' +
-        'Provide filePath to also match cards whose boundary globs cover that file.',
+        'Use before modifying code to check if the symbol has a governing spec. ' +
+        'Each result includes matchType ("codeLink" or "boundary") indicating how the card was matched.',
       inputSchema: z.object({
         symbolName: z.string().describe('Symbol name to search for'),
         filePath: z.string().optional().describe('File path — also matches boundary patterns when provided'),
@@ -623,14 +648,15 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         // Batch: validate all cards
         const allCards = ctx.cardRepo.list();
         const results: Record<string, Awaited<ReturnType<typeof validateCodeLinks>>> = {};
+        const skipped: Record<string, string> = {};
         for (const card of allCards) {
           try {
             results[card.key] = await validateCodeLinks(ctx, card.key);
-          } catch {
-            // Skip cards whose files are missing
+          } catch (e) {
+            skipped[card.key] = e instanceof Error ? e.message : String(e);
           }
         }
-        return ok(results);
+        return ok({ results, ...(Object.keys(skipped).length > 0 ? { skipped } : {}) });
       } catch (err) {
         return fail(err);
       }
@@ -756,6 +782,26 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
   );
 
   server.registerTool(
+    'emberdeck_write_spec_annotations',
+    {
+      description:
+        'Write @spec annotations into source files for code links that lack them. ' +
+        'Use after creating cards to make specs discoverable when reading code. Requires gildash.',
+      inputSchema: z.object({
+        key: z.string().optional().describe('Card key to limit annotation to a specific card (omit for all cards)'),
+      }).strict(),
+    },
+    async (args: { key?: string }) => {
+      try {
+        const result = await writeSpecAnnotations(ctx, args.key);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
     'emberdeck_sync_symbol_changes',
     {
       description:
@@ -857,14 +903,36 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Full project health report: card counts, drift detection, symbol coverage, and stale boundaries. ' +
         'Combines check_drift and coverage analysis into a single view. ' +
-        'Use at session start or after bulk changes to understand overall spec health.',
+        'Use at session start or after bulk changes to understand overall spec health. ' +
+        'The driftedCards array supports pagination via offset/limit; driftedCardsTotal always shows the full count.',
       inputSchema: z.object({
         includeBody: z.boolean().optional().describe('Include card body text in drifted card entries (default: false)'),
+        offset: z.number().optional().describe('Number of drifted cards to skip (default: 0)'),
+        limit: z.number().optional().describe('Maximum number of drifted cards to return (omit for all)'),
       }).strict(),
     },
-    async (args: { includeBody?: boolean }) => {
+    async (args: { includeBody?: boolean; offset?: number; limit?: number }) => {
       try {
         const result = await analyze(ctx, args);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_onboarding_summary',
+    {
+      description:
+        'Get a complete overview of the card structure for fresh context onboarding. ' +
+        'Shows card hierarchy, type/status distribution, coverage, and drifted cards. ' +
+        'Use at the start of a new conversation to understand the full design landscape.',
+      inputSchema: z.object({}).strict(),
+    },
+    async () => {
+      try {
+        const result = await getOnboardingSummary(ctx);
         return ok(result);
       } catch (err) {
         return fail(err);

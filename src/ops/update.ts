@@ -189,7 +189,13 @@ export async function updateCard(
       }
 
       // Activation guard when status=active
-      if (next.status === 'active' && (fields.status === 'active' || prev.status !== 'active')) {
+      // Re-run guard when: (a) becoming active, (b) explicitly set to active,
+      // or (c) already active and activation-critical fields changed.
+      const activationFieldsChanged =
+        prev.status === 'active' &&
+        fields.status === undefined &&
+        (fields.codeLinks !== undefined || fields.boundary !== undefined || fields.type !== undefined);
+      if (next.status === 'active' && (fields.status === 'active' || prev.status !== 'active' || activationFieldsChanged)) {
         await validateActivationGuard(ctx, {
           type: next.type,
           codeLinks: next.codeLinks,

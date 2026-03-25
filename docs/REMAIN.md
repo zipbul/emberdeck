@@ -1,77 +1,84 @@
-# Remaining Work
+# Remaining Work — Enterprise-Grade Readiness
 
-Phase 1-7 재설계 완료. 30개 MCP 도구 구현, 830 테스트 통과, 카드 7개 생성 (커버리지 100%).
-아래는 미구현 항목.
-
----
-
-## 1. codeLinks → 소스 코드 @spec 주석 자동 생성
-
-### 현상
-
-카드 생성 시 codeLinks로 코드 심볼을 참조하지만, 소스 코드에는 역방향 링크(@spec 주석)가 없다.
-에이전트가 코드를 읽을 때 해당 심볼이 어떤 카드에 연결되어 있는지 알 수 없고, `find_cards_by_symbol`을 별도 호출해야 한다.
-
-### 기대 효과
-
-```typescript
-/**
- * @spec ops-layer
- * @spec card-domain
- */
-export function createCard(ctx: EmberdeckContext, input: CreateCardInput) { ... }
-```
-
-- 에이전트가 코드를 읽는 단계에서 바로 관련 카드를 인지 — MCP 호출 감소
-- `find_cards_by_symbol` 호출을 잊거나 건너뛰어도 스펙 연결을 놓치지 않음
-- `syncSpecAnnotations`로 양방향 정합성 검증 가능 (markerMissing 감지)
-
-### 구현 방향
-
-하나의 심볼이 여러 카드에 참조될 수 있으므로 `@spec`은 복수 허용.
-
-**선택지 A: 새 MCP 도구** — `emberdeck_write_spec_annotations`
-- 모든 카드의 codeLinks를 순회, 각 심볼의 JSDoc에 `@spec card-key` 삽입
-- 이미 존재하는 @spec은 건너뜀
-- 카드가 삭제되면 해당 @spec 제거
-
-**선택지 B: SKILL.md 워크플로우에 에이전트 직접 수정 지시**
-- 카드 생성/삭제 시 에이전트가 codeLinks의 각 심볼에 @spec 주석을 직접 추가/제거
-- 도구 추가 없이 워크플로우만 변경
-
-**선택지 C: 하이브리드**
-- `write_spec_annotations` 도구로 일괄 생성 (온보딩)
-- 개별 카드 생성/삭제 시에는 에이전트가 직접 수정 (워크플로우)
-
-### 관련 기존 도구
-
-- `syncSpecAnnotations`: 코드의 @spec → codeLinks (코드→카드 방향, 이미 구현)
-- `validateCodeLinks`: codeLinks 유효성 검증 (이미 구현)
-- `markerMissing` 필드: codeLink는 있지만 @spec이 없는 경우 감지 (이미 구현)
+현재 상태: 33개 MCP 도구 구현, 894 테스트 통과, 커버리지 96%+.
 
 ---
 
-## 2. ignorePatterns에서 gildashIgnore 통합 여부
+## 보류 항목
 
-### 현상
+### P-1. regressionGuard N+1 checkDrift 호출 (조건부)
 
-현재 `ignorePatterns`와 `gildashIgnore` 두 개의 설정이 존재.
-`ignorePatterns`는 커버리지 + gildash 인덱싱 양쪽에 적용되고, `gildashIgnore`는 gildash 전용 추가 패턴.
+**위치**: `src/ops/impact.ts:292-293`
 
-### 판단 필요
+**현상**: `regressionGuard`가 영향받는 카드 각각에 대해 `checkDrift(ctx, key, { maxDepth: 0 })`를 개별 호출. N개 카드 → N번 `collectSymbolChanges` → 각각 내부에서 동일한 gildash.getSymbolChanges 쿼리 반복.
 
-`gildashIgnore`를 제거하고 `ignorePatterns`로 통합할지, 용도가 다른 경우를 위해 유지할지.
+**절약량**: gildash가 로컬 SQLite 쿼리이므로 N=10 기준 5-20ms 절약. 단, REMAIN.md 기존 제안(전체 카드 배치)은 boundary glob scan 추가로 오히려 느림.
+
+**올바른 해법**: `collectSymbolChanges`를 루프 밖으로 추출하여 결과를 공유. 인터페이스 리팩토링 필요.
+
+**판정**: 절약량 대비 리팩토링 비용이 높음. 프로파일링에서 실측 병목 확인 시 진행.
 
 ---
 
-## 3. delete_card — 파일 없을 때 DB 정리 실패
+## 완료 내역
 
-### 현상
+### 아키텍처
 
-카드 파일이 외부에서 삭제된 상태에서 `delete_card`를 호출하면 "Card not found" 에러.
-DB에 레코드가 남아있지만 파일이 없어서 삭제가 안 됨.
+| # | 항목 | 수정 내용 |
+|---|------|-----------|
+| 1 | DB-파일 원자성 | context.ts, link.ts autoTransition에 `safeWriteOperation` 적용. rename.ts `failedReferenceUpdates` 반환 |
+| 2 | gildash 장애 격리 | dead code `isErr` 제거, try/catch로 교체, `gildash-unavailable` reason 추가, transient 에러 시 auto-transition 방지 |
 
-### 수정 방향
+### 내구성
 
-`deleteCard`에서 파일 존재 여부와 무관하게 DB 레코드를 삭제할 수 있어야 함.
-`validateCards`의 staleDbRows 감지 후 정리하는 `purgeStaleRows` 도구 추가 검토.
+| # | 항목 | 수정 내용 |
+|---|------|-----------|
+| D-1 | writeCardFile 원자적 쓰기 | `Bun.write` → write-to-temp-then-rename 패턴. `rename(2)`은 같은 파일시스템 내에서 원자적이므로 부분 기록 불가 |
+| D-2 | validateCards content-mismatch | DB↔파일 `status`/`summary` 비교 추가. 불일치 시 `content-mismatch` 경고 반환 |
+| D-3 | auto-transition targeted UPDATE | `{ ...row, status: 'drifted' }` 전체 row 덮어쓰기 → `UPDATE SET status=?, updated_at=? WHERE key=? AND status=?` targeted UPDATE + optimistic lock. 동시 updateCard와 race 방지 |
+
+### 버그
+
+| # | 항목 | 수정 내용 |
+|---|------|-----------|
+| 3 | delete_card 파일 미존재 | DB 존재 기준으로 guard 변경, 파일 없어도 DB 정리 가능. `deleteCardFile`을 fileAction 선두로 이동하여 compensation 시 side-effect 파일 미수정 보장 |
+| 4 | boundary overlap 검증 | 샘플 경로 생성 기반 교집합 검사(`generateSamplePaths` + `globPatternsOverlap`)로 재구현 |
+| 5 | regressionGuard 드리프트 누락 | `info.driftType \|\| info.status === 'drifted'`로 체크 통일 |
+| B-1 | writeSpecAnnotations 동일 심볼 | 동일 line targets를 그룹화하여 한 번의 splice로 복수 `@spec` 태그 삽입. 안정 정렬(line desc, cardKey asc) 적용 |
+| B-2 | relation-repo FK silent drop | `replaceForCard`가 FK violation 시 실패한 target 배열 반환. `bulkCreateCards`에 `partialKeys` 필드 추가 |
+| B-3 | gildashIgnore 빈 배열 | `assertStringArray(obj, 'gildashIgnore', errors, true)` — `allowEmpty=true`로 변경. config-resolution 카드 계약도 업데이트 |
+| B-4 | FTS5 search 견고성 | catch 조건을 `fts5`, `unterminated`, `unknown special query`, `parse error` 4개 패턴으로 확장하여 모든 FTS5 구문 오류 포괄 처리 |
+
+### 성능
+
+| # | 항목 | 수정 내용 |
+|---|------|-----------|
+| P-2 | listCards/searchCards body 제외 | `CardSummaryRow = Omit<CardRow, 'body'>` 타입 도입. list/search 응답에서 body 필드 제거 (응답 크기 81% 감소) |
+| 12 | 대규모 벤치마크 | `bench/large-scale.bench.ts` — 1000 cards, 100K code links. 병목 없음 (analyze 114ms, checkDrift 127ms) |
+
+### 기능
+
+| # | 항목 | 구현 내용 |
+|---|------|-----------|
+| 6 | @spec 역방향 쓰기 | `writeSpecAnnotations` + `emberdeck_write_spec_annotations` MCP 도구 |
+| 7 | 배치 카드 읽기 | `getCards` + `emberdeck_get_cards` MCP 도구 |
+| 8 | 온보딩 요약 | `getOnboardingSummary` + `emberdeck_onboarding_summary` MCP 도구. `OnboardingDriftedCard.driftType` optional로 변경, 하드코딩 default 제거 |
+| 9 | 분석 페이지네이션 | `analyze`에 offset/limit 파라미터 + `driftedCardsTotal` 필드. `DriftedCardSummary.driftType` optional로 변경, DB-drifted 카드도 배열 포함하여 `health.drifted === driftedCardsTotal` 보장 |
+
+### 품질
+
+| # | 항목 | 구현 내용 |
+|---|------|-----------|
+| 10 | analyze.ts 단위 테스트 | `analyze.spec.ts` — analyze + getOnboardingSummary 엣지케이스 22건 (pagination, includeBody, staleBoundary, 일관성 검증 추가) |
+| 11 | 도구 description AX 통일 | 전체 33개 도구 "Use..." 패턴 통일 완료 |
+
+### 검토 후 삭제 (불필요 확인됨)
+
+| # | 항목 | 삭제 사유 |
+|---|------|-----------|
+| P-3 | checkInteractions O(n²) | MCP 핸들러만 호출, 사용자 입력 키만 받음 (일반 2-5개). 자동 대량 호출 경로 없음 |
+| P-4 | getOnboardingSummary N+1 | 인덱스 탄 SQLite 쿼리 0.033ms/건, onboarding 1회 경로. 1000카드=33ms |
+| O-1 | 구조적 로깅 | MCP 응답이 이미 구조화, 로그 소비자 없음. silent catch는 별도 버그로 분류 |
+| R-1 | symlink 무한 루프 | Bun.Glob.scanSync가 symlink 미추적 (실측 확인) |
+| R-2 | 동시성 스트레스 | B-2 FK fix와 동일 근본 원인. B-2 수정 완료로 주요 경로 해결 |
+| T-7 | migration 업그레이드 | 마이그레이션 1개뿐, 스키마 변경 계획 없음. 두 번째 마이그레이션 시점에 추가 |

@@ -111,7 +111,13 @@ export class DrizzleCardRepository implements CardRepository {
         .all(query) as CardRow[];
     } catch (e) {
       // FTS5 syntax errors (malformed queries) → return empty results
-      if (e instanceof Error && (e.message.includes('fts5:') || e.message.includes('unterminated'))) {
+      if (
+        e instanceof Error &&
+        (e.message.includes('fts5') ||
+          e.message.includes('unterminated') ||
+          e.message.includes('unknown special query') ||
+          e.message.includes('parse error'))
+      ) {
         return [];
       }
       throw e;

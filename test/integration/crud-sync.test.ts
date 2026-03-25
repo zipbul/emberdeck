@@ -33,6 +33,7 @@ import {
   exportCardToFile,
   syncCardFromFile,
   bulkSyncCards,
+  ActivationGuardError,
 } from '../../index';
 import { readCardFile } from '../../src/fs/reader';
 import { serializeCardMarkdown } from '../../src/card/markdown';
@@ -635,6 +636,27 @@ describe('validateCards full checks', () => {
     expect(overlap).toBeDefined();
   });
 
+  it('should detect boundary overlap between cross-cutting glob patterns (src/auth/** vs src/**/*.ts)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'auth-all', summary: 'Auth module', type: 'spec', boundary: ['src/auth/**'] });
+    await createCard(tc.ctx, { key: 'all-ts', summary: 'All TS files', type: 'spec', boundary: ['src/**/*.ts'] });
+
+    const result = await validateCards(tc.ctx);
+    const overlap = result.warnings.find((w) => w.type === 'boundary-overlap');
+    expect(overlap).toBeDefined();
+    expect(overlap!.message).toContain('all-ts');
+  });
+
+  it('should not detect boundary overlap for disjoint glob patterns (src/a/** vs src/b/**)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'mod-a', summary: 'Module A', type: 'spec', boundary: ['src/a/**'] });
+    await createCard(tc.ctx, { key: 'mod-b', summary: 'Module B', type: 'spec', boundary: ['src/b/**'] });
+
+    const result = await validateCards(tc.ctx);
+    const overlap = result.warnings.find((w) => w.type === 'boundary-overlap');
+    expect(overlap).toBeUndefined();
+  });
+
   it('should allow boundary overlap between parent and child', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'bnd-parent', summary: 'Parent', type: 'intent', boundary: ['src/**'] });
@@ -699,5 +721,56 @@ describe('delete cascade', () => {
     expect(tc.ctx.codeLinkRepo.findByCardKey('cas-card')).toHaveLength(0);
     expect(tc.ctx.classificationRepo.findTagsByCard('cas-card')).toHaveLength(0);
     expect(tc.ctx.changelogRepo.findByCardKey('cas-card')).toHaveLength(0);
+  });
+});
+
+// ── ACTIVATION GUARD ON FIELD CHANGES ──
+
+describe('activation guard on active card field changes', () => {
+  it('should reject removing codeLinks from an active spec card', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'guard-spec',
+      summary: 'Active spec',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+    });
+    await updateCardStatus(tc.ctx, 'guard-spec', 'active');
+
+    // Removing codeLinks should trigger activation guard
+    await expect(
+      updateCard(tc.ctx, 'guard-spec', { codeLinks: null }),
+    ).rejects.toThrow(ActivationGuardError);
+  });
+
+  it('should reject removing codeLinks via empty array from an active spec card', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'guard-spec2',
+      summary: 'Active spec 2',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fn2' }],
+    });
+    await updateCardStatus(tc.ctx, 'guard-spec2', 'active');
+
+    await expect(
+      updateCard(tc.ctx, 'guard-spec2', { codeLinks: [] }),
+    ).rejects.toThrow(ActivationGuardError);
+  });
+
+  it('should allow updating non-critical fields on active card without re-validation', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'guard-safe',
+      summary: 'Safe update',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'fn3' }],
+    });
+    await updateCardStatus(tc.ctx, 'guard-safe', 'active');
+
+    // Updating summary should not trigger activation guard
+    const result = await updateCard(tc.ctx, 'guard-safe', { summary: 'Updated summary' });
+    expect(result.card.frontmatter.summary).toBe('Updated summary');
+    expect(result.card.frontmatter.status).toBe('active');
   });
 });

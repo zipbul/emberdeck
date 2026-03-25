@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'bun:test';
+import { describe, it, expect, afterEach, mock } from 'bun:test';
 
 import {
   createCard,
@@ -63,7 +63,7 @@ describe('preChangeCheck', () => {
     });
 
     const result = preChangeCheck(tc.ctx, ['src/base.ts']);
-    expect(result.affectedCards.length).toBeGreaterThanOrEqual(2);
+    expect(result.affectedCards).toHaveLength(2);
     const transitive = result.affectedCards.find((c) => c.linkType === 'transitive');
     expect(transitive).toBeDefined();
     expect(transitive!.key).toBe('dependent');
@@ -174,7 +174,7 @@ describe('regressionGuard', () => {
 
     const result = await regressionGuard(tc.ctx, ['src/guarded.ts']);
     expect(result.passOrFail).toBe('pass');
-    expect(result.affectedCards.length).toBeGreaterThanOrEqual(1);
+    expect(result.affectedCards).toHaveLength(1);
   });
 
   it('should fail when affected cards are drifted and threshold is 0', async () => {
@@ -202,5 +202,78 @@ describe('regressionGuard', () => {
     tc = await createTestContext();
     const result = await regressionGuard(tc.ctx, []);
     expect(result.threshold).toBe(0);
+  });
+
+  it('should pass when driftedRatio equals threshold (> not >=)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'thresh-clean',
+      summary: 'Clean',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/t.ts', symbol: 'clean' }],
+    });
+    await createCard(tc.ctx, {
+      key: 'thresh-dirty',
+      summary: 'Dirty',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/t.ts', symbol: 'dirty' }],
+    });
+    await updateCardStatus(tc.ctx, 'thresh-dirty', 'drifted');
+
+    // 1 drifted out of 2 = ratio 0.5. Set threshold to 0.5 → pass (> not >=)
+    tc.ctx.regressionThreshold = 0.5;
+    const result = await regressionGuard(tc.ctx, ['src/t.ts']);
+    expect(result.passOrFail).toBe('pass');
+    expect(result.driftedRatio).toBe(0.5);
+    expect(result.threshold).toBe(0.5);
+  });
+
+  it('should fail when driftedRatio exceeds custom threshold', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'thresh2-dirty',
+      summary: 'Dirty',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/u.ts', symbol: 'dirty' }],
+    });
+    await updateCardStatus(tc.ctx, 'thresh2-dirty', 'drifted');
+
+    // 1 drifted out of 1 = ratio 1.0. Threshold 0.5 → fail
+    tc.ctx.regressionThreshold = 0.5;
+    const result = await regressionGuard(tc.ctx, ['src/u.ts']);
+    expect(result.passOrFail).toBe('fail');
+    expect(result.driftedRatio).toBe(1);
+  });
+
+  it('should detect drift via driftType even when autoTransition is false (status stays active)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'drift-detect',
+      summary: 'Drift via driftType',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    await updateCardStatus(tc.ctx, 'drift-detect', 'active');
+
+    // Mock gildash so broken_link drift is detected (symbol not found)
+    tc.ctx.gildash = {
+      searchAnnotations: mock(() => []),
+      searchSymbols: mock(() => []),
+      getSymbolChanges: mock(() => []),
+      getSymbolsByFile: mock(() => []),
+      getFileInfo: mock(() => null),
+      close: mock(() => Promise.resolve()),
+    } as any;
+
+    const result = await regressionGuard(tc.ctx, ['src/gone.ts']);
+    // The affected card should report driftType even though DB status is active
+    const card = result.affectedCards.find((c) => c.key === 'drift-detect');
+    expect(card).toBeDefined();
+    expect(card!.driftType).toBe('broken_link');
+    // DB status stays active (autoTransition=false inside regressionGuard)
+    expect(card!.status).toBe('active');
+    // But regressionGuard should count it as drifted and fail
+    expect(result.driftedRatio).toBeGreaterThan(0);
+    expect(result.passOrFail).toBe('fail');
   });
 });

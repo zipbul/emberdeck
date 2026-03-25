@@ -663,4 +663,121 @@ describe('analyze', () => {
     expect(card!.brokenLinks).toBe(2);
     expect(card!.totalLinks).toBe(2);
   });
+
+  // ── Pagination (offset/limit) ──
+
+  it('returns driftedCardsTotal equal to driftedCards length when no pagination', async () => {
+    tc = await createTestContext();
+    tc.ctx.gildash = createMockGildash({});
+    tc.ctx.projectRoot = '/project';
+
+    insertCard(tc, 'drift-a', { status: 'active' });
+    tc.ctx.codeLinkRepo.replaceForCard('drift-a', [
+      { kind: 'function', file: 'src/gone.ts', symbol: 'a' },
+    ]);
+    insertCard(tc, 'drift-b', { status: 'active' });
+    tc.ctx.codeLinkRepo.replaceForCard('drift-b', [
+      { kind: 'function', file: 'src/gone.ts', symbol: 'b' },
+    ]);
+
+    const result = await analyze(tc.ctx);
+    expect(result.driftedCards).toHaveLength(2);
+    expect(result.driftedCardsTotal).toBe(2);
+  });
+
+  it('applies limit to driftedCards while preserving driftedCardsTotal', async () => {
+    tc = await createTestContext();
+    tc.ctx.gildash = createMockGildash({});
+    tc.ctx.projectRoot = '/project';
+
+    for (let i = 0; i < 5; i++) {
+      insertCard(tc, `drift-${i}`, { status: 'active' });
+      tc.ctx.codeLinkRepo.replaceForCard(`drift-${i}`, [
+        { kind: 'function', file: 'src/gone.ts', symbol: `fn${i}` },
+      ]);
+    }
+
+    const result = await analyze(tc.ctx, { limit: 2 });
+    expect(result.driftedCards).toHaveLength(2);
+    expect(result.driftedCardsTotal).toBe(5);
+  });
+
+  it('applies offset to driftedCards', async () => {
+    tc = await createTestContext();
+    tc.ctx.gildash = createMockGildash({});
+    tc.ctx.projectRoot = '/project';
+
+    for (let i = 0; i < 5; i++) {
+      insertCard(tc, `drift-${i}`, { status: 'active' });
+      tc.ctx.codeLinkRepo.replaceForCard(`drift-${i}`, [
+        { kind: 'function', file: 'src/gone.ts', symbol: `fn${i}` },
+      ]);
+    }
+
+    const resultAll = await analyze(tc.ctx);
+    const resultOffset = await analyze(tc.ctx, { offset: 2 });
+
+    expect(resultOffset.driftedCardsTotal).toBe(5);
+    expect(resultOffset.driftedCards).toHaveLength(3);
+    // The offset slice should match the tail of the full list
+    expect(resultOffset.driftedCards.map((c) => c.key)).toEqual(
+      resultAll.driftedCards.slice(2).map((c) => c.key),
+    );
+  });
+
+  it('applies offset and limit together', async () => {
+    tc = await createTestContext();
+    tc.ctx.gildash = createMockGildash({});
+    tc.ctx.projectRoot = '/project';
+
+    for (let i = 0; i < 5; i++) {
+      insertCard(tc, `drift-${i}`, { status: 'active' });
+      tc.ctx.codeLinkRepo.replaceForCard(`drift-${i}`, [
+        { kind: 'function', file: 'src/gone.ts', symbol: `fn${i}` },
+      ]);
+    }
+
+    const resultAll = await analyze(tc.ctx);
+    const resultPage = await analyze(tc.ctx, { offset: 1, limit: 2 });
+
+    expect(resultPage.driftedCardsTotal).toBe(5);
+    expect(resultPage.driftedCards).toHaveLength(2);
+    expect(resultPage.driftedCards.map((c) => c.key)).toEqual(
+      resultAll.driftedCards.slice(1, 3).map((c) => c.key),
+    );
+  });
+
+  it('returns empty driftedCards when offset exceeds total', async () => {
+    tc = await createTestContext();
+    tc.ctx.gildash = createMockGildash({});
+    tc.ctx.projectRoot = '/project';
+
+    insertCard(tc, 'drift-only', { status: 'active' });
+    tc.ctx.codeLinkRepo.replaceForCard('drift-only', [
+      { kind: 'function', file: 'src/gone.ts', symbol: 'a' },
+    ]);
+
+    const result = await analyze(tc.ctx, { offset: 100 });
+    expect(result.driftedCards).toHaveLength(0);
+    expect(result.driftedCardsTotal).toBe(1);
+  });
+
+  it('health.drifted count is unaffected by pagination', async () => {
+    tc = await createTestContext();
+    tc.ctx.gildash = createMockGildash({});
+    tc.ctx.projectRoot = '/project';
+
+    for (let i = 0; i < 3; i++) {
+      insertCard(tc, `drift-${i}`, { status: 'active' });
+      tc.ctx.codeLinkRepo.replaceForCard(`drift-${i}`, [
+        { kind: 'function', file: 'src/gone.ts', symbol: `fn${i}` },
+      ]);
+    }
+
+    const result = await analyze(tc.ctx, { offset: 0, limit: 1 });
+    // health.drifted reflects all drifted cards, not just the page
+    expect(result.health.drifted).toBe(3);
+    expect(result.driftedCards).toHaveLength(1);
+    expect(result.driftedCardsTotal).toBe(3);
+  });
 });

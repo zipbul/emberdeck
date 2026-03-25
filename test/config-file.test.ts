@@ -47,6 +47,30 @@ describe('validateRawConfig', () => {
     expect(config.dbPath).toBe(resolve(tmpDir, DEFAULT_DB_PATH));
   });
 
+  // B-3: gildashIgnore empty array should pass validation
+  it('gildashIgnore empty array -> no validation error', () => {
+    const raw = { gildashIgnore: [] };
+    const filePath = join(tmpDir, '.emberdeck.jsonc');
+    const result = validateRawConfig(raw, filePath);
+    expect(isErr(result)).toBe(false);
+  });
+
+  it('gildashIgnore empty array -> preserved as empty array in config', () => {
+    const raw = { gildashIgnore: [] };
+    const filePath = join(tmpDir, '.emberdeck.jsonc');
+    const result = validateRawConfig(raw, filePath);
+    expect(isErr(result)).toBe(false);
+    const config = result as EmberdeckFileConfig;
+    expect(config.gildashIgnore).toEqual([]);
+  });
+
+  it('ignorePatterns empty array -> no validation error (both allow empty)', () => {
+    const raw = { ignorePatterns: [], gildashIgnore: [] };
+    const filePath = join(tmpDir, '.emberdeck.jsonc');
+    const result = validateRawConfig(raw, filePath);
+    expect(isErr(result)).toBe(false);
+  });
+
   it('all fields specified', () => {
     const raw = {
       cardsDir: './my-cards',

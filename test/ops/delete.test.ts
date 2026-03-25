@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 import { existsSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
 
 import { createCard, deleteCard, updateCard } from '../../index';
 import { CardNotFoundError } from '../../index';
@@ -93,6 +94,24 @@ describe('deleteCard', () => {
     await createCard(tc.ctx, { key: 'exists-del', summary: 'Exists del', type: 'spec' });
     await deleteCard(tc.ctx, 'exists-del');
     expect(tc.ctx.cardRepo.existsByKey('exists-del')).toBe(false);
+  });
+
+  it('should clean up DB records when card file was externally deleted', async () => {
+    tc = await createTestContext();
+    const { filePath } = await createCard(tc.ctx, {
+      key: 'ext-del',
+      summary: 'Externally deleted',
+      type: 'spec',
+    });
+    // Simulate external deletion of the card file
+    await unlink(filePath);
+    expect(existsSync(filePath)).toBe(false);
+
+    // deleteCard should still succeed and clean up the DB
+    const result = await deleteCard(tc.ctx, 'ext-del');
+    expect(result.filePath).toBe(filePath);
+    expect(tc.ctx.cardRepo.findByKey('ext-del')).toBeNull();
+    expect(tc.ctx.cardRepo.existsByKey('ext-del')).toBe(false);
   });
 
   it('should have zero relation rows after deleting card with relations', async () => {

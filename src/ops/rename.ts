@@ -23,6 +23,8 @@ export interface RenameCardResult {
   card: CardFile;
   /** Card keys that contain the old key in their body text. */
   bodyReferencesFound?: string[];
+  /** Card keys whose file update failed (DB has new key but file retains old key). */
+  failedReferenceUpdates?: string[];
 }
 
 /**
@@ -112,24 +114,26 @@ export async function renameCard(
         await writeCardFile(newFilePath, card);
 
         const now = new Date().toISOString();
+        const failedReferenceUpdates: string[] = [];
         try {
-          // UPDATE the key in-place. FK ON UPDATE CASCADE propagates to all
-          // referencing tables (relations, tags, codeLinks, changelog),
-          // preserving incoming relations from other cards.
-          ctx.db.$client.run(
-            `UPDATE card SET key = ?, file_path = ?, updated_at = ? WHERE key = ?`,
-            [newFullKey, newFilePath, now, oldKey],
-          );
+          // UPDATE the key in-place + changelog inside a single transaction.
+          // FK ON UPDATE CASCADE propagates to all referencing tables
+          // (relations, tags, codeLinks, changelog), preserving incoming relations.
+          ctx.db.$client.transaction(() => {
+            ctx.db.$client.run(
+              `UPDATE card SET key = ?, file_path = ?, updated_at = ? WHERE key = ?`,
+              [newFullKey, newFilePath, now, oldKey],
+            );
 
-          // Record key change in changelog
-          ctx.changelogRepo.insert({
-            cardKey: newFullKey,
-            field: 'key',
-            oldValue: oldKey,
-            newValue: newFullKey,
-            changedAt: now,
-            changedBy: 'agent',
-          });
+            ctx.changelogRepo.insert({
+              cardKey: newFullKey,
+              field: 'key',
+              oldValue: oldKey,
+              newValue: newFullKey,
+              changedAt: now,
+              changedBy: 'agent',
+            });
+          })();
 
           // Update referencing cards' files (relations, parent)
           for (const ref of referencingCards) {
@@ -157,7 +161,7 @@ export async function renameCard(
                 await writeCardFile(ref.filePath, { ...refFile, frontmatter: updatedFm });
               }
             } catch {
-              // Best effort — file may not exist
+              failedReferenceUpdates.push(ref.key);
             }
           }
         } catch (dbErr) {
@@ -176,6 +180,9 @@ export async function renameCard(
         const result: RenameCardResult = { oldFilePath, newFilePath, newFullKey, card };
         if (bodyReferencesFound.length > 0) {
           result.bodyReferencesFound = bodyReferencesFound;
+        }
+        if (failedReferenceUpdates.length > 0) {
+          result.failedReferenceUpdates = failedReferenceUpdates;
         }
         return result;
       }),

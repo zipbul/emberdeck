@@ -1,4 +1,3 @@
-import { isErr } from '@zipbul/result';
 import type { SymbolSearchResult } from '@zipbul/gildash';
 
 import type { EmberdeckContext } from '../config';
@@ -8,6 +7,7 @@ import { parseFullKey, buildCardPath } from '../card/card-key';
 import { GildashNotConfiguredError, CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
+
 
 // ---- Public Types ----
 
@@ -19,7 +19,7 @@ export interface ResolvedCodeLink {
 
 export interface BrokenLink {
   link: CodeLink;
-  reason: 'symbol-not-found' | 'file-not-indexed';
+  reason: 'symbol-not-found' | 'file-not-indexed' | 'gildash-unavailable';
 }
 
 export interface ValidateCodeLinksResult {
@@ -74,19 +74,19 @@ export async function resolveCardCodeLinks(
 
   const result: ResolvedCodeLink[] = [];
   for (const link of codeLinks) {
-    const search = ctx.gildash.searchSymbols({
-      text: link.symbol,
-      exact: true,
-      filePath: link.file,
-    });
+    try {
+      const search = ctx.gildash.searchSymbols({
+        text: link.symbol,
+        exact: true,
+        filePath: link.file,
+      });
 
-    if (isErr(search)) {
+      const found = search.find((s) => s.name === link.symbol && s.filePath === link.file) ?? null;
+      result.push({ link, symbol: found });
+    } catch {
+      // Gildash unavailable — symbol resolution not possible
       result.push({ link, symbol: null });
-      continue;
     }
-
-    const found = search.find((s) => s.name === link.symbol && s.filePath === link.file) ?? null;
-    result.push({ link, symbol: found });
   }
   return result;
 }
@@ -125,7 +125,14 @@ export async function findCardsBySymbol(
     for (const card of allCards) {
       if (seen.has(card.key)) continue;
       if (!card.boundaryJson) continue;
-      const boundaries: string[] = JSON.parse(card.boundaryJson);
+      let boundaries: string[];
+      try {
+        const parsed = JSON.parse(card.boundaryJson);
+        if (!Array.isArray(parsed)) continue;
+        boundaries = parsed;
+      } catch {
+        continue;
+      }
       for (const pattern of boundaries) {
         const glob = new Bun.Glob(pattern);
         if (glob.match(filePath)) {
@@ -193,15 +200,19 @@ export async function validateCodeLinks(
   const broken: BrokenLink[] = [];
   const planned: BrokenLink[] = [];
   let valid = 0;
+  let gildashUnavailable = false;
   for (const link of codeLinks) {
-    const search = ctx.gildash.searchSymbols({
-      text: link.symbol,
-      exact: true,
-      filePath: link.file,
-    });
-
-    if (isErr(search)) {
-      const entry: BrokenLink = { link, reason: 'file-not-indexed' };
+    let search: SymbolSearchResult[];
+    try {
+      search = ctx.gildash.searchSymbols({
+        text: link.symbol,
+        exact: true,
+        filePath: link.file,
+      });
+    } catch {
+      // Gildash transient failure — do not count as broken link
+      gildashUnavailable = true;
+      const entry: BrokenLink = { link, reason: 'gildash-unavailable' };
       if (isPlanning) planned.push(entry);
       else broken.push(entry);
       continue;
@@ -217,18 +228,31 @@ export async function validateCodeLinks(
     }
   }
 
-  // Auto-transition: active card with broken links → drifted
-  if (broken.length > 0 && status === 'active') {
+  // Auto-transition: active card with broken links → drifted (targeted UPDATE)
+  // Skip transition if gildash was unavailable — broken links may be false positives
+  if (broken.length > 0 && status === 'active' && !gildashUnavailable) {
     const key = parseFullKey(fullKey);
     const row = ctx.cardRepo.findByKey(key);
     if (row) {
-      ctx.cardRepo.upsert({ ...row, status: 'drifted', updatedAt: new Date().toISOString() });
+      const now = new Date().toISOString();
       try {
-        cardFile.frontmatter.status = 'drifted';
-        const filePath = buildCardPath(ctx.cardsDir, key);
-        await writeCardFile(filePath, cardFile);
+        const changed = ctx.db.$client
+          .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ? AND status = ?')
+          .run('drifted', now, key, 'active');
+        if (changed.changes > 0) {
+          try {
+            cardFile.frontmatter.status = 'drifted';
+            const filePath = buildCardPath(ctx.cardsDir, key);
+            await writeCardFile(filePath, cardFile);
+          } catch {
+            // File write failed — revert DB
+            ctx.db.$client
+              .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ?')
+              .run(row.status, row.updatedAt, key);
+          }
+        }
       } catch {
-        // File update failed, DB already updated
+        // Transition failed — DB reverted to previous state
       }
     }
   }

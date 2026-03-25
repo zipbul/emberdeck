@@ -201,6 +201,56 @@ describe('checkDrift with gildash — broken link detection', () => {
     // Status NOT transitioned because autoTransition=false
     expect(card!.status).toBe('active');
   });
+
+  // D-3: targeted UPDATE preserves concurrent changes
+  it('should only update status field when auto-transitioning — not overwrite summary', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'tgt-upd',
+      summary: 'Original summary',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    await updateCardStatus(tc.ctx, 'tgt-upd', 'active');
+    // Simulate concurrent summary update directly in DB
+    tc.ctx.db.$client.prepare('UPDATE card SET summary = ? WHERE key = ?').run('Concurrent update', 'tgt-upd');
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    await checkDrift(tc.ctx, 'tgt-upd');
+    const row = tc.ctx.cardRepo.findByKey('tgt-upd');
+    expect(row!.status).toBe('drifted');
+    // Summary should NOT be overwritten by old snapshot
+    expect(row!.summary).toBe('Concurrent update');
+  });
+
+  it('should skip file write when DB status was already changed by concurrent op', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'skip-file',
+      summary: 'S',
+      type: 'spec',
+      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+    });
+    await updateCardStatus(tc.ctx, 'skip-file', 'active');
+    // Simulate: status already changed to drifted by another op
+    tc.ctx.db.$client.prepare('UPDATE card SET status = ? WHERE key = ?').run('drifted', 'skip-file');
+    tc.ctx.gildash = createMockGildash({
+      searchSymbols: () => [],
+      getFileInfo: () => null,
+    });
+
+    const result = await checkDrift(tc.ctx, 'skip-file');
+    const card = result.cards.find((c) => c.key === 'skip-file');
+    // Drift is still detected and reported
+    expect(card!.driftType).toBe('broken_link');
+    // File should still have original status (not modified by skipped transition)
+    const { readCardFile } = await import('../../src/fs/reader');
+    const cardFile = await readCardFile(tc.ctx.cardRepo.findByKey('skip-file')!.filePath);
+    expect(cardFile.frontmatter.status).toBe('active');
+  });
 });
 
 describe('checkInteractions', () => {
@@ -265,9 +315,8 @@ describe('checkInteractions', () => {
     const interaction = result.interactions.find(
       (i) => i.pair.includes('ra') && i.pair.includes('rb'),
     );
-    if (interaction) {
-      expect(interaction.hasRelation).toBe(true);
-    }
+    expect(interaction).toBeDefined();
+    expect(interaction!.hasRelation).toBe(true);
     expect(result.undefinedRelations).toHaveLength(0);
   });
 

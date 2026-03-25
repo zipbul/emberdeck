@@ -77,7 +77,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should return 19 tools via listTools', async () => {
       s = await setupMcp();
       const { tools } = await s.client.listTools();
-      expect(tools).toHaveLength(30);
+      expect(tools).toHaveLength(33);
     });
 
     // #2
@@ -253,6 +253,96 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       expect(result.isError).toBe(true);
       expect(textOf(result)).toContain('nonexistent');
+    });
+  });
+
+  // ════════════════════════════════════════
+  // CRUD — get_cards (batch)
+  // ════════════════════════════════════════
+
+  describe('emberdeck_get_cards', () => {
+    it('should return all cards when all keys exist', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { key: 'batch-a', summary: 'A', type: 'spec', body: 'Body A' },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { key: 'batch-b', summary: 'B', type: 'intent', body: 'Body B' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_get_cards',
+        arguments: { keys: ['batch-a', 'batch-b'] },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { cards: Array<{ card: { frontmatter: { key: string } } }>; notFound: string[] };
+      expect(data.cards).toHaveLength(2);
+      expect(data.notFound).toHaveLength(0);
+      const keys = data.cards.map((c) => c.card.frontmatter.key);
+      expect(keys).toContain('batch-a');
+      expect(keys).toContain('batch-b');
+    });
+
+    it('should return notFound for missing keys and cards for existing ones', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { key: 'batch-exists', summary: 'Exists', type: 'spec' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_get_cards',
+        arguments: { keys: ['batch-exists', 'batch-ghost'] },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { cards: Array<{ card: { frontmatter: { key: string } } }>; notFound: string[] };
+      expect(data.cards).toHaveLength(1);
+      expect(data.cards[0]!.card.frontmatter.key).toBe('batch-exists');
+      expect(data.notFound).toEqual(['batch-ghost']);
+    });
+
+    it('should return empty cards and all keys in notFound when none exist', async () => {
+      s = await setupMcp();
+      const result = await s.client.callTool({
+        name: 'emberdeck_get_cards',
+        arguments: { keys: ['ghost-1', 'ghost-2'] },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { cards: unknown[]; notFound: string[] };
+      expect(data.cards).toHaveLength(0);
+      expect(data.notFound).toEqual(['ghost-1', 'ghost-2']);
+    });
+
+    it('should include history when includeHistory is true', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { key: 'batch-hist', summary: 'Hist', type: 'intent' },
+      });
+      await s.client.callTool({
+        name: 'emberdeck_update_card_status',
+        arguments: { key: 'batch-hist', status: 'active' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_get_cards',
+        arguments: { keys: ['batch-hist'], includeHistory: true },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { cards: Array<{ history?: unknown[] }> };
+      expect(data.cards[0]!.history).toBeDefined();
+      expect(data.cards[0]!.history!.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should return empty result for empty keys array', async () => {
+      s = await setupMcp();
+      const result = await s.client.callTool({
+        name: 'emberdeck_get_cards',
+        arguments: { keys: [] },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { cards: unknown[]; notFound: string[] };
+      expect(data.cards).toHaveLength(0);
+      expect(data.notFound).toHaveLength(0);
     });
   });
 
@@ -647,6 +737,11 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: { key: 'dep-c', maxDepth: 1 },
       });
       expect(result.isError).toBeFalsy();
+      const data = parseText(result) as Array<{ key: string; depth: number }>;
+      // maxDepth=1: dep-c -> dep-b (depth 1). dep-a (depth 2) should NOT appear.
+      expect(data.every((n) => n.depth <= 1)).toBe(true);
+      expect(data.some((n) => n.key === 'dep-b')).toBe(true);
+      expect(data.some((n) => n.key === 'dep-a')).toBe(false);
     });
 
     // #33
@@ -657,11 +752,26 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         name: 'emberdeck_create_card',
         arguments: { key: 'dir-b', summary: 'B', relations: ['dir-a'], type: 'spec' },
       });
-      const result = await s.client.callTool({
+      // direction=forward from dir-b: dir-b has a forward relation to dir-a, so dir-a should appear
+      const fwdResult = await s.client.callTool({
         name: 'emberdeck_get_relation_graph',
         arguments: { key: 'dir-b', direction: 'forward' },
       });
-      expect(result.isError).toBeFalsy();
+      expect(fwdResult.isError).toBeFalsy();
+      const fwdData = parseText(fwdResult) as Array<{ key: string; direction: string }>;
+      // All nodes should be forward direction
+      for (const node of fwdData) {
+        expect(node.direction).toBe('forward');
+      }
+      // direction=backward from dir-b: dir-b has no backward (incoming) relations
+      const bwdResult = await s.client.callTool({
+        name: 'emberdeck_get_relation_graph',
+        arguments: { key: 'dir-b', direction: 'backward' },
+      });
+      expect(bwdResult.isError).toBeFalsy();
+      const bwdData = parseText(bwdResult) as Array<{ key: string }>;
+      // dir-a should NOT appear in backward-only traversal from dir-b
+      expect(bwdData.some((n) => n.key === 'dir-a')).toBe(false);
     });
 
     // #34
@@ -928,9 +1038,17 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {},
       });
       expect(result.isError).toBeFalsy();
-      const data = parseText(result) as Record<string, unknown>;
-      // Cards were skipped due to missing gildash, so empty result
-      expect(typeof data).toBe('object');
+      const data = parseText(result) as { results: Record<string, unknown>; skipped?: Record<string, string> };
+      // Batch response uses { results, skipped? } format
+      expect(data.results).toBeDefined();
+      expect(typeof data.results).toBe('object');
+      // Cards were skipped due to missing gildash
+      if (data.skipped) {
+        expect(typeof data.skipped).toBe('object');
+        for (const msg of Object.values(data.skipped)) {
+          expect(typeof msg).toBe('string');
+        }
+      }
     });
   });
 

@@ -5,6 +5,7 @@ import {
   updateCard,
   updateCardStatus,
   getCard,
+  getCards,
   listCards,
   searchCards,
   listCardRelations,
@@ -55,6 +56,72 @@ describe('getCard', () => {
     const result = await getCard(tc.ctx, 'q-hist', { includeHistory: true });
     expect(result.history).toBeDefined();
     expect(result.history!.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('getCards', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should return all cards when all keys exist', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'gc-a', summary: 'A', type: 'spec', body: 'Body A' });
+    await createCard(tc.ctx, { key: 'gc-b', summary: 'B', type: 'intent', body: 'Body B' });
+    const result = await getCards(tc.ctx, ['gc-a', 'gc-b']);
+    expect(result.cards).toHaveLength(2);
+    expect(result.notFound).toHaveLength(0);
+    expect(result.cards[0]!.card.frontmatter.key).toBe('gc-a');
+    expect(result.cards[1]!.card.frontmatter.key).toBe('gc-b');
+  });
+
+  it('should put missing keys in notFound', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'gc-exists', summary: 'Exists', type: 'spec' });
+    const result = await getCards(tc.ctx, ['gc-exists', 'gc-ghost']);
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0]!.card.frontmatter.key).toBe('gc-exists');
+    expect(result.notFound).toEqual(['gc-ghost']);
+  });
+
+  it('should return empty cards and all keys in notFound when none exist', async () => {
+    tc = await createTestContext();
+    const result = await getCards(tc.ctx, ['ghost-x', 'ghost-y']);
+    expect(result.cards).toHaveLength(0);
+    expect(result.notFound).toEqual(['ghost-x', 'ghost-y']);
+  });
+
+  it('should return empty result for empty keys array', async () => {
+    tc = await createTestContext();
+    const result = await getCards(tc.ctx, []);
+    expect(result.cards).toHaveLength(0);
+    expect(result.notFound).toHaveLength(0);
+  });
+
+  it('should include history when includeHistory is true', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'intent' });
+    await updateCardStatus(tc.ctx, 'gc-hist', 'active');
+    const result = await getCards(tc.ctx, ['gc-hist'], { includeHistory: true });
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0]!.history).toBeDefined();
+    expect(result.cards[0]!.history!.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should preserve card order matching input key order', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'gc-z', summary: 'Z', type: 'spec' });
+    await createCard(tc.ctx, { key: 'gc-a', summary: 'A', type: 'spec' });
+    const result = await getCards(tc.ctx, ['gc-z', 'gc-a']);
+    expect(result.cards[0]!.card.frontmatter.key).toBe('gc-z');
+    expect(result.cards[1]!.card.frontmatter.key).toBe('gc-a');
+  });
+
+  it('should throw on invalid key format (not CardNotFoundError)', async () => {
+    tc = await createTestContext();
+    expect(getCards(tc.ctx, [''])).rejects.toThrow(CardKeyError);
   });
 });
 
@@ -121,6 +188,29 @@ describe('listCards', () => {
     expect(rows).toHaveLength(3);
   });
 
+  // P-2: body field stripped from listCards results
+  it('should not include body field in listCards results', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'nobody', summary: 'NB', type: 'spec', body: 'This body should not appear' });
+    const rows = listCards(tc.ctx);
+    const row = rows.find((r) => r.key === 'nobody');
+    expect(row).toBeDefined();
+    expect('body' in row!).toBe(false);
+  });
+
+  it('should include all non-body fields in listCards results', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'fields-check', summary: 'FC', type: 'spec' });
+    const rows = listCards(tc.ctx);
+    const row = rows.find((r) => r.key === 'fields-check')!;
+    expect(row.key).toBe('fields-check');
+    expect(row.summary).toBe('FC');
+    expect(row.status).toBe('draft');
+    expect(row.type).toBe('spec');
+    expect(typeof row.filePath).toBe('string');
+    expect(typeof row.updatedAt).toBe('string');
+  });
+
   it('should return identical results on repeated calls to listCards', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'idp-lst', summary: 'Idp', type: 'spec' });
@@ -144,6 +234,25 @@ describe('searchCards', () => {
     const rows = searchCards(tc.ctx, 'Search');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.key).toBe('srch-card');
+  });
+
+  // P-2: body field stripped from searchCards results
+  it('should not include body field in searchCards results', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'srch-nobody', summary: 'Searchable', type: 'spec', body: 'Hidden body' });
+    const rows = searchCards(tc.ctx, 'Searchable');
+    expect(rows).toHaveLength(1);
+    expect('body' in rows[0]!).toBe(false);
+  });
+
+  it('should return all non-body fields in searchCards results', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'srch-fields', summary: 'FieldCheck', type: 'intent' });
+    const rows = searchCards(tc.ctx, 'FieldCheck');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.key).toBe('srch-fields');
+    expect(rows[0]!.summary).toBe('FieldCheck');
+    expect(typeof rows[0]!.filePath).toBe('string');
   });
 });
 
@@ -361,5 +470,19 @@ describe('getRelationGraph', () => {
     const r1 = getRelationGraph(tc.ctx, 'grg-a').map((n) => n.key).sort();
     const r2 = getRelationGraph(tc.ctx, 'grg-a').map((n) => n.key).sort();
     expect(r1).toEqual(r2);
+  });
+
+  // [T2] Cyclic relations: A->B->A should not cause infinite loop
+  it('should handle cyclic relations without infinite loop', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'cyc-a', summary: 'Cycle A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'cyc-b', summary: 'Cycle B', type: 'spec', relations: ['cyc-a'] });
+    // Add reverse relation to create cycle: A->B->A
+    await updateCard(tc.ctx, 'cyc-a', { relations: ['cyc-b'] });
+
+    const nodes = getRelationGraph(tc.ctx, 'cyc-a');
+    // Should find cyc-b but not revisit cyc-a (visited set prevents cycle)
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]!.key).toBe('cyc-b');
   });
 });

@@ -307,7 +307,7 @@ export async function regressionGuard(
   for (const card of affected) {
     const info = driftMap.get(card.key) ?? { status: 'draft' };
     affectedResult.push({ key: card.key, status: info.status, ...(info.driftType ? { driftType: info.driftType } : {}) });
-    if (info.status === 'drifted') driftedCount++;
+    if (info.driftType || info.status === 'drifted') driftedCount++;
   }
 
   const driftedRatio = affectedResult.length > 0

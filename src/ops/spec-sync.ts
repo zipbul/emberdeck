@@ -117,6 +117,274 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
   return { created, alreadyLinked, unmatched, markerMissing, linkMissing };
 }
 
+// ── Write @spec annotations into source files ──
+
+export interface WriteSpecResult {
+  /** Number of annotations inserted into source files. */
+  annotated: number;
+  /** Number of symbols that already had the @spec annotation. */
+  alreadyPresent: number;
+  /** Number of code links whose symbol could not be found in gildash. */
+  symbolNotFound: number;
+}
+
+/**
+ * Write `@spec card-key` annotations into source files for code links that lack them.
+ *
+ * For each code link, looks up the symbol position via gildash, reads the source file,
+ * and inserts a `/** @spec card-key *​/` comment above the symbol declaration — or adds
+ * an `@spec card-key` tag inside an existing JSDoc block.
+ */
+export async function writeSpecAnnotations(
+  ctx: EmberdeckContext,
+  cardKey?: string,
+): Promise<WriteSpecResult> {
+  if (!ctx.gildash) throw new GildashNotConfiguredError();
+  if (!ctx.projectRoot) throw new GildashNotConfiguredError();
+
+  await ensureReindexed(ctx);
+
+  let annotated = 0;
+  let alreadyPresent = 0;
+  let symbolNotFound = 0;
+
+  // Collect code links to process
+  interface LinkEntry { cardKey: string; file: string; symbol: string }
+  const entries: LinkEntry[] = [];
+
+  if (cardKey) {
+    const links = ctx.codeLinkRepo.findByCardKey(cardKey);
+    for (const link of links) {
+      entries.push({ cardKey, file: link.file, symbol: link.symbol });
+    }
+  } else {
+    const allCards = ctx.cardRepo.list();
+    for (const card of allCards) {
+      const links = ctx.codeLinkRepo.findByCardKey(card.key);
+      for (const link of links) {
+        entries.push({ cardKey: card.key, file: link.file, symbol: link.symbol });
+      }
+    }
+  }
+
+  // Group entries by file to batch reads/writes
+  const byFile = new Map<string, LinkEntry[]>();
+  for (const entry of entries) {
+    const list = byFile.get(entry.file) ?? [];
+    list.push(entry);
+    byFile.set(entry.file, list);
+  }
+
+  for (const [filePath, fileEntries] of byFile) {
+    // Resolve symbol positions and collect insert targets
+    interface InsertTarget {
+      cardKey: string;
+      line: number; // 1-based line of the symbol declaration
+    }
+    const targets: InsertTarget[] = [];
+
+    for (const entry of fileEntries) {
+      const results = ctx.gildash!.searchSymbols({
+        text: entry.symbol,
+        exact: true,
+        filePath: entry.file,
+      });
+
+      if (!Array.isArray(results)) {
+        symbolNotFound++;
+        continue;
+      }
+
+      const match = results.find(
+        (s) => s.name === entry.symbol && s.filePath === entry.file,
+      );
+      if (!match) {
+        symbolNotFound++;
+        continue;
+      }
+
+      targets.push({ cardKey: entry.cardKey, line: match.span.start.line });
+    }
+
+    if (targets.length === 0) continue;
+
+    // Read the source file
+    const absPath = join(ctx.projectRoot!, filePath);
+    let content: string;
+    try {
+      content = await Bun.file(absPath).text();
+    } catch {
+      // File not readable — count all targets as not found
+      symbolNotFound += targets.length;
+      continue;
+    }
+
+    const lines = content.split('\n');
+    let modified = false;
+
+    // Sort targets by line descending, stable sort by cardKey for same line
+    targets.sort((a, b) => b.line - a.line || a.cardKey.localeCompare(b.cardKey));
+
+    // Group targets by line so same-line targets are inserted in a single splice
+    const groupedByLine = new Map<number, typeof targets>();
+    for (const target of targets) {
+      const group = groupedByLine.get(target.line) ?? [];
+      group.push(target);
+      groupedByLine.set(target.line, group);
+    }
+
+    // Process groups in descending line order
+    const sortedLines = [...groupedByLine.keys()].sort((a, b) => b - a);
+
+    for (const lineNum of sortedLines) {
+      const group = groupedByLine.get(lineNum)!;
+      const symLineIdx = lineNum - 1; // 0-based
+
+      if (symLineIdx < 0 || symLineIdx >= lines.length) {
+        symbolNotFound += group.length;
+        continue;
+      }
+
+      // Filter out already-present specs and capture jsdocRange from first non-present scan
+      const toInsert: typeof targets = [];
+      let jsdocRange: { start: number; end: number } | null = null;
+      let jsdocRangeDetected = false;
+      for (const target of group) {
+        const result = scanAbove(lines, symLineIdx, target.cardKey);
+        if (result.hasSpec) {
+          alreadyPresent++;
+        } else {
+          toInsert.push(target);
+          if (!jsdocRangeDetected) {
+            jsdocRange = result.jsdocRange;
+            jsdocRangeDetected = true;
+          }
+        }
+      }
+      if (toInsert.length === 0) continue;
+
+      const specTags = toInsert.map((t) => `@spec ${t.cardKey}`);
+
+      if (jsdocRange) {
+        if (jsdocRange.start === jsdocRange.end) {
+          // Single-line JSDoc: /** some doc */ → expand to multi-line with all @spec tags
+          const oldLine = lines[jsdocRange.start]!;
+          const indentMatch = oldLine.match(/^(\s*)/);
+          const indent = indentMatch ? indentMatch[1] : '';
+          const innerMatch = oldLine.match(/\/\*\*\s*(.*?)\s*\*\//);
+          const inner = innerMatch ? innerMatch[1] : '';
+          const expanded = [
+            `${indent}/**`,
+            ...(inner ? [`${indent} * ${inner}`] : []),
+            ...specTags.map((tag) => `${indent} * ${tag}`),
+            `${indent} */`,
+          ];
+          lines.splice(jsdocRange.start, 1, ...expanded);
+        } else {
+          // Multi-line JSDoc: insert all @spec tags before closing */
+          const closingIdx = jsdocRange.end;
+          const closingLine = lines[closingIdx]!;
+          const indentMatch = closingLine.match(/^(\s*)/);
+          const indent = indentMatch ? indentMatch[1] : '';
+          const newTags = specTags.map((tag) => `${indent} * ${tag}`);
+          lines.splice(closingIdx, 0, ...newTags);
+        }
+        modified = true;
+        annotated += toInsert.length;
+      } else {
+        // Insert a standalone multi-spec comment above the symbol
+        const symLine = lines[symLineIdx]!;
+        const indentMatch = symLine.match(/^(\s*)/);
+        const indent = indentMatch ? indentMatch[1] : '';
+        if (specTags.length === 1) {
+          const comment = `${indent}/** ${specTags[0]} */`;
+          lines.splice(symLineIdx, 0, comment);
+        } else {
+          const comment = [
+            `${indent}/**`,
+            ...specTags.map((tag) => `${indent} * ${tag}`),
+            `${indent} */`,
+          ];
+          lines.splice(symLineIdx, 0, ...comment);
+        }
+        modified = true;
+        annotated += toInsert.length;
+      }
+    }
+
+    if (modified) {
+      await Bun.write(absPath, lines.join('\n'));
+    }
+  }
+
+  return { annotated, alreadyPresent, symbolNotFound };
+}
+
+/**
+ * Scan lines above a symbol declaration for JSDoc blocks and existing @spec annotations.
+ *
+ * Returns whether a matching @spec tag already exists, and the range (start/end 0-based
+ * line indices) of an existing JSDoc block if one is found directly above the symbol.
+ */
+function scanAbove(
+  lines: string[],
+  symLineIdx: number,
+  cardKey: string,
+): { hasSpec: boolean; jsdocRange: { start: number; end: number } | null } {
+  const specPattern = `@spec ${cardKey}`;
+
+  // Walk upward from the line before the symbol
+  let idx = symLineIdx - 1;
+
+  // Skip blank lines between symbol and potential comment
+  while (idx >= 0 && lines[idx]!.trim() === '') {
+    idx--;
+  }
+
+  if (idx < 0) return { hasSpec: false, jsdocRange: null };
+
+  const line = lines[idx]!.trim();
+
+  // Case 1: Single-line JSDoc  /** ... */
+  if (line.startsWith('/**') && line.endsWith('*/')) {
+    if (line.includes(specPattern)) {
+      return { hasSpec: true, jsdocRange: null };
+    }
+    // There is a single-line JSDoc but no @spec — we need to expand it to multi-line
+    // or insert before it. Treat it as a JSDoc range for insertion.
+    return { hasSpec: false, jsdocRange: { start: idx, end: idx } };
+  }
+
+  // Case 2: Multi-line JSDoc ending with */
+  if (line.endsWith('*/')) {
+    const endIdx = idx;
+    // Find the opening /**
+    while (idx >= 0) {
+      if (lines[idx]!.trim().startsWith('/**')) {
+        break;
+      }
+      idx--;
+    }
+
+    if (idx >= 0 && lines[idx]!.trim().startsWith('/**')) {
+      // Check if @spec already exists in this block
+      for (let i = idx; i <= endIdx; i++) {
+        if (lines[i]!.includes(specPattern)) {
+          return { hasSpec: true, jsdocRange: null };
+        }
+      }
+      return { hasSpec: false, jsdocRange: { start: idx, end: endIdx } };
+    }
+  }
+
+  // Case 3: Standalone // @spec comment or /** @spec */ on the line above
+  if (line.includes(specPattern)) {
+    return { hasSpec: true, jsdocRange: null };
+  }
+
+  return { hasSpec: false, jsdocRange: null };
+}
+
 // ── Symbol rename/move sync ──
 
 export interface SymbolSyncResult {

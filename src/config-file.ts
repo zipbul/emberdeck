@@ -133,7 +133,7 @@ export function validateRawConfig(
   assertString(obj, 'projectRoot', errors);
 
   // ── String array fields ──
-  assertStringArray(obj, 'gildashIgnore', errors);
+  assertStringArray(obj, 'gildashIgnore', errors, true);
   assertStringArray(obj, 'ignorePatterns', errors, true);
 
   // ── Number fields ──

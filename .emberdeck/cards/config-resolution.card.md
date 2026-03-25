@@ -1,5 +1,5 @@
 ---
-{key: config-resolution,summary: "Config file priority chain, path resolution, and validation rules",status: active,type: spec,parent: emberdeck,boundary: [src/config-file.ts],codeLinks: [{kind: function,file: src/config-file.ts,symbol: loadConfig},{kind: function,file: src/config-file.ts,symbol: mergeCliArgs},{kind: function,file: src/config-file.ts,symbol: validateRawConfig}],tags: [contract,config],relations: [emberdeck]}
+{key: config-resolution,summary: "Config file priority chain, path resolution, and validation rules",status: active,type: spec,parent: emberdeck,boundary: [src/config-file.ts],relations: [emberdeck],codeLinks: [{kind: function,file: src/config-file.ts,symbol: loadConfig},{kind: function,file: src/config-file.ts,symbol: mergeCliArgs},{kind: function,file: src/config-file.ts,symbol: validateRawConfig}],tags: [contract,config]}
 ---
 ## Contracts
 - WHEN loading config THEN search order: .emberdeck.jsonc first, then .emberdeck.json, starting from package root
@@ -8,7 +8,7 @@
 - WHEN CLI args provided THEN they override config file values (priority: CLI > file > defaults)
 - WHEN unknown key in config THEN reject with VALIDATION_ERROR (strict schema)
 - WHEN regressionThreshold outside [0, 1] THEN reject
-- WHEN string array field is empty THEN reject (except ignorePatterns which allows empty)
+- WHEN string array field is empty THEN reject (except ignorePatterns and gildashIgnore which allow empty)
 - WHEN projectRoot not set THEN gildash is disabled (graceful degradation)
 
 ## Cross-module contracts

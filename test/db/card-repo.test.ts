@@ -289,6 +289,39 @@ describe('DrizzleCardRepository', () => {
     expect(result.map((r) => r.key)).toEqual(['u/new', 'u/mid', 'u/old']);
   });
 
+  // B-4: FTS5 broader error handling
+  it('should return empty array when search receives FTS5 operator AND', () => {
+    repo.upsert(makeRow({ key: 'fts/a', summary: 'hello world', filePath: '/fts-a.card.md' }));
+    expect(repo.search('AND')).toEqual([]);
+  });
+
+  it('should return empty array when search receives FTS5 operator NOT', () => {
+    repo.upsert(makeRow({ key: 'fts/b', summary: 'hello world', filePath: '/fts-b.card.md' }));
+    expect(repo.search('NOT')).toEqual([]);
+  });
+
+  it('should return empty array when search receives unbalanced double quote', () => {
+    repo.upsert(makeRow({ key: 'fts/c', summary: 'hello', filePath: '/fts-c.card.md' }));
+    expect(repo.search('foo"bar')).toEqual([]);
+  });
+
+  it('should return empty array when search receives lone asterisk', () => {
+    repo.upsert(makeRow({ key: 'fts/d', summary: 'hello', filePath: '/fts-d.card.md' }));
+    expect(repo.search('*')).toEqual([]);
+  });
+
+  it('should return empty array when search receives OR without operands', () => {
+    expect(repo.search('OR')).toEqual([]);
+  });
+
+  it('should still throw non-FTS5 errors from search', () => {
+    closeDb(db);
+    expect(() => repo.search('hello')).toThrow();
+    // Re-open for afterEach cleanup
+    db = createEmberdeckDb(':memory:');
+    repo = new DrizzleCardRepository(db);
+  });
+
   it('should return only draft spec cards when list is called with status draft and type spec', () => {
     // Arrange
     repo.upsert(makeRow({ key: 'df/1', status: 'draft', type: 'spec', filePath: '/df1.card.md' }));

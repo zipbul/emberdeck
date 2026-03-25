@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { Gildash, SymbolSearchResult, GildashError } from '@zipbul/gildash';
-import { err } from '@zipbul/result';
+import type { Gildash, SymbolSearchResult } from '@zipbul/gildash';
 
 import { createTestContext, type TestContext } from '../helpers';
 import { writeCardFile } from '../../src/fs/writer';
@@ -84,8 +83,9 @@ const fakeSymbol: SymbolSearchResult = {
   detail: {},
 };
 
-const gildashErr = () =>
-  err<GildashError>({ type: 'search', message: 'search failed', cause: undefined, name: 'GildashError' });
+const throwGildashErr = () => {
+  throw Object.assign(new Error('search failed'), { type: 'search', name: 'GildashError' });
+};
 
 // ---- Tests ----
 
@@ -116,10 +116,10 @@ describe('ops/link', () => {
   });
 
   // 4. [HP] resolveCardCodeLinks: searchSymbols Err → {link, symbol: null}
-  it('should return resolved link with null symbol when searchSymbols returns Err', async () => {
+  it('should return resolved link with null symbol when searchSymbols throws', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
     await createCard('auth/token', [link]);
-    mockSearchSymbols.mockReturnValue(gildashErr());
+    mockSearchSymbols.mockImplementation(throwGildashErr);
     const result = await resolveCardCodeLinks(tc.ctx, 'auth/token');
     expect(result).toHaveLength(1);
     expect(result[0]!.link).toEqual(link);
@@ -303,15 +303,15 @@ describe('ops/link', () => {
     expect(mockSearchSymbols).not.toHaveBeenCalled();
   });
 
-  // 23. [CO] validateCodeLinks: searchSymbols Err → BrokenLink 'file-not-indexed'
-  it('should return BrokenLink with file-not-indexed when searchSymbols returns an Err', async () => {
+  // 23. [CO] validateCodeLinks: searchSymbols throws → BrokenLink 'gildash-unavailable'
+  it('should return BrokenLink with gildash-unavailable when searchSymbols throws', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
     await createCard('auth/token', [link]);
-    mockSearchSymbols.mockReturnValue(gildashErr());
+    mockSearchSymbols.mockImplementation(throwGildashErr);
     const result = await validateCodeLinks(tc.ctx, 'auth/token');
     // draft card, so goes to planned
     expect(result.planned).toHaveLength(1);
-    expect(result.planned[0]!.reason).toBe('file-not-indexed');
+    expect(result.planned[0]!.reason).toBe('gildash-unavailable');
   });
 
   // 24. [ST] DB state set up manually → findCardsBySymbol returns correct result
@@ -360,14 +360,14 @@ describe('ops/link', () => {
     expect(result.planned).toHaveLength(0);
   });
 
-  // 28. [HP] validateCodeLinks: draft card with file-not-indexed -> planned
-  it('should put file-not-indexed links in planned array for draft card', async () => {
+  // 28. [HP] validateCodeLinks: draft card with gildash-unavailable -> planned
+  it('should put gildash-unavailable links in planned array for draft card', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
     await createCard('draft/err', [link], 'draft');
-    mockSearchSymbols.mockReturnValue(gildashErr());
+    mockSearchSymbols.mockImplementation(throwGildashErr);
     const result = await validateCodeLinks(tc.ctx, 'draft/err');
     expect(result.planned).toHaveLength(1);
-    expect(result.planned[0]!.reason).toBe('file-not-indexed');
+    expect(result.planned[0]!.reason).toBe('gildash-unavailable');
     expect(result.broken).toHaveLength(0);
   });
 
@@ -405,7 +405,55 @@ describe('ops/link', () => {
     expect(mockReindex).toHaveBeenCalledTimes(1);
   });
 
-  // 32. [HP] validateCodeLinks: active card with broken links → auto-transition to drifted
+  // 32a. [HP] findCardsBySymbol: boundary glob match
+  it('should find cards by boundary glob when filePath matches', async () => {
+    // Create a card with boundary but no codeLinks
+    const slug = normalizeSlug('boundary-card');
+    const fp = buildCardPath(tc.ctx.cardsDir, slug);
+    await mkdir(dirname(fp), { recursive: true });
+    const cardFile: CardFile = {
+      frontmatter: {
+        key: slug,
+        summary: 'Boundary card',
+        status: 'draft',
+        type: 'spec',
+        boundary: ['src/services/**'],
+      },
+      body: '',
+    };
+    await writeCardFile(fp, cardFile);
+    // Sync to DB so the card exists with boundaryJson
+    const { syncCardFromFile } = await import('../../src/ops/sync');
+    await syncCardFromFile(tc.ctx, fp);
+
+    const result = await findCardsBySymbol(tc.ctx, 'SomeService', 'src/services/auth.ts');
+    const match = result.find((r: any) => r.card.key === 'boundary-card');
+    expect(match).toBeDefined();
+    expect(match!.matchType).toBe('boundary');
+  });
+
+  // 32b. findCardsBySymbol: malformed boundaryJson should not crash
+  it('should skip cards with malformed boundaryJson gracefully', async () => {
+    // Insert a card with invalid boundaryJson directly in DB
+    tc.ctx.cardRepo.upsert({
+      key: 'bad-boundary',
+      summary: 'Bad boundary',
+      status: 'draft',
+      type: 'spec',
+      parent: null,
+      boundaryJson: '{not-valid-json',
+      body: null,
+      filePath: buildCardPath(tc.ctx.cardsDir, 'bad-boundary'),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Should not throw
+    const result = await findCardsBySymbol(tc.ctx, 'anything', 'src/foo.ts');
+    // The bad-boundary card should be skipped, not included
+    expect(result.find((r: any) => r.card.key === 'bad-boundary')).toBeUndefined();
+  });
+
+  // 33. [HP] validateCodeLinks: active card with broken links → auto-transition to drifted
   it('should auto-transition active card to drifted when broken links detected', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
     await createCard('auto/trans', [link], 'active');

@@ -34,10 +34,15 @@ export function createEmberdeckDb(path: string): EmberdeckDb {
     mkdirSync(dirname(path), { recursive: true });
   }
   const client = new Database(path);
-  const db = drizzle(client, { schema, casing: 'snake_case' });
-  configurePragmas(db);
-  migrateEmberdeck(db);
-  return db;
+  try {
+    const db = drizzle(client, { schema, casing: 'snake_case' });
+    configurePragmas(db);
+    migrateEmberdeck(db);
+    return db;
+  } catch (err) {
+    client.close();
+    throw err;
+  }
 }
 
 /**

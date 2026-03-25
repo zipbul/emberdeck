@@ -21,5 +21,6 @@
 
 ## Cross-module contracts
 - safeWriteOperation is the single pattern for all write ops — DB first, file second, compensate on file failure
-- Delete operation has additional side effects: updates children files (nullify parent) and referencing cards' files (remove from relations) — these are best-effort, not compensated
+- Delete operation has additional side effects: updates children files (nullify parent) and referencing cards' files (remove from relations) — file updates are best-effort
+- WHEN delete compensation runs THEN children and referencing cards are re-synced from their (unmodified) files to restore FK-cascaded DB state (best-effort)
 - Rename uses a different pattern: file move first, DB update second, restore file on DB failure

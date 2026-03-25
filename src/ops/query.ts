@@ -178,14 +178,57 @@ export async function getCard(
 }
 
 /**
+ * Result for batch card read.
+ */
+export interface GetCardsResult {
+  cards: GetCardResult[];
+  notFound: string[];
+}
+
+/**
+ * Reads multiple cards in one call. Keys that do not exist are collected
+ * in the `notFound` array instead of throwing.
+ *
+ * @param ctx - Context created by `setupEmberdeck()`.
+ * @param fullKeys - Array of card keys to retrieve.
+ * @param options - Optional: includeHistory to get changelog for each card.
+ * @returns Cards that were found and a list of keys that were not found.
+ */
+export async function getCards(
+  ctx: EmberdeckContext,
+  fullKeys: string[],
+  options?: { includeHistory?: boolean },
+): Promise<GetCardsResult> {
+  const cards: GetCardResult[] = [];
+  const notFound: string[] = [];
+
+  for (const fullKey of fullKeys) {
+    try {
+      const result = await getCard(ctx, fullKey, options);
+      cards.push(result);
+    } catch (err) {
+      if (err instanceof CardNotFoundError) {
+        notFound.push(fullKey);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  return { cards, notFound };
+}
+
+/**
  * Lists cards from the DB.
  *
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param filter - Optional filter. Supports status, type, parent, tag, roots, updatedSince, sortBy.
  * @returns Array of DB rows (no file reads, lightweight query).
  */
-export function listCards(ctx: EmberdeckContext, filter?: CardListFilter): CardRow[] {
-  return ctx.cardRepo.list(filter);
+export type CardSummaryRow = Omit<CardRow, 'body'>;
+
+export function listCards(ctx: EmberdeckContext, filter?: CardListFilter): CardSummaryRow[] {
+  return ctx.cardRepo.list(filter).map(({ body, ...rest }) => rest);
 }
 
 export interface SearchCardsOptions {
@@ -205,15 +248,17 @@ export function searchCards(
   ctx: EmberdeckContext,
   query: string,
   options?: SearchCardsOptions,
-): CardRow[] {
+): CardSummaryRow[] {
   const results = ctx.cardRepo.search(query);
-  if (!options) return results;
+  const filtered = options
+    ? results.filter((row) => {
+        if (options.type && row.type !== options.type) return false;
+        if (options.status && row.status !== options.status) return false;
+        return true;
+      })
+    : results;
 
-  return results.filter((row) => {
-    if (options.type && row.type !== options.type) return false;
-    if (options.status && row.status !== options.status) return false;
-    return true;
-  });
+  return filtered.map(({ body, ...rest }) => rest);
 }
 
 /**

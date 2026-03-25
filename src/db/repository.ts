@@ -64,8 +64,8 @@ export interface CardRepository {
 }
 
 export interface RelationRepository {
-  /** Replace all relations for a card. Automatically handles bidirectional isReverse entries. */
-  replaceForCard(cardKey: string, relations: string[]): void;
+  /** Replace all relations for a card. Automatically handles bidirectional isReverse entries. Returns keys of targets that failed (FK violation). */
+  replaceForCard(cardKey: string, relations: string[]): string[];
   findByCardKey(cardKey: string): RelationRow[];
   deleteByCardKey(cardKey: string): void;
 }

@@ -7,6 +7,7 @@ import { getRelationGraph } from './query';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 
+
 // ── check_drift ──
 
 export type DriftType = 'broken_link' | 'boundary_inactive' | 'symbol_changed';
@@ -109,6 +110,8 @@ export async function checkDrift(
     let brokenLinks = 0;
 
     // Check code link health via gildash (batched by file)
+    // If gildash throws (transient failure), skip drift detection for this card
+    let gildashUnavailable = false;
     if (ctx.gildash && links.length > 0) {
       const linksByFile = new Map<string, typeof links>();
       for (const link of links) {
@@ -118,32 +121,37 @@ export async function checkDrift(
       }
 
       for (const [file, fileLinks] of linksByFile) {
-        // Try getSymbolsByFile first (single call per file), fall back to searchSymbols
-        let fileSymbols = ctx.gildash.getSymbolsByFile(file);
-        if ((!fileSymbols || fileSymbols.length === 0) && ctx.projectRoot) {
-          fileSymbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
-        }
-
-        if (fileSymbols && Array.isArray(fileSymbols) && fileSymbols.length > 0) {
-          const symbolNames = new Set(fileSymbols.map((s) => s.name));
-          for (const link of fileLinks) {
-            if (!symbolNames.has(link.symbol)) brokenLinks++;
+        try {
+          // Try getSymbolsByFile first (single call per file), fall back to searchSymbols
+          let fileSymbols = ctx.gildash.getSymbolsByFile(file);
+          if ((!fileSymbols || fileSymbols.length === 0) && ctx.projectRoot) {
+            fileSymbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
           }
-        } else {
-          // Fall back to searchSymbols per link
-          for (const link of fileLinks) {
-            const results = ctx.gildash!.searchSymbols({
-              text: link.symbol,
-              exact: true,
-              filePath: link.file,
-            });
-            if (!Array.isArray(results)) {
-              brokenLinks++;
-            } else {
-              const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
-              if (!found) brokenLinks++;
+
+          if (fileSymbols && Array.isArray(fileSymbols) && fileSymbols.length > 0) {
+            const symbolNames = new Set(fileSymbols.map((s) => s.name));
+            for (const link of fileLinks) {
+              if (!symbolNames.has(link.symbol)) brokenLinks++;
+            }
+          } else {
+            // Fall back to searchSymbols per link
+            for (const link of fileLinks) {
+              const results = ctx.gildash!.searchSymbols({
+                text: link.symbol,
+                exact: true,
+                filePath: link.file,
+              });
+              if (!Array.isArray(results)) {
+                brokenLinks++;
+              } else {
+                const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
+                if (!found) brokenLinks++;
+              }
             }
           }
+        } catch {
+          // Gildash transient failure — skip drift detection for this file's links
+          gildashUnavailable = true;
         }
       }
     }
@@ -205,18 +213,33 @@ export async function checkDrift(
     }
 
     const currentStatus = row.status as 'active' | 'drifted';
-    const shouldTransition = !!driftType && currentStatus === 'active' && autoTransition;
-    const finalStatus: 'active' | 'drifted' = shouldTransition ? 'drifted' : currentStatus;
+    // Skip auto-transition if gildash was unavailable — broken links may be false positives
+    const shouldTransition = !!driftType && currentStatus === 'active' && autoTransition && !gildashUnavailable;
+    let finalStatus: 'active' | 'drifted' = currentStatus;
 
-    // Perform auto-transition
+    // Perform auto-transition (targeted UPDATE + file, compensate on file failure)
     if (shouldTransition) {
-      ctx.cardRepo.upsert({ ...row, status: 'drifted', updatedAt: new Date().toISOString() });
+      const now = new Date().toISOString();
       try {
-        const cardFile = await readCardFile(row.filePath);
-        cardFile.frontmatter.status = 'drifted';
-        await writeCardFile(row.filePath, cardFile);
+        const changed = ctx.db.$client
+          .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ? AND status = ?')
+          .run('drifted', now, key, 'active');
+        if (changed.changes > 0) {
+          try {
+            const cardFile = await readCardFile(row.filePath);
+            cardFile.frontmatter.status = 'drifted';
+            await writeCardFile(row.filePath, cardFile);
+            finalStatus = 'drifted';
+          } catch {
+            // File write failed — revert DB
+            ctx.db.$client
+              .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ?')
+              .run(row.status, row.updatedAt, key);
+          }
+        }
       } catch {
-        // File update failed, DB already updated — acceptable for drift transition
+        // Transition failed — DB reverted to previous state.
+        // driftType is still reported so the caller knows drift was detected.
       }
     }
 

@@ -129,16 +129,40 @@ describe('DrizzleRelationRepository', () => {
   });
 
   // NE
+  // B-2: replaceForCard returns failed targets on FK violation
   it('should not throw and skip the relation when replaceForCard target card does not exist (FK catch)', () => {
     // Arrange
     insertCard('source');
-    // 'missing-target' does not exist in card table -> FK violation -> try-catch skip
-    // Act / Assert
-    expect(() =>
-      repo.replaceForCard('source', ['missing-target']),
-    ).not.toThrow();
-    // no rows inserted
+    // Act
+    const failed = repo.replaceForCard('source', ['missing-target']);
+    // Assert
+    expect(failed).toEqual(['missing-target']);
     expect(repo.findByCardKey('source')).toEqual([]);
+  });
+
+  it('should return empty array when replaceForCard has all valid targets', () => {
+    // Arrange
+    insertCard('src-ok');
+    insertCard('tgt-ok');
+    // Act
+    const failed = repo.replaceForCard('src-ok', ['tgt-ok']);
+    // Assert
+    expect(failed).toEqual([]);
+  });
+
+  it('should return only the non-existent targets and insert the valid ones', () => {
+    // Arrange
+    insertCard('mix-src');
+    insertCard('mix-good');
+    // 'mix-bad' does not exist
+    // Act
+    const failed = repo.replaceForCard('mix-src', ['mix-good', 'mix-bad']);
+    // Assert
+    expect(failed).toEqual(['mix-bad']);
+    const rows = repo.findByCardKey('mix-src');
+    const forwardTargets = rows.filter((r) => !r.isReverse).map((r) => r.dstCardKey);
+    expect(forwardTargets).toContain('mix-good');
+    expect(forwardTargets).not.toContain('mix-bad');
   });
 
   it('should return empty array when findByCardKey is called with non-existent cardKey', () => {

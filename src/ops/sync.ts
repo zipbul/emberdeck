@@ -4,14 +4,24 @@ import type { EmberdeckContext } from '../config';
 import type { CardRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
-import { serializeCardMarkdown } from '../card/markdown';
+import { writeCardFile } from '../fs/writer';
 import { CardNotFoundError } from '../card/errors';
-import type { CardFrontmatter, CardStatus, CardType } from '../card/types';
+import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/types';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { txDb } from '../db/connection';
+
+function safeParseBoundary(json: string | null): string[] | null {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface BulkSyncResult {
   synced: number;
@@ -147,6 +157,88 @@ export async function bulkSyncCards(
 }
 
 /**
+ * Generate synthetic sample paths from a glob pattern for overlap testing.
+ * Since Bun.Glob.match expects a concrete path (not another pattern),
+ * we create plausible paths that would match the pattern and cross-test them.
+ */
+function generateSamplePaths(pattern: string): string[] {
+  const samples = new Set<string>();
+
+  const defaultExts = ['.ts', '.js', '.tsx', '.json'];
+
+  // Extract extension constraint from pattern (e.g. *.ts -> .ts)
+  const extMatch = pattern.match(/\*\.([a-zA-Z0-9]+)$/);
+  const patternExt = extMatch ? '.' + extMatch[1] : null;
+  const extensions = patternExt ? [patternExt] : defaultExts;
+
+  // Get the static (non-glob) prefix
+  const segments = pattern.split('/');
+  const prefixParts: string[] = [];
+  for (const seg of segments) {
+    if (seg.includes('*') || seg.includes('?') || seg.includes('[') || seg.includes('{')) break;
+    prefixParts.push(seg);
+  }
+  const prefix = prefixParts.join('/');
+
+  const depths = ['', 'd1/', 'd1/d2/', 'd1/d2/d3/'];
+
+  for (const ext of extensions) {
+    for (const depth of depths) {
+      let p = pattern;
+      p = p.replace(/\*\*\//g, depth);
+      p = p.replace(/\*\*/g, depth ? depth.slice(0, -1) : 'x');
+      p = p.replace(/\*\.([a-zA-Z0-9]+)/g, 'sample.$1');
+      p = p.replace(/\*/g, 'sample');
+      p = p.replace(/\/\//g, '/').replace(/\/$/, '');
+
+      if (p) samples.add(p);
+
+      // For patterns ending with **, append concrete file names
+      if (pattern.endsWith('**') || pattern.endsWith('**/')) {
+        const withExt = p + (p.endsWith('/') ? '' : '/') + 'file' + ext;
+        samples.add(withExt.replace(/\/\//g, '/'));
+        if (p && !p.includes('.')) {
+          samples.add(p + ext);
+        }
+      }
+    }
+  }
+
+  // Add depth-varied samples under the prefix for ** patterns
+  if (prefix && pattern.includes('**')) {
+    for (const ext of extensions) {
+      samples.add(prefix + '/file' + ext);
+      samples.add(prefix + '/sub/file' + ext);
+      samples.add(prefix + '/sub/deep/file' + ext);
+    }
+  }
+
+  return [...samples];
+}
+
+/**
+ * Check whether two glob patterns potentially overlap (i.e., a path could exist
+ * that matches both). Uses sample-based heuristic: generates concrete paths from
+ * each pattern and tests them against the other.
+ */
+function globPatternsOverlap(pa: string, pb: string): boolean {
+  const samplesA = generateSamplePaths(pa);
+  const samplesB = generateSamplePaths(pb);
+
+  const globA = new Bun.Glob(pa);
+  const globB = new Bun.Glob(pb);
+
+  for (const s of samplesA) {
+    if (globB.match(s)) return true;
+  }
+  for (const s of samplesB) {
+    if (globA.match(s)) return true;
+  }
+
+  return false;
+}
+
+/**
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
  * Performs read-only structural validation including hierarchy, relations, and boundary checks.
  */
@@ -268,8 +360,9 @@ export async function validateCards(
       // Skip parent-child pairs
       if (a.parent === b.key || b.parent === a.key) continue;
 
-      const aBoundary = JSON.parse(a.boundaryJson!) as string[];
-      const bBoundary = JSON.parse(b.boundaryJson!) as string[];
+      const aBoundary = safeParseBoundary(a.boundaryJson);
+      const bBoundary = safeParseBoundary(b.boundaryJson);
+      if (!aBoundary || !bBoundary) continue;
 
       const overlapping: string[] = [];
       for (const pa of aBoundary) {
@@ -277,13 +370,8 @@ export async function validateCards(
           if (pa === pb) {
             overlapping.push(pa);
           } else {
-            // Check if one pattern is a sub-path of the other
-            // e.g. "src/**" matches "src/auth/token.ts" and "src/auth/**" also matches it
             try {
-              const globA = new Bun.Glob(pa);
-              const globB = new Bun.Glob(pb);
-              // If pattern A matches pattern B as a path (or vice versa), they overlap
-              if (globA.match(pb) || globB.match(pa)) {
+              if (globPatternsOverlap(pa, pb)) {
                 overlapping.push(`${pa} ∩ ${pb}`);
               }
             } catch {
@@ -300,6 +388,30 @@ export async function validateCards(
           message: `Boundary overlaps with "${b.key}": ${overlapping.join(', ')}`,
         });
       }
+    }
+  }
+
+  // Content mismatch: DB and file frontmatter diverged
+  for (const row of dbRows) {
+    if (!fileSet.has(row.filePath)) continue;
+    try {
+      const file = await readCardFile(row.filePath);
+      if (file.frontmatter.status !== row.status) {
+        warnings.push({
+          type: 'content-mismatch',
+          cardKey: row.key,
+          message: `DB status="${row.status}" differs from file status="${file.frontmatter.status}"`,
+        });
+      }
+      if (file.frontmatter.summary !== row.summary) {
+        warnings.push({
+          type: 'content-mismatch',
+          cardKey: row.key,
+          message: `DB summary differs from file summary`,
+        });
+      }
+    } catch {
+      // File unreadable — already caught by orphanFiles or staleDbRows
     }
   }
 
@@ -361,14 +473,14 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
     status: row.status as CardStatus,
     type: row.type as CardType,
     ...(row.parent ? { parent: row.parent } : {}),
-    ...(row.boundaryJson ? { boundary: JSON.parse(row.boundaryJson) as string[] } : {}),
+    ...(row.boundaryJson ? (() => { const b = safeParseBoundary(row.boundaryJson); return b ? { boundary: b } : {}; })() : {}),
     ...(relations.length ? { relations } : {}),
     ...(tags.length ? { tags } : {}),
     ...(codeLinks.length ? { codeLinks } : {}),
   };
 
-  const content = serializeCardMarkdown(fm, row.body ?? '');
-  await Bun.write(row.filePath, content);
+  const cardFile: CardFile = { frontmatter: fm, body: row.body ?? '', filePath: row.filePath };
+  await writeCardFile(row.filePath, cardFile);
   return row.filePath;
 }
 

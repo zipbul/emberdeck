@@ -1,4 +1,5 @@
 import type { EmberdeckContext } from '../config';
+import type { CardRow } from '../db/repository';
 import { checkDrift, type DriftType } from './context';
 import { getUncoveredSymbols } from './spec-sync';
 
@@ -28,7 +29,8 @@ export interface UnlinkedSymbol {
 export interface DriftedCardSummary {
   key: string;
   summary: string;
-  driftType: DriftType;
+  /** Drift type detected by checkDrift. Undefined when card is DB-drifted but no active drift detected. */
+  driftType?: DriftType;
   brokenLinks: number;
   totalLinks: number;
   body?: string | null;
@@ -39,10 +41,16 @@ export interface AnalyzeResult {
   coverage: AnalyzeCoverage;
   unlinkedSymbols: UnlinkedSymbol[];
   driftedCards: DriftedCardSummary[];
+  /** Total number of drifted cards before offset/limit slicing. */
+  driftedCardsTotal: number;
 }
 
 export interface AnalyzeOptions {
   includeBody?: boolean;
+  /** Number of drifted cards to skip (default: 0). */
+  offset?: number;
+  /** Maximum number of drifted cards to return. Omit for all. */
+  limit?: number;
 }
 
 // ── Constants ──
@@ -62,6 +70,8 @@ export async function analyze(
   options?: AnalyzeOptions,
 ): Promise<AnalyzeResult> {
   const includeBody = options?.includeBody ?? false;
+  const offset = options?.offset ?? 0;
+  const limit = options?.limit;
 
   // 1. Drift detection (autoTransition=false to keep it read-only)
   const driftResult = await checkDrift(ctx, undefined, { autoTransition: false });
@@ -101,6 +111,17 @@ export async function analyze(
       // No drift detected now, but card was previously marked drifted in DB
       // (e.g., code was fixed but card not re-activated) — still count as drifted
       drifted++;
+      const entry: DriftedCardSummary = {
+        key: card.key,
+        summary: card.summary,
+        brokenLinks: card.brokenLinks,
+        totalLinks: card.totalLinks,
+      };
+      if (includeBody) {
+        const row = ctx.cardRepo.findByKey(card.key);
+        entry.body = row?.body ?? null;
+      }
+      driftedCards.push(entry);
     } else {
       active++;
     }
@@ -146,6 +167,12 @@ export async function analyze(
       .map((s) => ({ file: s.file, symbol: s.symbol, kind: s.kind }));
   }
 
+  // Apply offset/limit to driftedCards
+  const driftedCardsTotal = driftedCards.length;
+  const slicedDriftedCards = limit !== undefined
+    ? driftedCards.slice(offset, offset + limit)
+    : driftedCards.slice(offset);
+
   return {
     health: {
       total: allCards.length,
@@ -157,6 +184,140 @@ export async function analyze(
     },
     coverage,
     unlinkedSymbols,
+    driftedCards: slicedDriftedCards,
+    driftedCardsTotal,
+  };
+}
+
+// ── Onboarding Summary ──
+
+export interface OnboardingHierarchyNode {
+  key: string;
+  summary: string;
+  type: string;
+  status: string;
+  children: OnboardingHierarchyNode[];
+}
+
+export interface OnboardingDriftedCard {
+  key: string;
+  summary: string;
+  /** Drift type detected by checkDrift. Undefined when drift cause is no longer detectable. */
+  driftType?: DriftType;
+}
+
+export interface OnboardingSummary {
+  totalCards: number;
+  byType: { intent: number; spec: number };
+  byStatus: { draft: number; active: number; drifted: number };
+  hierarchy: OnboardingHierarchyNode[];
+  coverageRatio: number | null;
+  driftedCards: OnboardingDriftedCard[];
+  relationCount: number;
+}
+
+const HIERARCHY_MAX_DEPTH = 3;
+
+/**
+ * Build a hierarchy tree from a root card, limited to maxDepth levels.
+ */
+function buildHierarchyNode(
+  ctx: EmberdeckContext,
+  row: CardRow,
+  depth: number,
+): OnboardingHierarchyNode {
+  const children: OnboardingHierarchyNode[] = [];
+  if (depth + 1 < HIERARCHY_MAX_DEPTH) {
+    const childRows = ctx.cardRepo.findChildren(row.key);
+    for (const child of childRows) {
+      children.push(buildHierarchyNode(ctx, child, depth + 1));
+    }
+  }
+  return {
+    key: row.key,
+    summary: row.summary,
+    type: row.type,
+    status: row.status,
+    children,
+  };
+}
+
+/**
+ * Get a complete overview of the card structure for fresh context onboarding.
+ *
+ * Returns card counts by type/status, a hierarchy tree of root cards (max 3 levels),
+ * coverage ratio (if gildash available), drifted card summaries, and total relation count.
+ * Designed for quick orientation at the start of a new conversation.
+ */
+export async function getOnboardingSummary(
+  ctx: EmberdeckContext,
+): Promise<OnboardingSummary> {
+  const allCards = ctx.cardRepo.list();
+
+  // Count by type
+  const byType = { intent: 0, spec: 0 };
+  for (const card of allCards) {
+    if (card.type === 'intent') byType.intent++;
+    else if (card.type === 'spec') byType.spec++;
+  }
+
+  // Count by status
+  const byStatus = { draft: 0, active: 0, drifted: 0 };
+  for (const card of allCards) {
+    if (card.status === 'draft') byStatus.draft++;
+    else if (card.status === 'active') byStatus.active++;
+    else if (card.status === 'drifted') byStatus.drifted++;
+  }
+
+  // Build hierarchy from root cards (cards without a parent)
+  const roots = allCards.filter((c) => c.parent === null);
+  const hierarchy: OnboardingHierarchyNode[] = roots.map((root) =>
+    buildHierarchyNode(ctx, root, 0),
+  );
+
+  // Coverage ratio (requires gildash)
+  let coverageRatio: number | null = null;
+  if (ctx.gildash) {
+    const uncoveredResult = await getUncoveredSymbols(ctx);
+    coverageRatio = uncoveredResult.coverageRatio;
+  }
+
+  // Drifted cards (from DB status, lightweight — no drift re-detection)
+  const driftedCards: OnboardingDriftedCard[] = [];
+  for (const card of allCards) {
+    if (card.status === 'drifted') {
+      driftedCards.push({
+        key: card.key,
+        summary: card.summary,
+      });
+    }
+  }
+
+  // If there are drifted cards, run lightweight drift detection to get actual driftType
+  if (driftedCards.length > 0) {
+    const driftResult = await checkDrift(ctx, undefined, { autoTransition: false });
+    for (const dc of driftedCards) {
+      const match = driftResult.cards.find((c) => c.key === dc.key && c.driftType);
+      if (match?.driftType) {
+        dc.driftType = match.driftType;
+      }
+    }
+  }
+
+  // Count total relations (forward only to avoid double-counting)
+  let relationCount = 0;
+  for (const card of allCards) {
+    const relations = ctx.relationRepo.findByCardKey(card.key);
+    relationCount += relations.filter((r) => !r.isReverse).length;
+  }
+
+  return {
+    totalCards: allCards.length,
+    byType,
+    byStatus,
+    hierarchy,
+    coverageRatio,
     driftedCards,
+    relationCount,
   };
 }

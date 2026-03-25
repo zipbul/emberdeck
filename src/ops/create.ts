@@ -86,6 +86,7 @@ export async function createCard(
   input: CreateCardInput,
 ): Promise<CreateCardResult> {
   validateCardInput({
+    key: input.key,
     summary: input.summary,
     body: input.body,
     tags: input.tags,

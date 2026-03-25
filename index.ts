@@ -36,6 +36,7 @@ export { deleteCard, type DeleteCardOptions } from './src/ops/delete';
 export { renameCard, type RenameCardResult } from './src/ops/rename';
 export {
   getCard,
+  getCards,
   listCards,
   searchCards,
   listCardRelations,
@@ -46,6 +47,8 @@ export {
   type RelatedCard,
   type GetCardContextOptions,
   type GetCardResult,
+  type GetCardsResult,
+  type CardSummaryRow,
   type SearchCardsOptions,
   type RelationGraphNode,
   type RelationGraphOptions,
@@ -96,11 +99,13 @@ export {
 } from './src/ops/impact';
 export {
   syncSpecAnnotations,
+  writeSpecAnnotations,
   syncSymbolChanges,
   getLinkCoverage,
   getUncoveredSymbols,
   suggestCardScope,
   type SpecSyncResult,
+  type WriteSpecResult,
   type SymbolSyncResult,
   type LinkCoverageResult,
   type UncoveredResult,

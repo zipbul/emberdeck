@@ -341,6 +341,20 @@ describe('validateCards', () => {
     expect(result.keyMismatches).toHaveLength(0);
   });
 
+  it('should detect keyMismatch when DB key does not match file path', async () => {
+    tc = await createTestContext();
+    // Create a card normally
+    await createCard(tc.ctx, { key: 'correct-key', summary: 'Correct', type: 'spec' });
+    // Manually update the DB key to a different value, creating a mismatch
+    tc.ctx.db.$client.run(
+      `UPDATE card SET key = ? WHERE key = ?`,
+      ['wrong-key', 'correct-key'],
+    );
+    const result = await validateCards(tc.ctx);
+    expect(result.keyMismatches.length).toBeGreaterThanOrEqual(1);
+    expect(result.keyMismatches.some((m) => m.row.key === 'wrong-key')).toBe(true);
+  });
+
   it('should report no orphans after bulkSyncCards resolves the orphan files', async () => {
     tc = await createTestContext();
     await writeTestCardFile(tc.cardsDir, 'st-orphan', 'Orphan');
@@ -349,6 +363,54 @@ describe('validateCards', () => {
     await bulkSyncCards(tc.ctx);
     const after = await validateCards(tc.ctx);
     expect(after.orphanFiles).toHaveLength(0);
+  });
+
+  // D-2: content-mismatch detection
+  it('should report content-mismatch warning when DB status differs from file status', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'cm-status', summary: 'S', type: 'intent' });
+    // Directly mutate DB status without updating file
+    tc.ctx.db.$client.prepare('UPDATE card SET status = ? WHERE key = ?').run('drifted', 'cm-status');
+    const result = await validateCards(tc.ctx);
+    const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch' && w.cardKey === 'cm-status');
+    expect(mismatch.length).toBeGreaterThanOrEqual(1);
+    expect(mismatch.some((w) => w.message.includes('status'))).toBe(true);
+  });
+
+  it('should report content-mismatch warning when DB summary differs from file summary', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'cm-summ', summary: 'Original', type: 'intent' });
+    tc.ctx.db.$client.prepare('UPDATE card SET summary = ? WHERE key = ?').run('Tampered', 'cm-summ');
+    const result = await validateCards(tc.ctx);
+    const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch' && w.cardKey === 'cm-summ');
+    expect(mismatch.length).toBeGreaterThanOrEqual(1);
+    expect(mismatch.some((w) => w.message.includes('summary'))).toBe(true);
+  });
+
+  it('should report two content-mismatch warnings when both status and summary differ', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'cm-both', summary: 'S', type: 'intent' });
+    tc.ctx.db.$client.prepare('UPDATE card SET status = ?, summary = ? WHERE key = ?').run('drifted', 'X', 'cm-both');
+    const result = await validateCards(tc.ctx);
+    const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch' && w.cardKey === 'cm-both');
+    expect(mismatch).toHaveLength(2);
+  });
+
+  it('should not report content-mismatch when DB and file are in sync', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'cm-ok', summary: 'OK', type: 'intent' });
+    const result = await validateCards(tc.ctx);
+    const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch');
+    expect(mismatch).toHaveLength(0);
+  });
+
+  it('should skip content-mismatch check for stale DB rows whose file was deleted', async () => {
+    tc = await createTestContext();
+    const { filePath } = await createCard(tc.ctx, { key: 'cm-del', summary: 'Del', type: 'intent' });
+    await unlink(filePath);
+    const result = await validateCards(tc.ctx);
+    const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch' && w.cardKey === 'cm-del');
+    expect(mismatch).toHaveLength(0);
   });
 
   it('should not modify DB or files — validateCards is read-only', async () => {

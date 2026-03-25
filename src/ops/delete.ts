@@ -42,10 +42,13 @@ export async function deleteCard(
 
   return withCardLock(ctx, key, () =>
     withRetry(async () => {
-      const exists = await Bun.file(filePath).exists();
-      if (!exists) {
+      // Guard on DB existence, not file existence.
+      // The file may have been externally deleted; we still need to clean up DB records.
+      if (!ctx.cardRepo.existsByKey(key)) {
         throw new CardNotFoundError(key);
       }
+
+      const fileExists = await Bun.file(filePath).exists();
 
       // Check for children
       const children = ctx.cardRepo.findChildren(key);
@@ -56,7 +59,7 @@ export async function deleteCard(
       }
 
       // Collect referencing cards (cards that have this key in their relations)
-      // We need to update these cards' files before deleting
+      // Their files will be updated (best-effort) after the card file is deleted
       const referencingRelations = ctx.relationRepo.findByCardKey(key);
       const referencingCardKeys = new Set<string>();
       for (const rel of referencingRelations) {
@@ -80,7 +83,11 @@ export async function deleteCard(
           return { filePath };
         },
         fileAction: async () => {
-          // Update children files: remove parent field
+          // Delete the card file first — if this fails, no side-effect files
+          // have been modified yet, so compensation restores DB cleanly.
+          await deleteCardFile(filePath);
+
+          // Best effort: update children files (remove parent field)
           if (force && children.length > 0) {
             for (const child of children) {
               try {
@@ -94,7 +101,7 @@ export async function deleteCard(
             }
           }
 
-          // Update referencing cards' files: remove this key from relations
+          // Best effort: update referencing cards' files (remove from relations)
           for (const refKey of referencingCardKeys) {
             try {
               const refRow = ctx.cardRepo.findByKey(refKey);
@@ -114,12 +121,30 @@ export async function deleteCard(
               // Best effort — file may not exist
             }
           }
-
-          await deleteCardFile(filePath);
         },
         compensate: async () => {
-          // File still exists, so restore DB via syncCardFromFile
-          await syncCardFromFile(ctx, filePath);
+          // Can only restore DB from file if the file still exists on disk
+          if (fileExists) {
+            await syncCardFromFile(ctx, filePath);
+          }
+          // If file was already gone, DB deletion is the desired outcome — nothing to compensate
+
+          // Restore DB state for related cards affected by FK CASCADE:
+          // - children: parent was SET NULL by FK cascade
+          // - referencing cards: forward relation rows to this card were CASCADE deleted
+          // Their files are unmodified (deleteCardFile runs before best-effort updates),
+          // so re-syncing from file restores the correct DB state.
+          if (force && children.length > 0) {
+            for (const child of children) {
+              try { await syncCardFromFile(ctx, child.filePath); } catch { /* best-effort */ }
+            }
+          }
+          for (const refKey of referencingCardKeys) {
+            try {
+              const refRow = ctx.cardRepo.findByKey(refKey);
+              if (refRow) await syncCardFromFile(ctx, refRow.filePath);
+            } catch { /* best-effort */ }
+          }
         },
       });
     }),

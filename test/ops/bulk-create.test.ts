@@ -157,4 +157,35 @@ describe('bulkCreateCards', () => {
     expect(row).not.toBeNull();
     expect(row!.summary).toBe('A');
   });
+
+  // B-2: partialKeys tracking for Phase 2 relation failures
+  it('should include partialKeys as empty array when all relations succeed', async () => {
+    tc = await createTestContext();
+    const result = await bulkCreateCards(tc.ctx, [
+      { key: 'pk-a', summary: 'A', type: 'spec' },
+      { key: 'pk-b', summary: 'B', type: 'spec', relations: ['pk-a'] },
+    ]);
+    expect(result.partialKeys).toEqual([]);
+    expect(result.created).toBe(2);
+  });
+
+  it('should report card in partialKeys when Phase 2 relation target does not exist', async () => {
+    tc = await createTestContext();
+    const result = await bulkCreateCards(tc.ctx, [
+      { key: 'pk-orphan', summary: 'Orphan', type: 'spec', relations: ['nonexistent-card'] },
+    ]);
+    expect(result.partialKeys).toContain('pk-orphan');
+    expect(result.keys).not.toContain('pk-orphan');
+    expect(result.errors.some((e) => e.key === 'pk-orphan' && e.message.includes('relation'))).toBe(true);
+    // Card still exists in DB (created in Phase 1)
+    expect(tc.ctx.cardRepo.findByKey('pk-orphan')).not.toBeNull();
+  });
+
+  it('should have partialKeys empty array when no cards have relations', async () => {
+    tc = await createTestContext();
+    const result = await bulkCreateCards(tc.ctx, [
+      { key: 'pk-no-rel', summary: 'No rel', type: 'spec' },
+    ]);
+    expect(result.partialKeys).toEqual([]);
+  });
 });
