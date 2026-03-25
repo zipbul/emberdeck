@@ -22,16 +22,22 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
   let gildash: Gildash | undefined;
   if (options.projectRoot) {
     try {
+      const mergedIgnore = [
+        ...(options.gildashIgnore ?? []),
+        ...(options.ignorePatterns ?? []),
+      ];
       const result = await Gildash.open({
         projectRoot: options.projectRoot,
-        ignorePatterns: options.gildashIgnore,
+        ignorePatterns: mergedIgnore.length > 0 ? mergedIgnore : undefined,
       });
       if (isErr(result)) {
+        process.stderr.write(`[emberdeck] gildash init error: ${JSON.stringify(result.data)}\n`);
         gildash = undefined;
       } else {
         gildash = result;
       }
     } catch (e) {
+      process.stderr.write(`[emberdeck] gildash init exception: ${e instanceof Error ? e.message : String(e)}\n`);
       gildash = undefined;
     }
   }
@@ -45,7 +51,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
     classificationRepo: new DrizzleClassificationRepository(db),
     codeLinkRepo: new DrizzleCodeLinkRepository(db),
     changelogRepo: new DrizzleChangelogRepository(db),
-    coverageIgnore: options.coverageIgnore ?? [],
+    ignorePatterns: options.ignorePatterns ?? [],
     regressionThreshold: options.regressionThreshold ?? 0,
     gildash,
   };

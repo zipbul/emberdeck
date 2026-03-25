@@ -129,6 +129,8 @@ async function runMcp(): Promise<void> {
     dbPath: config.dbPath,
     projectRoot: config.projectRoot,
     gildashIgnore: config.gildashIgnore,
+    ignorePatterns: config.ignorePatterns,
+    regressionThreshold: config.regressionThreshold,
   });
 
   // 4. MCP server

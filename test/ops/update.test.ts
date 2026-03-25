@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createCard, updateCard, updateCardStatus } from '../../index';
 import {
   CardNotFoundError,
+  CardValidationError,
 } from '../../index';
 import { createTestContext, type TestContext } from '../helpers';
 
@@ -87,7 +88,7 @@ describe('updateCard', () => {
 
   it('should update status in DB when updateCardStatus is called', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-card', summary: 'Status', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'st-card', summary: 'Status', type: 'intent' });
     await updateCardStatus(tc.ctx, 'st-card', 'active');
     const row = tc.ctx.cardRepo.findByKey('st-card');
     expect(row?.status).toBe('active');
@@ -95,7 +96,7 @@ describe('updateCard', () => {
 
   it('should update status in file frontmatter when updateCardStatus is called', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-file', summary: 'Status file', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'st-file', summary: 'Status file', type: 'intent' });
     const result = await updateCardStatus(tc.ctx, 'st-file', 'active');
     expect(result.card.frontmatter.status).toBe('active');
   });
@@ -185,7 +186,7 @@ describe('updateCard', () => {
 
   it('should update DB row and file when updateCardStatus is called while DB row is missing', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-no-db', summary: 'No DB', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'st-no-db', summary: 'No DB', type: 'intent' });
     tc.ctx.cardRepo.deleteByKey('st-no-db');
     const result = await updateCardStatus(tc.ctx, 'st-no-db', 'active');
     expect(result.card.frontmatter.status).toBe('active');
@@ -209,7 +210,7 @@ describe('updateCard', () => {
 
   it('should reflect latest status after multiple status transitions', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'multi-st', summary: 'Status', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'multi-st', summary: 'Status', type: 'intent' });
     await updateCardStatus(tc.ctx, 'multi-st', 'active');
     await updateCardStatus(tc.ctx, 'multi-st', 'drifted');
     const row = tc.ctx.cardRepo.findByKey('multi-st');
@@ -225,6 +226,89 @@ describe('updateCard', () => {
     const result = await updateCard(tc.ctx, 'idp-upd', { summary: 'Same summary' });
     expect(result.card.frontmatter.summary).toBe('Same summary');
     expect(tc.ctx.cardRepo.findByKey('idp-upd')?.summary).toBe('Same summary');
+  });
+});
+
+describe('updateCard — bodyPatches', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('should apply a single patch to the body', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-single', summary: 'Patch', type: 'spec', body: '## Contracts\n- WHEN A THEN B\n- WHEN C THEN D' });
+    const result = await updateCard(tc.ctx, 'bp-single', {
+      bodyPatches: [{ old: 'WHEN A THEN B', new: 'WHEN A THEN X' }],
+    });
+    expect(result.card.body).toContain('WHEN A THEN X');
+    expect(result.card.body).toContain('WHEN C THEN D');
+  });
+
+  it('should apply multiple patches sequentially', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-multi', summary: 'Multi', type: 'spec', body: 'alpha beta gamma' });
+    const result = await updateCard(tc.ctx, 'bp-multi', {
+      bodyPatches: [
+        { old: 'alpha', new: 'ALPHA' },
+        { old: 'gamma', new: 'GAMMA' },
+      ],
+    });
+    expect(result.card.body).toBe('ALPHA beta GAMMA');
+  });
+
+  it('should throw when old text is not found in body', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-miss', summary: 'Miss', type: 'spec', body: 'hello world' });
+    await expect(
+      updateCard(tc.ctx, 'bp-miss', { bodyPatches: [{ old: 'nonexistent', new: 'x' }] }),
+    ).rejects.toBeInstanceOf(CardValidationError);
+  });
+
+  it('should throw when old text appears more than once', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-dup', summary: 'Dup', type: 'spec', body: 'foo bar foo' });
+    await expect(
+      updateCard(tc.ctx, 'bp-dup', { bodyPatches: [{ old: 'foo', new: 'baz' }] }),
+    ).rejects.toBeInstanceOf(CardValidationError);
+  });
+
+  it('should throw when body and bodyPatches are both provided', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-conflict', summary: 'Conflict', type: 'spec', body: 'text' });
+    await expect(
+      updateCard(tc.ctx, 'bp-conflict', { body: 'new', bodyPatches: [{ old: 'text', new: 'x' }] }),
+    ).rejects.toBeInstanceOf(CardValidationError);
+  });
+
+  it('should persist patched body to DB and file', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-persist', summary: 'Persist', type: 'spec', body: 'old content here' });
+    await updateCard(tc.ctx, 'bp-persist', { bodyPatches: [{ old: 'old content', new: 'new content' }] });
+    const row = tc.ctx.cardRepo.findByKey('bp-persist');
+    expect(row?.body).toBe('new content here');
+  });
+
+  it('should preserve dollar signs in replacement text literally', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-dollar', summary: 'Dollar', type: 'spec', body: 'price is X' });
+    const result = await updateCard(tc.ctx, 'bp-dollar', {
+      bodyPatches: [{ old: 'price is X', new: 'price is $100' }],
+    });
+    expect(result.card.body).toBe('price is $100');
+  });
+
+  it('should allow second patch to target text created by first patch', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'bp-chain', summary: 'Chain', type: 'spec', body: 'aaa bbb' });
+    const result = await updateCard(tc.ctx, 'bp-chain', {
+      bodyPatches: [
+        { old: 'aaa', new: 'ccc' },
+        { old: 'ccc bbb', new: 'done' },
+      ],
+    });
+    expect(result.card.body).toBe('done');
   });
 });
 

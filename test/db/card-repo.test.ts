@@ -257,20 +257,20 @@ describe('DrizzleCardRepository', () => {
     expect(first).toBe(second);
   });
 
-  // ── Phase 3 fields: type is required string ───────────────────────
+  // ── type field: required string ───────────────────────
 
   it('should store and retrieve type field when upsert is called with type', () => {
     // Arrange / Act
-    repo.upsert(makeRow({ key: 'typed', type: 'architecture', filePath: '/typed.card.md' }));
+    repo.upsert(makeRow({ key: 'typed', type: 'intent', filePath: '/typed.card.md' }));
     // Assert
     const row = repo.findByKey('typed');
-    expect(row?.type).toBe('architecture');
+    expect(row?.type).toBe('intent');
   });
 
   it('should return only spec cards when list is called with type spec filter', () => {
     // Arrange
     repo.upsert(makeRow({ key: 'f/1', type: 'spec', filePath: '/f1.card.md' }));
-    repo.upsert(makeRow({ key: 'b/1', type: 'architecture', filePath: '/b1.card.md' }));
+    repo.upsert(makeRow({ key: 'b/1', type: 'intent', filePath: '/b1.card.md' }));
     // Act
     const result = repo.list({ type: 'spec' });
     // Assert
@@ -293,7 +293,7 @@ describe('DrizzleCardRepository', () => {
     // Arrange
     repo.upsert(makeRow({ key: 'df/1', status: 'draft', type: 'spec', filePath: '/df1.card.md' }));
     repo.upsert(makeRow({ key: 'af/1', status: 'active', type: 'spec', filePath: '/af1.card.md' }));
-    repo.upsert(makeRow({ key: 'db/1', status: 'draft', type: 'architecture', filePath: '/db1.card.md' }));
+    repo.upsert(makeRow({ key: 'db/1', status: 'draft', type: 'intent', filePath: '/db1.card.md' }));
     // Act
     const result = repo.list({ status: 'draft', type: 'spec' });
     // Assert

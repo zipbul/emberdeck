@@ -8,7 +8,7 @@ import type { CardType } from './types';
  */
 export const LIMITS = {
   /** Maximum length of summary (character count) */
-  SUMMARY_MAX: 500,
+  SUMMARY_MAX: 300,
   /** Maximum length of body (character count) */
   BODY_MAX: 100_000,
   /** Maximum item count for array fields (tags, relations, codeLinks) */
@@ -188,8 +188,8 @@ export function validateParentExists(ctx: EmberdeckContext, parentKey: string): 
 
 /**
  * Validates parent-type hierarchy rules:
- * - architecture: parent must be null or architecture
- * - spec: parent must be architecture or spec
+ * - intent: parent must be null or intent
+ * - spec: parent must be intent or spec
  */
 export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
   const parent = ctx.cardRepo.findByKey(parentKey);
@@ -198,16 +198,16 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
   }
   const parentType = parent.type as CardType;
 
-  if (cardType === 'architecture') {
-    if (parentType !== 'architecture') {
+  if (cardType === 'intent') {
+    if (parentType !== 'intent') {
       throw new ParentValidationError(
-        `architecture card parent must be architecture (got "${parentType}")`,
+        `intent card parent must be intent (got "${parentType}")`,
       );
     }
   } else if (cardType === 'spec') {
-    if (parentType !== 'architecture' && parentType !== 'spec') {
+    if (parentType !== 'intent' && parentType !== 'spec') {
       throw new ParentValidationError(
-        `spec card parent must be architecture or spec (got "${parentType}")`,
+        `spec card parent must be intent or spec (got "${parentType}")`,
       );
     }
   }
@@ -248,9 +248,9 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
   const children = ctx.cardRepo.findChildren(cardKey);
   for (const child of children) {
     const childType = child.type as CardType;
-    if (newType === 'spec' && childType === 'architecture') {
+    if (newType === 'spec' && childType === 'intent') {
       throw new ParentValidationError(
-        `Cannot change to spec: child "${child.key}" is architecture (architecture cannot have spec parent)`,
+        `Cannot change to spec: child "${child.key}" is intent (intent cannot have spec parent)`,
       );
     }
   }
@@ -258,14 +258,14 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
 
 /**
  * Activation guard: validates that a card meets the conditions for active status.
- * - architecture: no conditions
+ * - intent: no conditions
  * - spec: codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
  */
 export async function validateActivationGuard(
   ctx: EmberdeckContext,
   card: { type: CardType; codeLinks?: Array<{ file: string; symbol: string }>; boundary?: string[] },
 ): Promise<void> {
-  if (card.type === 'architecture') return;
+  if (card.type === 'intent') return;
 
   // spec activation conditions
   const unmet: string[] = [];

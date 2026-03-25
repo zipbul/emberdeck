@@ -1,4 +1,5 @@
 {
   // Emberdeck self-dogfooding config
-  "projectRoot": "."
+  "projectRoot": ".",
+  "ignorePatterns": ["dist/**", "test/**", "**/*.spec.ts", "**/*.test.ts", "drizzle/**"]
 }

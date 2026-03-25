@@ -241,7 +241,7 @@ export interface LinkCoverageResult {
  * Calculate code link coverage for a card.
  *
  * Checks how many declared links resolve in gildash, and finds
- * unreferenced symbols in the same files. Applies coverageIgnore
+ * unreferenced symbols in the same files. Applies ignorePatterns
  * patterns to exclude symbols from unreferenced list.
  */
 export async function getLinkCoverage(
@@ -305,9 +305,9 @@ export async function getLinkCoverage(
   // Symbols in boundary-matched files are considered covered (excluded from unreferenced)
   const unreferenced: LinkCoverageResult['unreferenced'] = [];
   for (const file of linkedFiles) {
-    // Skip files matching coverageIgnore patterns
+    // Skip files matching ignorePatterns patterns
     let ignored = false;
-    for (const pattern of ctx.coverageIgnore) {
+    for (const pattern of ctx.ignorePatterns) {
       const glob = new Bun.Glob(pattern);
       if (glob.match(file)) {
         ignored = true;
@@ -365,7 +365,7 @@ export interface GetUncoveredSymbolsOptions {
  * Find symbols not linked to any card via codeLinks or boundary.
  *
  * Returns all gildash-indexed symbols that are not covered by any card's
- * codeLinks or boundary globs. Applies coverageIgnore + excludePatterns
+ * codeLinks or boundary globs. Applies ignorePatterns + excludePatterns
  * to filter out files that should be excluded.
  */
 export async function getUncoveredSymbols(
@@ -381,8 +381,8 @@ export async function getUncoveredSymbols(
   const exportedOnly = options?.exportedOnly ?? false;
   const excludePatterns = options?.excludePatterns ?? [];
 
-  // Merge coverageIgnore + excludePatterns
-  const ignorePatterns = [...ctx.coverageIgnore, ...excludePatterns];
+  // Merge ignorePatterns + excludePatterns
+  const ignorePatterns = [...ctx.ignorePatterns, ...excludePatterns];
 
   // Build set of covered symbol keys: "file:symbol"
   const coveredKeys = new Set<string>();
@@ -444,8 +444,11 @@ export async function getUncoveredSymbols(
   const uncovered: UncoveredSymbol[] = [];
 
   for (const file of targetFiles) {
-    const absPath = ctx.projectRoot ? join(ctx.projectRoot, file) : file;
-    const symbols = ctx.gildash.getSymbolsByFile(absPath);
+    // Try relative path first (gildash stores by relative path), fall back to absolute
+    let symbols = ctx.gildash.getSymbolsByFile(file);
+    if ((!symbols || symbols.length === 0) && ctx.projectRoot) {
+      symbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
+    }
     if (!symbols || !Array.isArray(symbols)) continue;
 
     for (const sym of symbols) {
@@ -488,7 +491,7 @@ export async function getUncoveredSymbols(
 
 export interface CardSuggestion {
   suggestedKey: string;
-  type: 'architecture' | 'spec';
+  type: 'intent' | 'spec';
   parent?: string;
   files: string[];
   boundary: string[];
@@ -505,7 +508,7 @@ export interface SuggestCardScopeOptions {
  * Analyze directory structure and symbols to suggest card creation units.
  *
  * Looks at directories with symbols not covered by existing cards,
- * and suggests architecture cards for directories or spec cards for modules.
+ * and suggests intent cards for directories or spec cards for modules.
  */
 export async function suggestCardScope(
   ctx: EmberdeckContext,
@@ -590,8 +593,8 @@ export async function suggestCardScope(
     // Collect unique files in this directory
     const files = [...new Set(symbols.map((s) => s.file))];
 
-    // Determine type: directory-level = architecture, single-file/module = spec
-    const isArchitecture = files.length > 1;
+    // Determine type: directory-level = intent, single-file/module = spec
+    const isIntent = files.length > 1;
 
     // Find parent suggestion: nearest ancestor directory with a card
     let parent: string | undefined;
@@ -605,12 +608,12 @@ export async function suggestCardScope(
 
     suggestions.push({
       suggestedKey,
-      type: isArchitecture ? 'architecture' : 'spec',
+      type: isIntent ? 'intent' : 'spec',
       ...(parent ? { parent } : {}),
       files,
       boundary: [dir + '/**'],
       symbols: symbols.map((s) => ({ file: s.file, symbol: s.symbol, kind: s.kind })),
-      reason: isArchitecture
+      reason: isIntent
         ? `Directory ${dir} has ${symbols.length} uncovered symbols across ${files.length} files`
         : `Module ${files[0]} has ${symbols.length} uncovered symbols`,
     });

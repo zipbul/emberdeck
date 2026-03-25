@@ -12,10 +12,10 @@ export interface EmberdeckOptions {
   dbPath: string;
   /** Absolute path to the project root for enabling gildash. Code link feature is disabled when not specified */
   projectRoot?: string;
-  /** Gildash ignore patterns. Default: ['node_modules', 'dist', '.zipbul'] */
+  /** Additional gildash-specific ignore patterns (on top of ignorePatterns) */
   gildashIgnore?: string[];
-  /** Glob patterns for files to exclude from coverage calculations */
-  coverageIgnore?: string[];
+  /** Glob patterns for files to exclude from coverage and gildash indexing */
+  ignorePatterns?: string[];
   /** Regression guard threshold (0-1). 0 = any drifted card fails. Default: 0 */
   regressionThreshold?: number;
 }
@@ -34,8 +34,8 @@ export interface EmberdeckContext {
   classificationRepo: ClassificationRepository;
   codeLinkRepo: CodeLinkRepository;
   changelogRepo: ChangelogRepository;
-  /** Glob patterns for files to exclude from coverage calculations */
-  coverageIgnore: string[];
+  /** Glob patterns for files to exclude from coverage and gildash indexing */
+  ignorePatterns: string[];
   /** Regression guard threshold (0-1). 0 = any drifted card fails */
   regressionThreshold: number;
   /** Gildash instance. undefined when projectRoot is not set or initialization fails */

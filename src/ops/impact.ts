@@ -160,9 +160,9 @@ export function preChangeCheck(
   const newUncoveredFiles: string[] = [];
   for (const file of files) {
     if (coveredFiles.has(file)) continue;
-    // Apply coverageIgnore
+    // Apply ignorePatterns
     let ignored = false;
-    for (const pattern of ctx.coverageIgnore) {
+    for (const pattern of ctx.ignorePatterns) {
       const glob = new Bun.Glob(pattern);
       if (glob.match(file)) {
         ignored = true;

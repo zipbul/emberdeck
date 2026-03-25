@@ -10,10 +10,10 @@ export type CardStatus = 'draft' | 'active' | 'drifted';
 /**
  * Card type classifying the nature of the spec.
  *
- * - `architecture` — System structure: what areas exist, boundaries and relationships between them.
- * - `spec` — What a specific area must guarantee. A contract that survives reimplementation.
+ * - `intent` — Upstream decisions: why it exists, scope, constraints, policies. Not bound to code.
+ * - `spec` — Downstream contracts: verifiable behaviors bound to code via codeLinks.
  */
-export type CardType = 'architecture' | 'spec';
+export type CardType = 'intent' | 'spec';
 
 /**
  * A record linking a card to a source code symbol (gildash integration).
@@ -39,7 +39,7 @@ export interface CardFrontmatter {
   summary: string;
   /** Current lifecycle status of the card. */
   status: CardStatus;
-  /** Card type (architecture, spec). Required. */
+  /** Card type (intent, spec). Required. */
   type: CardType;
   /** Parent card key. Same type or one level up in hierarchy. */
   parent?: string;

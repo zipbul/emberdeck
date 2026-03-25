@@ -360,7 +360,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'status-card', summary: 'Status', type: 'architecture' },
+        arguments: { key: 'status-card', summary: 'Status', type: 'intent' },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -498,7 +498,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should filter cards by status', async () => {
       s = await setupMcp();
       await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'draft-card', summary: 'D', type: 'spec' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'architecture' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'intent' } });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
         arguments: { key: 'acc-card', status: 'active' },
@@ -1044,7 +1044,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'architecture' },
+        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'intent' },
       });
 
       const statuses = ['active', 'drifted'] as const;
@@ -1150,7 +1150,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           key: 'typed-card',
           summary: 'Typed card',
-          type: 'architecture',
+          type: 'intent',
         },
       });
       expect(result.isError).toBeFalsy();
@@ -1164,7 +1164,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       const card = parseText(get) as {
         card: { frontmatter: { type: string } };
       };
-      expect(card.card.frontmatter.type).toBe('architecture');
+      expect(card.card.frontmatter.type).toBe('intent');
     });
 
     it('should filter cards by type', async () => {
@@ -1175,7 +1175,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'arch-1', summary: 'Architecture 1', type: 'architecture' },
+        arguments: { key: 'arch-1', summary: 'Intent 1', type: 'intent' },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
@@ -1252,10 +1252,10 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
   });
 
   // ════════════════════════════════════════
-  // Phase 4 — Impact Analysis
+  // Impact Analysis
   // ════════════════════════════════════════
 
-  describe('Phase 4 — Impact Analysis', () => {
+  describe('Impact Analysis', () => {
     it('should find affected cards via pre_change_check', async () => {
       s = await setupMcp();
       await s.client.callTool({
@@ -1302,10 +1302,10 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
   });
 
   // ════════════════════════════════════════
-  // Phase 3: .strict() and removed tools
+  // Schema enforcement and removed tools
   // ════════════════════════════════════════
 
-  describe('Phase 3 .strict() enforcement', () => {
+  describe('.strict() enforcement', () => {
     it('should reject unknown keys in emberdeck_create_card', async () => {
       s = await setupMcp();
       const result = await s.client.callTool({
@@ -1356,7 +1356,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     });
   });
 
-  describe('Phase 3 removed tools', () => {
+  describe('removed tools', () => {
     it('should not list emberdeck_verify_acceptance', async () => {
       s = await setupMcp();
       const tools = await s.client.listTools();

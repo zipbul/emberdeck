@@ -143,7 +143,7 @@ describe('getUncoveredSymbols', () => {
 
     // Create a real temp directory for boundary scanning
     const { mkdirSync, writeFileSync, rmSync } = require('node:fs');
-    const tmpRoot = '/tmp/ed-phase6-boundary-' + Date.now();
+    const tmpRoot = '/tmp/ed-coverage-boundary-' + Date.now();
     mkdirSync(tmpRoot + '/src/api', { recursive: true });
     writeFileSync(tmpRoot + '/src/api/handler.ts', 'export function handle() {}');
 
@@ -164,10 +164,10 @@ describe('getUncoveredSymbols', () => {
     }
   });
 
-  it('applies coverageIgnore patterns', async () => {
+  it('applies ignorePatterns patterns', async () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = '/project';
-    tc.ctx.coverageIgnore = ['src/generated/**'];
+    tc.ctx.ignorePatterns = ['src/generated/**'];
     tc.ctx.gildash = createMockGildash({
       '/project/src/generated/types.ts': [
         { name: 'FooType', kind: 'type', isExported: true },
@@ -182,10 +182,10 @@ describe('getUncoveredSymbols', () => {
     expect(result.uncovered[0]!.symbol).toBe('login');
   });
 
-  it('applies excludePatterns on top of coverageIgnore', async () => {
+  it('applies excludePatterns on top of ignorePatterns', async () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = '/project';
-    tc.ctx.coverageIgnore = ['src/generated/**'];
+    tc.ctx.ignorePatterns = ['src/generated/**'];
     tc.ctx.gildash = createMockGildash({
       '/project/src/generated/types.ts': [
         { name: 'FooType', kind: 'type', isExported: true },
@@ -277,7 +277,7 @@ describe('suggestCardScope', () => {
     await tc?.cleanup();
   });
 
-  it('suggests architecture card for directory with multiple files', async () => {
+  it('suggests intent card for directory with multiple files', async () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
@@ -293,7 +293,7 @@ describe('suggestCardScope', () => {
     expect(suggestions.length).toBeGreaterThanOrEqual(1);
     const apiSuggestion = suggestions.find((s) => s.suggestedKey === 'src/api');
     expect(apiSuggestion).toBeDefined();
-    expect(apiSuggestion!.type).toBe('architecture');
+    expect(apiSuggestion!.type).toBe('intent');
     expect(apiSuggestion!.files).toHaveLength(2);
   });
 
@@ -516,7 +516,7 @@ describe('analyze', () => {
     tc = await createTestContext();
 
     const { mkdirSync, rmSync } = require('node:fs');
-    const tmpRoot = '/tmp/ed-phase6-boundary-drift-' + Date.now();
+    const tmpRoot = '/tmp/ed-coverage-boundary-drift-' + Date.now();
     mkdirSync(tmpRoot, { recursive: true });
     tc.ctx.projectRoot = tmpRoot;
 
@@ -576,7 +576,7 @@ describe('analyze', () => {
 
     // Use a tmp directory as projectRoot so Bun.Glob scanning works
     const { mkdirSync, rmSync } = require('node:fs');
-    const tmpRoot = '/tmp/ed-phase6-analyze-' + Date.now();
+    const tmpRoot = '/tmp/ed-coverage-analyze-' + Date.now();
     mkdirSync(tmpRoot, { recursive: true });
     tc.ctx.projectRoot = tmpRoot;
 

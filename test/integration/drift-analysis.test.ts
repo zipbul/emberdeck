@@ -1,5 +1,7 @@
 /**
- * Phase 4 gap tests: boundary_inactive, symbol_changed, linkStatus,
+ * Drift detection, impact analysis, spec-sync, and interaction tests.
+ *
+ * Covers: boundary_inactive, symbol_changed, linkStatus,
  * importDependencies with gildash, markerMissing, linkMissing.
  */
 import { describe, it, expect, afterEach, mock } from 'bun:test';
@@ -458,25 +460,25 @@ describe('syncSpecAnnotations — linkMissing', () => {
 });
 
 // ════════════════════════════════════════
-// 7. preChangeCheck — coverageIgnore in newUncoveredFiles
+// 7. preChangeCheck — ignorePatterns in newUncoveredFiles
 // ════════════════════════════════════════
 
-describe('preChangeCheck — coverageIgnore', () => {
+describe('preChangeCheck — ignorePatterns', () => {
   let tc: TestContext;
 
   afterEach(async () => {
     await tc?.cleanup();
   });
 
-  it('should exclude coverageIgnore-matched files from newUncoveredFiles', async () => {
+  it('should exclude ignorePatterns-matched files from newUncoveredFiles', async () => {
     tc = await createTestContext();
-    // Set coverageIgnore patterns
-    tc.ctx.coverageIgnore = ['test/**', '*.test.ts'];
+    // Set ignorePatterns patterns
+    tc.ctx.ignorePatterns = ['test/**', '*.test.ts'];
 
     const result = preChangeCheck(tc.ctx, ['src/uncovered.ts', 'test/helper.ts', 'foo.test.ts']);
     // src/uncovered.ts: not covered, not ignored → should appear
     expect(result.newUncoveredFiles).toContain('src/uncovered.ts');
-    // test/helper.ts: not covered, but matches coverageIgnore 'test/**' → excluded
+    // test/helper.ts: not covered, but matches ignorePatterns 'test/**' → excluded
     expect(result.newUncoveredFiles).not.toContain('test/helper.ts');
     // foo.test.ts: not covered, but matches '*.test.ts' → excluded
     expect(result.newUncoveredFiles).not.toContain('foo.test.ts');
@@ -484,7 +486,7 @@ describe('preChangeCheck — coverageIgnore', () => {
 
   it('should not exclude non-matching files from newUncoveredFiles', async () => {
     tc = await createTestContext();
-    tc.ctx.coverageIgnore = ['vendor/**'];
+    tc.ctx.ignorePatterns = ['vendor/**'];
 
     const result = preChangeCheck(tc.ctx, ['src/new-feature.ts']);
     // src/new-feature.ts doesn't match 'vendor/**' → should appear

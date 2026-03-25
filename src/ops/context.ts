@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+
 import type { EmberdeckContext } from '../config';
 import type { CodeLinkRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
@@ -106,19 +108,42 @@ export async function checkDrift(
     const totalLinks = links.length;
     let brokenLinks = 0;
 
-    // Check code link health via gildash
-    if (ctx.gildash) {
+    // Check code link health via gildash (batched by file)
+    if (ctx.gildash && links.length > 0) {
+      const linksByFile = new Map<string, typeof links>();
       for (const link of links) {
-        const results = ctx.gildash.searchSymbols({
-          text: link.symbol,
-          exact: true,
-          filePath: link.file,
-        });
-        if (!Array.isArray(results)) {
-          brokenLinks++;
+        const existing = linksByFile.get(link.file) ?? [];
+        existing.push(link);
+        linksByFile.set(link.file, existing);
+      }
+
+      for (const [file, fileLinks] of linksByFile) {
+        // Try getSymbolsByFile first (single call per file), fall back to searchSymbols
+        let fileSymbols = ctx.gildash.getSymbolsByFile(file);
+        if ((!fileSymbols || fileSymbols.length === 0) && ctx.projectRoot) {
+          fileSymbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
+        }
+
+        if (fileSymbols && Array.isArray(fileSymbols) && fileSymbols.length > 0) {
+          const symbolNames = new Set(fileSymbols.map((s) => s.name));
+          for (const link of fileLinks) {
+            if (!symbolNames.has(link.symbol)) brokenLinks++;
+          }
         } else {
-          const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
-          if (!found) brokenLinks++;
+          // Fall back to searchSymbols per link
+          for (const link of fileLinks) {
+            const results = ctx.gildash!.searchSymbols({
+              text: link.symbol,
+              exact: true,
+              filePath: link.file,
+            });
+            if (!Array.isArray(results)) {
+              brokenLinks++;
+            } else {
+              const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
+              if (!found) brokenLinks++;
+            }
+          }
         }
       }
     }

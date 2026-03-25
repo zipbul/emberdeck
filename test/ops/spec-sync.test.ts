@@ -1,5 +1,5 @@
 /**
- * Integration tests for Phase 2: code link automation.
+ * Integration tests for code link automation (spec-sync, symbol-sync, coverage).
  *
  * Gildash is outside the SUT boundary → mocked via ctx.gildash.
  * Real DB + real file system inside SUT boundary.

@@ -53,7 +53,7 @@ beforeEach(() => {
     classificationRepo,
     codeLinkRepo,
     changelogRepo,
-    coverageIgnore: [],
+    ignorePatterns: [],
     regressionThreshold: 0,
     gildash: undefined,
   };
@@ -74,7 +74,7 @@ describe('validateParentExists', () => {
   it('does not throw when parent exists', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'existing-parent', type: 'architecture', filePath: '.emberdeck/cards/existing-parent.card.md' }),
+      makeCard({ key: 'existing-parent', type: 'intent', filePath: '.emberdeck/cards/existing-parent.card.md' }),
     );
 
     // Act / Assert
@@ -85,14 +85,14 @@ describe('validateParentExists', () => {
 // ── validateParentType ──────────────────────────────────────────────────────
 
 describe('validateParentType', () => {
-  it('architecture parent for architecture child: OK', () => {
+  it('intent parent for intent child: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'arch-parent', type: 'architecture', filePath: '.emberdeck/cards/arch-parent.card.md' }),
+      makeCard({ key: 'arch-parent', type: 'intent', filePath: '.emberdeck/cards/arch-parent.card.md' }),
     );
 
     // Act / Assert
-    expect(() => validateParentType(ctx, 'architecture', 'arch-parent')).not.toThrow();
+    expect(() => validateParentType(ctx, 'intent', 'arch-parent')).not.toThrow();
   });
 
   it('spec parent for spec child: OK', () => {
@@ -105,24 +105,24 @@ describe('validateParentType', () => {
     expect(() => validateParentType(ctx, 'spec', 'spec-parent')).not.toThrow();
   });
 
-  it('architecture parent for spec child: OK', () => {
+  it('intent parent for spec child: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'arch-parent', type: 'architecture', filePath: '.emberdeck/cards/arch-parent.card.md' }),
+      makeCard({ key: 'arch-parent', type: 'intent', filePath: '.emberdeck/cards/arch-parent.card.md' }),
     );
 
     // Act / Assert
     expect(() => validateParentType(ctx, 'spec', 'arch-parent')).not.toThrow();
   });
 
-  it('spec parent for architecture child: throws ParentValidationError', () => {
+  it('spec parent for intent child: throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
       makeCard({ key: 'spec-parent', type: 'spec', filePath: '.emberdeck/cards/spec-parent.card.md' }),
     );
 
     // Act / Assert
-    expect(() => validateParentType(ctx, 'architecture', 'spec-parent')).toThrow(ParentValidationError);
+    expect(() => validateParentType(ctx, 'intent', 'spec-parent')).toThrow(ParentValidationError);
   });
 
   it('non-existent parent: throws ParentValidationError', () => {
@@ -138,10 +138,10 @@ describe('validateParentCycle', () => {
     // Arrange — A exists with parent=B, B exists with parent=null
     // We want to set B.parent = A which would create A->B->A
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-b', parent: null, type: 'architecture', filePath: '.emberdeck/cards/card-b.card.md' }),
+      makeCard({ key: 'card-b', parent: null, type: 'intent', filePath: '.emberdeck/cards/card-b.card.md' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-a', parent: 'card-b', type: 'architecture', filePath: '.emberdeck/cards/card-a.card.md' }),
+      makeCard({ key: 'card-a', parent: 'card-b', type: 'intent', filePath: '.emberdeck/cards/card-a.card.md' }),
     );
 
     // Act / Assert — trying to set B's parent to A
@@ -151,13 +151,13 @@ describe('validateParentCycle', () => {
   it('A->B->C (no cycle): OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-c', parent: null, type: 'architecture', filePath: '.emberdeck/cards/card-c.card.md' }),
+      makeCard({ key: 'card-c', parent: null, type: 'intent', filePath: '.emberdeck/cards/card-c.card.md' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-b', parent: 'card-c', type: 'architecture', filePath: '.emberdeck/cards/card-b.card.md' }),
+      makeCard({ key: 'card-b', parent: 'card-c', type: 'intent', filePath: '.emberdeck/cards/card-b.card.md' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-a', parent: 'card-b', type: 'architecture', filePath: '.emberdeck/cards/card-a.card.md' }),
+      makeCard({ key: 'card-a', parent: 'card-b', type: 'intent', filePath: '.emberdeck/cards/card-a.card.md' }),
     );
 
     // Act / Assert — setting A's parent to B (already the case, no cycle with C)
@@ -167,7 +167,7 @@ describe('validateParentCycle', () => {
   it('self-reference (parent=self): throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'self-ref', parent: null, type: 'architecture', filePath: '.emberdeck/cards/self-ref.card.md' }),
+      makeCard({ key: 'self-ref', parent: null, type: 'intent', filePath: '.emberdeck/cards/self-ref.card.md' }),
     );
 
     // Act / Assert
@@ -224,28 +224,28 @@ describe('validateRelationTargets', () => {
 // ── validateChildrenHierarchy ───────────────────────────────────────────────
 
 describe('validateChildrenHierarchy', () => {
-  it('change arch->spec with architecture children: throws ParentValidationError', () => {
+  it('change arch->spec with intent children: throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'parent', type: 'architecture', filePath: '.emberdeck/cards/parent.card.md' }),
+      makeCard({ key: 'parent', type: 'intent', filePath: '.emberdeck/cards/parent.card.md' }),
     );
     ctx.cardRepo.upsert(
       makeCard({
         key: 'arch-child',
-        type: 'architecture',
+        type: 'intent',
         parent: 'parent',
         filePath: '.emberdeck/cards/arch-child.card.md',
       }),
     );
 
-    // Act / Assert — changing parent from architecture to spec
+    // Act / Assert — changing parent from intent to spec
     expect(() => validateChildrenHierarchy(ctx, 'parent', 'spec')).toThrow(ParentValidationError);
   });
 
   it('change arch->spec with spec children: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'parent', type: 'architecture', filePath: '.emberdeck/cards/parent.card.md' }),
+      makeCard({ key: 'parent', type: 'intent', filePath: '.emberdeck/cards/parent.card.md' }),
     );
     ctx.cardRepo.upsert(
       makeCard({
@@ -275,13 +275,13 @@ describe('validateChildrenHierarchy', () => {
     );
 
     // Act / Assert
-    expect(() => validateChildrenHierarchy(ctx, 'parent', 'architecture')).not.toThrow();
+    expect(() => validateChildrenHierarchy(ctx, 'parent', 'intent')).not.toThrow();
   });
 
   it('no children: OK for any type change', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'lonely', type: 'architecture', filePath: '.emberdeck/cards/lonely.card.md' }),
+      makeCard({ key: 'lonely', type: 'intent', filePath: '.emberdeck/cards/lonely.card.md' }),
     );
 
     // Act / Assert
@@ -292,10 +292,10 @@ describe('validateChildrenHierarchy', () => {
 // ── validateActivationGuard ─────────────────────────────────────────────────
 
 describe('validateActivationGuard', () => {
-  it('architecture type: always passes (no conditions)', async () => {
+  it('intent type: always passes (no conditions)', async () => {
     // Act / Assert
     await expect(
-      validateActivationGuard(ctx, { type: 'architecture' }),
+      validateActivationGuard(ctx, { type: 'intent' }),
     ).resolves.toBeUndefined();
   });
 
@@ -352,7 +352,7 @@ describe('validateTypeChangeActivation', () => {
     // Act
     const result = await validateTypeChangeActivation(
       ctx,
-      { status: 'active', type: 'architecture', codeLinks: [] },
+      { status: 'active', type: 'intent', codeLinks: [] },
       'spec',
     );
 
@@ -365,7 +365,7 @@ describe('validateTypeChangeActivation', () => {
     const result = await validateTypeChangeActivation(
       ctx,
       { status: 'active', type: 'spec', codeLinks: [{ file: 'src/a.ts', symbol: 'x' }] },
-      'architecture',
+      'intent',
     );
 
     // Assert
@@ -377,7 +377,7 @@ describe('validateTypeChangeActivation', () => {
     const result = await validateTypeChangeActivation(
       ctx,
       { status: 'drifted', type: 'spec', codeLinks: [] },
-      'architecture',
+      'intent',
     );
 
     // Assert — not active, so no re-validation
@@ -389,7 +389,7 @@ describe('validateTypeChangeActivation', () => {
     const result = await validateTypeChangeActivation(
       ctx,
       { status: 'draft', type: 'spec', codeLinks: [] },
-      'architecture',
+      'intent',
     );
 
     // Assert

@@ -183,12 +183,12 @@ export async function validateCards(
   }
 
   for (const row of dbRows) {
-    // Orphan card: parent=null + type is not architecture
-    if (!row.parent && row.type !== 'architecture') {
+    // Orphan card: parent=null + type is not intent
+    if (!row.parent && row.type !== 'intent') {
       warnings.push({
         type: 'orphan-card',
         cardKey: row.key,
-        message: `Non-architecture card has no parent`,
+        message: `Non-intent card has no parent`,
       });
     }
 
@@ -204,11 +204,11 @@ export async function validateCards(
     // Type hierarchy violation
     if (row.parent && cardByKey.has(row.parent)) {
       const parent = cardByKey.get(row.parent)!;
-      if (row.type === 'architecture' && parent.type !== 'architecture') {
+      if (row.type === 'intent' && parent.type !== 'intent') {
         warnings.push({
           type: 'type-hierarchy-violation',
           cardKey: row.key,
-          message: `Architecture card has non-architecture parent "${row.parent}" (type: ${parent.type})`,
+          message: `Intent card has non-intent parent "${row.parent}" (type: ${parent.type})`,
         });
       }
     }
@@ -242,15 +242,15 @@ export async function validateCards(
     }
   }
 
-  // Empty tree: architecture card with no child specs (skip draft architecture)
+  // Empty tree: intent card with no child specs (skip draft intent)
   for (const row of dbRows) {
-    if (row.type === 'architecture' && row.status !== 'draft') {
+    if (row.type === 'intent' && row.status !== 'draft') {
       const children = dbRows.filter((r) => r.parent === row.key);
       if (children.length === 0) {
         warnings.push({
           type: 'empty-tree',
           cardKey: row.key,
-          message: `Active architecture card has no child cards`,
+          message: `Active intent card has no child cards`,
         });
       }
     }
@@ -298,6 +298,35 @@ export async function validateCards(
           type: 'boundary-overlap',
           cardKey: a.key,
           message: `Boundary overlaps with "${b.key}": ${overlapping.join(', ')}`,
+        });
+      }
+    }
+  }
+
+  // Broken chain: spec card with no relation to any intent card
+  for (const row of dbRows) {
+    if (row.type === 'spec') {
+      const relations = ctx.relationRepo.findByCardKey(row.key);
+      const forwardTargets = relations.filter((r) => !r.isReverse).map((r) => r.dstCardKey);
+      const reverseTargets = relations.filter((r) => r.isReverse).map((r) => r.dstCardKey);
+      const allRelated = [...forwardTargets, ...reverseTargets];
+      const hasIntentRelation = allRelated.some((targetKey) => {
+        const target = cardByKey.get(targetKey);
+        return target && target.type === 'intent';
+      });
+      // Also consider parent chain: if parent is intent, chain is intact
+      let hasIntentParent = false;
+      let current = row.parent;
+      while (current) {
+        const p = cardByKey.get(current);
+        if (p && p.type === 'intent') { hasIntentParent = true; break; }
+        current = p?.parent ?? null;
+      }
+      if (!hasIntentRelation && !hasIntentParent) {
+        warnings.push({
+          type: 'broken-chain',
+          cardKey: row.key,
+          message: `Spec card has no relation or parent link to any intent card`,
         });
       }
     }

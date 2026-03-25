@@ -8,7 +8,7 @@ import type {
 } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
-import { CardNotFoundError } from '../card/errors';
+import { CardNotFoundError, CardValidationError } from '../card/errors';
 import {
   validateCardInput,
   validateParentExists,
@@ -34,6 +34,18 @@ import { syncCardFromFile } from './sync';
  * Partial update fields passed to `updateCard`.
  * Fields set to `undefined` are left unchanged. `null` deletes the field.
  */
+/**
+ * Search-and-replace patch for card body content.
+ * Each patch's `old` must appear exactly once in the body at the time it is applied.
+ * Patches are applied sequentially in array order.
+ */
+export interface BodyPatch {
+  /** Text to find in the current body. Must appear exactly once at apply time. */
+  old: string;
+  /** Replacement text. */
+  new: string;
+}
+
 export interface UpdateCardFields {
   /** New summary. If undefined, kept as-is. */
   summary?: string;
@@ -45,8 +57,10 @@ export interface UpdateCardFields {
   parent?: string | null;
   /** Boundary glob patterns. */
   boundary?: string[];
-  /** New body. If undefined, kept as-is. */
+  /** New body. If undefined, kept as-is. Mutually exclusive with bodyPatches. */
   body?: string;
+  /** Partial body edits via search-and-replace. Applied sequentially. Mutually exclusive with body. */
+  bodyPatches?: BodyPatch[];
   /** Tags. null or empty array deletes the field. */
   tags?: string[] | null;
   /** Relations list (string[]). null or empty array deletes the field. */
@@ -89,6 +103,9 @@ export async function updateCard(
   fullKey: string,
   fields: UpdateCardFields,
 ): Promise<UpdateCardResult> {
+  if (fields.body !== undefined && fields.bodyPatches !== undefined) {
+    throw new CardValidationError('body and bodyPatches are mutually exclusive');
+  }
   validateCardInput({
     summary: fields.summary,
     body: fields.body,
@@ -180,7 +197,26 @@ export async function updateCard(
         });
       }
 
-      const nextBody = fields.body !== undefined ? fields.body : current.body;
+      let nextBody: string;
+      if (fields.bodyPatches !== undefined && fields.bodyPatches.length > 0) {
+        nextBody = current.body;
+        for (let i = 0; i < fields.bodyPatches.length; i++) {
+          const patch = fields.bodyPatches[i]!;
+          const occurrences = nextBody.split(patch.old).length - 1;
+          if (occurrences === 0) {
+            throw new CardValidationError(`bodyPatches[${i}].old not found in card body`);
+          }
+          if (occurrences > 1) {
+            throw new CardValidationError(`bodyPatches[${i}].old appears ${occurrences} times in card body (must be unique)`);
+          }
+          nextBody = nextBody.replace(patch.old, () => patch.new);
+        }
+        validateCardInput({ body: nextBody });
+      } else if (fields.body !== undefined) {
+        nextBody = fields.body;
+      } else {
+        nextBody = current.body;
+      }
       const card: CardFile = { filePath, frontmatter: next, body: nextBody };
 
       const now = new Date().toISOString();
@@ -225,7 +261,7 @@ export async function updateCard(
             if (fields.boundary !== undefined) {
               changelogRepo.insert({ cardKey: key, field: 'boundary', oldValue: prev.boundary ? JSON.stringify(prev.boundary) : null, newValue: next.boundary ? JSON.stringify(next.boundary) : null, changedAt: now, changedBy });
             }
-            if (fields.body !== undefined && fields.body !== current.body) {
+            if ((fields.body !== undefined && fields.body !== current.body) || (fields.bodyPatches !== undefined && fields.bodyPatches.length > 0)) {
               changelogRepo.insert({ cardKey: key, field: 'body', oldValue: null, newValue: null, changedAt: now, changedBy });
             }
 

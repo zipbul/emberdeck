@@ -65,7 +65,7 @@ function fail(err: unknown) {
 
 const codeLinkSchema = z.object({ kind: z.string(), file: z.string(), symbol: z.string() });
 const statusEnum = z.enum(['draft', 'active', 'drifted']);
-const cardTypeEnum = z.enum(['architecture', 'spec']);
+const cardTypeEnum = z.enum(['intent', 'spec']);
 
 // ---- McpServer Type ----
 
@@ -93,14 +93,14 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_create_card',
     {
       description:
-        'Record a new architecture or spec card before implementation. ' +
+        'Record a new intent or spec card before implementation. ' +
         'Use this to capture design knowledge as a card. ' +
         'Before calling: gather context by reading relevant code and asking the user about policies/constraints. ' +
         'The body should contain design rationale, invariants, and scope boundaries — not file listings (use codeLinks for that).',
       inputSchema: z.object({
         key: z.string().describe('Card key used as filename (e.g. "auth-token")'),
         summary: z.string().describe('One-line summary of the card'),
-        type: cardTypeEnum.describe('Card type (architecture/spec)'),
+        type: cardTypeEnum.describe('Card type (intent/spec)'),
         status: statusEnum.optional().describe('Initial status (default: draft). If active, activation guard is applied'),
         parent: z.string().optional().describe('Parent card key'),
         boundary: z.array(z.string()).optional().describe('File/directory glob patterns this card is responsible for'),
@@ -113,7 +113,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: {
       key: string;
       summary: string;
-      type: 'architecture' | 'spec';
+      type: 'intent' | 'spec';
       status?: 'draft' | 'active' | 'drifted';
       parent?: string;
       boundary?: string[];
@@ -157,7 +157,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       cards: Array<{
         key: string;
         summary: string;
-        type: 'architecture' | 'spec';
+        type: 'intent' | 'spec';
         status?: 'draft' | 'active' | 'drifted';
         parent?: string;
         boundary?: string[];
@@ -206,7 +206,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Update card fields when the spec evolves or needs refinement. ' +
         'Only pass the fields you want to change; the rest are preserved. ' +
-        'When updating body, ensure it contains design knowledge — not file listings.',
+        'Use bodyPatches for efficient partial body edits (search-and-replace, applied sequentially) instead of sending the full body. ' +
+        'body and bodyPatches are mutually exclusive.',
       inputSchema: z.object({
         key: z.string().describe('Card key'),
         summary: z.string().optional().describe('New summary'),
@@ -214,7 +215,11 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         status: statusEnum.optional().describe('New status'),
         parent: z.string().nullable().optional().describe('Parent card key (null to remove parent)'),
         boundary: z.array(z.string()).optional().describe('Boundary glob patterns'),
-        body: z.string().optional().describe('Design knowledge: rationale, invariants, scope boundaries, edge cases.'),
+        body: z.string().optional().describe('Full body replacement. Mutually exclusive with bodyPatches.'),
+        bodyPatches: z.array(z.object({
+          old: z.string().describe('Text to find in the current body (must appear exactly once at apply time)'),
+          new: z.string().describe('Replacement text'),
+        })).optional().describe('Partial body edits via search-and-replace. Applied sequentially. Mutually exclusive with body.'),
         tags: z.array(z.string()).nullable().optional().describe('Tags (null to remove)'),
         relations: z.array(z.string()).nullable().optional().describe('Related card keys (null to remove)'),
         codeLinks: z.array(codeLinkSchema).nullable().optional().describe('Code links (null to remove)'),
@@ -223,11 +228,12 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: {
       key: string;
       summary?: string;
-      type?: 'architecture' | 'spec';
+      type?: 'intent' | 'spec';
       status?: 'draft' | 'active' | 'drifted';
       parent?: string | null;
       boundary?: string[];
       body?: string;
+      bodyPatches?: Array<{ old: string; new: string }>;
       tags?: string[] | null;
       relations?: string[] | null;
       codeLinks?: Array<{ kind: string; file: string; symbol: string }> | null;
@@ -329,7 +335,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     },
     async (args: {
       status?: 'draft' | 'active' | 'drifted';
-      type?: 'architecture' | 'spec';
+      type?: 'intent' | 'spec';
       parent?: string;
       tag?: string;
       roots?: boolean;
@@ -366,7 +372,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         status: statusEnum.optional().describe('Filter by status'),
       }).strict(),
     },
-    async (args: { query: string; type?: 'architecture' | 'spec'; status?: 'draft' | 'active' | 'drifted' }) => {
+    async (args: { query: string; type?: 'intent' | 'spec'; status?: 'draft' | 'active' | 'drifted' }) => {
       try {
         const result = searchCards(ctx, args.query, {
           type: args.type,
@@ -776,7 +782,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Check code link coverage for a card: how many links resolve, how many are broken, ' +
         'and what symbols in linked files are not yet connected. ' +
-        'Applies coverageIgnore patterns to exclude files from unreferenced list. ' +
+        'Applies ignorePatterns to exclude files from unreferenced list. ' +
         'Use to find gaps in code-spec traceability. Requires gildash.',
       inputSchema: z.object({
         key: z.string().describe('Card key'),
@@ -800,7 +806,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Find symbols not linked to any card via codeLinks or boundary globs. ' +
         'Use to identify gaps in spec coverage and decide which symbols need cards. ' +
-        'Applies coverageIgnore patterns automatically. Requires gildash.',
+        'Applies ignorePatterns automatically. Requires gildash.',
       inputSchema: z.object({
         files: z.array(z.string()).optional().describe('Specific files to check (default: all indexed files)'),
         kinds: z.array(z.string()).optional().describe('Filter by symbol kind (function, class, interface, etc.)'),
@@ -828,7 +834,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Analyze directory structure and symbols to suggest where new cards should be created. ' +
-        'Groups uncovered symbols by directory and suggests architecture or spec cards. ' +
+        'Groups uncovered symbols by directory and suggests intent or spec cards. ' +
         'Does not create cards — returns suggestions for review. Requires gildash.',
       inputSchema: z.object({
         path: z.string().optional().describe('Directory path to analyze (default: project root)'),
@@ -865,4 +871,5 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       }
     },
   );
+
 }

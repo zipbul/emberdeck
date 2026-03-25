@@ -50,7 +50,7 @@ describe('getCard', () => {
 
   it('should include history when includeHistory is true', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'intent' });
     await updateCardStatus(tc.ctx, 'q-hist', 'active');
     const result = await getCard(tc.ctx, 'q-hist', { includeHistory: true });
     expect(result.history).toBeDefined();
@@ -76,7 +76,7 @@ describe('listCards', () => {
   it('should return only cards with matching status when filter.status is provided', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'flt-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'intent' });
     await updateCardStatus(tc.ctx, 'flt-acc', 'active');
     const rows = listCards(tc.ctx, { status: 'active' });
     expect(rows.every((r) => r.status === 'active')).toBe(true);

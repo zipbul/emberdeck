@@ -498,7 +498,7 @@ describe('syncCardFromFile — type', () => {
   it('should persist type to DB when syncing a file with type in frontmatter', async () => {
     tc = await createTestContext();
     const content = serializeCardMarkdown(
-      { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'architecture' },
+      { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'intent' },
       '',
     );
     const filePath = join(tc.cardsDir, 'sync-type.card.md');
@@ -507,7 +507,7 @@ describe('syncCardFromFile — type', () => {
 
     const row = tc.ctx.cardRepo.findByKey('sync-type');
     expect(row).not.toBeNull();
-    expect(row!.type).toBe('architecture');
+    expect(row!.type).toBe('intent');
   });
 });
 
@@ -524,11 +524,11 @@ describe('exportCardToFile — type round-trip', () => {
 
   it('should include type in exported file when card has type', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'exp-type', summary: 'Type export', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'exp-type', summary: 'Type export', type: 'intent' });
 
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-type');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCardMarkdown(text);
-    expect(parsed.frontmatter.type).toBe('architecture');
+    expect(parsed.frontmatter.type).toBe('intent');
   });
 });

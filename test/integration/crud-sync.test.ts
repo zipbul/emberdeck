@@ -1,5 +1,5 @@
 /**
- * Phase 3 specific tests.
+ * CRUD + Sync operation tests.
  *
  * Covers:
  *  - create: parent/boundary, activation guard, relations string[]
@@ -45,11 +45,11 @@ afterEach(async () => {
 
 // ── CREATE ──
 
-describe('Phase 3 create', () => {
+describe('create', () => {
   it('should create a card with parent and boundary', async () => {
     tc = await createTestContext();
     // Create parent first
-    await createCard(tc.ctx, { key: 'arch-parent', summary: 'Parent', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'arch-parent', summary: 'Parent', type: 'intent' });
     // Create child with parent and boundary
     const result = await createCard(tc.ctx, {
       key: 'child-spec',
@@ -103,12 +103,12 @@ describe('Phase 3 create', () => {
     expect(result.card.frontmatter.tags).toEqual(['auth', 'token']);
   });
 
-  it('should reject parent type hierarchy violation (spec under architecture only)', async () => {
+  it('should reject parent type hierarchy violation (spec under intent only)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'spec-parent', summary: 'Spec parent', type: 'spec' });
     await expect(
-      createCard(tc.ctx, { key: 'arch-child', summary: 'Arch child', type: 'architecture', parent: 'spec-parent' }),
-    ).rejects.toThrow('architecture card parent must be architecture');
+      createCard(tc.ctx, { key: 'arch-child', summary: 'Arch child', type: 'intent', parent: 'spec-parent' }),
+    ).rejects.toThrow('intent card parent must be intent');
   });
 
   it('should reject non-existent parent', async () => {
@@ -134,11 +134,11 @@ describe('Phase 3 create', () => {
 
   it('should reject circular parent reference', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cycle-a', summary: 'A', type: 'architecture' });
-    await createCard(tc.ctx, { key: 'cycle-b', summary: 'B', type: 'architecture', parent: 'cycle-a' });
+    await createCard(tc.ctx, { key: 'cycle-a', summary: 'A', type: 'intent' });
+    await createCard(tc.ctx, { key: 'cycle-b', summary: 'B', type: 'intent', parent: 'cycle-a' });
     // Try to make cycle-a's parent = cycle-b (cycle-b → cycle-a → cycle-b)
     await expect(
-      createCard(tc.ctx, { key: 'cycle-c', summary: 'C', type: 'architecture', parent: 'cycle-b' }),
+      createCard(tc.ctx, { key: 'cycle-c', summary: 'C', type: 'intent', parent: 'cycle-b' }),
     ).resolves.toBeDefined(); // No cycle — just a chain
     // Now update cycle-a's parent to cycle-c to create a real cycle
     await expect(
@@ -149,10 +149,10 @@ describe('Phase 3 create', () => {
 
 // ── UPDATE ──
 
-describe('Phase 3 update', () => {
+describe('update', () => {
   it('should update parent and record in changelog', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'arch-1', summary: 'Arch 1', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'arch-1', summary: 'Arch 1', type: 'intent' });
     await createCard(tc.ctx, { key: 'spec-1', summary: 'Spec 1', type: 'spec' });
     await updateCard(tc.ctx, 'spec-1', { parent: 'arch-1' });
 
@@ -165,7 +165,7 @@ describe('Phase 3 update', () => {
 
   it('should remove parent with null', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'arch-2', summary: 'Arch', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'arch-2', summary: 'Arch', type: 'intent' });
     await createCard(tc.ctx, { key: 'spec-2', summary: 'Spec', type: 'spec', parent: 'arch-2' });
     await updateCard(tc.ctx, 'spec-2', { parent: null });
 
@@ -175,8 +175,8 @@ describe('Phase 3 update', () => {
 
   it('should force draft when type change breaks activation conditions', async () => {
     tc = await createTestContext();
-    // Architecture card is active (no activation conditions for architecture)
-    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'architecture', status: 'active' });
+    // Intent card is active (no activation conditions for intent)
+    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'intent', status: 'active' });
     // Change to spec (requires codeLinks) → should force to draft
     const result = await updateCard(tc.ctx, 'arch-active', { type: 'spec' });
     expect(result.card.frontmatter.status).toBe('draft');
@@ -186,9 +186,9 @@ describe('Phase 3 update', () => {
 
   it('should reject type change that breaks children hierarchy', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'arch-p', summary: 'Arch parent', type: 'architecture' });
-    await createCard(tc.ctx, { key: 'arch-c', summary: 'Arch child', type: 'architecture', parent: 'arch-p' });
-    // Can't change parent to spec because child is architecture
+    await createCard(tc.ctx, { key: 'arch-p', summary: 'Arch parent', type: 'intent' });
+    await createCard(tc.ctx, { key: 'arch-c', summary: 'Arch child', type: 'intent', parent: 'arch-p' });
+    // Can't change parent to spec because child is intent
     await expect(
       updateCard(tc.ctx, 'arch-p', { type: 'spec' }),
     ).rejects.toThrow('Cannot change to spec');
@@ -216,10 +216,10 @@ describe('Phase 3 update', () => {
 
 // ── UPDATE STATUS ──
 
-describe('Phase 3 updateCardStatus', () => {
+describe('updateCardStatus', () => {
   it('should record reason in changelog', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'intent' });
     await updateCardStatus(tc.ctx, 'st-card', 'active', 'passed review');
 
     const result = await getCard(tc.ctx, 'st-card', { includeHistory: true });
@@ -239,10 +239,10 @@ describe('Phase 3 updateCardStatus', () => {
 
 // ── DELETE ──
 
-describe('Phase 3 delete', () => {
+describe('delete', () => {
   it('should reject delete when card has children and force=false', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'del-parent', summary: 'Parent', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'del-parent', summary: 'Parent', type: 'intent' });
     await createCard(tc.ctx, { key: 'del-child', summary: 'Child', type: 'spec', parent: 'del-parent' });
     await expect(
       deleteCard(tc.ctx, 'del-parent'),
@@ -251,7 +251,7 @@ describe('Phase 3 delete', () => {
 
   it('should delete with force=true and orphan children (parent field removed from child file)', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'f-parent', summary: 'Parent', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'f-parent', summary: 'Parent', type: 'intent' });
     await createCard(tc.ctx, { key: 'f-child', summary: 'Child', type: 'spec', parent: 'f-parent' });
 
     const childFilePath = tc.ctx.cardRepo.findByKey('f-child')!.filePath;
@@ -278,7 +278,7 @@ describe('Phase 3 delete', () => {
 
 // ── RENAME ──
 
-describe('Phase 3 rename', () => {
+describe('rename', () => {
   it('should update referencing cards\' relations files (old key → new key)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'rename-target', summary: 'Target', type: 'spec' });
@@ -294,7 +294,7 @@ describe('Phase 3 rename', () => {
 
   it('should update child cards\' parent field in files', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'rn-parent', summary: 'Parent', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'rn-parent', summary: 'Parent', type: 'intent' });
     await createCard(tc.ctx, { key: 'rn-child', summary: 'Child', type: 'spec', parent: 'rn-parent' });
 
     await renameCard(tc.ctx, 'rn-parent', 'rn-parent-new');
@@ -334,10 +334,10 @@ describe('Phase 3 rename', () => {
 
 // ── SYNC ──
 
-describe('Phase 3 sync', () => {
+describe('sync', () => {
   it('should sync parent and boundary from file to DB', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'sync-arch', summary: 'Arch', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'sync-arch', summary: 'Arch', type: 'intent' });
     await createCard(tc.ctx, { key: 'sync-spec', summary: 'Spec', type: 'spec', parent: 'sync-arch', boundary: ['src/mod/**'] });
 
     const row = tc.ctx.cardRepo.findByKey('sync-spec');
@@ -347,7 +347,7 @@ describe('Phase 3 sync', () => {
 
   it('validateCards should detect broken parent', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'vp-parent', summary: 'Parent', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'vp-parent', summary: 'Parent', type: 'intent' });
     await createCard(tc.ctx, { key: 'vp-child', summary: 'Child', type: 'spec', parent: 'vp-parent' });
     // Disable FK constraints, delete parent, re-enable FKs — simulates inconsistency
     tc.ctx.db.$client.run('PRAGMA foreign_keys = OFF');
@@ -376,7 +376,7 @@ describe('Phase 3 sync', () => {
   it('validateCards should detect rework dependency (active → draft)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'rw-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'architecture', status: 'active', relations: ['rw-draft'] });
+    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'intent', status: 'active', relations: ['rw-draft'] });
 
     const result = await validateCards(tc.ctx);
     const rework = result.warnings.find((w) => w.type === 'rework-dependency' && w.cardKey === 'rw-active');
@@ -385,7 +385,7 @@ describe('Phase 3 sync', () => {
 
   it('exportCardToFile should export parent and boundary', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'exp-arch', summary: 'Arch', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'exp-arch', summary: 'Arch', type: 'intent' });
     await createCard(tc.ctx, { key: 'exp-spec', summary: 'Spec', type: 'spec', parent: 'exp-arch', boundary: ['src/**'] });
 
     const filePath = await exportCardToFile(tc.ctx, 'exp-spec');
@@ -397,13 +397,13 @@ describe('Phase 3 sync', () => {
 
 // ── BULK CREATE ──
 
-describe('Phase 3 bulk-create', () => {
+describe('bulk-create', () => {
   it('should topologically sort and create parent before child', async () => {
     tc = await createTestContext();
     // Deliberately put child first
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'bc-child', summary: 'Child', type: 'spec', parent: 'bc-parent' },
-      { key: 'bc-parent', summary: 'Parent', type: 'architecture' },
+      { key: 'bc-parent', summary: 'Parent', type: 'intent' },
     ]);
     expect(result.created).toBe(2);
     expect(result.errors).toHaveLength(0);
@@ -432,7 +432,7 @@ describe('Phase 3 bulk-create', () => {
 
 // ── QUERY ──
 
-describe('Phase 3 query', () => {
+describe('query', () => {
   it('getCard with includeHistory should return changelog', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'hist', summary: 'Original', type: 'spec' });
@@ -466,10 +466,10 @@ describe('Phase 3 query', () => {
 
   it('searchCards should filter by type and status', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'srch-arch', summary: 'Search architecture', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'srch-arch', summary: 'Search intent', type: 'intent' });
     await createCard(tc.ctx, { key: 'srch-spec', summary: 'Search spec', type: 'spec' });
 
-    const archOnly = searchCards(tc.ctx, 'Search', { type: 'architecture' });
+    const archOnly = searchCards(tc.ctx, 'Search', { type: 'intent' });
     expect(archOnly).toHaveLength(1);
     expect(archOnly[0]!.key).toBe('srch-arch');
 
@@ -480,7 +480,7 @@ describe('Phase 3 query', () => {
 
   it('listCards should filter by parent', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'lp-arch', summary: 'Arch', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'lp-arch', summary: 'Arch', type: 'intent' });
     await createCard(tc.ctx, { key: 'lp-child1', summary: 'C1', type: 'spec', parent: 'lp-arch' });
     await createCard(tc.ctx, { key: 'lp-child2', summary: 'C2', type: 'spec', parent: 'lp-arch' });
     await createCard(tc.ctx, { key: 'lp-other', summary: 'Other', type: 'spec' });
@@ -492,7 +492,7 @@ describe('Phase 3 query', () => {
 
   it('listCards should filter roots only', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'root-a', summary: 'Root', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'root-a', summary: 'Root', type: 'intent' });
     await createCard(tc.ctx, { key: 'root-child', summary: 'Child', type: 'spec', parent: 'root-a' });
 
     const roots = listCards(tc.ctx, { roots: true });
@@ -543,7 +543,7 @@ describe('Phase 3 query', () => {
 
 // ── SYNC: duplicate key ──
 
-describe('Phase 3 sync duplicate key', () => {
+describe('sync duplicate key', () => {
   it('bulkSyncCards should detect duplicate keys across files', async () => {
     tc = await createTestContext();
     // Write two files with the same key
@@ -565,8 +565,8 @@ describe('Phase 3 sync duplicate key', () => {
 
 // ── SYNC: validateCards full read-time checks ──
 
-describe('Phase 3 validateCards full checks', () => {
-  it('should detect orphan card (non-architecture with no parent)', async () => {
+describe('validateCards full checks', () => {
+  it('should detect orphan card (non-intent with no parent)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'orphan-spec', summary: 'Orphan', type: 'spec' });
 
@@ -575,20 +575,20 @@ describe('Phase 3 validateCards full checks', () => {
     expect(orphan).toBeDefined();
   });
 
-  it('should NOT flag architecture card without parent as orphan', async () => {
+  it('should NOT flag intent card without parent as orphan', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'root-arch', summary: 'Root arch', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'root-arch', summary: 'Root arch', type: 'intent' });
 
     const result = await validateCards(tc.ctx);
     const orphan = result.warnings.find((w) => w.type === 'orphan-card' && w.cardKey === 'root-arch');
     expect(orphan).toBeUndefined();
   });
 
-  it('should detect type hierarchy violation (architecture under non-architecture)', async () => {
+  it('should detect type hierarchy violation (intent under non-intent)', async () => {
     tc = await createTestContext();
-    // Manually create a spec card then force an architecture child via DB manipulation
+    // Manually create a spec card then force an intent child via DB manipulation
     await createCard(tc.ctx, { key: 'th-spec', summary: 'Spec parent', type: 'spec' });
-    await createCard(tc.ctx, { key: 'th-arch', summary: 'Arch child', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'th-arch', summary: 'Arch child', type: 'intent' });
     // Force parent in DB bypassing validation
     tc.ctx.db.$client.run("UPDATE card SET parent = 'th-spec' WHERE key = 'th-arch'");
 
@@ -597,18 +597,18 @@ describe('Phase 3 validateCards full checks', () => {
     expect(violation).toBeDefined();
   });
 
-  it('should detect empty tree (active architecture with no children)', async () => {
+  it('should detect empty tree (active intent with no children)', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'architecture', status: 'active' });
+    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'intent', status: 'active' });
 
     const result = await validateCards(tc.ctx);
     const empty = result.warnings.find((w) => w.type === 'empty-tree' && w.cardKey === 'empty-arch');
     expect(empty).toBeDefined();
   });
 
-  it('should NOT flag draft architecture with no children as empty tree', async () => {
+  it('should NOT flag draft intent with no children as empty tree', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'draft-arch', summary: 'Draft arch', type: 'architecture' });
+    await createCard(tc.ctx, { key: 'draft-arch', summary: 'Draft arch', type: 'intent' });
 
     const result = await validateCards(tc.ctx);
     const empty = result.warnings.find((w) => w.type === 'empty-tree' && w.cardKey === 'draft-arch');
@@ -637,7 +637,7 @@ describe('Phase 3 validateCards full checks', () => {
 
   it('should allow boundary overlap between parent and child', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bnd-parent', summary: 'Parent', type: 'architecture', boundary: ['src/**'] });
+    await createCard(tc.ctx, { key: 'bnd-parent', summary: 'Parent', type: 'intent', boundary: ['src/**'] });
     await createCard(tc.ctx, { key: 'bnd-child', summary: 'Child', type: 'spec', parent: 'bnd-parent', boundary: ['src/**'] });
 
     const result = await validateCards(tc.ctx);
@@ -648,7 +648,7 @@ describe('Phase 3 validateCards full checks', () => {
 
 // ── BULK CREATE: activation guard ──
 
-describe('Phase 3 bulk-create activation guard', () => {
+describe('bulk-create activation guard', () => {
   it('should reject spec card with active status and no codeLinks in bulk create', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
@@ -659,10 +659,10 @@ describe('Phase 3 bulk-create activation guard', () => {
     expect(result.errors[0]!.message).toContain('Activation conditions not met');
   });
 
-  it('should allow architecture card with active status (no activation conditions)', async () => {
+  it('should allow intent card with active status (no activation conditions)', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { key: 'bc-arch-active', summary: 'Active arch', type: 'architecture', status: 'active' },
+      { key: 'bc-arch-active', summary: 'Active arch', type: 'intent', status: 'active' },
     ]);
     expect(result.created).toBe(1);
     expect(result.failed).toBe(0);
@@ -671,7 +671,7 @@ describe('Phase 3 bulk-create activation guard', () => {
 
 // ── DELETE: DB CASCADE verification ──
 
-describe('Phase 3 delete cascade', () => {
+describe('delete cascade', () => {
   it('should cascade-delete relations, tags, code links, changelog on card delete', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'cas-target', summary: 'Target', type: 'spec' });

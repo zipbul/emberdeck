@@ -59,6 +59,7 @@ export {
   exportCardToFile,
   type BulkSyncResult,
   type CardValidationResult,
+  type ValidationWarning,
 } from './src/ops/sync';
 export {
   ensureReindexed,
@@ -82,6 +83,8 @@ export {
   type InteractionResult,
   type CardInteraction,
   type ImportDependency,
+  type SharedSymbol,
+  type UndefinedRelation,
 } from './src/ops/context';
 export {
   preChangeCheck,
