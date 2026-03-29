@@ -1169,4 +1169,201 @@ describe('writeSpecAnnotations', () => {
     const matches = content.match(/@spec idem-write/g);
     expect(matches).toHaveLength(1);
   });
+
+  // ── Reconciler: REMOVE orphan @spec ──
+
+  it('should remove orphan @spec when card is deleted (standalone comment)', async () => {
+    tc = await createTestContext();
+    const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
+    tc.ctx.projectRoot = projectRoot;
+
+    const relPath = 'src/orphan.ts';
+    // Source has @spec for a card that no longer exists in DB
+    await writeSourceFile(projectRoot, relPath, '/** @spec deleted-card */\nexport function orphanFn() {}\n');
+
+    // No cards in DB — desired set is empty
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [
+        { tag: 'spec', value: 'deleted-card', filePath: relPath, symbolName: 'orphanFn', source: 'jsdoc', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } } },
+      ],
+      searchSymbols: () => [],
+    });
+
+    const result = await writeSpecAnnotations(tc.ctx);
+    expect(result.removed).toBe(1);
+    expect(result.annotated).toBe(0);
+
+    const content = await readSourceFile(projectRoot, relPath);
+    expect(content).not.toContain('@spec deleted-card');
+    expect(content).toContain('export function orphanFn()');
+  });
+
+  it('should remove orphan @spec line inside multi-line JSDoc', async () => {
+    tc = await createTestContext();
+    const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
+    tc.ctx.projectRoot = projectRoot;
+
+    const relPath = 'src/multi.ts';
+    const original = [
+      '/**',
+      ' * Real documentation.',
+      ' * @spec old-card',
+      ' */',
+      'export function multiFn() {}',
+      '',
+    ].join('\n');
+    await writeSourceFile(projectRoot, relPath, original);
+
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [
+        { tag: 'spec', value: 'old-card', filePath: relPath, symbolName: 'multiFn', source: 'jsdoc', span: { start: { line: 3, column: 0 }, end: { line: 3, column: 17 } } },
+      ],
+      searchSymbols: () => [],
+    });
+
+    const result = await writeSpecAnnotations(tc.ctx);
+    expect(result.removed).toBe(1);
+
+    const content = await readSourceFile(projectRoot, relPath);
+    expect(content).not.toContain('@spec old-card');
+    expect(content).toContain('Real documentation.');
+    expect(content).toContain('export function multiFn()');
+  });
+
+  it('should remove entire JSDoc block when @spec was the only content', async () => {
+    tc = await createTestContext();
+    const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
+    tc.ctx.projectRoot = projectRoot;
+
+    const relPath = 'src/empty-jsdoc.ts';
+    const original = [
+      '/**',
+      ' * @spec only-spec',
+      ' */',
+      'export function emptyJsdocFn() {}',
+      '',
+    ].join('\n');
+    await writeSourceFile(projectRoot, relPath, original);
+
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [
+        { tag: 'spec', value: 'only-spec', filePath: relPath, symbolName: 'emptyJsdocFn', source: 'jsdoc', span: { start: { line: 2, column: 0 }, end: { line: 2, column: 18 } } },
+      ],
+      searchSymbols: () => [],
+    });
+
+    const result = await writeSpecAnnotations(tc.ctx);
+    expect(result.removed).toBe(1);
+
+    const content = await readSourceFile(projectRoot, relPath);
+    expect(content).not.toContain('/**');
+    expect(content).not.toContain('@spec');
+    expect(content).toContain('export function emptyJsdocFn()');
+  });
+
+  it('should handle rename: remove old key + insert new key', async () => {
+    tc = await createTestContext();
+    const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
+    tc.ctx.projectRoot = projectRoot;
+
+    const relPath = 'src/rename.ts';
+    // Source has @spec with old key
+    await writeSourceFile(projectRoot, relPath, '/** @spec old-key */\nexport function renameFn() {}\n');
+
+    // DB has card with new key
+    await createCard(tc.ctx, {
+      key: 'new-key',
+      summary: 'Renamed card',
+      type: 'spec' as const,
+      codeLinks: [{ kind: 'function', file: relPath, symbol: 'renameFn' }],
+    });
+
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [
+        { tag: 'spec', value: 'old-key', filePath: relPath, symbolName: 'renameFn', source: 'jsdoc', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 20 } } },
+      ],
+      searchSymbols: () => [
+        { name: 'renameFn', filePath: relPath, kind: 'function', span: { start: { line: 2, column: 0 }, end: { line: 2, column: 28 } } },
+      ],
+    });
+
+    const result = await writeSpecAnnotations(tc.ctx);
+    expect(result.removed).toBe(1);
+    expect(result.annotated).toBe(1);
+
+    const content = await readSourceFile(projectRoot, relPath);
+    expect(content).not.toContain('@spec old-key');
+    expect(content).toContain('@spec new-key');
+  });
+
+  it('should remove all @spec when DB is empty (reset scenario)', async () => {
+    tc = await createTestContext();
+    const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
+    tc.ctx.projectRoot = projectRoot;
+
+    await writeSourceFile(projectRoot, 'src/a.ts', '/** @spec card-a */\nexport function fnA() {}\n');
+    await writeSourceFile(projectRoot, 'src/b.ts', '/** @spec card-b */\nexport function fnB() {}\n');
+
+    // DB is empty — no cards
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [
+        { tag: 'spec', value: 'card-a', filePath: 'src/a.ts', symbolName: 'fnA', source: 'jsdoc', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 19 } } },
+        { tag: 'spec', value: 'card-b', filePath: 'src/b.ts', symbolName: 'fnB', source: 'jsdoc', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 19 } } },
+      ],
+      searchSymbols: () => [],
+    });
+
+    const result = await writeSpecAnnotations(tc.ctx);
+    expect(result.removed).toBe(2);
+    expect(result.annotated).toBe(0);
+
+    const contentA = await readSourceFile(projectRoot, 'src/a.ts');
+    const contentB = await readSourceFile(projectRoot, 'src/b.ts');
+    expect(contentA).not.toContain('@spec');
+    expect(contentB).not.toContain('@spec');
+  });
+
+  it('should be idempotent: removed=0, annotated=0 on second run', async () => {
+    tc = await createTestContext();
+    const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
+    tc.ctx.projectRoot = projectRoot;
+
+    const relPath = 'src/idem2.ts';
+    await writeSourceFile(projectRoot, relPath, 'export function idem2Fn() {}\n');
+
+    await createCard(tc.ctx, {
+      key: 'idem2-card',
+      summary: 'Idempotent',
+      type: 'spec' as const,
+      codeLinks: [{ kind: 'function', file: relPath, symbol: 'idem2Fn' }],
+    });
+
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [],
+      searchSymbols: () => [
+        { name: 'idem2Fn', filePath: relPath, kind: 'function', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 28 } } },
+      ],
+    });
+
+    // First run: should insert
+    const r1 = await writeSpecAnnotations(tc.ctx, 'idem2-card');
+    expect(r1.annotated).toBe(1);
+    expect(r1.removed).toBe(0);
+
+    // Mock now returns the annotation we just inserted
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [
+        { tag: 'spec', value: 'idem2-card', filePath: relPath, symbolName: 'idem2Fn', source: 'jsdoc', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 23 } } },
+      ],
+      searchSymbols: () => [
+        { name: 'idem2Fn', filePath: relPath, kind: 'function', span: { start: { line: 2, column: 0 }, end: { line: 2, column: 28 } } },
+      ],
+    });
+
+    // Second run: should be no-op
+    const r2 = await writeSpecAnnotations(tc.ctx, 'idem2-card');
+    expect(r2.annotated).toBe(0);
+    expect(r2.removed).toBe(0);
+    expect(r2.alreadyPresent).toBe(1);
+  });
 });

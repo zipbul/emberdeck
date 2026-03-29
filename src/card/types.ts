@@ -51,6 +51,8 @@ export interface CardFrontmatter {
   codeLinks?: CodeLink[];
   /** List of tags for categorization. Stored as lowercase. */
   tags?: string[];
+  /** Glossary words declared by this card. Each must exist in glossary.yaml. */
+  glossary?: string[];
 }
 
 /**

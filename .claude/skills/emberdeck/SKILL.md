@@ -3,195 +3,153 @@ name: emberdeck
 description: Design knowledge management for codebases using Emberdeck MCP tools. Trigger when the user asks to build, change, fix, or refactor code in a project with emberdeck configured. Also trigger on "/emberdeck" or when the user asks about specs, design cards, or acceptance criteria.
 ---
 
-# Emberdeck
+<rules>
+1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
+2. Show card analysis to user and get confirmation before creating any card.
+3. Intent cards capture decisions not visible in code. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
+4. Define glossary before creating cards. When `glossary.yaml` has entries, every new card requires a non-empty `glossary` field. Use canonical glossary words in card bodies, summaries, and code symbol names.
+</rules>
 
-Never directly read/write `.emberdeck/cards/*.card.md` files. Use `emberdeck_*` MCP tools only.
+<route_table>
+Match the FIRST row whose signal is true, then follow the named workflow.
 
-## Critical rules
+| # | Signal | Workflow |
+|---|--------|----------|
+| 1 | No `.emberdeck/` or 0 cards | onboarding |
+| 2 | Cards exist, no `glossary.yaml` or 0 glossary entries | glossary-backfill |
+| 3 | Code change affects card scope | feature |
+| 4 | Code change outside all card scopes | feature (step 1 reveals uncovered files) |
+| 5 | No code change (deps, CI, lint, docs) | skip card workflow |
+| 6 | No modification intent | read cards for context only |
+</route_table>
 
-These three rules are non-negotiable. Every other section is reference material.
+<workflows>
 
-1. **intent cards capture decisions not visible in code; spec cards capture verifiable contracts bound to code.** Intent cards do not need codeLinks. Spec cards require codeLinks and must relate to at least one intent card (enforced by `validate_cards`). Do not put discoverable information (function signatures, directory layout, tech stack) in any card — it degrades agent performance (ETH Zurich ICSE JAWs 2026: -2-3%).
+<workflow name="onboarding">
+1. `emberdeck_analyze` — current state. Then `emberdeck_write_spec_annotations` to reconcile (removes orphan @spec from previous sessions, adds missing ones). Reconciler is idempotent.
+2. Read codebase. Identify domain concepts and design decisions not visible in code.
+3. Propose glossary to user (see glossary-proposal template). Get confirmation. `emberdeck_define_glossary`.
+4. Create intent cards (with `glossary` field). Show card-analysis template for each.
+5. Create spec cards under intents (with `glossary`, `codeLinks`, `relations`).
+6. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken and 0 broken-chain warnings before finishing.
+7. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags into source code for all codeLinks.
+</workflow>
 
-2. **Before creating any card, show your analysis to the user and get confirmation.** Use this exact template:
+<workflow name="glossary-backfill">
+1. `emberdeck_lookup_glossary` — confirm empty.
+2. Read existing card bodies and summaries. Extract domain terms.
+3. Propose glossary to user. `emberdeck_define_glossary`.
+4. Update each card: `emberdeck_update_card` with `glossary` field.
+5. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken warnings before finishing.
+</workflow>
+
+<workflow name="feature">
+1. `emberdeck_pre_change_check` with files to modify. Response includes full `glossary` and affected cards.
+   - critical risk: stop, show impact to user, get confirmation.
+   - high risk: show affected cards to user, get confirmation.
+   - medium/low risk: proceed.
+2. `emberdeck_get_card` for each affected card — these are your constraints.
+   - Direct cards: read full body. Transitive cards: summary only.
+3. If no cards exist for the area: create intent card first (show card-analysis, include glossary), then spec cards.
+4. Write code within card constraints.
+5. If a new domain concept emerges: propose glossary entry to user → `emberdeck_define_glossary` → update affected cards' glossary fields.
+6. If your change extends an existing spec's scope: update the spec card body and glossary field.
+7. GATE: `emberdeck_validate_code_links` — pass with 0 broken links before finishing.
+8. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags for new/changed codeLinks.
+</workflow>
+
+</workflows>
+
+<tool_protocol>
+
+Glossary tools — when and how:
+
+| Tool | When | Requires user confirmation |
+|------|------|---------------------------|
+| `emberdeck_define_glossary` | New domain concept or definition update. Batch up to 50. All-or-nothing validation. | Yes — show glossary-proposal first |
+| `emberdeck_lookup_glossary` | Check a term's meaning, or list all terms at session start | No |
+| `emberdeck_remove_glossary` | Domain concept eliminated from project. Cards referencing it become drifted. | Yes |
+| `emberdeck_rename_glossary` | Domain concept rebranded. Auto-updates glossary + all card glossary fields. Card bodies need manual update. | Yes |
+| `emberdeck_find_cards_by_glossary_word` | Find which cards declare a specific glossary word. Use to audit term usage or assess impact before removing/renaming. | No |
+| `emberdeck_reset` | Delete all cards (DB + files), clear glossary. Run `emberdeck_write_spec_annotations` after to remove orphan @spec from source. | Yes |
+
+Rename sequence:
+1. `emberdeck_rename_glossary` with oldWord, newWord, optional definition.
+2. `emberdeck_search_cards` for old word in card bodies.
+3. `emberdeck_update_card` with bodyPatches to replace old word in each affected body.
+
+Card creation — always include:
+- `glossary`: words from project glossary this card uses (required when glossary.yaml exists)
+- `type`: intent (decisions) or spec (contracts)
+- `codeLinks`: required for spec cards
+- `relations`: spec cards relate to at least one intent card
+
+</tool_protocol>
+
+<card_analysis_template>
+Show this to the user before every card creation:
 
 ```
 ### Card analysis: {key}
+- **Type**: intent | spec
+- **Glossary**: [{words from project glossary}]
 - **Must guarantee**: {what this card ensures}
 - **Excluded**: {what is deliberately out of scope}
 - **Breaks if violated**: {concrete consequence}
 ```
+</card_analysis_template>
 
-Do not create cards without this output. Do not skip fields. Applies to every card in `emberdeck_bulk_create_cards`.
+<glossary_proposal_template>
+Show this to the user before calling `emberdeck_define_glossary`:
 
-3. **Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after.** This is also in CLAUDE.md so it applies even when this skill is not loaded. Do not modify code without checking cards. Do not skip validation after changes.
-
-## Route your task first
-
-Before starting work, determine your task type:
-
-| Signal | Task type | Workflow |
-|--------|-----------|----------|
-| No `.emberdeck/` or 0 cards | **Onboarding** | Analyze codebase → create intent cards → create spec cards |
-| Cards exist, code change affects card scope | **Feature / Bug fix / Refactor** | Read cards → work within constraints → validate |
-| Cards exist, code change is outside all card scopes | **Uncovered area** | `emberdeck_pre_change_check` → decide if new cards needed |
-| No code change (deps, CI, lint, docs) | **Chore** | Skip card workflow entirely — no card reads or validation needed |
-| No modification intent | **Exploration** | Read cards for context only — no validation needed |
-
-Do not run the full card workflow for chores. Do not skip card reads for code changes that touch card scopes.
-
-## Card types
-
-### intent — upstream decisions (why, what, what not)
-
-Content that gets lost between conversations because it is not in the code:
-- Why this exists (problem, need, motivation)
-- What is in scope and what is deliberately excluded
-- Decisions and constraints, with reasoning
-- Policies (always/never rules)
-
-No codeLinks needed. No boundary needed. Can be a root card (no parent).
-
-### spec — downstream contracts (verifiable behaviors)
-
-Contracts that code must satisfy, written so an agent can verify compliance:
-- Verifiable behaviors (WHEN condition THEN expected result)
-- Known failure modes (symptom, cause, resolution)
-- Hidden cross-module contracts that reading one file alone would not reveal
-
-codeLinks required. Must relate to at least one intent card (via relation or parent chain).
-
-### Hierarchy guidance
-
-- Create a **parent-child** relationship when one card's scope is a strict subset of another (e.g., `auth` intent → `auth-token-validation` spec).
-- Keep cards **flat** (no parent, just relations) when they are peers at the same abstraction level.
-- Do not nest deeper than 3 levels — deeper hierarchies add navigation cost without value.
-
-## Body content examples
-
-### Good intent body
-
-```markdown
-## Why
-Users need in-app communication without switching to external tools.
-
-## Scope
-- 1:1 text messaging only. Group chat deferred to v2.
-- Real-time delivery via persistent connection. No offline queue.
-
-## Decisions
-- WebSocket chosen over polling: latency under 100ms required for "real-time" feel. Polling at 1s interval was tested and felt sluggish.
-- No end-to-end encryption: internal enterprise tool, network is trusted.
-
-## Excluded
-- File attachments — separate feature if needed
-- Read receipts — not requested, adds complexity
 ```
+### Glossary proposal
+| Word | Definition |
+|------|-----------|
+| {word} | {definition} |
 
-### Bad intent body — do not write like this
-
-```markdown
-## Overview
-The chat module is in src/chat/ and has 3 files. It uses WebSocket
-via the ws library and stores messages in SQLite using drizzle-orm.
-
-## Functions
-- sendMessage(content: string): Promise<void>
-- onMessage(handler: MessageHandler): void
+Register?
 ```
+</glossary_proposal_template>
 
-Why bad: everything here is discoverable by reading code. Wastes tokens and degrades performance.
+<error_recovery>
 
-### Good spec body
+When `emberdeck_validate_cards` reports warnings:
 
-```markdown
-## Contracts
-- WHEN a message is sent THEN it is persisted before delivery confirmation
-- WHEN the connection drops THEN reconnection resumes from the last received message sequence number
-- WHEN two messages are sent in sequence THEN they arrive in the same order
+| Warning | Cause | Recovery |
+|---------|-------|----------|
+| glossary-broken | Card references a glossary word that was removed | `emberdeck_define_glossary` to re-add, or `emberdeck_update_card` to remove the word from the card's glossary field |
+| glossary-unused | Glossary word not referenced by any card | Informational — consider creating a card for this concept or removing the glossary entry |
+| glossary-undeclared-usage | Card body mentions a glossary word not in its glossary field | `emberdeck_update_card` to add the word to the card's glossary field |
+| glossary-phantom-declaration | Card declares a glossary word absent from its body/summary | Remove from glossary field, or add the term to the card body |
+| content-mismatch | DB and file diverged | `emberdeck_export_card_to_file` to regenerate file from DB |
+| broken-chain | Spec card has no link to any intent card | Add a relation or parent to an intent card |
 
-## Failure modes
-| Symptom | Cause | Resolution |
-|---------|-------|------------|
-| Messages arrive out of order | Sequence number not checked on reconnect | Compare server sequence with client last-seen |
+When `emberdeck_validate_code_links` finds broken links:
+1. Check if the symbol was renamed → `emberdeck_sync_symbol_changes`.
+2. Check if the file was moved → update the card's codeLinks.
+3. If the symbol was intentionally removed → update or delete the card.
 
-## Cross-module contracts
-- MessageService depends on ConnectionManager for transport — if reconnect behavior changes, this spec must be re-verified
-```
+</error_recovery>
 
-### Bad spec body — do not write like this
+<card_types>
+**intent** — Upstream decisions: why it exists, scope, constraints, policies, exclusions. No codeLinks. Can be root card.
 
-```markdown
-## Description
-MessageService handles message sending and receiving. It has methods
-for creating, reading, and deleting messages. The service ensures
-messages are delivered properly.
-```
+**spec** — Downstream contracts: WHEN/THEN behaviors, failure modes, cross-module contracts. Requires codeLinks. Relates to at least one intent card.
 
-Why bad: no WHEN/THEN contracts, no failure modes, no cross-module contracts. A description, not a specification.
+Body content rules:
+- Intent body: Why, Scope, Decisions, Excluded sections.
+- Spec body: Contracts (WHEN/THEN), Failure modes (table), Cross-module contracts.
+- Only write non-discoverable knowledge. Function signatures, file paths, and implementation details are discoverable from code — omit them.
 
-## Workflows
+Hierarchy: parent-child when scope is strict subset. Flat peers otherwise. Max 3 levels.
+</card_types>
 
-### Building a feature
+<model_notes>
+- Fewer precise cards beat many vague ones.
+- Call emberdeck tools directly — subagents lose card context.
+- Always show the card-analysis template before creation, even when being concise elsewhere.
+- When `pre_change_check` returns glossary warnings, address them before proceeding.
+</model_notes>
 
-1. `emberdeck_pre_change_check` with the files you plan to modify. This tells you which cards are affected and at what risk level — use the result to decide which cards to read.
-   - If risk is **critical**: stop and ask the user before proceeding.
-   - If risk is **high**: show affected cards to the user, get confirmation.
-   - If risk is **medium/low**: proceed.
-2. `emberdeck_get_card` for each affected card — these contracts are your implementation constraints.
-   - For directly affected cards: read full body.
-   - For transitive cards: read summary only (they are context, not constraints).
-3. If no cards exist for the area: create intent card first (rule 2 applies), then spec cards with relations to it.
-4. Write code **within card constraints**. Do not violate WHEN/THEN contracts.
-5. If your feature extends an existing spec's scope (new behavior, new contract), update the spec card to reflect the new contract before finishing.
-6. `emberdeck_validate_code_links` — this confirms your changes did not break any spec-to-code links. If broken links found, fix code or update cards before finishing.
-
-Do not skip step 1. Do not skip step 6. Do not write code before reading affected cards.
-
-### Fixing a bug
-
-1. `emberdeck_find_cards_by_symbol` for the buggy symbol/file. This tells you if there is a spec governing this code — a bug is often a contract violation.
-2. If card exists: `emberdeck_get_card` — read the contracts to understand what the code must satisfy.
-3. Fix the bug **within card constraints**.
-4. `emberdeck_validate_code_links` — this confirms the fix did not break spec links.
-5. If the bug reveals a missing contract: update the card to add it (prevents recurrence in future conversations).
-
-Do not fix bugs without checking if the affected code has a spec card.
-
-### Refactoring
-
-1. `emberdeck_pre_change_check` with all files in refactoring scope. This tells you every card that could be affected — refactoring must preserve all their contracts.
-   - If risk is **critical/high**: show full impact to user, get confirmation.
-2. `emberdeck_get_card` for all affected cards — these contracts are your invariants. Every WHEN/THEN must still hold after refactoring.
-3. Refactor code within those invariants.
-4. If the refactoring changes a module's responsibility or contract (not just internal structure), update the affected spec cards to reflect the new contract.
-5. `emberdeck_validate_code_links` — this catches broken links from renamed/moved symbols.
-6. `emberdeck_sync_symbol_changes` — this updates card codeLinks to match the new symbol names/locations.
-
-Do not refactor without running impact analysis first. Do not skip steps 5-6 after renames.
-
-### Onboarding (new project or uncovered area)
-
-1. `emberdeck_analyze` — understand current coverage.
-2. Read the codebase to identify design decisions not visible in code.
-3. Create intent cards first (top-level decisions, scope, constraints).
-4. Create spec cards under intents (verifiable contracts with codeLinks).
-5. `emberdeck_validate_cards` — check structural integrity.
-
-Do not create spec cards without a parent or related intent card.
-
-### Checking spec health
-
-1. `emberdeck_analyze` — full project health report.
-2. `emberdeck_validate_cards` — structural warnings (broken chains, orphans).
-3. If drifted cards found: read each, determine if code or card needs updating.
-
-## Model-specific notes
-
-- You tend to over-engineer cards. Fewer, precise cards are better than many vague ones.
-- You tend to spawn subagents for card operations. Call emberdeck tools directly — subagents lose the card context.
-- The system prompt tells you to be concise. Rule 2 (show analysis before creating) is an exception — show the full template even when being concise elsewhere.
-
----
-
-**REMINDER: Read cards before modifying code. Validate code links after. Do not skip these steps.**
+Read cards before modifying code. Validate code links after. Run glossary backfill when glossary is empty.

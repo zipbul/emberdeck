@@ -126,14 +126,21 @@ export interface WriteSpecResult {
   alreadyPresent: number;
   /** Number of code links whose symbol could not be found in gildash. */
   symbolNotFound: number;
+  /** Number of orphan @spec annotations removed from source files. */
+  removed: number;
 }
 
 /**
- * Write `@spec card-key` annotations into source files for code links that lack them.
+ * Reconcile @spec annotations in source files with DB codeLinks.
  *
- * For each code link, looks up the symbol position via gildash, reads the source file,
- * and inserts a `/** @spec card-key *​/` comment above the symbol declaration — or adds
- * an `@spec card-key` tag inside an existing JSDoc block.
+ * Four-step reconciler:
+ *   STEP 1 — SCAN: collect all @spec annotations from source via gildash
+ *   STEP 2 — BUILD: construct desired set from DB codeLinks
+ *   STEP 3 — REMOVE: delete @spec annotations in source but not in desired
+ *   STEP 4 — ADD: insert @spec annotations in desired but not in source
+ *
+ * When cardKey is provided, only that card's codeLinks are in the desired set,
+ * and only that card's orphan @spec annotations are removed.
  */
 export async function writeSpecAnnotations(
   ctx: EmberdeckContext,
@@ -147,40 +154,178 @@ export async function writeSpecAnnotations(
   let annotated = 0;
   let alreadyPresent = 0;
   let symbolNotFound = 0;
+  let removed = 0;
 
-  // Collect code links to process
-  interface LinkEntry { cardKey: string; file: string; symbol: string }
-  const entries: LinkEntry[] = [];
+  // ── STEP 1: SCAN — collect actual @spec annotations from source ──
+
+  interface ActualEntry { cardKey: string; file: string; symbol: string }
+  const actualEntries: ActualEntry[] = [];
+
+  const annotations = ctx.gildash.searchAnnotations({ tag: 'spec', limit: 10000 });
+  for (const ann of annotations) {
+    const key = ann.value.trim();
+    if (!key || !ann.symbolName) continue;
+    // When scoped to a single card, only collect that card's annotations
+    if (cardKey && key !== cardKey) continue;
+    actualEntries.push({
+      cardKey: key,
+      file: ann.filePath,
+      symbol: ann.symbolName,
+    });
+  }
+
+  const actualSet = new Set(actualEntries.map((e) => `${e.cardKey}:${e.file}:${e.symbol}`));
+
+  // ── STEP 2: BUILD — construct desired set from DB codeLinks ──
+
+  interface DesiredEntry { cardKey: string; file: string; symbol: string }
+  const desiredEntries: DesiredEntry[] = [];
 
   if (cardKey) {
     const links = ctx.codeLinkRepo.findByCardKey(cardKey);
     for (const link of links) {
-      entries.push({ cardKey, file: link.file, symbol: link.symbol });
+      desiredEntries.push({ cardKey, file: link.file, symbol: link.symbol });
     }
   } else {
     const allCards = ctx.cardRepo.list();
     for (const card of allCards) {
       const links = ctx.codeLinkRepo.findByCardKey(card.key);
       for (const link of links) {
-        entries.push({ cardKey: card.key, file: link.file, symbol: link.symbol });
+        desiredEntries.push({ cardKey: card.key, file: link.file, symbol: link.symbol });
       }
     }
   }
 
-  // Group entries by file to batch reads/writes
-  const byFile = new Map<string, LinkEntry[]>();
-  for (const entry of entries) {
-    const list = byFile.get(entry.file) ?? [];
-    list.push(entry);
-    byFile.set(entry.file, list);
+  const desiredSet = new Set(desiredEntries.map((e) => `${e.cardKey}:${e.file}:${e.symbol}`));
+
+  // ── STEP 3: REMOVE — delete orphan @spec from source ──
+
+  // Group orphans by file for batched removal
+  const orphansByFile = new Map<string, Array<{ cardKey: string; symbol: string }>>();
+  for (const actual of actualEntries) {
+    const key = `${actual.cardKey}:${actual.file}:${actual.symbol}`;
+    if (!desiredSet.has(key)) {
+      const list = orphansByFile.get(actual.file) ?? [];
+      list.push({ cardKey: actual.cardKey, symbol: actual.symbol });
+      orphansByFile.set(actual.file, list);
+    }
   }
 
-  for (const [filePath, fileEntries] of byFile) {
-    // Resolve symbol positions and collect insert targets
-    interface InsertTarget {
-      cardKey: string;
-      line: number; // 1-based line of the symbol declaration
+  for (const [filePath, orphans] of orphansByFile) {
+    const absPath = join(ctx.projectRoot!, filePath);
+    let content: string;
+    try {
+      content = await Bun.file(absPath).text();
+    } catch {
+      continue;
     }
+
+    const lines = content.split('\n');
+    let fileModified = false;
+    const orphanPatterns = new Set(orphans.map((o) => `@spec ${o.cardKey}`));
+
+    // Scan lines bottom-to-top to remove @spec lines without index shifting issues
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const trimmed = lines[i]!.trim();
+
+      // Check if this line contains an orphan @spec
+      let matchedPattern: string | undefined;
+      for (const pattern of orphanPatterns) {
+        if (trimmed.includes(pattern)) {
+          matchedPattern = pattern;
+          break;
+        }
+      }
+      if (!matchedPattern) continue;
+
+      // Case 1: standalone single-line JSDoc  /** @spec card-key */
+      if (/^\/\*\*\s*@spec\s+\S+\s*\*\/$/.test(trimmed)) {
+        lines.splice(i, 1);
+        // Remove trailing blank line if it creates consecutive blanks
+        if (i < lines.length && i > 0 && lines[i - 1]!.trim() === '' && lines[i]!.trim() === '') {
+          lines.splice(i, 1);
+        }
+        fileModified = true;
+        removed++;
+        continue;
+      }
+
+      // Case 2: @spec line inside multi-line JSDoc  ( * @spec card-key)
+      if (/^\*\s*@spec\s+\S+$/.test(trimmed)) {
+        // Check if removing this line leaves a JSDoc block with no content
+        // Find the JSDoc block boundaries
+        let blockStart = i;
+        while (blockStart > 0 && !lines[blockStart]!.trim().startsWith('/**')) {
+          blockStart--;
+        }
+        let blockEnd = i;
+        while (blockEnd < lines.length - 1 && !lines[blockEnd]!.trim().endsWith('*/')) {
+          blockEnd++;
+        }
+
+        // Check if removing this line leaves the block empty (only /** and */)
+        const remainingContent: string[] = [];
+        for (let j = blockStart; j <= blockEnd; j++) {
+          if (j === i) continue; // skip the line we're removing
+          const t = lines[j]!.trim();
+          if (t === '/**' || t === '*/' || t === '*' || t === '') continue;
+          remainingContent.push(t);
+        }
+
+        if (remainingContent.length === 0) {
+          // JSDoc block becomes empty — remove entire block
+          lines.splice(blockStart, blockEnd - blockStart + 1);
+          // Clean up consecutive blank lines
+          if (blockStart < lines.length && blockStart > 0 &&
+              lines[blockStart - 1]!.trim() === '' && lines[blockStart]?.trim() === '') {
+            lines.splice(blockStart, 1);
+          }
+        } else {
+          // Just remove the @spec line
+          lines.splice(i, 1);
+        }
+        fileModified = true;
+        removed++;
+        continue;
+      }
+    }
+
+    if (fileModified) {
+      await Bun.write(absPath, lines.join('\n'));
+    }
+  }
+
+  // ── STEP 4: ADD — insert missing @spec into source ──
+
+  // Re-read source after removals and rebuild actual set
+  // (removal may have changed line numbers, so we re-scan)
+  if (removed > 0) {
+    await ensureReindexed(ctx);
+  }
+
+  // Collect entries to add, count already-present
+  const toAdd: DesiredEntry[] = [];
+  for (const desired of desiredEntries) {
+    const key = `${desired.cardKey}:${desired.file}:${desired.symbol}`;
+    if (!actualSet.has(key) || orphansByFile.has(desired.file)) {
+      // Need to re-check after removals, or was never present
+      toAdd.push(desired);
+    } else {
+      // In desired AND in actual AND not in an orphan-modified file → already present
+      alreadyPresent++;
+    }
+  }
+
+  // Group by file
+  const addByFile = new Map<string, DesiredEntry[]>();
+  for (const entry of toAdd) {
+    const list = addByFile.get(entry.file) ?? [];
+    list.push(entry);
+    addByFile.set(entry.file, list);
+  }
+
+  for (const [filePath, fileEntries] of addByFile) {
+    interface InsertTarget { cardKey: string; line: number }
     const targets: InsertTarget[] = [];
 
     for (const entry of fileEntries) {
@@ -208,13 +353,11 @@ export async function writeSpecAnnotations(
 
     if (targets.length === 0) continue;
 
-    // Read the source file
     const absPath = join(ctx.projectRoot!, filePath);
     let content: string;
     try {
       content = await Bun.file(absPath).text();
     } catch {
-      // File not readable — count all targets as not found
       symbolNotFound += targets.length;
       continue;
     }
@@ -222,31 +365,29 @@ export async function writeSpecAnnotations(
     const lines = content.split('\n');
     let modified = false;
 
-    // Sort targets by line descending, stable sort by cardKey for same line
+    // Sort targets by line descending
     targets.sort((a, b) => b.line - a.line || a.cardKey.localeCompare(b.cardKey));
 
-    // Group targets by line so same-line targets are inserted in a single splice
-    const groupedByLine = new Map<number, typeof targets>();
+    // Group by line
+    const groupedByLine = new Map<number, InsertTarget[]>();
     for (const target of targets) {
       const group = groupedByLine.get(target.line) ?? [];
       group.push(target);
       groupedByLine.set(target.line, group);
     }
 
-    // Process groups in descending line order
     const sortedLines = [...groupedByLine.keys()].sort((a, b) => b - a);
 
     for (const lineNum of sortedLines) {
       const group = groupedByLine.get(lineNum)!;
-      const symLineIdx = lineNum - 1; // 0-based
+      const symLineIdx = lineNum - 1;
 
       if (symLineIdx < 0 || symLineIdx >= lines.length) {
         symbolNotFound += group.length;
         continue;
       }
 
-      // Filter out already-present specs and capture jsdocRange from first non-present scan
-      const toInsert: typeof targets = [];
+      const toInsert: InsertTarget[] = [];
       let jsdocRange: { start: number; end: number } | null = null;
       let jsdocRangeDetected = false;
       for (const target of group) {
@@ -267,7 +408,6 @@ export async function writeSpecAnnotations(
 
       if (jsdocRange) {
         if (jsdocRange.start === jsdocRange.end) {
-          // Single-line JSDoc: /** some doc */ → expand to multi-line with all @spec tags
           const oldLine = lines[jsdocRange.start]!;
           const indentMatch = oldLine.match(/^(\s*)/);
           const indent = indentMatch ? indentMatch[1] : '';
@@ -281,7 +421,6 @@ export async function writeSpecAnnotations(
           ];
           lines.splice(jsdocRange.start, 1, ...expanded);
         } else {
-          // Multi-line JSDoc: insert all @spec tags before closing */
           const closingIdx = jsdocRange.end;
           const closingLine = lines[closingIdx]!;
           const indentMatch = closingLine.match(/^(\s*)/);
@@ -292,13 +431,11 @@ export async function writeSpecAnnotations(
         modified = true;
         annotated += toInsert.length;
       } else {
-        // Insert a standalone multi-spec comment above the symbol
         const symLine = lines[symLineIdx]!;
         const indentMatch = symLine.match(/^(\s*)/);
         const indent = indentMatch ? indentMatch[1] : '';
         if (specTags.length === 1) {
-          const comment = `${indent}/** ${specTags[0]} */`;
-          lines.splice(symLineIdx, 0, comment);
+          lines.splice(symLineIdx, 0, `${indent}/** ${specTags[0]} */`);
         } else {
           const comment = [
             `${indent}/**`,
@@ -317,7 +454,7 @@ export async function writeSpecAnnotations(
     }
   }
 
-  return { annotated, alreadyPresent, symbolNotFound };
+  return { annotated, alreadyPresent, symbolNotFound, removed };
 }
 
 /**
@@ -765,6 +902,8 @@ export interface CardSuggestion {
   boundary: string[];
   symbols: Array<{ file: string; symbol: string; kind: string }>;
   reason: string;
+  /** Glossary words from the project glossary that appear in this scope's symbols/paths. */
+  suggestedGlossary?: string[];
 }
 
 export interface SuggestCardScopeOptions {
@@ -786,6 +925,12 @@ export async function suggestCardScope(
 
   const basePath = options?.path ?? '';
   const maxDepth = options?.maxDepth ?? 3;
+
+  // Build glossary matcher for suggestedGlossary
+  const { readGlossary } = await import('../glossary/io');
+  const { buildGlossaryMatcher } = await import('../glossary/cross-validate');
+  const glossaryEntries = readGlossary(ctx);
+  const glossaryMatcher = buildGlossaryMatcher(glossaryEntries);
 
   // Get uncovered symbols (handles ensureReindexed internally)
   const uncoveredResult = await getUncoveredSymbols(ctx);
@@ -874,6 +1019,13 @@ export async function suggestCardScope(
       }
     }
 
+    // Match glossary words against symbol names and file paths in this scope
+    const scopeText = [
+      ...symbols.map((s) => s.symbol),
+      ...files,
+    ].join(' ');
+    const matchedGlossary = glossaryMatcher(scopeText);
+
     suggestions.push({
       suggestedKey,
       type: isIntent ? 'intent' : 'spec',
@@ -884,6 +1036,7 @@ export async function suggestCardScope(
       reason: isIntent
         ? `Directory ${dir} has ${symbols.length} uncovered symbols across ${files.length} files`
         : `Module ${files[0]} has ${symbols.length} uncovered symbols`,
+      ...(matchedGlossary.size > 0 ? { suggestedGlossary: [...matchedGlossary] } : {}),
     });
   }
 

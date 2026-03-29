@@ -10,6 +10,7 @@ export interface CardRow {
   parent: string | null;
   boundaryJson: string | null;
   body: string | null;
+  glossaryJson: string;
   filePath: string;
   updatedAt: string;
 }

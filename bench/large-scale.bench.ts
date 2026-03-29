@@ -88,6 +88,7 @@ for (let i = 0; i < CARD_COUNT; i++) {
     parent,
     boundaryJson: null,
     body: `Body content for card ${i}. This simulates a real card body with contracts and design rationale.`,
+    glossaryJson: '[]',
     filePath: `.emberdeck/cards/${key}.card.md`,
     updatedAt: new Date().toISOString(),
   });

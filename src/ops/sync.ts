@@ -12,9 +12,21 @@ import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { txDb } from '../db/connection';
+import { readGlossary } from '../glossary/io';
+import { crossValidateGlossary } from '../glossary/cross-validate';
 
 function safeParseBoundary(json: string | null): string[] | null {
   if (!json) return null;
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeParseGlossaryJson(json: string | undefined | null): string[] | null {
+  if (!json || json === '[]') return null;
   try {
     const parsed = JSON.parse(json);
     return Array.isArray(parsed) ? parsed : null;
@@ -60,6 +72,9 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
       ? JSON.stringify(cardFile.frontmatter.boundary)
       : null,
     body: cardFile.body,
+    glossaryJson: cardFile.frontmatter.glossary
+      ? JSON.stringify(cardFile.frontmatter.glossary)
+      : '[]',
     filePath,
     updatedAt: now,
   };
@@ -415,6 +430,85 @@ export async function validateCards(
     }
   }
 
+  // Glossary cross-validation
+  const glossaryEntries = readGlossary(ctx);
+  const glossaryWordSet = new Set(glossaryEntries.map((e) => e.word));
+  const usedGlossaryWords = new Set<string>();
+
+  for (const row of dbRows) {
+    const cardGlossary = safeParseGlossaryJson(row.glossaryJson);
+    if (cardGlossary && cardGlossary.length > 0) {
+      // Track usage for unused detection
+      for (const w of cardGlossary) usedGlossaryWords.add(w);
+
+      // Check each declared word exists in glossary
+      for (const word of cardGlossary) {
+        if (!glossaryWordSet.has(word)) {
+          warnings.push({
+            type: 'glossary-broken',
+            cardKey: row.key,
+            message: `Glossary word "${word}" not found in glossary.yaml`,
+          });
+        }
+      }
+
+      // Content-mismatch for glossary: DB vs file
+      if (fileSet.has(row.filePath)) {
+        try {
+          const file = await readCardFile(row.filePath);
+          const fileGlossary = file.frontmatter.glossary ?? [];
+          const dbGlossaryStr = JSON.stringify(cardGlossary.sort());
+          const fileGlossaryStr = JSON.stringify([...fileGlossary].sort());
+          if (dbGlossaryStr !== fileGlossaryStr) {
+            warnings.push({
+              type: 'content-mismatch',
+              cardKey: row.key,
+              message: `DB glossary differs from file glossary`,
+            });
+          }
+        } catch {
+          // already handled
+        }
+      }
+
+      // Body cross-validation (M6/M7)
+      if (fileSet.has(row.filePath) && glossaryEntries.length > 0) {
+        try {
+          const file = await readCardFile(row.filePath);
+          const crossWarnings = crossValidateGlossary(
+            row.key,
+            file.body,
+            file.frontmatter.summary,
+            cardGlossary,
+            glossaryEntries,
+          );
+          for (const cw of crossWarnings) {
+            warnings.push({
+              type: cw.type === 'undeclared-usage' ? 'glossary-undeclared-usage' : 'glossary-phantom-declaration',
+              cardKey: cw.cardKey,
+              message: cw.type === 'undeclared-usage'
+                ? `Body contains glossary word "${cw.word}" not declared in card's glossary field`
+                : `Card declares glossary word "${cw.word}" absent from body/summary`,
+            });
+          }
+        } catch {
+          // already handled
+        }
+      }
+    }
+  }
+
+  // Unused glossary entries
+  for (const entry of glossaryEntries) {
+    if (!usedGlossaryWords.has(entry.word)) {
+      warnings.push({
+        type: 'glossary-unused',
+        cardKey: '',
+        message: `Glossary word "${entry.word}" is not referenced by any card`,
+      });
+    }
+  }
+
   // Broken chain: spec card with no relation to any intent card
   for (const row of dbRows) {
     if (row.type === 'spec') {
@@ -467,6 +561,8 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
     .findByCardKey(key)
     .map((r) => ({ kind: r.kind, file: r.file, symbol: r.symbol }));
 
+  const glossary = safeParseGlossaryJson(row.glossaryJson);
+
   const fm: CardFrontmatter = {
     key: row.key,
     summary: row.summary,
@@ -477,6 +573,7 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
     ...(relations.length ? { relations } : {}),
     ...(tags.length ? { tags } : {}),
     ...(codeLinks.length ? { codeLinks } : {}),
+    ...(glossary && glossary.length > 0 ? { glossary } : {}),
   };
 
   const cardFile: CardFile = { frontmatter: fm, body: row.body ?? '', filePath: row.filePath };

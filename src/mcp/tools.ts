@@ -51,6 +51,14 @@ import {
   suggestCardScope,
 } from '../ops/spec-sync';
 import { analyze, getOnboardingSummary } from '../ops/analyze';
+import {
+  defineGlossary,
+  lookupGlossary,
+  removeGlossary,
+  renameGlossary,
+  findCardsByGlossaryWord,
+  resetEmberdeck,
+} from '../ops/glossary';
 
 // ---- Helpers ----
 
@@ -109,6 +117,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         tags: z.array(z.string()).optional().describe('Tag list for classification'),
         relations: z.array(z.string()).optional().describe('Related card keys'),
         codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
+        glossary: z.array(z.string()).optional().describe('Glossary words declared by this card'),
       }).strict(),
     },
     async (args: {
@@ -122,6 +131,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       tags?: string[];
       relations?: string[];
       codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
+      glossary?: string[];
     }) => {
       try {
         const result = await createCard(ctx, args);
@@ -151,6 +161,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
           tags: z.array(z.string()).optional().describe('Tags'),
           relations: z.array(z.string()).optional().describe('Related card keys'),
           codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
+          glossary: z.array(z.string()).optional().describe('Glossary words declared by this card'),
         }).strict()).describe('Array of card inputs'),
       }).strict(),
     },
@@ -166,6 +177,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         tags?: string[];
         relations?: string[];
         codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
+        glossary?: string[];
       }>;
     }) => {
       try {
@@ -247,6 +259,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         tags: z.array(z.string()).nullable().optional().describe('Tags (null to remove)'),
         relations: z.array(z.string()).nullable().optional().describe('Related card keys (null to remove)'),
         codeLinks: z.array(codeLinkSchema).nullable().optional().describe('Code links (null to remove)'),
+        glossary: z.array(z.string()).optional().describe('Glossary words declared by this card'),
       }).strict(),
     },
     async (args: {
@@ -261,6 +274,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       tags?: string[] | null;
       relations?: string[] | null;
       codeLinks?: Array<{ kind: string; file: string; symbol: string }> | null;
+      glossary?: string[];
     }) => {
       try {
         const { key, ...fields } = args;
@@ -785,8 +799,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_write_spec_annotations',
     {
       description:
-        'Write @spec annotations into source files for code links that lack them. ' +
-        'Use after creating cards to make specs discoverable when reading code. Requires gildash.',
+        'Reconcile @spec annotations in source files with DB codeLinks. ' +
+        'Removes orphan @spec (card deleted, renamed, or DB reset) and inserts missing ones. ' +
+        'Idempotent: safe to run repeatedly. Use after card changes or at session start. Requires gildash.',
       inputSchema: z.object({
         key: z.string().optional().describe('Card key to limit annotation to a specific card (omit for all cards)'),
       }).strict(),
@@ -914,6 +929,136 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: { includeBody?: boolean; offset?: number; limit?: number }) => {
       try {
         const result = await analyze(ctx, args);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // ── Glossary ──
+
+  server.registerTool(
+    'emberdeck_define_glossary',
+    {
+      description:
+        'Define or update words in the project glossary. ' +
+        'Use when new domain concepts are introduced or existing definitions need refinement. ' +
+        'Agent must show proposed words and definitions to the user and get confirmation before calling.',
+      inputSchema: z.object({
+        entries: z.array(z.object({
+          word: z.string().min(1).max(100).describe('Canonical word'),
+          definition: z.string().min(1).max(1000).describe('What it means in this project'),
+        })).min(1).max(50).describe('Glossary entries to define or update'),
+      }).strict(),
+    },
+    async (args: { entries: Array<{ word: string; definition: string }> }) => {
+      try {
+        const result = await defineGlossary(ctx, args);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_lookup_glossary',
+    {
+      description:
+        'Look up a word in the project glossary, or list all entries. ' +
+        'Use when encountering an unfamiliar domain concept in code or cards, ' +
+        'or when starting a session to understand the project vocabulary.',
+      inputSchema: z.object({
+        word: z.string().optional().describe('Word to look up (omit to list all entries)'),
+      }).strict(),
+    },
+    async (args: { word?: string }) => {
+      try {
+        const result = lookupGlossary(ctx, args.word);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_remove_glossary',
+    {
+      description:
+        'Remove a word from the project glossary. ' +
+        'Use when a domain concept is eliminated from the project. ' +
+        'Cards referencing this word will become drifted.',
+      inputSchema: z.object({
+        word: z.string().min(1).describe('Word to remove'),
+      }).strict(),
+    },
+    async (args: { word: string }) => {
+      try {
+        const result = await removeGlossary(ctx, args.word);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_rename_glossary',
+    {
+      description:
+        'Rename a word in the project glossary. ' +
+        'Updates the glossary file and all card glossary fields that reference the old word. ' +
+        'Card bodies are NOT updated (manual). Use when a domain concept is rebranded.',
+      inputSchema: z.object({
+        oldWord: z.string().min(1).describe('Current word'),
+        newWord: z.string().min(1).max(100).describe('New word'),
+        definition: z.string().min(1).max(1000).optional().describe('Updated definition (optional)'),
+      }).strict(),
+    },
+    async (args: { oldWord: string; newWord: string; definition?: string }) => {
+      try {
+        const result = await renameGlossary(ctx, args.oldWord, args.newWord, args.definition);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_find_cards_by_glossary_word',
+    {
+      description:
+        'Find all cards that declare a specific glossary word in their glossary field. ' +
+        'Use to understand which cards are affected by a glossary change or to audit term usage.',
+      inputSchema: z.object({
+        word: z.string().min(1).describe('Glossary word to search for'),
+      }).strict(),
+    },
+    async (args: { word: string }) => {
+      try {
+        const result = findCardsByGlossaryWord(ctx, args.word);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_reset',
+    {
+      description:
+        'Reset all emberdeck state: delete all cards (DB + files), clear glossary. ' +
+        'Run write_spec_annotations after to remove orphan @spec from source. ' +
+        'Use when starting over from scratch.',
+      inputSchema: z.object({}).strict(),
+    },
+    async () => {
+      try {
+        const result = await resetEmberdeck(ctx);
         return ok(result);
       } catch (err) {
         return fail(err);

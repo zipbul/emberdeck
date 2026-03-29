@@ -19,6 +19,9 @@ import {
   validateActivationGuard,
   validateTypeChangeActivation,
 } from '../card/validation';
+import { readGlossary } from '../glossary/io';
+import { validateCardGlossaryField } from '../glossary/validation';
+import { crossValidateGlossary } from '../glossary/cross-validate';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
@@ -67,6 +70,8 @@ export interface UpdateCardFields {
   relations?: string[] | null;
   /** Code links list. null or empty array deletes the field. */
   codeLinks?: CodeLink[] | null;
+  /** Glossary words declared by this card. */
+  glossary?: string[];
 }
 
 /**
@@ -96,7 +101,6 @@ export interface UpdateCardResult {
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ParentValidationError} When parent validation fails.
  * @throws {ActivationGuardError} When activation conditions are not met.
- * @spec card-crud
  */
 export async function updateCard(
   ctx: EmberdeckContext,
@@ -167,6 +171,15 @@ export async function updateCard(
       if (fields.codeLinks !== undefined) {
         if (fields.codeLinks === null || fields.codeLinks.length === 0) delete next.codeLinks;
         else next.codeLinks = fields.codeLinks;
+      }
+      // Glossary validation (M2, M3) — only when explicitly provided
+      const glossaryEntries = readGlossary(ctx);
+      if (fields.glossary !== undefined) {
+        if (fields.glossary.length === 0) delete next.glossary;
+        else {
+          validateCardGlossaryField(fields.glossary, glossaryEntries);
+          next.glossary = fields.glossary;
+        }
       }
 
       // Type change on active card: re-validate activation, may force to draft
@@ -245,6 +258,7 @@ export async function updateCard(
               parent: next.parent ?? null,
               boundaryJson: next.boundary ? JSON.stringify(next.boundary) : null,
               body: nextBody,
+              glossaryJson: next.glossary ? JSON.stringify(next.glossary) : '[]',
               filePath,
               updatedAt: now,
             };
@@ -283,7 +297,24 @@ export async function updateCard(
               codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
               changelogRepo.insert({ cardKey: key, field: 'codeLinks', oldValue: prev.codeLinks ? JSON.stringify(prev.codeLinks) : null, newValue: next.codeLinks ? JSON.stringify(next.codeLinks) : null, changedAt: now, changedBy });
             }
+            if (fields.glossary !== undefined) {
+              changelogRepo.insert({ cardKey: key, field: 'glossary', oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null, newValue: next.glossary ? JSON.stringify(next.glossary) : null, changedAt: now, changedBy });
+            }
           });
+          // Body cross-validation (M6/M7) — non-blocking warnings
+          if (next.glossary && next.glossary.length > 0 && glossaryEntries.length > 0) {
+            const crossWarnings = crossValidateGlossary(
+              key,
+              nextBody,
+              next.summary,
+              next.glossary,
+              glossaryEntries,
+            );
+            for (const cw of crossWarnings) {
+              warnings.push(`glossary ${cw.type}: ${cw.word}`);
+            }
+          }
+
           const r: UpdateCardResult = { filePath, card };
           if (warnings.length > 0) r.warnings = warnings;
           return r;
@@ -308,7 +339,6 @@ export async function updateCard(
  * @param status - New status value.
  * @param reason - Optional reason for the status change (recorded in changelog).
  * @returns Updated result (filePath, card).
- * @spec card-crud
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ActivationGuardError} When activation conditions are not met for active status.
  */
@@ -370,6 +400,9 @@ export async function updateCardStatus(
                     ? JSON.stringify(current.frontmatter.boundary)
                     : null,
                   body: current.body,
+                  glossaryJson: current.frontmatter.glossary
+                    ? JSON.stringify(current.frontmatter.glossary)
+                    : '[]',
                   filePath,
                   updatedAt: now,
                 };

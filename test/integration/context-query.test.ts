@@ -268,6 +268,7 @@ describe('findCardsBySymbol boundary matching', () => {
       parent: null,
       boundaryJson: opts?.boundary ? JSON.stringify(opts.boundary) : null,
       body: null,
+      glossaryJson: '[]',
       filePath: `cards/${key}.card.md`,
       updatedAt: new Date().toISOString(),
     };

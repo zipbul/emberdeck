@@ -15,6 +15,7 @@ function makeRow(overrides: Partial<CardRow> = {}): CardRow {
     parent: null,
     boundaryJson: null,
     body: 'body content',
+    glossaryJson: '[]',
     filePath: '/cards/test/card.card.md',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,

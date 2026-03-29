@@ -85,6 +85,22 @@ function normalizeRelations(value: unknown): string[] | undefined {
   return out;
 }
 
+function normalizeGlossary(value: unknown): string[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) {
+    throw new CardValidationError('Invalid frontmatter field: glossary');
+  }
+
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || item.length === 0) {
+      throw new CardValidationError('Invalid frontmatter field: glossary (each item must be a non-empty string)');
+    }
+    out.push(item);
+  }
+  return out;
+}
+
 function normalizeBoundary(value: unknown): string[] | undefined {
   if (value == null) return undefined;
   if (!Array.isArray(value)) {
@@ -136,10 +152,12 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
   const tags = normalizeTags(fm['tags']);
   if (tags !== undefined) out.tags = tags;
 
+  const glossary = normalizeGlossary(fm['glossary']);
+  if (glossary !== undefined) out.glossary = glossary;
+
   return out;
 }
 
-/** @spec card-model */
 export function parseCardMarkdown(markdown: string): CardFile {
   const normalized = normalizeNewlines(markdown);
   const lines = normalized.split('\n');
@@ -180,7 +198,6 @@ export function parseCardMarkdown(markdown: string): CardFile {
   return { frontmatter, body };
 }
 
-/** @spec card-model */
 export function serializeCardMarkdown(frontmatter: CardFrontmatter, body: string): string {
   const yaml = (Bun.YAML.stringify(frontmatter) ?? '').trimEnd();
   const header = `---\n${yaml}\n---\n`;

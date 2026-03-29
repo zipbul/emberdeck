@@ -2,6 +2,7 @@ import type { EmberdeckContext } from '../config';
 import type { CardRow } from '../db/repository';
 import { checkDrift, type DriftType } from './context';
 import { getUncoveredSymbols } from './spec-sync';
+import { readGlossary, type GlossaryEntry } from '../glossary/io';
 
 // ── Types ──
 
@@ -36,6 +37,12 @@ export interface DriftedCardSummary {
   body?: string | null;
 }
 
+export interface AnalyzeGlossary {
+  totalWords: number;
+  unusedWords: string[];
+  entries: GlossaryEntry[];
+}
+
 export interface AnalyzeResult {
   health: AnalyzeHealth;
   coverage: AnalyzeCoverage;
@@ -43,6 +50,7 @@ export interface AnalyzeResult {
   driftedCards: DriftedCardSummary[];
   /** Total number of drifted cards before offset/limit slicing. */
   driftedCardsTotal: number;
+  glossary: AnalyzeGlossary;
 }
 
 export interface AnalyzeOptions {
@@ -173,6 +181,24 @@ export async function analyze(
     ? driftedCards.slice(offset, offset + limit)
     : driftedCards.slice(offset);
 
+  // 5. Glossary stats
+  const glossaryEntries = readGlossary(ctx);
+  const usedGlossaryWords = new Set<string>();
+  for (const card of allCards) {
+    const gj = (card as any).glossaryJson;
+    if (gj && gj !== '[]') {
+      try {
+        const parsed = JSON.parse(gj);
+        if (Array.isArray(parsed)) {
+          for (const w of parsed) usedGlossaryWords.add(w);
+        }
+      } catch { /* skip */ }
+    }
+  }
+  const unusedWords = glossaryEntries
+    .filter((e) => !usedGlossaryWords.has(e.word))
+    .map((e) => e.word);
+
   return {
     health: {
       total: allCards.length,
@@ -186,6 +212,11 @@ export async function analyze(
     unlinkedSymbols,
     driftedCards: slicedDriftedCards,
     driftedCardsTotal,
+    glossary: {
+      totalWords: glossaryEntries.length,
+      unusedWords,
+      entries: glossaryEntries,
+    },
   };
 }
 
@@ -214,6 +245,7 @@ export interface OnboardingSummary {
   coverageRatio: number | null;
   driftedCards: OnboardingDriftedCard[];
   relationCount: number;
+  glossary: { totalWords: number; exists: boolean };
 }
 
 const HIERARCHY_MAX_DEPTH = 3;
@@ -311,6 +343,8 @@ export async function getOnboardingSummary(
     relationCount += relations.filter((r) => !r.isReverse).length;
   }
 
+  const onboardingGlossary = readGlossary(ctx);
+
   return {
     totalCards: allCards.length,
     byType,
@@ -319,5 +353,9 @@ export async function getOnboardingSummary(
     coverageRatio,
     driftedCards,
     relationCount,
+    glossary: {
+      totalWords: onboardingGlossary.length,
+      exists: onboardingGlossary.length > 0,
+    },
   };
 }

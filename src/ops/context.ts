@@ -6,11 +6,12 @@ import { parseFullKey } from '../card/card-key';
 import { getRelationGraph } from './query';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
+import { readGlossary } from '../glossary/io';
 
 
 // ── check_drift ──
 
-export type DriftType = 'broken_link' | 'boundary_inactive' | 'symbol_changed';
+export type DriftType = 'broken_link' | 'boundary_inactive' | 'symbol_changed' | 'glossary_broken';
 
 export interface SymbolChangeDetail {
   changeType: string;
@@ -212,6 +213,21 @@ export async function checkDrift(
       }
     }
 
+    // glossary_broken: card declares glossary words not in glossary.yaml
+    if (!driftType) {
+      const cardGlossary = parseGlossaryJsonField(row);
+      if (cardGlossary.length > 0) {
+        const glossaryEntries = readGlossary(ctx);
+        const glossaryWords = new Set(glossaryEntries.map((e) => e.word));
+        for (const word of cardGlossary) {
+          if (!glossaryWords.has(word)) {
+            driftType = 'glossary_broken';
+            break;
+          }
+        }
+      }
+    }
+
     const currentStatus = row.status as 'active' | 'drifted';
     // Skip auto-transition if gildash was unavailable — broken links may be false positives
     const shouldTransition = !!driftType && currentStatus === 'active' && autoTransition && !gildashUnavailable;
@@ -269,6 +285,17 @@ export async function checkDrift(
 }
 
 // ── check_drift helpers ──
+
+function parseGlossaryJsonField(card: { glossaryJson?: string }): string[] {
+  const raw = (card as any).glossaryJson;
+  if (!raw || raw === '[]') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function parseBoundary(boundaryJson: string | null): string[] {
   if (!boundaryJson) return [];

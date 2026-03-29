@@ -1,0 +1,1 @@
+ALTER TABLE card ADD COLUMN glossary_json TEXT NOT NULL DEFAULT '[]';

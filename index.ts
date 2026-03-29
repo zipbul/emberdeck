@@ -124,6 +124,35 @@ export {
   type AnalyzeOptions,
 } from './src/ops/analyze';
 
+// ---- Glossary ----
+export {
+  defineGlossary,
+  lookupGlossary,
+  removeGlossary,
+  renameGlossary,
+  type DefineGlossaryInput,
+  type DefineGlossaryResult,
+  type LookupGlossaryResult,
+  type RemoveGlossaryResult,
+  type RenameGlossaryResult,
+  findCardsByGlossaryWord,
+  type GlossaryCardMatch,
+  resetEmberdeck,
+  type ResetResult,
+} from './src/ops/glossary';
+export {
+  readGlossary,
+  writeGlossary,
+  glossaryFilePath,
+  GLOSSARY_LIMITS,
+  GlossaryParseError,
+  GlossaryValidationError,
+  type GlossaryEntry,
+} from './src/glossary/io';
+export { withGlossaryLock } from './src/glossary/lock';
+export { validateCardGlossaryField, validateGlossaryEntry } from './src/glossary/validation';
+export { buildGlossaryMatcher, crossValidateGlossary, type GlossaryCrossWarning } from './src/glossary/cross-validate';
+
 // ---- Repository interfaces (for testing/mocking) ----
 export type {
   CardRepository,

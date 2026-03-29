@@ -65,6 +65,7 @@ function insertInDb(key: string): void {
     parent: null,
     boundaryJson: null,
     body: null,
+    glossaryJson: '[]',
     filePath: buildCardPath(tc.ctx.cardsDir, slug),
     updatedAt: new Date().toISOString(),
   };
@@ -443,6 +444,7 @@ describe('ops/link', () => {
       parent: null,
       boundaryJson: '{not-valid-json',
       body: null,
+      glossaryJson: '[]',
       filePath: buildCardPath(tc.ctx.cardsDir, 'bad-boundary'),
       updatedAt: new Date().toISOString(),
     });

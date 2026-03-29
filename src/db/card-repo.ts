@@ -32,6 +32,7 @@ export class DrizzleCardRepository implements CardRepository {
           parent: row.parent,
           boundaryJson: row.boundaryJson,
           body: row.body,
+          glossaryJson: row.glossaryJson,
           filePath: row.filePath,
           updatedAt: row.updatedAt,
         },
@@ -63,6 +64,7 @@ export class DrizzleCardRepository implements CardRepository {
         .prepare(
           `SELECT c.key, c.summary, c.status, c.type, c.parent,
                   c.boundary_json AS boundaryJson, c.body,
+                  c.glossary_json AS glossaryJson,
                   c.file_path AS filePath, c.updated_at AS updatedAt
            FROM card c
            JOIN card_tag ct ON c.key = ct.card_key
@@ -103,6 +105,7 @@ export class DrizzleCardRepository implements CardRepository {
         .prepare(
           `SELECT c.key, c.summary, c.status, c.type, c.parent,
                   c.boundary_json AS boundaryJson, c.body,
+                  c.glossary_json AS glossaryJson,
                   c.file_path AS filePath, c.updated_at AS updatedAt
            FROM card c
            JOIN card_fts f ON c.rowid = f.rowid

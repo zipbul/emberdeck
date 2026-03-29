@@ -2,6 +2,7 @@ import type { EmberdeckContext } from '../config';
 import type { CardRow } from '../db/repository';
 import { getRelationGraph } from './query';
 import { checkDrift } from './context';
+import { readGlossary, type GlossaryEntry } from '../glossary/io';
 
 // ── pre_change_check ──
 
@@ -21,6 +22,8 @@ export interface PreChangeResult {
   riskLevel: RiskLevel;
   newUncoveredFiles: string[];
   suggestedActions: string[];
+  /** Full project glossary (for agent context). */
+  glossary?: GlossaryEntry[];
 }
 
 /**
@@ -216,7 +219,16 @@ export function preChangeCheck(
     );
   }
 
-  return { affectedCards, riskLevel, newUncoveredFiles, suggestedActions };
+  // Attach full glossary for agent context (M8)
+  const glossaryEntries = readGlossary(ctx);
+
+  return {
+    affectedCards,
+    riskLevel,
+    newUncoveredFiles,
+    suggestedActions,
+    ...(glossaryEntries.length > 0 ? { glossary: glossaryEntries } : {}),
+  };
 }
 
 /**

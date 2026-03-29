@@ -33,6 +33,7 @@ function insertCard(key: string): void {
     parent: null,
     boundaryJson: null,
     body: null,
+    glossaryJson: '[]',
     filePath: `/cards/${key}.card.md`,
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

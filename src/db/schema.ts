@@ -18,6 +18,7 @@ export const card = sqliteTable(
     parent: text('parent'),
     boundaryJson: text('boundary_json'),
     body: text('body'),
+    glossaryJson: text('glossary_json').notNull().default('[]'),
     filePath: text('file_path').notNull(),
     updatedAt: text('updated_at').notNull(),
   },

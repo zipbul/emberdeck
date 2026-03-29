@@ -16,6 +16,8 @@ export interface BulkCreateResult {
   partialKeys: string[];
   /** Error details for each failed card. */
   errors: Array<{ key: string; message: string }>;
+  /** Glossary cross-validation warnings per card (undeclared-usage, phantom-declaration). */
+  glossaryWarnings?: Array<{ key: string; warnings: string[] }>;
 }
 
 /**
@@ -69,7 +71,6 @@ function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
  *
  * @param ctx - EmberdeckContext from setupEmberdeck()
  * @param inputs - Array of card inputs (same schema as createCard)
- * @spec card-crud
  * @returns Summary with created count, failed count, keys, and errors
  */
 export async function bulkCreateCards(
@@ -78,6 +79,7 @@ export async function bulkCreateCards(
 ): Promise<BulkCreateResult> {
   const keys: string[] = [];
   const errors: Array<{ key: string; message: string }> = [];
+  const glossaryWarnings: Array<{ key: string; warnings: string[] }> = [];
 
   // Topologically sort by parent dependency
   const sorted = topologicalSort(inputs);
@@ -90,6 +92,9 @@ export async function bulkCreateCards(
     try {
       const result = await createCard(ctx, rest);
       keys.push(result.fullKey);
+      if (result.glossaryWarnings && result.glossaryWarnings.length > 0) {
+        glossaryWarnings.push({ key: result.fullKey, warnings: result.glossaryWarnings });
+      }
       if (relations && relations.length > 0) {
         pendingRelations.push({ key: result.fullKey, input });
       }
@@ -126,5 +131,6 @@ export async function bulkCreateCards(
     keys,
     partialKeys,
     errors,
+    ...(glossaryWarnings.length > 0 ? { glossaryWarnings } : {}),
   };
 }
