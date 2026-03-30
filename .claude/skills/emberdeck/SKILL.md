@@ -133,16 +133,102 @@ When `emberdeck_validate_code_links` finds broken links:
 </error_recovery>
 
 <card_types>
-**intent** — Upstream decisions: why it exists, scope, constraints, policies, exclusions. No codeLinks. Can be root card.
 
-**spec** — Downstream contracts: WHEN/THEN behaviors, failure modes, cross-module contracts. Requires codeLinks. Relates to at least one intent card.
+## intent — Project-level design policy document
 
-Body content rules:
-- Intent body: Why, Scope, Decisions, Excluded sections.
-- Spec body: Contracts (WHEN/THEN), Failure modes (table), Cross-module contracts.
-- Only write non-discoverable knowledge. Function signatures, file paths, and implementation details are discoverable from code — omit them.
+An intent card answers: **"How do we build this project and why?"**
+
+It captures project-wide policies, design principles, scope boundaries, and architectural decisions that govern all implementation. It is a project-level governance document — NOT a feature-level planning document. No codeLinks. Can be root card.
+
+### REQUIRED content in intent body:
+
+**Policies** — Rules that govern how the project is built. Use Always / Ask First / Never boundaries:
+- Always: invariant rules the agent must follow unconditionally
+- Ask First: decisions requiring human approval before proceeding
+- Never: out-of-scope items and forbidden approaches
+
+**Rationale** — Why each policy exists. What concrete consequence occurs if violated. Without rationale, agents cannot judge edge cases.
+
+**Scope** — What this policy area covers and what it explicitly excludes.
+
+### GOOD intent card body:
+
+```
+## Policies
+- Always: Card is source of truth. Code follows card. Never auto-modify card body when code changes.
+- Always: Dual-storage — every card exists in both DB (queryable) and markdown file (git-diffable).
+- Ask First: Adding a new card type requires human approval.
+- Never: Emberdeck does not generate code, run linters, or manage CI.
+
+## Rationale
+Card is source of truth because if code changes auto-updated cards, design intent would be silently overwritten by implementation drift. Dual-storage exists because DB alone loses git-diffability, files alone lose queryability and transactions.
+
+## Scope
+Emberdeck manages design knowledge only: cards, relations, code bindings, drift detection. Code generation, linting, CI, test automation, workflow orchestration are out of scope.
+```
+
+### BAD intent card body (common mistakes):
+
+- ✗ Code structure: "The system uses SQLite with Drizzle ORM. Cards are stored in the card table."
+- ✗ Feature-level planning: "Problem: users need dark mode. Approach: CSS variables."
+- ✗ Implementation detail: "writeCardFile uses atomic rename via temp file."
+- ✗ Sections agents ignore: Alternatives Considered, Risks, Open Questions (0/12 industry frameworks use these for agent consumption)
+
+---
+
+## spec — Behavioral contract bound to code
+
+A spec card answers: **"What does the system guarantee?"**
+
+It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one intent card — a contract without governing policy is rootless. Requires codeLinks.
+
+### REQUIRED content in spec body:
+
+**Given/When/Then contracts** — Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each contract is one testable guarantee.
+
+**Failure modes** — Table: what violation occurs → what the system does. Agents need explicit failure behavior, not just happy paths.
+
+### GOOD spec card body:
+
+```
+## Contracts
+- WHEN a spec card status is set to active, THEN all codeLinks MUST resolve to existing symbols via gildash. IF any link fails, activation MUST be rejected with ActivationGuardError.
+- WHEN a card is deleted with force=true AND it has children, THEN children MUST become orphans (parent=null) AND relations MUST be cleaned up bidirectionally.
+
+## Failure modes
+| Violation | System behavior |
+|-----------|----------------|
+| codeLink target symbol deleted | Card auto-transitions to drifted |
+| File write fails after DB commit | Compensation reverts DB change; CompensationError thrown if revert also fails |
+```
+
+### BAD spec card body (common mistakes):
+
+- ✗ Policies: "We always use compensation pattern" (belongs in intent)
+- ✗ Implementation: "deleteByKey() calls SQL DELETE WHERE key=?" (discoverable from code)
+- ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not contract)
+- ✗ Verification commands: "Run `bun test`" (tooling, not contract)
+- ✗ File paths in body text (use codeLinks field instead)
+
+---
+
+## Summary: what goes where
+
+| Content | intent | spec | Neither |
+|---------|--------|------|---------|
+| Project policies (Always/Ask/Never) | ✓ | | |
+| Rationale for policies | ✓ | | |
+| Scope and exclusions | ✓ | | |
+| Given/When/Then contracts | | ✓ | |
+| Failure mode table | | ✓ | |
+| Code structure descriptions | | | ✗ discoverable |
+| File paths, class names | | | ✗ discoverable |
+| Task checklists | | | ✗ execution plan |
+| Verification commands | | | ✗ tooling |
+| Alternatives Considered | | | ✗ agents ignore |
 
 Hierarchy: parent-child when scope is strict subset. Flat peers otherwise. Max 3 levels.
+
 </card_types>
 
 <model_notes>
