@@ -865,3 +865,514 @@ Add glossary signals:
 ### Migration
 - Existing cards readable after DB migration (glossary_json defaults to '[]') ✓
 - After adding glossary field to existing cards, validate_cards passes ✓
+
+---
+
+# Redesign: Glossary Field Semantics & Cross-Validation
+
+> **This section (15-24) supersedes M6/M7 as described in Sections 3 (enforcement level M6/M7), 7.1 (body cross-validation in create_card), 7.3 (glossary-undeclared-usage/phantom-declaration in validate_cards), 7.7 (pre_change_check glossary warnings), 8 (cross-validate.ts), and 14 (M6/M7 test cases). Those sections remain for historical context but are no longer the active design.**
+
+## 15. Research Findings
+
+Industry research across IEEE/ISO standards, DDD, enterprise tools (Collibra/Atlas), RFC practices, and documentation platforms reveals six patterns:
+
+| # | Pattern | Source | Key insight |
+|---|---------|--------|-------------|
+| 1 | Define once, reference everywhere | RFC 2119, IEEE 24765 | Terms are defined in ONE authoritative place and referenced by all other documents. 40+ years of practice. |
+| 2 | Terms are scoped, not owned | DDD Ubiquitous Language | A term belongs to a bounded context. Same term can have different meanings in different contexts. "Ownership" is the wrong metaphor. |
+| 3 | Link terms to real assets | Collibra, Apache Atlas | Terms linked to actual data/code assets survive. Unlinked glossaries rot. Atlas uses term-to-entity assignment; Collibra uses "Represented by" relations. |
+| 4 | Multiple definitions coexist | IEEE 24765 | One term can have numbered definitions from different source standards. "One true definition" is an anti-pattern. |
+| 5 | Cross-cutting via abstraction layer | Collibra Data Concepts | When a term spans multiple domains, an abstract concept layer connects domain-specific usages. Not "pick one owner." |
+| 6 | Text matching for display, not validation | Confluence glossary plugins | Smart Terms auto-highlights glossary words in pages as tooltips. This is a UI feature for comprehension, not a compliance check. |
+
+**No AI coding tool (Kiro, Spec Kit, Tessl) has a glossary system.** Emberdeck is unique here.
+
+## 16. Problem Diagnosis (revised)
+
+The original design had TWO errors, not one:
+
+**Error 1: glossary field = text concordance.** M6/M7 enforce that glossary field matches body text. This is wrong because a design document naturally references concepts it doesn't define.
+
+**Error 2: glossary field = ownership.** The first redesign attempt replaced "text concordance" with "ownership" — "this card is the authority for this concept." This is also wrong because:
+- Ownership requires a 1:1 mapping (one term → one intent owner), which creates card bloat for cross-cutting concepts
+- It has no validation mechanism — after removing M6/M7, nothing checks if the "ownership" declaration is correct
+- It's the wrong metaphor (DDD research: terms are scoped, not owned)
+
+**Root cause**: The glossary field was trying to serve two purposes at once — **scoping the card's subject matter** and **controlling term governance**. These are different concerns.
+
+## 17. Revised Model: Define Once, Scope Everywhere
+
+### Glossary = project-level term registry
+
+Following RFC 2119 and IEEE 24765: terms are **defined once** in `glossary.yaml` and **referenced** by all cards that discuss them. The glossary is the single source of truth for what a term means.
+
+```
+glossary.yaml (define)  →  card.glossary field (scope)
+     ↓                            ↓
+"What does this term mean?"    "What terms does this card discuss?"
+```
+
+### Glossary field = topic scope declaration
+
+The `glossary` field on a card declares: **"This card discusses these domain concepts."** It scopes the card's subject matter.
+
+- NOT "this card owns these concepts" (ownership model — too rigid)
+- NOT "these words appear in the body text" (text concordance — too mechanical)
+- IS "if you want to understand how this project handles these concepts, read this card"
+
+This means:
+- Multiple cards CAN declare the same term. A `card-lifecycle` intent discusses `compensation` in the context of lifecycle safety. A `safe-operations` intent discusses `compensation` in the context of DB-file consistency. Both declare it — different perspectives on the same concept.
+- A card's glossary field should list the **primary topics** it addresses, not every term it mentions in passing. The distinction is judgment-based, not mechanical.
+
+### What this changes from the original design
+
+| Aspect | Original (M6/M7) | First redesign (ownership) | This redesign (scope) |
+|--------|-------------------|---------------------------|----------------------|
+| Glossary field means | "Words in body text" | "Concepts this card owns" | "Topics this card discusses" |
+| Multiple cards, same term | Warning (M6) | Warning (G3 multi-intent) | Normal and expected |
+| Cross-cutting concepts | N/A | "Make a dedicated card" | Multiple cards declare naturally |
+| Validation | Text regex matching | Structural ownership checks | Structural consistency checks |
+| Metaphor | Concordance | Property ownership | Topic tagging |
+
+## 18. Term Extraction Process
+
+### Extraction criteria (unchanged from first redesign)
+
+A concept qualifies as a glossary term when ALL four conditions are met:
+
+| # | Criterion | Test |
+|---|-----------|------|
+| 1 | Non-obvious meaning | Project-specific meaning different from dictionary definition |
+| 2 | Cross-cutting | Appears in 2+ cards or design discussions |
+| 3 | Decision-bearing | Encodes a design decision |
+| 4 | Not a code symbol | Cannot be fully understood by reading a single class/function/type |
+
+### Proposal format
+
+```
+### Glossary proposal
+| Word | Definition | Evidence |
+|------|-----------|---------|
+| drift | State where code has diverged from spec | Cross-cuts lifecycle, binding, and analysis. Encodes auto-detection policy with 4 types. |
+
+Register?
+```
+
+## 19. Cross-Validation Redesign
+
+### Removed
+
+| ID | Name | Reason |
+|----|------|--------|
+| M6 | `glossary-undeclared-usage` | Text matching. A card referencing a term without declaring it as a topic is normal. |
+| M7 | `glossary-phantom-declaration` | A card can discuss a concept without using the exact glossary word. |
+
+### Kept (unchanged)
+
+| ID | Name |
+|----|------|
+| M1 | Glossary field required when glossary.yaml has entries |
+| M2 | Declared words must exist in glossary.yaml |
+| M3 | No duplicate declarations within a card |
+| M4 | Glossary word deleted → referencing cards drift |
+| M5 | Glossary word renamed → card fields bulk-updated |
+| M8 | pre_change_check includes full glossary |
+| M9 | validate_cards cross-checks all cards |
+
+### Revised
+
+| Code | Name | Condition | Severity | Notes |
+|------|------|-----------|----------|-------|
+| G1 | `glossary-broken` | Card declares word not in glossary.yaml | error | Existing. Renamed from M2 check in validateCards. |
+| G2 | `glossary-unused` | Word in glossary.yaml, no card declares it | warning | Existing. Term defined but no card discusses it. |
+
+### Removed from first redesign
+
+| Code | Name | Why removed |
+|------|------|-------------|
+| G3 | `glossary-multi-intent` | Multiple cards discussing the same concept is normal in the scope model. |
+| G4 | `glossary-orphan-contract` | A spec can discuss a concept without a related intent also discussing it. The parent/relation hierarchy already ensures specs connect to intents. |
+
+### `buildGlossaryMatcher` disposition
+
+Repurposed as an **analysis utility** (not validation):
+- `suggest_card_scope`: recommends glossary words for new cards
+- `emberdeck_analyze`: shows which terms are discussed where (informational, no warnings)
+
+### Why fewer checks is better
+
+The original system had 9 mechanical checks (M1-M9). M6/M7 were wrong. The first redesign added G3/G4 which introduced new problems (ownership rigidity, card bloat).
+
+The revised system has 7 mechanical checks (M1-M5, G1-G2) — all of which are **structurally verifiable** (word exists in YAML: yes/no, field is non-empty: yes/no). No check requires judging whether a card "should" discuss a concept. That judgment is left to the agent and user during card creation, guided by the skill instructions.
+
+## 20. Glossary Lifecycle (unchanged)
+
+| Event | Trigger | Action | Cascade |
+|-------|---------|--------|---------|
+| Add | New concept meets 4 criteria + user confirmation | `emberdeck_define_glossary` | None |
+| Update | Definition evolves | `emberdeck_define_glossary` (upsert) | None |
+| Remove | Concept eliminated | `emberdeck_remove_glossary` | Cards declaring it → `glossary_broken` drift |
+| Rename | Concept rebranded | `emberdeck_rename_glossary` | Auto-updates card glossary fields. Bodies need manual `bodyPatches`. |
+
+## 21. Code Changes
+
+### Deployment order
+
+Code changes MUST deploy before SKILL.md update. If SKILL.md deploys first, agents receive instructions referencing removed behavior (no glossaryWarnings, no M6/M7) while the code still produces them.
+
+Order: (1) code changes → (2) tests → (3) SKILL.md → (4) card migration → (5) MCP tool descriptions
+
+### Files to modify
+
+| File | Change |
+|------|--------|
+| `src/glossary/cross-validate.ts` | Delete `crossValidateGlossary` function and `GlossaryCrossWarning` type (no remaining callers after removal). Keep `buildGlossaryMatcher` (used by suggest_card_scope in spec-sync.ts). |
+| `src/ops/create.ts` | Remove `crossValidateGlossary` call (L206-219). Remove `glossaryWarnings` from `CreateCardResult` interface. Remove `crossValidateGlossary` import. |
+| `src/ops/update.ts` | Remove `crossValidateGlossary` call. Remove `glossaryWarnings` from `UpdateCardResult` interface. Remove glossary warning generation. Remove import. |
+| `src/ops/bulk-create.ts` | Remove `glossaryWarnings` from bulk create result if present. Remove import. |
+| `src/ops/sync.ts` (`validateCards`) | Remove M6/M7 warning block (L475-498): the `glossary-undeclared-usage` and `glossary-phantom-declaration` warning generation inside the body cross-validation loop. |
+| `src/index.ts` | Remove `crossValidateGlossary` and `GlossaryCrossWarning` from barrel export. Keep `buildGlossaryMatcher` export. |
+| `.claude/skills/emberdeck/SKILL.md` | Full rewrite per Section 22. |
+| `src/mcp/tools.ts` | Update `emberdeck_define_glossary` description from `"Define or update words in the project glossary. Use when new domain concepts are introduced or existing definitions need refinement. Agent must show proposed words and definitions to the user and get confirmation before calling."` to `"Define or update words in the project glossary. Use when new domain concepts are introduced or existing definitions need refinement. Agent must show the glossary-proposal template (words, definitions, and evidence) to the user and get confirmation before calling."` |
+| `test/ops/glossary.test.ts` | Remove: `crossValidateGlossary` describe block, M6 undeclared-usage tests (L162, L441), M7 phantom-declaration tests (L173, L451), `glossaryWarnings` assertions (L448, L458, L468), `glossary-undeclared-usage` assertion in validateCards (L524), `glossary-phantom-declaration` assertion in validateCards (L532). |
+
+### Files unchanged
+
+| File | Reason |
+|------|--------|
+| `src/glossary/io.ts` | Read/write correct |
+| `src/glossary/validation.ts` | Entry + field validation correct (M1/M2/M3) |
+| `src/glossary/lock.ts` | Mutex correct |
+| `src/ops/glossary.ts` | CRUD correct |
+| `src/ops/context.ts` | `glossary_broken` drift correct (M4) |
+| `src/ops/analyze.ts` | Glossary stats correct (G2 already here) |
+| `src/ops/spec-sync.ts` | Uses `buildGlossaryMatcher` for suggestedGlossary (kept) |
+| DB schema | `glossary_json` format unchanged |
+
+### Rollback
+
+All changes are additive removals (deleting code, removing warnings). Rollback = revert the commit. `crossValidateGlossary` and callers can be re-added without schema changes. No DB migration involved.
+
+## 22. SKILL.md Full Rewrite
+
+Below is the complete SKILL.md after all changes. This is the canonical reference for implementation — copy the content between the ` ```markdown ` fences verbatim to `.claude/skills/emberdeck/SKILL.md`.
+
+Key changes from current version:
+- glossary field semantics: "topics this card discusses" (not text concordance, not ownership)
+- M6/M7 removed from error_recovery
+- glossary-proposal template: Evidence column added
+- card_analysis_template: glossary line updated
+- model_notes: glossary warnings reference removed
+- onboarding step 2: 4 extraction criteria added
+- intent GOOD example: requirement numbering uses R-001 (project convention). Existing cards using FR-001 will be updated during card migration (Section 23).
+- `<critical>` tags added for highest-priority rules
+- tool_protocol glossary field description updated
+
+```markdown
+---
+name: emberdeck
+description: Design knowledge management for codebases using Emberdeck MCP tools. Trigger when the user asks to build, change, fix, or refactor code in a project with emberdeck configured. Also trigger on "/emberdeck" or when the user asks about specs, design cards, or acceptance criteria.
+---
+
+<rules>
+<critical>
+1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
+</critical>
+2. Show card analysis to user and get confirmation before creating any card.
+3. Intent cards are design documents: problem, goals, user scenarios, requirements, success criteria, scope. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
+4. Define glossary before creating cards. When `glossary.yaml` has entries, every new card requires a non-empty `glossary` field listing its primary topics. Multiple cards may declare the same term when they discuss it from different perspectives.
+</rules>
+
+<glossary_semantics>
+The project glossary (`glossary.yaml`) is the single source of truth for domain vocabulary. Terms are **defined once** in the glossary and **referenced** by cards that discuss them.
+
+The `glossary` field on a card = **topic scope declaration**: "this card discusses these domain concepts." It is NOT a text concordance (not every glossary word in the body), and NOT ownership (not "this card is the authority for this concept").
+
+A card's glossary field should list the **primary topics** it addresses. Mentioning a term in passing does not require declaring it. Multiple cards declaring the same term is normal — different cards discuss the same concept from different perspectives.
+
+**When to add a new term to the glossary** (criteria for `emberdeck_define_glossary`, NOT for selecting which existing terms go in a card's glossary field):
+
+A term qualifies for the glossary when ALL four conditions are met:
+1. **Non-obvious meaning** — project-specific, different from dictionary definition
+2. **Cross-cutting** — appears in 2+ cards or design areas
+3. **Decision-bearing** — encodes a design decision
+4. **Not a code symbol** — cannot be understood by reading a single class/function/type
+</glossary_semantics>
+
+<route_table>
+Match the FIRST row whose signal is true, then follow the named workflow.
+
+| # | Signal | Workflow |
+|---|--------|----------|
+| 1 | No `.emberdeck/` or 0 cards | onboarding |
+| 2 | Cards exist, no `glossary.yaml` or 0 glossary entries | glossary-backfill |
+| 3 | Code change affects card scope | feature |
+| 4 | Code change outside all card scopes | feature (step 1 reveals uncovered files) |
+| 5 | No code change (deps, CI, lint, docs) | skip card workflow |
+| 6 | No modification intent | read cards for context only |
+</route_table>
+
+<workflows>
+
+<workflow name="onboarding">
+1. `emberdeck_analyze` — current state. Then `emberdeck_write_spec_annotations` to reconcile (removes orphan @spec from previous sessions, adds missing ones). Reconciler is idempotent.
+2. Read codebase. Identify domain concepts meeting ALL 4 criteria: (1) non-obvious meaning, (2) cross-cutting across 2+ areas, (3) encodes a design decision, (4) not a code symbol. Focus on concepts whose meaning is not self-evident from any single function or type.
+3. Propose glossary to user (see glossary-proposal template — include Evidence column). Get confirmation. `emberdeck_define_glossary`.
+4. Create intent cards (with `glossary` field). Show card-analysis template for each.
+5. Create spec cards under intents (with `glossary`, `codeLinks`, `relations`).
+6. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken and 0 broken-chain warnings before finishing.
+7. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags into source code for all codeLinks.
+</workflow>
+
+<workflow name="glossary-backfill">
+1. `emberdeck_lookup_glossary` — confirm empty.
+2. Read existing card bodies and summaries. Extract domain terms meeting the 4 criteria.
+3. Propose glossary to user (with Evidence column). `emberdeck_define_glossary`.
+4. Update each card: `emberdeck_update_card` with `glossary` field.
+5. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken warnings before finishing.
+</workflow>
+
+<workflow name="feature">
+1. `emberdeck_pre_change_check` with files to modify. Response includes full `glossary` and affected cards.
+   - critical risk: stop, show impact to user, get confirmation.
+   - high risk: show affected cards to user, get confirmation.
+   - medium/low risk: proceed.
+2. `emberdeck_get_card` for each affected card — these are your constraints.
+   - Direct cards: read full body. Transitive cards: summary only.
+3. If no cards exist for the area: create intent card first (show card-analysis, include glossary), then spec cards.
+4. Write code within card constraints.
+5. If a new domain concept emerges: propose glossary entry to user → `emberdeck_define_glossary` → update affected cards' glossary fields.
+6. If your change extends an existing spec's scope: update the spec card body and glossary field.
+7. GATE: `emberdeck_validate_code_links` — pass with 0 broken links before finishing.
+8. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags for new/changed codeLinks.
+</workflow>
+
+</workflows>
+
+<tool_protocol>
+
+Glossary tools — when and how:
+
+| Tool | When | Requires user confirmation |
+|------|------|---------------------------|
+| `emberdeck_define_glossary` | New domain concept or definition update. Batch up to 50. All-or-nothing validation. | Yes — show glossary-proposal first |
+| `emberdeck_lookup_glossary` | Check a term's meaning, or list all terms at session start | No |
+| `emberdeck_remove_glossary` | Domain concept eliminated from project. Cards referencing it become drifted. | Yes |
+| `emberdeck_rename_glossary` | Domain concept rebranded. Auto-updates glossary + all card glossary fields. Card bodies need manual update. | Yes |
+| `emberdeck_find_cards_by_glossary_word` | Find which cards declare a specific glossary word. Use to audit term usage or assess impact before removing/renaming. | No |
+| `emberdeck_reset` | Delete all cards (DB + files), clear glossary. Run `emberdeck_write_spec_annotations` after to remove orphan @spec from source. | Yes |
+
+Rename sequence:
+1. `emberdeck_rename_glossary` with oldWord, newWord, optional definition.
+2. `emberdeck_search_cards` for old word in card bodies.
+3. `emberdeck_update_card` with bodyPatches to replace old word in each affected body.
+
+Card creation — always include:
+- `glossary`: primary domain concepts this card discusses (required when glossary.yaml exists)
+- `type`: intent (design documents) or spec (behavioral contracts)
+- `codeLinks`: required for spec cards
+- `relations`: spec cards relate to at least one intent card
+
+</tool_protocol>
+
+<card_analysis_template>
+Show this to the user before every card creation:
+
+```
+### Card analysis: {key}
+- **Type**: intent | spec
+- **Glossary**: [{primary domain concepts this card discusses}]
+- **Must guarantee**: {what this card ensures}
+- **Excluded**: {what is deliberately out of scope}
+- **Breaks if violated**: {concrete consequence}
+```
+</card_analysis_template>
+
+<glossary_proposal_template>
+Show this to the user before calling `emberdeck_define_glossary`:
+
+```
+### Glossary proposal
+| Word | Definition | Evidence |
+|------|-----------|---------|
+| {word} | {definition} | {which areas use it, what decision it encodes, why non-obvious} |
+
+Register?
+```
+</glossary_proposal_template>
+
+<error_recovery>
+
+When `emberdeck_validate_cards` reports warnings:
+
+| Warning | Cause | Recovery |
+|---------|-------|----------|
+| glossary-broken | Card declares a glossary word that no longer exists in glossary.yaml | `emberdeck_define_glossary` to re-add, or `emberdeck_update_card` to remove the word from the card's glossary field |
+| glossary-unused | Glossary word not declared by any card | Informational — consider creating a card that discusses this concept or removing the glossary entry |
+| content-mismatch | DB and file diverged | `emberdeck_export_card_to_file` to regenerate file from DB |
+| broken-chain | Spec card has no link to any intent card | Add a relation or parent to an intent card |
+
+When `emberdeck_validate_code_links` finds broken links:
+1. Check if the symbol was renamed → `emberdeck_sync_symbol_changes`.
+2. Check if the file was moved → update the card's codeLinks.
+3. If the symbol was intentionally removed → update or delete the card.
+
+</error_recovery>
+
+<card_types>
+
+## intent — Design document
+
+An intent card answers: **"What are we building, why, and under what constraints?"**
+
+It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from intent cards — no spec exists without an intent that justifies it. No codeLinks. Can be root card.
+
+### REQUIRED content in intent body:
+
+**Problem & Goals** — What problem this design solves and what outcomes it achieves. Be specific: who has the problem, what breaks without this, what success looks like.
+
+**User Scenarios** — Prioritized (P1/P2/P3) scenarios describing how the system is used. Each scenario must be independently testable with Given/When/Then acceptance criteria.
+
+**Requirements** — Numbered requirements (R-001, R-002, ...) using RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each requirement must be testable and unambiguous.
+
+**Success Criteria** — Measurable outcomes that define when the design is fulfilled. Technology-agnostic, verifiable without knowing implementation.
+
+**Scope & Constraints** — What this design covers, what it explicitly excludes, and what assumptions were made.
+
+### GOOD intent card body:
+
+```
+## Problem & Goals
+Agents modifying code need to know which design decisions govern each area. Without this, agents silently violate cross-module contracts. Goal: every code change is checked against its governing design before execution.
+
+## User Scenarios
+
+### P1: Agent reads design before code change
+Given an agent is about to modify src/ops/create.ts,
+When it calls pre_change_check with the file path,
+Then it receives affected cards, risk level, and must read each card before proceeding.
+
+### P2: Drift detected after code change
+Given a spec card is active with resolved codeLinks,
+When the linked symbol is renamed or deleted,
+Then the card auto-transitions to drifted status in both DB and file.
+
+## Requirements
+- R-001: System MUST store every card in both DB and markdown file (dual-storage invariant).
+- R-002: System MUST reject spec card activation when any codeLink is unresolved.
+- R-003: System MUST auto-detect drift via 4 mechanisms: broken_link, boundary_inactive, symbol_changed, glossary_broken.
+- R-004: System MUST compensate DB changes when file write fails after DB commit.
+
+## Success Criteria
+- SC-001: 0 broken codeLinks on active spec cards at any point in time.
+- SC-002: Every code change to a card-covered file is preceded by pre_change_check.
+- SC-003: Drifted cards are detected within one check_drift cycle — no silent drift.
+
+## Scope & Constraints
+- Covers: card lifecycle, dual-storage, drift detection, code binding, glossary enforcement.
+- Excludes: code generation, linting, CI, test automation, workflow orchestration.
+- Assumes: gildash is available for symbol resolution when projectRoot is set.
+```
+
+### BAD intent card body (common mistakes):
+
+- ✗ Code structure: "The system uses SQLite with Drizzle ORM. Cards are stored in the card table."
+- ✗ Abstract policy only: "Always: Card is source of truth." (policy without scenarios, requirements, or success criteria)
+- ✗ Implementation detail: "writeCardFile uses atomic rename via temp file."
+- ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not design)
+
+---
+
+## spec — Behavioral contract bound to code
+
+A spec card answers: **"What does the system guarantee?"**
+
+It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one intent card — a contract without governing design is rootless. Requires codeLinks.
+
+### REQUIRED content in spec body:
+
+**Given/When/Then contracts** — Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each contract is one testable guarantee.
+
+**Failure modes** — Table: what violation occurs → what the system does. Agents need explicit failure behavior, not just happy paths.
+
+### GOOD spec card body:
+
+```
+## Contracts
+- WHEN a spec card status is set to active, THEN all codeLinks MUST resolve to existing symbols via gildash. IF any link fails, activation MUST be rejected with ActivationGuardError.
+- WHEN a card is deleted with force=true AND it has children, THEN children MUST become orphans (parent=null) AND relations MUST be cleaned up bidirectionally.
+
+## Failure modes
+| Violation | System behavior |
+|-----------|----------------|
+| codeLink target symbol deleted | Card auto-transitions to drifted |
+| File write fails after DB commit | Compensation reverts DB change; CompensationError thrown if revert also fails |
+```
+
+### BAD spec card body (common mistakes):
+
+- ✗ Policies: "We always use compensation pattern" (belongs in intent)
+- ✗ Implementation: "deleteByKey() calls SQL DELETE WHERE key=?" (discoverable from code)
+- ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not contract)
+- ✗ Verification commands: "Run `bun test`" (tooling, not contract)
+- ✗ File paths in body text (use codeLinks field instead)
+
+---
+
+## Summary: what goes where
+
+| Content | intent | spec | Neither |
+|---------|--------|------|---------|
+| Problem & Goals | ✓ | | |
+| User Scenarios (P1/P2/P3) | ✓ | | |
+| Requirements (R-001...) | ✓ | | |
+| Success Criteria (measurable) | ✓ | | |
+| Scope & Constraints | ✓ | | |
+| Given/When/Then contracts (code-bound) | | ✓ | |
+| Failure mode table | | ✓ | |
+| Code structure descriptions | | | ✗ discoverable |
+| File paths, class names | | | ✗ discoverable |
+| Task checklists | | | ✗ execution plan |
+| Verification commands | | | ✗ tooling |
+
+Hierarchy: parent-child when scope is strict subset. Flat peers otherwise. Max 3 levels.
+
+</card_types>
+
+<model_notes>
+- Fewer precise cards beat many vague ones.
+- Call emberdeck tools directly — subagents lose card context.
+- Always show the card-analysis template before creation, even when being concise elsewhere.
+</model_notes>
+
+<critical>Read cards before modifying code. Validate code links after. Run glossary backfill when glossary is empty.</critical>
+```
+
+## 23. Migration of Existing Cards
+
+After code changes deploy and SKILL.md is updated:
+
+1. For each card, verify glossary field lists the **primary topics** the card discusses (not text concordance, not ownership)
+2. Remove terms that are merely referenced in passing (not a primary topic)
+3. Update requirement numbering from FR-001 to R-001 in intent card bodies (via `bodyPatches`)
+4. Cards requiring M6/M7 content removal (explicit list):
+   - **`spec/glossary-cross-validation`**: Contracts C-03, C-04, C-06 are entirely about M6/M7. codeLinks include `crossValidateGlossary` (deleted) and `GlossaryCrossWarning` (deleted). This card must be substantially rewritten or deleted — its core subject no longer exists.
+   - **`glossary-system`**: Parent intent card. Body describes "cross-validates card bodies against declared glossary terms, detecting undeclared usage and phantom declarations." Must be rewritten to reflect the scope model.
+   - **`spec/create-card`**: Contract C-09 references "glossaryWarnings" field (removed). Must update or remove this contract.
+5. Run `emberdeck_validate_cards` — expect 0 `glossary-broken`
+6. Run `emberdeck_validate_code_links` — verify no broken codeLinks from deleted symbols
+
+Agent proposes changes, user confirms.
+
+## 24. Verification
+
+1. `bun test` — all tests pass (M6/M7 tests removed)
+2. `emberdeck_validate_cards` — no `glossary-undeclared-usage` or `glossary-phantom-declaration` warnings (types removed)
+3. Card creation no longer returns `glossaryWarnings` field
+4. Card update no longer returns `glossaryWarnings` field
+5. Existing G1 (`glossary-broken`) and G2 (`glossary-unused`) continue to work
+6. `src/index.ts` no longer exports `crossValidateGlossary` or `GlossaryCrossWarning`
+7. MCP tool description for `emberdeck_define_glossary` mentions "glossary-proposal template (words, definitions, and evidence)"
+8. SKILL.md matches Section 22 rewrite verbatim
+9. `emberdeck_validate_code_links` — 0 broken links from deleted `crossValidateGlossary`/`GlossaryCrossWarning` symbols
+10. `spec/glossary-cross-validation` card rewritten or deleted — no contracts referencing M6/M7

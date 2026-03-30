@@ -6,7 +6,7 @@ description: Design knowledge management for codebases using Emberdeck MCP tools
 <rules>
 1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
 2. Show card analysis to user and get confirmation before creating any card.
-3. Intent cards capture decisions not visible in code. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
+3. Intent cards are design documents: problem, goals, user scenarios, requirements, success criteria, scope. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
 4. Define glossary before creating cards. When `glossary.yaml` has entries, every new card requires a non-empty `glossary` field. Use canonical glossary words in card bodies, summaries, and code symbol names.
 </rules>
 
@@ -134,45 +134,65 @@ When `emberdeck_validate_code_links` finds broken links:
 
 <card_types>
 
-## intent — Project-level design policy document
+## intent — Design document
 
-An intent card answers: **"How do we build this project and why?"**
+An intent card answers: **"What are we building, why, and under what constraints?"**
 
-It captures project-wide policies, design principles, scope boundaries, and architectural decisions that govern all implementation. It is a project-level governance document — NOT a feature-level planning document. No codeLinks. Can be root card.
+It is a design document (기획서) that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from intent cards — no spec exists without an intent that justifies it. No codeLinks. Can be root card.
 
 ### REQUIRED content in intent body:
 
-**Policies** — Rules that govern how the project is built. Use Always / Ask First / Never boundaries:
-- Always: invariant rules the agent must follow unconditionally
-- Ask First: decisions requiring human approval before proceeding
-- Never: out-of-scope items and forbidden approaches
+**Problem & Goals** — What problem this design solves and what outcomes it achieves. Be specific: who has the problem, what breaks without this, what success looks like.
 
-**Rationale** — Why each policy exists. What concrete consequence occurs if violated. Without rationale, agents cannot judge edge cases.
+**User Scenarios** — Prioritized (P1/P2/P3) scenarios describing how the system is used. Each scenario must be independently testable with Given/When/Then acceptance criteria.
 
-**Scope** — What this policy area covers and what it explicitly excludes.
+**Requirements** — Numbered functional requirements (FR-001, FR-002, ...) using RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each requirement must be testable and unambiguous.
+
+**Success Criteria** — Measurable outcomes that define when the design is fulfilled. Technology-agnostic, verifiable without knowing implementation.
+
+**Scope & Constraints** — What this design covers, what it explicitly excludes, and what assumptions were made.
 
 ### GOOD intent card body:
 
 ```
-## Policies
-- Always: Card is source of truth. Code follows card. Never auto-modify card body when code changes.
-- Always: Dual-storage — every card exists in both DB (queryable) and markdown file (git-diffable).
-- Ask First: Adding a new card type requires human approval.
-- Never: Emberdeck does not generate code, run linters, or manage CI.
+## Problem & Goals
+Agents modifying code need to know which design decisions govern each area. Without this, agents silently violate cross-module contracts. Goal: every code change is checked against its governing design before execution.
 
-## Rationale
-Card is source of truth because if code changes auto-updated cards, design intent would be silently overwritten by implementation drift. Dual-storage exists because DB alone loses git-diffability, files alone lose queryability and transactions.
+## User Scenarios
 
-## Scope
-Emberdeck manages design knowledge only: cards, relations, code bindings, drift detection. Code generation, linting, CI, test automation, workflow orchestration are out of scope.
+### P1: Agent reads design before code change
+Given an agent is about to modify src/ops/create.ts,
+When it calls pre_change_check with the file path,
+Then it receives affected cards, risk level, and must read each card before proceeding.
+
+### P2: Drift detected after code change
+Given a spec card is active with resolved codeLinks,
+When the linked symbol is renamed or deleted,
+Then the card auto-transitions to drifted status in both DB and file.
+
+## Requirements
+- FR-001: System MUST store every card in both DB and markdown file (dual-storage invariant).
+- FR-002: System MUST reject spec card activation when any codeLink is unresolved.
+- FR-003: System MUST auto-detect drift via 4 mechanisms: broken_link, boundary_inactive, symbol_changed, glossary_broken.
+- FR-004: System MUST compensate DB changes when file write fails after DB commit.
+
+## Success Criteria
+- SC-001: 0 broken codeLinks on active spec cards at any point in time.
+- SC-002: Every code change to a card-covered file is preceded by pre_change_check.
+- SC-003: Drifted cards are detected within one check_drift cycle — no silent drift.
+
+## Scope & Constraints
+- Covers: card lifecycle, dual-storage, drift detection, code binding, glossary enforcement.
+- Excludes: code generation, linting, CI, test automation, workflow orchestration.
+- Assumes: gildash is available for symbol resolution when projectRoot is set.
 ```
 
 ### BAD intent card body (common mistakes):
 
 - ✗ Code structure: "The system uses SQLite with Drizzle ORM. Cards are stored in the card table."
-- ✗ Feature-level planning: "Problem: users need dark mode. Approach: CSS variables."
+- ✗ Abstract policy only: "Always: Card is source of truth." (policy without scenarios, requirements, or success criteria)
 - ✗ Implementation detail: "writeCardFile uses atomic rename via temp file."
-- ✗ Sections agents ignore: Alternatives Considered, Risks, Open Questions (0/12 industry frameworks use these for agent consumption)
+- ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not design)
 
 ---
 
@@ -216,16 +236,17 @@ It captures verifiable behavioral contracts bound to specific code symbols via c
 
 | Content | intent | spec | Neither |
 |---------|--------|------|---------|
-| Project policies (Always/Ask/Never) | ✓ | | |
-| Rationale for policies | ✓ | | |
-| Scope and exclusions | ✓ | | |
-| Given/When/Then contracts | | ✓ | |
+| Problem & Goals | ✓ | | |
+| User Scenarios (P1/P2/P3) | ✓ | | |
+| Functional Requirements (FR-001...) | ✓ | | |
+| Success Criteria (measurable) | ✓ | | |
+| Scope & Constraints | ✓ | | |
+| Given/When/Then contracts (code-bound) | | ✓ | |
 | Failure mode table | | ✓ | |
 | Code structure descriptions | | | ✗ discoverable |
 | File paths, class names | | | ✗ discoverable |
 | Task checklists | | | ✗ execution plan |
 | Verification commands | | | ✗ tooling |
-| Alternatives Considered | | | ✗ agents ignore |
 
 Hierarchy: parent-child when scope is strict subset. Flat peers otherwise. Max 3 levels.
 
