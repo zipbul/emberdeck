@@ -1,95 +1,42 @@
 ---
-{key: glossary-system,summary: "Design document for glossary CRUD, card-glossary cross-validation, progressive enforcement, and glossary locking",status: draft,type: intent,boundary: [src/glossary/**,src/ops/glossary.ts],tags: [glossary,vocabulary,validation],glossary: [glossary,card,drift,dual-storage,compensation]}
+{key: glossary-system,summary: Domain vocabulary is consistent across all cards and glossary operations are atomic,status: draft,type: intent,glossary: [card,drift]}
 ---
+
 ## Problem & Goals
+The project glossary defines domain vocabulary. Cards declare which glossary terms they discuss. Without enforcement, terms can be removed while cards still reference them, or cards can declare non-existent terms. All glossary mutations must be atomic and handle cross-references correctly.
 
-**Problem**: Domain vocabulary in a project is ambiguous. Different agents (and humans) use different terms for the same concept, or the same term for different concepts. Without a canonical vocabulary, specs become inconsistent and miscommunication causes implementation errors.
-
-**Who has it**: Any project where multiple agents or developers contribute to the codebase. Terminology drift is as dangerous as code drift: it causes misunderstanding at the design level.
-
-**What breaks without this**: Cards use inconsistent terminology. An agent writes "code link" in one card and "symbol binding" in another, referring to the same concept. There is no way to detect when a card's body uses glossary terms it has not declared, or declares terms it never uses.
-
-**Success looks like**: A project-level glossary.yaml file defines canonical domain terms with definitions. Every card declares which glossary words it uses. The system cross-validates card bodies against declared glossary terms, detecting undeclared usage and phantom declarations. Glossary enforcement is progressive: it activates only after the first glossary entry is defined.
+Goal: glossary and card glossary fields are always consistent; every glossary mutation either fully succeeds or fully rolls back.
 
 ## User Scenarios
 
-### P1: Define glossary entries
-- **Given** new domain concepts have been introduced
-- **When** defineGlossary is called with entries (word + definition pairs)
-- **Then** new words are created, existing words are updated (upsert semantics)
-- **And** all entries are validated before any write (all-or-nothing)
-- **And** word length <= 100 chars, definition length <= 1000 chars
-- **And** max 50 entries per call, max 500 total entries
+### P1: Agent defines new glossary terms
+Given the agent proposes new domain concepts,
+When defineGlossary is called with entries,
+Then all entries are validated and written atomically (all-or-nothing).
 
-### P1: Progressive enforcement on card creation
-- **Given** the glossary has at least one entry
-- **When** a card is created or updated
-- **Then** the card MUST declare a glossary field with at least one word
-- **And** every declared word must exist in glossary.yaml
-- **And** when glossary.yaml is empty, the glossary field is optional (progressive enforcement)
+### P1: Agent renames a glossary term
+Given cards reference a glossary word,
+When renameGlossary is called,
+Then the glossary file is updated first, then all card glossary fields in DB, then card files.
+If DB update fails, the glossary file is reverted.
 
-### P1: Cross-validation (M6/M7)
-- **Given** a card has a glossary field and a body
-- **When** cross-validation runs (during create/update or validateCards)
-- **Then** M6: words found in body+summary but not declared produce undeclared-usage warnings
-- **And** M7: words declared but absent from body+summary produce phantom-declaration warnings
-- **And** matching uses word boundaries and is case-insensitive
-- **And** warnings are non-blocking (card is still created/updated)
-
-### P2: Lookup glossary
-- **Given** an agent needs to understand a domain term
-- **When** lookupGlossary is called with a word (or without for full listing)
-- **Then** exact match returns the entry, or all entries are returned
-- **And** read-only operation, no lock required
-
-### P2: Remove glossary entry
-- **Given** a glossary word is obsolete
-- **When** removeGlossary is called
-- **Then** the word is removed from glossary.yaml
-- **And** cards referencing this word are identified (for future drift detection)
-- **And** on next checkDrift, those cards will be detected as glossary_broken drift
-
-### P2: Rename glossary entry
-- **Given** a glossary word needs to be renamed
-- **When** renameGlossary is called with oldWord and newWord
-- **Then** glossary.yaml is updated first (file before DB for this operation)
-- **And** all cards' glossary_json fields are updated in a single DB transaction
-- **And** card .md files are updated best-effort
-- **And** if DB transaction fails, glossary.yaml is reverted
-- **And** card bodies are NOT automatically updated (manual task)
-
-### P3: Find cards by glossary word
-- **Given** a glossary word
-- **When** findCardsByGlossaryWord is called
-- **Then** all cards declaring that word in their glossary field are returned
+### P2: Agent removes a glossary term
+Given cards reference a glossary word,
+When removeGlossary is called,
+Then the word is removed and affected card keys are returned for manual cleanup.
 
 ## Requirements
-
-- **FR-001**: defineGlossary MUST validate all entries before writing (fail fast, all-or-nothing).
-- **FR-002**: defineGlossary MUST enforce max 50 entries per call and max 500 total entries.
-- **FR-003**: writeGlossary MUST sort entries alphabetically by word for deterministic git diffs.
-- **FR-004**: Progressive enforcement: glossary field is required on cards ONLY when glossary.yaml has entries.
-- **FR-005**: validateCardGlossaryField MUST reject: empty glossary arrays, duplicate words, words not in glossary.yaml, words exceeding length limits.
-- **FR-006**: crossValidateGlossary MUST use a compiled regex with word boundaries for efficient matching.
-- **FR-007**: crossValidateGlossary MUST sort terms longest-first in the regex to match multi-word terms before substrings.
-- **FR-008**: Cross-validation warnings (undeclared-usage, phantom-declaration) MUST be non-blocking.
-- **FR-009**: removeGlossary MUST identify affected cards so drift detection can flag them later.
-- **FR-010**: renameGlossary MUST follow file-first-then-DB pattern with DB-failure compensation (revert file).
-- **FR-011**: renameGlossary MUST NOT update card bodies (only frontmatter glossary fields).
-- **FR-012**: All glossary write operations MUST be serialized via withGlossaryLock (single global mutex per context).
-- **FR-013**: Glossary file path MUST be in the .emberdeck/ directory (parent of cardsDir).
+- R-001: defineGlossary MUST validate all entries before writing (all-or-nothing).
+- R-002: renameGlossary MUST update glossary file first, then DB, and compensate glossary file if DB fails.
+- R-003: Card creation MUST require non-empty glossary field when the project glossary has entries.
+- R-004: Card glossary field MUST only contain words that exist in the project glossary.
+- R-005: All glossary write operations MUST be serialized via a global mutex.
 
 ## Success Criteria
-
-- Glossary enforcement is transparent: zero enforcement when glossary.yaml is empty, full enforcement when populated.
-- Cross-validation catches 100% of undeclared word usage and phantom declarations using word-boundary regex.
-- Rename operation is atomic: either both glossary.yaml and DB are updated, or neither is.
-- Glossary operations are concurrency-safe via global mutex.
+- SC-001: 0 cards with glossary words not found in glossary.yaml.
+- SC-002: 0 interleaved glossary writes (all mutations serialized).
 
 ## Scope & Constraints
-
-**Covers**: Glossary CRUD (define, lookup, remove, rename), card-glossary validation, cross-validation (M6/M7), progressive enforcement, glossary locking, findCardsByGlossaryWord.
-
-**Excludes**: Card CRUD mechanics (see card-lifecycle intent), glossary_broken drift detection (see code-binding intent).
-
-**Assumes**: glossary.yaml is a YAML array of {word, definition} objects. Bun.YAML.parse/stringify is available. One glossary file per project. Lock is per-EmberdeckContext via WeakMap.
+- Covers: defineGlossary, lookupGlossary, removeGlossary, renameGlossary, findCardsByGlossaryWord, glossary validation, glossary lock, resetEmberdeck.
+- Excludes: card CRUD logic (except glossary validation within it), drift detection, code binding.
+- Assumes: glossary.yaml is the single file-based store; concurrent access is serialized via withGlossaryLock.

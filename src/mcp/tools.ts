@@ -944,7 +944,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       description:
         'Define or update words in the project glossary. ' +
         'Use when new domain concepts are introduced or existing definitions need refinement. ' +
-        'Agent must show proposed words and definitions to the user and get confirmation before calling.',
+        'Agent must show the glossary-proposal template (words, definitions, and evidence) to the user and get confirmation before calling.',
       inputSchema: z.object({
         entries: z.array(z.object({
           word: z.string().min(1).max(100).describe('Canonical word'),

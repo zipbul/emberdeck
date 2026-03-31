@@ -72,6 +72,7 @@ const UNLINKED_SYMBOLS_LIMIT = 20;
  *
  * Combines check_drift and getUncoveredSymbols into a single report.
  * Always operates on the entire project (no file/symbol params).
+  * @spec spec-analyze
  */
 export async function analyze(
   ctx: EmberdeckContext,
@@ -280,6 +281,7 @@ function buildHierarchyNode(
  * Returns card counts by type/status, a hierarchy tree of root cards (max 3 levels),
  * coverage ratio (if gildash available), drifted card summaries, and total relation count.
  * Designed for quick orientation at the start of a new conversation.
+  * @spec spec-analyze
  */
 export async function getOnboardingSummary(
   ctx: EmberdeckContext,

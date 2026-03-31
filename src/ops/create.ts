@@ -16,7 +16,7 @@ import {
 } from '../card/validation';
 import { readGlossary, GlossaryValidationError } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
-import { crossValidateGlossary } from '../glossary/cross-validate';
+
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
@@ -63,8 +63,7 @@ export interface CreateCardResult {
   fullKey: string;
   /** Complete data of the created card (frontmatter + body). */
   card: CardFile;
-  /** Glossary cross-validation warnings (undeclared-usage, phantom-declaration). */
-  glossaryWarnings?: string[];
+
 }
 
 /**
@@ -86,6 +85,7 @@ export interface CreateCardResult {
  * @throws {ParentValidationError} When parent validation fails.
  * @throws {ActivationGuardError} When activation conditions are not met.
  * @throws {CompensationError} When file write fails after DB success and compensation also fails.
+  * @spec spec-create-card
  */
 export async function createCard(
   ctx: EmberdeckContext,
@@ -200,25 +200,7 @@ export async function createCard(
               codeLinkRepo.replaceForCard(fullKey, input.codeLinks);
             }
           });
-          const result: CreateCardResult = { filePath, fullKey, card };
-
-          // Body cross-validation (M6/M7) — non-blocking warnings
-          if (input.glossary && input.glossary.length > 0 && glossaryEntries.length > 0) {
-            const crossWarnings = crossValidateGlossary(
-              fullKey,
-              body,
-              input.summary,
-              input.glossary,
-              glossaryEntries,
-            );
-            if (crossWarnings.length > 0) {
-              result.glossaryWarnings = crossWarnings.map(
-                (w) => `${w.type}: ${w.word}`,
-              );
-            }
-          }
-
-          return result;
+          return { filePath, fullKey, card } as CreateCardResult;
         },
         fileAction: async () => {
           await mkdir(dirname(filePath), { recursive: true });

@@ -1,10 +1,4 @@
-// ── Body <-> Glossary cross-validation (M6, M7) ─────────────────────────
-
-export interface GlossaryCrossWarning {
-  type: 'undeclared-usage' | 'phantom-declaration';
-  word: string;
-  cardKey: string;
-}
+// ── Glossary word matcher (analysis utility) ────────────────────────────
 
 /**
  * Build a reusable matcher that finds glossary words in text via
@@ -12,6 +6,11 @@ export interface GlossaryCrossWarning {
  *
  * Returns a function: (text) -> Set<canonical word>.
  * Performance: O(text_length + glossary_size) -- single regex pass.
+ *
+ * Used by suggest_card_scope and analyze (informational, not validation).
+ *
+ * Known limitation: \b word boundaries do not split camelCase or snake_case
+ * identifiers. "Job" will not match inside "processJob" or "job_queue".
  */
 export function buildGlossaryMatcher(
   entries: Array<{ word: string }>,
@@ -37,41 +36,4 @@ export function buildGlossaryMatcher(
     }
     return found;
   };
-}
-
-/**
- * Cross-validate a card's declared glossary against its body + summary text.
- *
- * M6: glossary word found in text but not declared by this card -> undeclared-usage warning
- * M7: card declares word but it never appears in text -> phantom-declaration warning
- */
-export function crossValidateGlossary(
-  cardKey: string,
-  body: string,
-  summary: string,
-  declaredGlossary: string[],
-  allGlossaryEntries: Array<{ word: string }>,
-): GlossaryCrossWarning[] {
-  const text = `${summary}\n${body}`;
-  const declaredSet = new Set(declaredGlossary);
-  const matcher = buildGlossaryMatcher(allGlossaryEntries);
-  const foundInText = matcher(text);
-
-  const warnings: GlossaryCrossWarning[] = [];
-
-  // M6: glossary word found in text but not declared by this card
-  for (const word of foundInText) {
-    if (!declaredSet.has(word)) {
-      warnings.push({ type: 'undeclared-usage', word, cardKey });
-    }
-  }
-
-  // M7: card declares word but it never appears in text
-  for (const word of declaredGlossary) {
-    if (!foundInText.has(word)) {
-      warnings.push({ type: 'phantom-declaration', word, cardKey });
-    }
-  }
-
-  return warnings;
 }

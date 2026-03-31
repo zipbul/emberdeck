@@ -48,6 +48,7 @@ export interface RenameCardResult {
  * @throws {CardRenameSamePathError} When source and destination are the same.
  * @throws {CardNotFoundError} When the source card does not exist.
  * @throws {CardAlreadyExistsError} When a card with the new key already exists.
+  * @spec spec-rename-card
  */
 export async function renameCard(
   ctx: EmberdeckContext,

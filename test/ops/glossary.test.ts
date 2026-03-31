@@ -12,7 +12,7 @@ import {
   GlossaryValidationError,
   GlossaryParseError,
   buildGlossaryMatcher,
-  crossValidateGlossary,
+
   findCardsByGlossaryWord,
   resetEmberdeck,
   createCard,
@@ -144,50 +144,6 @@ describe('Glossary', () => {
       expect(found1.has('Worker')).toBe(false);
       expect(found2.has('Worker')).toBe(true);
       expect(found2.has('Job')).toBe(false);
-    });
-  });
-
-  // ── crossValidateGlossary ─────────────────────────────────────────────
-
-  describe('crossValidateGlossary', () => {
-    it('should return no warnings when all declared words appear in text', () => {
-      const warnings = crossValidateGlossary(
-        'test', 'The Job is processed by a Worker', 'Job Worker spec',
-        ['Job', 'Worker'],
-        [{ word: 'Job' }, { word: 'Worker' }],
-      );
-      expect(warnings).toHaveLength(0);
-    });
-
-    it('should detect undeclared-usage', () => {
-      const warnings = crossValidateGlossary(
-        'test', 'A Job runs on a Worker', 'summary',
-        ['Job'],  // only Job declared, Worker not
-        [{ word: 'Job' }, { word: 'Worker' }],
-      );
-      const undeclared = warnings.filter(w => w.type === 'undeclared-usage');
-      expect(undeclared).toHaveLength(1);
-      expect(undeclared[0]!.word).toBe('Worker');
-    });
-
-    it('should detect phantom-declaration', () => {
-      const warnings = crossValidateGlossary(
-        'test', 'Only Job appears here', 'summary',
-        ['Job', 'Worker'],  // Worker declared but not in text
-        [{ word: 'Job' }, { word: 'Worker' }],
-      );
-      const phantom = warnings.filter(w => w.type === 'phantom-declaration');
-      expect(phantom).toHaveLength(1);
-      expect(phantom[0]!.word).toBe('Worker');
-    });
-
-    it('should find words in summary too', () => {
-      const warnings = crossValidateGlossary(
-        'test', 'body without terms', 'Worker processing summary',
-        ['Worker'],
-        [{ word: 'Worker' }],
-      );
-      expect(warnings).toHaveLength(0);
     });
   });
 
@@ -409,14 +365,6 @@ describe('Glossary', () => {
       expect(r.card.frontmatter.summary).toBe('new');
     });
 
-    it('should return cross-validation warnings on update', async () => {
-      tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }, { word: 'Worker', definition: 'w' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Processing spec', type: 'intent', glossary: ['Job', 'Worker'], body: 'Uses Job and Worker' });
-      // Update body and summary to no longer mention Worker
-      const r = await updateCard(tc.ctx, 'c', { body: 'Only Job here', summary: 'Job only' });
-      expect(r.warnings?.some(w => w.includes('Worker'))).toBe(true);
-    });
   });
 
   // ── Markdown roundtrip ────────────────────────────────────────────────
@@ -432,40 +380,6 @@ describe('Glossary', () => {
       const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'intent' as const };
       const parsed = parseCardMarkdown(serializeCardMarkdown(fm, ''));
       expect(parsed.frontmatter.glossary).toBeUndefined();
-    });
-  });
-
-  // ── Cross-validation on create ────────────────────────────────────────
-
-  describe('Cross-validation on create', () => {
-    it('should warn undeclared-usage (M6)', async () => {
-      tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Worker', definition: 'b' }] });
-      const r = await createCard(tc.ctx, {
-        key: 'c', summary: 'Worker spec', type: 'intent',
-        body: 'This uses a Job queue', glossary: ['Worker'],
-      });
-      expect(r.glossaryWarnings!.some(w => w.includes('Job'))).toBe(true);
-    });
-
-    it('should warn phantom-declaration (M7)', async () => {
-      tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Ghost', definition: 'b' }] });
-      const r = await createCard(tc.ctx, {
-        key: 'c', summary: 'Job spec', type: 'intent',
-        body: 'Only Job here', glossary: ['Job', 'Ghost'],
-      });
-      expect(r.glossaryWarnings!.some(w => w.includes('Ghost'))).toBe(true);
-    });
-
-    it('should return no warnings when all match', async () => {
-      tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }] });
-      const r = await createCard(tc.ctx, {
-        key: 'c', summary: 'Job spec', type: 'intent',
-        body: 'The Job runs', glossary: ['Job'],
-      });
-      expect(r.glossaryWarnings).toBeUndefined();
     });
   });
 
@@ -521,21 +435,6 @@ describe('Glossary', () => {
       expect(result.warnings.some(w => w.type === 'glossary-unused' && w.message.includes('Orphan'))).toBe(true);
     });
 
-    it('should report glossary-undeclared-usage', async () => {
-      tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Worker', definition: 'b' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Worker spec', type: 'intent', glossary: ['Worker'], body: 'Uses Job too' });
-      const result = await validateCards(tc.ctx);
-      expect(result.warnings.some(w => w.type === 'glossary-undeclared-usage' && w.message.includes('Job'))).toBe(true);
-    });
-
-    it('should report glossary-phantom-declaration', async () => {
-      tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Ghost', definition: 'b' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job spec', type: 'intent', glossary: ['Job', 'Ghost'], body: 'Only Job' });
-      const result = await validateCards(tc.ctx);
-      expect(result.warnings.some(w => w.type === 'glossary-phantom-declaration' && w.message.includes('Ghost'))).toBe(true);
-    });
   });
 
   // ── Read path ─────────────────────────────────────────────────────────

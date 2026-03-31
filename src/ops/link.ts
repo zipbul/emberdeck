@@ -47,6 +47,7 @@ async function readCard(ctx: EmberdeckContext, fullKey: string) {
 /**
  * Ensure gildash symbol index is up-to-date before operations that depend on it.
  * No-op if gildash is not configured or does not support reindex.
+  * @spec spec-link-resolution
  */
 export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
   if (ctx.gildash && typeof ctx.gildash.reindex === 'function') {
@@ -59,6 +60,7 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
 /**
  * Resolves a card's codeLinks by looking them up in the gildash symbol index.
  * Throws GildashNotConfiguredError if gildash is not configured.
+  * @spec spec-link-resolution
  */
 export async function resolveCardCodeLinks(
   ctx: EmberdeckContext,
@@ -99,6 +101,7 @@ export interface SymbolMatchResult {
 /**
  * Returns the list of cards that reference the given symbol name (+ optional file path).
  * Matches via codeLinks first, then via boundary glob patterns.
+  * @spec spec-link-resolution
  */
 export async function findCardsBySymbol(
   ctx: EmberdeckContext,
@@ -150,6 +153,7 @@ export async function findCardsBySymbol(
 /**
  * Given a list of changed files, returns the cards that reference symbols in those files via codeLinks.
  * Internal function — not part of the public API. Use preChangeCheck instead.
+  * @spec spec-link-resolution
  */
 export async function findAffectedCards(
   ctx: EmberdeckContext,
@@ -181,6 +185,7 @@ export async function findAffectedCards(
  *
  * When broken links are detected on an active card, the card is automatically
  * transitioned to 'drifted' status (DB + file).
+  * @spec spec-link-resolution
  */
 export async function validateCodeLinks(
   ctx: EmberdeckContext,

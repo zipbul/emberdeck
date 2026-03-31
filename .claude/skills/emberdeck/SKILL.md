@@ -4,11 +4,29 @@ description: Design knowledge management for codebases using Emberdeck MCP tools
 ---
 
 <rules>
+<critical>
 1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
+</critical>
 2. Show card analysis to user and get confirmation before creating any card.
 3. Intent cards are design documents: problem, goals, user scenarios, requirements, success criteria, scope. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
-4. Define glossary before creating cards. When `glossary.yaml` has entries, every new card requires a non-empty `glossary` field. Use canonical glossary words in card bodies, summaries, and code symbol names.
+4. Define glossary before creating cards. When `glossary.yaml` has entries, every new card requires a non-empty `glossary` field listing its primary topics. Multiple cards may declare the same term when they discuss it from different perspectives.
 </rules>
+
+<glossary_semantics>
+The project glossary (`glossary.yaml`) is the single source of truth for domain vocabulary. Terms are **defined once** in the glossary and **referenced** by cards that discuss them.
+
+The `glossary` field on a card = **topic scope declaration**: "this card discusses these domain concepts." It is NOT a text concordance (not every glossary word in the body), and NOT ownership (not "this card is the authority for this concept").
+
+A card's glossary field should list the **primary topics** it addresses. Mentioning a term in passing does not require declaring it. Multiple cards declaring the same term is normal — different cards discuss the same concept from different perspectives.
+
+**When to add a new term to the glossary** (criteria for `emberdeck_define_glossary`, NOT for selecting which existing terms go in a card's glossary field):
+
+A term qualifies for the glossary when ALL four conditions are met:
+1. **Non-obvious meaning** — project-specific, different from dictionary definition
+2. **Cross-cutting** — appears in 2+ cards or design areas
+3. **Decision-bearing** — encodes a design decision
+4. **Not a code symbol** — cannot be understood by reading a single class/function/type
+</glossary_semantics>
 
 <route_table>
 Match the FIRST row whose signal is true, then follow the named workflow.
@@ -27,18 +45,31 @@ Match the FIRST row whose signal is true, then follow the named workflow.
 
 <workflow name="onboarding">
 1. `emberdeck_analyze` — current state. Then `emberdeck_write_spec_annotations` to reconcile (removes orphan @spec from previous sessions, adds missing ones). Reconciler is idempotent.
-2. Read codebase. Identify domain concepts and design decisions not visible in code.
-3. Propose glossary to user (see glossary-proposal template). Get confirmation. `emberdeck_define_glossary`.
-4. Create intent cards (with `glossary` field). Show card-analysis template for each.
-5. Create spec cards under intents (with `glossary`, `codeLinks`, `relations`).
-6. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken and 0 broken-chain warnings before finishing.
-7. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags into source code for all codeLinks.
+2. **Read ALL source files** under `src/`. No sampling — read every file. For each file, apply the single-file test: "Can this knowledge be discovered by reading this one file alone?" If NO (it spans multiple files or encodes a cross-module contract), it MUST be carded. Collect:
+   - Cross-module contracts (invariants enforced across 2+ files)
+   - Failure handling policies (what happens when component X fails — involves caller + callee)
+   - Architectural constraints (why this approach and not another — not visible in the code itself)
+   - Ordering/priority decisions (e.g., DB before file, lock ordering, drift priority)
+   Do NOT collect: function signatures, type definitions, schema columns, configuration values, single-file implementation details.
+   **After reading, list every `src/ops/*.ts` file with its cross-module contracts. Show this audit to the user before proceeding.** If a file has no contracts worth carding, state why explicitly.
+3. **Determine card boundaries by change independence.** For each group of design decisions: "If decision A changes, must decision B also change?" If no → separate cards. Apply the splitting criteria in `<card_splitting>`.
+4. Propose glossary to user (see glossary-proposal template — include Evidence column). Get confirmation. `emberdeck_define_glossary`.
+5. Create intent cards (with `glossary` field). Show card-analysis template for each. Run `<self_review>` on each card before proposing.
+6. Create spec cards under intents (with `glossary`, `codeLinks`, `relations`). Run `<self_review>` on each card before proposing.
+7. **COLLECTION REVIEW** — after creating all cards, before gates:
+   (a) **Intent decomposition**: For each intent, count unrelated items in its Scope "Covers" list. 3+ unrelated items → split into separate intents.
+   (b) **Function coverage check**: For each `src/ops/*.ts` file, list all exported functions. For each exported function NOT referenced by any spec card's codeLinks, apply the counter-test: "Does this function have cross-module behavior that breaks if a caller changes assumptions?" If yes → add it to an existing spec's codeLinks or create a new spec card. A file being covered by one spec does NOT mean all functions in that file are covered.
+   (c) **Glossary-intent alignment**: For each glossary term, verify at least one intent primarily discusses this concept. If a glossary term has no governing intent → create an intent or revise glossary.
+   Fix any issues found before proceeding to gates.
+8. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken, 0 broken-chain, and 0 orphan-card warnings before finishing.
+9. GATE: `emberdeck_get_link_coverage` — every file under `src/ops/` MUST be referenced by at least one spec card's codeLinks or boundary. If uncovered files exist, create spec cards for them.
+10. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags into source code for all codeLinks.
 </workflow>
 
 <workflow name="glossary-backfill">
 1. `emberdeck_lookup_glossary` — confirm empty.
-2. Read existing card bodies and summaries. Extract domain terms.
-3. Propose glossary to user. `emberdeck_define_glossary`.
+2. Read existing card bodies and summaries. Extract domain terms meeting the 4 criteria.
+3. Propose glossary to user (with Evidence column). `emberdeck_define_glossary`.
 4. Update each card: `emberdeck_update_card` with `glossary` field.
 5. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken warnings before finishing.
 </workflow>
@@ -50,10 +81,10 @@ Match the FIRST row whose signal is true, then follow the named workflow.
    - medium/low risk: proceed.
 2. `emberdeck_get_card` for each affected card — these are your constraints.
    - Direct cards: read full body. Transitive cards: summary only.
-3. If no cards exist for the area: create intent card first (show card-analysis, include glossary), then spec cards.
+3. If no cards exist for the area: create intent card first (show card-analysis, include glossary), then spec cards. Run `<self_review>` before proposing each card.
 4. Write code within card constraints.
 5. If a new domain concept emerges: propose glossary entry to user → `emberdeck_define_glossary` → update affected cards' glossary fields.
-6. If your change extends an existing spec's scope: update the spec card body and glossary field.
+6. If your change extends an existing spec's scope: update the spec card body and glossary field. Run `<self_review>` on the updated card.
 7. GATE: `emberdeck_validate_code_links` — pass with 0 broken links before finishing.
 8. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags for new/changed codeLinks.
 </workflow>
@@ -79,10 +110,12 @@ Rename sequence:
 3. `emberdeck_update_card` with bodyPatches to replace old word in each affected body.
 
 Card creation — always include:
-- `glossary`: words from project glossary this card uses (required when glossary.yaml exists)
-- `type`: intent (decisions) or spec (contracts)
+- `type`: intent (design documents) or spec (behavioral contracts)
+- `glossary`: primary domain concepts this card discusses (required when glossary.yaml exists)
+- `parent`: required for spec cards (must be an intent or spec card)
 - `codeLinks`: required for spec cards
 - `relations`: spec cards relate to at least one intent card
+- `boundary`: file glob patterns this card is responsible for (recommended for specs)
 
 </tool_protocol>
 
@@ -92,7 +125,7 @@ Show this to the user before every card creation:
 ```
 ### Card analysis: {key}
 - **Type**: intent | spec
-- **Glossary**: [{words from project glossary}]
+- **Glossary**: [{primary domain concepts this card discusses}]
 - **Must guarantee**: {what this card ensures}
 - **Excluded**: {what is deliberately out of scope}
 - **Breaks if violated**: {concrete consequence}
@@ -104,9 +137,9 @@ Show this to the user before calling `emberdeck_define_glossary`:
 
 ```
 ### Glossary proposal
-| Word | Definition |
-|------|-----------|
-| {word} | {definition} |
+| Word | Definition | Evidence |
+|------|-----------|---------|
+| {word} | {definition} | {which areas use it, what decision it encodes, why non-obvious} |
 
 Register?
 ```
@@ -118,10 +151,8 @@ When `emberdeck_validate_cards` reports warnings:
 
 | Warning | Cause | Recovery |
 |---------|-------|----------|
-| glossary-broken | Card references a glossary word that was removed | `emberdeck_define_glossary` to re-add, or `emberdeck_update_card` to remove the word from the card's glossary field |
-| glossary-unused | Glossary word not referenced by any card | Informational — consider creating a card for this concept or removing the glossary entry |
-| glossary-undeclared-usage | Card body mentions a glossary word not in its glossary field | `emberdeck_update_card` to add the word to the card's glossary field |
-| glossary-phantom-declaration | Card declares a glossary word absent from its body/summary | Remove from glossary field, or add the term to the card body |
+| glossary-broken | Card declares a glossary word that no longer exists in glossary.yaml | `emberdeck_define_glossary` to re-add, or `emberdeck_update_card` to remove the word from the card's glossary field |
+| glossary-unused | Glossary word not declared by any card | Informational — consider creating a card that discusses this concept or removing the glossary entry |
 | content-mismatch | DB and file diverged | `emberdeck_export_card_to_file` to regenerate file from DB |
 | broken-chain | Spec card has no link to any intent card | Add a relation or parent to an intent card |
 
@@ -138,7 +169,7 @@ When `emberdeck_validate_code_links` finds broken links:
 
 An intent card answers: **"What are we building, why, and under what constraints?"**
 
-It is a design document (기획서) that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from intent cards — no spec exists without an intent that justifies it. No codeLinks. Can be root card.
+It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from intent cards — no spec exists without an intent that justifies it. No codeLinks. Can be root card.
 
 ### REQUIRED content in intent body:
 
@@ -146,7 +177,7 @@ It is a design document (기획서) that defines the problem, goals, user scenar
 
 **User Scenarios** — Prioritized (P1/P2/P3) scenarios describing how the system is used. Each scenario must be independently testable with Given/When/Then acceptance criteria.
 
-**Requirements** — Numbered functional requirements (FR-001, FR-002, ...) using RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each requirement must be testable and unambiguous.
+**Requirements** — Numbered requirements (R-001, R-002, ...) using RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each requirement must be testable and unambiguous.
 
 **Success Criteria** — Measurable outcomes that define when the design is fulfilled. Technology-agnostic, verifiable without knowing implementation.
 
@@ -171,10 +202,10 @@ When the linked symbol is renamed or deleted,
 Then the card auto-transitions to drifted status in both DB and file.
 
 ## Requirements
-- FR-001: System MUST store every card in both DB and markdown file (dual-storage invariant).
-- FR-002: System MUST reject spec card activation when any codeLink is unresolved.
-- FR-003: System MUST auto-detect drift via 4 mechanisms: broken_link, boundary_inactive, symbol_changed, glossary_broken.
-- FR-004: System MUST compensate DB changes when file write fails after DB commit.
+- R-001: System MUST store every card in both DB and markdown file (dual-storage invariant).
+- R-002: System MUST reject spec card activation when any codeLink is unresolved.
+- R-003: System MUST auto-detect drift via 4 mechanisms: broken_link, boundary_inactive, symbol_changed, glossary_broken.
+- R-004: System MUST compensate DB changes when file write fails after DB commit.
 
 ## Success Criteria
 - SC-001: 0 broken codeLinks on active spec cards at any point in time.
@@ -200,7 +231,7 @@ Then the card auto-transitions to drifted status in both DB and file.
 
 A spec card answers: **"What does the system guarantee?"**
 
-It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one intent card — a contract without governing policy is rootless. Requires codeLinks.
+It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one intent card — a contract without governing design is rootless. Requires codeLinks.
 
 ### REQUIRED content in spec body:
 
@@ -238,7 +269,7 @@ It captures verifiable behavioral contracts bound to specific code symbols via c
 |---------|--------|------|---------|
 | Problem & Goals | ✓ | | |
 | User Scenarios (P1/P2/P3) | ✓ | | |
-| Functional Requirements (FR-001...) | ✓ | | |
+| Requirements (R-001...) | ✓ | | |
 | Success Criteria (measurable) | ✓ | | |
 | Scope & Constraints | ✓ | | |
 | Given/When/Then contracts (code-bound) | | ✓ | |
@@ -252,11 +283,57 @@ Hierarchy: parent-child when scope is strict subset. Flat peers otherwise. Max 3
 
 </card_types>
 
+<card_splitting>
+Deciding whether contracts belong in one card or should be split into separate cards.
+
+**Split when ANY of these is true:**
+1. **Change independence** — Contract A can drift while contract B remains valid. (e.g., createCard compensation logic vs bulkCreateCards topological sort — one can change without affecting the other.)
+2. **Different codeLink files** — Contracts reference symbols in different source files. Boundary separation signals different domains.
+3. **Size threshold** — More than 5 Given/When/Then contracts in one spec card. Cognitive load exceeds single-card purpose.
+4. **"X and Y" summary** — If the card summary uses "and" to join two unrelated capabilities, the card covers two topics.
+
+**Merge when ALL of these are true:**
+1. Contracts describe different input cases of the **same operation** (e.g., deleteCard with force=true vs force=false).
+2. They share the **same codeLink set** — a change to any linked symbol affects all contracts equally.
+3. One contract drifting **necessarily means** the others also drift.
+
+**Intent decomposition:**
+Each intent card should represent one **independently designable area** — an area where design decisions can be made without consulting other intents. Signs of under-decomposition:
+- Intent has 4+ direct spec children → consider splitting the intent
+- Intent's Scope section lists 3+ unrelated "Covers" items → each is likely its own intent
+- Intent's requirements span two unrelated subsystems → split by subsystem
+</card_splitting>
+
+<self_review>
+Run on every card before creating or proposing. Any failure → revise and re-check.
+
+The single-file test applies everywhere: "Can you discover this by reading ONE source file? If yes, it does not belong in a card. If it spans multiple files, it MUST be carded."
+
+**Intent (5 checks):**
+1. Every requirement fails the single-file test (cannot be found in one file alone)
+2. Every success criterion has a number or zero-tolerance threshold
+3. No implementation technology names in body (no WeakMap, FTS5, Drizzle, temp-rename, ON CONFLICT, WAL)
+4. Every scenario has Given/When/Then verifiable without knowing implementation
+5. Scope section states what is EXCLUDED, not just what is covered
+
+**Spec (5 checks):**
+1. Every contract states WHAT (behavior), not HOW (implementation mechanism)
+2. Failure mode table covers every error type the linked symbols throw
+3. Splitting check: if one contract changes, must ALL others also change? If not → split
+4. All codeLinks reference real, existing symbols (verify with grep)
+5. Max 5 contracts per card; `parent` field is set; `glossary` lists primary topics only
+</self_review>
+
 <model_notes>
-- Fewer precise cards beat many vague ones.
+- Fewer precise cards beat many vague ones — but every `src/ops/` file with cross-module contracts MUST have a spec card. "Fewer" means fewer than vague alternatives, not fewer than coverage requires.
 - Call emberdeck tools directly — subagents lose card context.
 - Always show the card-analysis template before creation, even when being concise elsewhere.
-- When `pre_change_check` returns glossary warnings, address them before proceeding.
+- Run `<self_review>` checklist on every card before proposing to user. A card that fails self-review wastes the user's time.
+- Cards preserve what code cannot: design rationale, cross-module invariants, failure policies, scope boundaries. If deleting the card loses no knowledge, the card should not exist.
 </model_notes>
 
-Read cards before modifying code. Validate code links after. Run glossary backfill when glossary is empty.
+<critical>
+1. Read cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
+2. Run self_review on every card before creation or update. No exceptions.
+3. Single-file test: can you discover this by reading ONE source file? Then it does not belong in a card. If it spans multiple files, it MUST be carded.
+</critical>

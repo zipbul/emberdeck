@@ -151,7 +151,7 @@ export {
 } from './src/glossary/io';
 export { withGlossaryLock } from './src/glossary/lock';
 export { validateCardGlossaryField, validateGlossaryEntry } from './src/glossary/validation';
-export { buildGlossaryMatcher, crossValidateGlossary, type GlossaryCrossWarning } from './src/glossary/cross-validate';
+export { buildGlossaryMatcher } from './src/glossary/cross-validate';
 
 // ---- Repository interfaces (for testing/mocking) ----
 export type {

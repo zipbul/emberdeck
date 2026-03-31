@@ -34,6 +34,7 @@ export interface PreChangeResult {
  * 3. BFS backward to find cards that transitively depend on affected cards.
  * 4. Identify files not covered by any card.
  * 5. Calculate risk level and suggest actions.
+  * @spec spec-pre-change
  */
 export function preChangeCheck(
   ctx: EmberdeckContext,
@@ -282,6 +283,7 @@ export interface RegressionResult {
  * - 0 affected cards → pass
  * - driftedRatio <= threshold → pass
  * - driftedRatio > threshold → fail
+  * @spec spec-regression-guard
  */
 export async function regressionGuard(
   ctx: EmberdeckContext,

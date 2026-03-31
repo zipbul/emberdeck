@@ -36,8 +36,8 @@ Misleading names are worse than no names.
 | M3 | no duplicate declarations | create/update card | Set comparison |
 | M4 | glossary word deleted → referencing cards drift | remove_glossary → check_drift | status transition |
 | M5 | glossary word renamed → card fields bulk-updated | rename_glossary | DB transaction |
-| M6 | body contains undeclared glossary word | create/update/validate | word-boundary regex (case-insensitive) → warning |
-| M7 | declared word absent from body/summary | create/update/validate | word-boundary regex (case-insensitive) → warning |
+| ~~M6~~ | ~~body contains undeclared glossary word~~ | ~~create/update/validate~~ | ~~word-boundary regex (case-insensitive) → warning~~ **REMOVED — see Section 19** |
+| ~~M7~~ | ~~declared word absent from body/summary~~ | ~~create/update/validate~~ | ~~word-boundary regex (case-insensitive) → warning~~ **REMOVED — see Section 19** |
 | M8 | pre_change_check includes full glossary | pre_change_check | auto-attach |
 | M9 | validate_cards cross-checks all cards | validate_cards | batch scan |
 
@@ -286,7 +286,7 @@ for (const word of input.glossary) {
 }
 ```
 
-**Body cross-validation:** After validation passes, scan body + summary for glossary words. Return warnings for undeclared usage (M6) and phantom declarations (M7) in the response. Do not block creation.
+~~**Body cross-validation:** After validation passes, scan body + summary for glossary words. Return warnings for undeclared usage (M6) and phantom declarations (M7) in the response. Do not block creation.~~ **REMOVED — see Section 19**
 
 **MCP input schema change:** Add `glossary` to create_card and bulk_create_cards input schemas:
 
@@ -300,7 +300,7 @@ glossary: z.array(z.string().min(1).max(100)).min(1),
 
 **Change:** When `glossary` field is provided in update, validate existence and non-empty. When any field is updated, do NOT re-validate existing glossary (allow updates to drifted cards without forcing glossary fix).
 
-**Body cross-validation:** When body or glossary is updated, scan body + summary against glossary field. Return warnings for M6/M7 in the response.
+~~**Body cross-validation:** When body or glossary is updated, scan body + summary against glossary field. Return warnings for M6/M7 in the response.~~ **REMOVED — see Section 19**
 
 **MCP input schema change:** Add optional `glossary` field:
 
@@ -330,8 +330,8 @@ type ValidateWarningType =
   | 'broken-parent' | 'content-mismatch'
   | 'glossary-broken'              // card references nonexistent glossary word
   | 'glossary-unused'              // glossary word not referenced by any card
-  | 'glossary-undeclared-usage'    // card body contains glossary word not in card's glossary field
-  | 'glossary-phantom-declaration' // card declares glossary word absent from body/summary
+  // ~~| 'glossary-undeclared-usage'~~ REMOVED — see Section 19
+  // ~~| 'glossary-phantom-declaration'~~ REMOVED — see Section 19
   ;
 ```
 
@@ -370,7 +370,7 @@ Verify: regressionGuard iterates drifted cards returned by checkDrift. If glossa
 {
   ...existingFields,
   glossary: readGlossary(ctx),  // full glossary entries
-  glossaryWarnings: bodyCrossValidation(card),  // M6/M7 warnings for this card
+  // ~~glossaryWarnings: bodyCrossValidation(card),~~ REMOVED — see Section 19
 }
 ```
 
@@ -420,6 +420,8 @@ The following tools return card data from DB. After adding `glossary_json` colum
   ? { glossary: JSON.parse(row.glossaryJson) }
   : {}),
 ```
+
+> **Post-redesign note:** This conditional pattern means cards with `'[]'` omit the `glossary` field from responses. After migration (Phase 5), all cards have non-empty glossary so the conditional is never triggered. Not changing in this redesign — steady-state behavior is identical either way.
 
 ### 7.10 onboarding_summary
 
@@ -487,9 +489,9 @@ export function validateGlossaryField(
 }
 ```
 
-### Body cross-validation (src/glossary/cross-validate.ts)
+### ~~Body cross-validation (src/glossary/cross-validate.ts)~~ — REMOVED in Section 19
 
-New file for M6/M7 checks. Uses word-boundary regex for accurate matching:
+~~New file for M6/M7 checks.~~ `crossValidateGlossary` and `GlossaryCrossWarning` are deleted. `buildGlossaryMatcher` is kept as analysis utility. Original code shown for reference:
 
 ```typescript
 export interface GlossaryCrossWarning {
@@ -795,11 +797,9 @@ Add glossary signals:
 - Concurrent define + define → serialized, no data loss ✓
 - Concurrent define + rename → serialized via global lock ✓
 
-### Body cross-validation
-- Body contains undeclared glossary word → undeclared-usage warning
-- Card declares word absent from body/summary → phantom-declaration warning
-- All declared words present in body → no warnings
-- Body contains no glossary words beyond declared → no warnings
+### ~~Body cross-validation~~ — M6/M7 tests REMOVED in Section 19
+
+### buildGlossaryMatcher (kept as analysis utility)
 - Case-insensitive word-boundary matching ("Job" matches "job" in body) ✓
 - Word boundary prevents substring matches ("Card" does NOT match "CardFrontmatter") ✓
 - Multi-word glossary terms matched correctly ("Code Link" in text → match) ✓
@@ -833,21 +833,21 @@ Add glossary signals:
 - create_card with empty glossary → validation error ✓
 - create_card with nonexistent glossary word → validation error ✓
 - create_card with duplicate glossary entries → validation error ✓
-- create_card with body cross-validation warnings → warnings in response ✓
+- ~~create_card with body cross-validation warnings → warnings in response~~ REMOVED
 - update_card glossary field → validated ✓
-- update_card with body cross-validation warnings → warnings in response ✓
+- ~~update_card with body cross-validation warnings → warnings in response~~ REMOVED
 - sync_card_from_file with glossary field → parsed and stored ✓
 - Card markdown serialization roundtrip with glossary field ✓
 
 ### Integration
 - validate_cards detects glossary-broken cards ✓
 - validate_cards reports glossary-unused entries ✓
-- validate_cards reports glossary-undeclared-usage ✓
-- validate_cards reports glossary-phantom-declaration ✓
+- ~~validate_cards reports glossary-undeclared-usage~~ REMOVED
+- ~~validate_cards reports glossary-phantom-declaration~~ REMOVED
 - validate_cards detects glossary content-mismatch (DB vs file) ✓
 - check_drift detects glossary_broken → auto-transition to drifted ✓
 - regression_guard counts glossary-broken cards ✓
-- pre_change_check includes full glossary + cross-validation warnings in response ✓
+- pre_change_check includes full glossary in response ✓
 - analyze includes glossary stats ✓
 - onboarding_summary includes glossary state (totalWords, exists) ✓
 - remove_glossary → check_drift → card becomes drifted ✓
@@ -870,7 +870,7 @@ Add glossary signals:
 
 # Redesign: Glossary Field Semantics & Cross-Validation
 
-> **This section (15-24) supersedes M6/M7 as described in Sections 3 (enforcement level M6/M7), 7.1 (body cross-validation in create_card), 7.3 (glossary-undeclared-usage/phantom-declaration in validate_cards), 7.7 (pre_change_check glossary warnings), 8 (cross-validate.ts), and 14 (M6/M7 test cases). Those sections remain for historical context but are no longer the active design.**
+> **This section (15-24) supersedes M6/M7. Affected sections in 1-14 have been marked with ~~strikethrough~~ and "REMOVED — see Section 19" annotations. Sections 15-24 are the active design.**
 
 ## 15. Research Findings
 
@@ -971,7 +971,7 @@ Register?
 
 | ID | Name |
 |----|------|
-| M1 | Glossary field required when glossary.yaml has entries |
+| M1 | Glossary field required and non-empty on card creation |
 | M2 | Declared words must exist in glossary.yaml |
 | M3 | No duplicate declarations within a card |
 | M4 | Glossary word deleted → referencing cards drift |
@@ -998,6 +998,8 @@ Register?
 Repurposed as an **analysis utility** (not validation):
 - `suggest_card_scope`: recommends glossary words for new cards
 - `emberdeck_analyze`: shows which terms are discussed where (informational, no warnings)
+
+**Known limitation:** `\b` word boundaries do not split camelCase or snake_case identifiers. "Job" will not match inside "processJob" or "job_queue". This is acceptable for natural-language card text but reduces accuracy for `suggest_card_scope` symbol matching. TODO: add camelCase/snake_case splitter as separate work item.
 
 ### Why fewer checks is better
 
@@ -1027,14 +1029,14 @@ Order: (1) code changes → (2) tests → (3) SKILL.md → (4) card migration �
 | File | Change |
 |------|--------|
 | `src/glossary/cross-validate.ts` | Delete `crossValidateGlossary` function and `GlossaryCrossWarning` type (no remaining callers after removal). Keep `buildGlossaryMatcher` (used by suggest_card_scope in spec-sync.ts). |
-| `src/ops/create.ts` | Remove `crossValidateGlossary` call (L206-219). Remove `glossaryWarnings` from `CreateCardResult` interface. Remove `crossValidateGlossary` import. |
-| `src/ops/update.ts` | Remove `crossValidateGlossary` call. Remove `glossaryWarnings` from `UpdateCardResult` interface. Remove glossary warning generation. Remove import. |
+| `src/ops/create.ts` | Remove `crossValidateGlossary` call (grep for `crossValidateGlossary` in function body). Remove `glossaryWarnings` from `CreateCardResult` interface. Remove `crossValidateGlossary` import. |
+| `src/ops/update.ts` | Remove `crossValidateGlossary` call (grep for `crossValidateGlossary`). Remove `glossaryWarnings` from `UpdateCardResult` interface. Remove glossary warning generation. Remove import. |
 | `src/ops/bulk-create.ts` | Remove `glossaryWarnings` from bulk create result if present. Remove import. |
-| `src/ops/sync.ts` (`validateCards`) | Remove M6/M7 warning block (L475-498): the `glossary-undeclared-usage` and `glossary-phantom-declaration` warning generation inside the body cross-validation loop. |
+| `src/ops/sync.ts` (`validateCards`) | Remove M6/M7 warning block: grep for `glossary-undeclared-usage` and `glossary-phantom-declaration` string literals in the body cross-validation loop inside `validateCards`. |
 | `src/index.ts` | Remove `crossValidateGlossary` and `GlossaryCrossWarning` from barrel export. Keep `buildGlossaryMatcher` export. |
 | `.claude/skills/emberdeck/SKILL.md` | Full rewrite per Section 22. |
 | `src/mcp/tools.ts` | Update `emberdeck_define_glossary` description from `"Define or update words in the project glossary. Use when new domain concepts are introduced or existing definitions need refinement. Agent must show proposed words and definitions to the user and get confirmation before calling."` to `"Define or update words in the project glossary. Use when new domain concepts are introduced or existing definitions need refinement. Agent must show the glossary-proposal template (words, definitions, and evidence) to the user and get confirmation before calling."` |
-| `test/ops/glossary.test.ts` | Remove: `crossValidateGlossary` describe block, M6 undeclared-usage tests (L162, L441), M7 phantom-declaration tests (L173, L451), `glossaryWarnings` assertions (L448, L458, L468), `glossary-undeclared-usage` assertion in validateCards (L524), `glossary-phantom-declaration` assertion in validateCards (L532). |
+| `test/ops/glossary.test.ts` | Remove: `crossValidateGlossary` describe block (grep for `describe.*crossValidateGlossary`), all tests asserting `undeclared-usage` or `phantom-declaration` (grep for these strings), all `glossaryWarnings` assertions (grep for `glossaryWarnings`), `glossary-undeclared-usage` and `glossary-phantom-declaration` assertions in validateCards tests. |
 
 ### Files unchanged
 
@@ -1356,7 +1358,7 @@ After code changes deploy and SKILL.md is updated:
 2. Remove terms that are merely referenced in passing (not a primary topic)
 3. Update requirement numbering from FR-001 to R-001 in intent card bodies (via `bodyPatches`)
 4. Cards requiring M6/M7 content removal (explicit list):
-   - **`spec/glossary-cross-validation`**: Contracts C-03, C-04, C-06 are entirely about M6/M7. codeLinks include `crossValidateGlossary` (deleted) and `GlossaryCrossWarning` (deleted). This card must be substantially rewritten or deleted — its core subject no longer exists.
+   - **`spec/glossary-cross-validation`**: DELETE. Contracts C-03, C-04, C-06 are entirely about M6/M7. codeLinks include `crossValidateGlossary` (deleted) and `GlossaryCrossWarning` (deleted). Core subject no longer exists; G1/G2 are covered by other cards.
    - **`glossary-system`**: Parent intent card. Body describes "cross-validates card bodies against declared glossary terms, detecting undeclared usage and phantom declarations." Must be rewritten to reflect the scope model.
    - **`spec/create-card`**: Contract C-09 references "glossaryWarnings" field (removed). Must update or remove this contract.
 5. Run `emberdeck_validate_cards` — expect 0 `glossary-broken`

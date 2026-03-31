@@ -21,7 +21,7 @@ import {
 } from '../card/validation';
 import { readGlossary } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
-import { crossValidateGlossary } from '../glossary/cross-validate';
+
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
@@ -101,6 +101,7 @@ export interface UpdateCardResult {
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ParentValidationError} When parent validation fails.
  * @throws {ActivationGuardError} When activation conditions are not met.
+  * @spec spec-update-card
  */
 export async function updateCard(
   ctx: EmberdeckContext,
@@ -301,20 +302,6 @@ export async function updateCard(
               changelogRepo.insert({ cardKey: key, field: 'glossary', oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null, newValue: next.glossary ? JSON.stringify(next.glossary) : null, changedAt: now, changedBy });
             }
           });
-          // Body cross-validation (M6/M7) — non-blocking warnings
-          if (next.glossary && next.glossary.length > 0 && glossaryEntries.length > 0) {
-            const crossWarnings = crossValidateGlossary(
-              key,
-              nextBody,
-              next.summary,
-              next.glossary,
-              glossaryEntries,
-            );
-            for (const cw of crossWarnings) {
-              warnings.push(`glossary ${cw.type}: ${cw.word}`);
-            }
-          }
-
           const r: UpdateCardResult = { filePath, card };
           if (warnings.length > 0) r.warnings = warnings;
           return r;
@@ -341,6 +328,7 @@ export async function updateCard(
  * @returns Updated result (filePath, card).
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ActivationGuardError} When activation conditions are not met for active status.
+  * @spec spec-update-card
  */
 export async function updateCardStatus(
   ctx: EmberdeckContext,

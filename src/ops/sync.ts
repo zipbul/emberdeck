@@ -13,7 +13,7 @@ import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { txDb } from '../db/connection';
 import { readGlossary } from '../glossary/io';
-import { crossValidateGlossary } from '../glossary/cross-validate';
+
 
 function safeParseBoundary(json: string | null): string[] | null {
   if (!json) return null;
@@ -56,6 +56,7 @@ export interface CardValidationResult {
 /**
  * Syncs an externally modified card file to the DB.
  * Called by the CLI when a watcher event (create/change) is received.
+  * @spec spec-card-sync
  */
 export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string): Promise<void> {
   const cardFile = await readCardFile(filePath);
@@ -99,6 +100,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
  * File reads are executed in parallel via `Promise.allSettled` to minimize I/O wait time.
  * Each file's DB write is atomic, guaranteed by the transaction inside `syncCardFromFile`.
+  * @spec spec-card-sync
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,
@@ -256,6 +258,7 @@ function globPatternsOverlap(pa: string, pb: string): boolean {
 /**
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
  * Performs read-only structural validation including hierarchy, relations, and boundary checks.
+  * @spec spec-card-sync
  */
 export async function validateCards(
   ctx: EmberdeckContext,
@@ -471,30 +474,6 @@ export async function validateCards(
         }
       }
 
-      // Body cross-validation (M6/M7)
-      if (fileSet.has(row.filePath) && glossaryEntries.length > 0) {
-        try {
-          const file = await readCardFile(row.filePath);
-          const crossWarnings = crossValidateGlossary(
-            row.key,
-            file.body,
-            file.frontmatter.summary,
-            cardGlossary,
-            glossaryEntries,
-          );
-          for (const cw of crossWarnings) {
-            warnings.push({
-              type: cw.type === 'undeclared-usage' ? 'glossary-undeclared-usage' : 'glossary-phantom-declaration',
-              cardKey: cw.cardKey,
-              message: cw.type === 'undeclared-usage'
-                ? `Body contains glossary word "${cw.word}" not declared in card's glossary field`
-                : `Card declares glossary word "${cw.word}" absent from body/summary`,
-            });
-          }
-        } catch {
-          // already handled
-        }
-      }
     }
   }
 
@@ -545,6 +524,7 @@ export async function validateCards(
  * Regenerates a card file from the DB state (reverse sync).
  * DB row + relations + tags + codeLinks -> constructs frontmatter -> Bun.write.
  * @returns Absolute path of the written file.
+  * @spec spec-card-sync
  */
 export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
   const key = parseFullKey(fullKey);
@@ -584,6 +564,7 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
 /**
  * Removes a card from the DB when its file has been externally deleted.
  * Called by the CLI when a watcher event (delete) is received.
+  * @spec spec-card-sync
  */
 export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void {
   const existing = ctx.cardRepo.findByFilePath(filePath);

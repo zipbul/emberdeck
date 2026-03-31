@@ -65,6 +65,7 @@ interface SymbolChangeInfo {
  * When autoTransition=true (default), active cards found drifted are
  * automatically transitioned to 'drifted' status (DB + file).
  * Draft cards are excluded from drift analysis.
+  * @spec spec-check-drift
  */
 export async function checkDrift(
   ctx: EmberdeckContext,
@@ -387,6 +388,7 @@ export interface InteractionResult {
  * Analyze interactions between a set of cards.
  * Detects shared code symbols, shared files, import dependencies,
  * existing relations, and potential conflicts.
+  * @spec spec-check-interactions
  */
 export function checkInteractions(
   ctx: EmberdeckContext,
