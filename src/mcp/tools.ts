@@ -51,6 +51,7 @@ import {
   suggestCardScope,
 } from '../ops/spec-sync';
 import { analyze, getOnboardingSummary } from '../ops/analyze';
+import { validateBrief } from '../brief/validate';
 import {
   defineGlossary,
   lookupGlossary,
@@ -1059,6 +1060,31 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async () => {
       try {
         const result = await resetEmberdeck(ctx);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  // ── Brief Validation ──────────────────────────────────────────────
+
+  server.registerTool(
+    'emberdeck_validate_brief',
+    {
+      description:
+        'Validate an intent card as a brief (기획서). ' +
+        'Checks for 8 required sections (Motivation, Scope, Scenario, Rule, Constraint, Risk, Criteria, Decision) ' +
+        'in the card body and all descendant intent cards. ' +
+        'Runs L1 structural checks (empty sections, placeholders) and L2 lexical checks (INCOSE ambiguous terms). ' +
+        'Use before creating spec cards to ensure the brief is complete.',
+      inputSchema: z.object({
+        cardKey: z.string().describe('Intent card key to validate as a brief'),
+      }).strict(),
+    },
+    async ({ cardKey }: { cardKey: string }) => {
+      try {
+        const result = validateBrief(ctx, cardKey);
         return ok(result);
       } catch (err) {
         return fail(err);

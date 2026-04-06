@@ -8,7 +8,17 @@ description: Design knowledge management for codebases using Emberdeck MCP tools
 1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
 </critical>
 2. Show card analysis to user and get confirmation before creating any card.
-3. Intent cards are design documents: problem, goals, user scenarios, requirements, success criteria, scope. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
+3. Intent cards are design documents. When creating an intent card as a **brief** (기획서), structure the body with these 8 required sections using exact `## ` headings:
+   - `## Motivation` — Why this exists. Problem statement, background.
+   - `## Scope` — Goals and non-goals. What we will and will NOT do.
+   - `## Scenario` — How users/consumers interact. Happy path flows.
+   - `## Rule` — Internal business rules and policies we define.
+   - `## Constraint` — External obligations we cannot change (regulations, compatibility, legal).
+   - `## Risk` — Failure scenarios, hazards, known limitations, unresolved questions.
+   - `## Criteria` — Success metrics, acceptance criteria.
+   - `## Decision` — Alternatives considered and why we chose this approach.
+   Run `emberdeck_validate_brief` before creating spec cards to verify completeness and content quality.
+   Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
 4. Define glossary before creating cards. When `glossary.yaml` has entries, every new card requires a non-empty `glossary` field listing its primary topics. Multiple cards may declare the same term when they discuss it from different perspectives.
 </rules>
 

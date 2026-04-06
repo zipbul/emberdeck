@@ -77,7 +77,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should return 19 tools via listTools', async () => {
       s = await setupMcp();
       const { tools } = await s.client.listTools();
-      expect(tools).toHaveLength(39);
+      expect(tools).toHaveLength(40);
     });
 
     // #2
@@ -1471,6 +1471,86 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: { key: 'strict-kw', keywords: ['test'] },
       });
       expect(result.isError).toBeTruthy();
+    });
+  });
+
+  // ════════════════════════════════════════
+  // Brief Validation
+  // ════════════════════════════════════════
+
+  describe('emberdeck_validate_brief', () => {
+    it('should validate a complete brief', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          key: 'brief-test',
+          summary: 'Brief test',
+          type: 'intent',
+          body: [
+            '## Motivation\n\nRevenue has plateaued for 3 years. Online channel needed.',
+            '## Scope\n\nProduct search and ordering. No delivery tracking.',
+            '## Scenario\n\nUser searches products. User places order and pays.',
+            '## Rule\n\nRefund within 7 days. Max 2 discounts per order.',
+            '## Constraint\n\n전자상거래법 7-day return. PG settlement T+2.',
+            '## Risk\n\nPG failure during peak. Circuit breaker mitigation.',
+            '## Criteria\n\n15% conversion rate. Below 40% cart abandonment.',
+            '## Decision\n\nStripe over Toss for international support. Monolith over microservices.',
+          ].join('\n\n'),
+        },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_validate_brief',
+        arguments: { cardKey: 'brief-test' },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { complete: boolean; missing: string[]; present: string[] };
+      expect(data.complete).toBe(true);
+      expect(data.missing).toHaveLength(0);
+      expect(data.present).toHaveLength(8);
+    });
+
+    it('should detect missing sections', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: {
+          key: 'brief-partial',
+          summary: 'Partial brief',
+          type: 'intent',
+          body: '## Motivation\n\nRevenue declining. Need online channel.',
+        },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_validate_brief',
+        arguments: { cardKey: 'brief-partial' },
+      });
+      expect(result.isError).toBeFalsy();
+      const data = parseText(result) as { complete: boolean; missing: string[] };
+      expect(data.complete).toBe(false);
+      expect(data.missing.length).toBeGreaterThan(0);
+    });
+
+    it('should return error for spec card', async () => {
+      s = await setupMcp();
+      await s.client.callTool({
+        name: 'emberdeck_create_card',
+        arguments: { key: 'brief-spec', summary: 'A spec', type: 'spec' },
+      });
+      const result = await s.client.callTool({
+        name: 'emberdeck_validate_brief',
+        arguments: { cardKey: 'brief-spec' },
+      });
+      expect(result.isError).toBe(true);
+    });
+
+    it('should return error for non-existent card', async () => {
+      s = await setupMcp();
+      const result = await s.client.callTool({
+        name: 'emberdeck_validate_brief',
+        arguments: { cardKey: 'nonexistent' },
+      });
+      expect(result.isError).toBe(true);
     });
   });
 
