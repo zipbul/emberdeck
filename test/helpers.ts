@@ -40,6 +40,25 @@ Test criteria. Success metrics defined here.
 Test decision. Alternatives considered here.
 `.trim();
 
+/**
+ * Minimal valid spec body with all 3 required sections.
+ * Use when creating active spec cards in tests.
+ */
+export const SPEC_BODY = `
+## Contract
+- GIVEN valid input
+  WHEN the function is called
+  THEN the expected output MUST be returned.
+
+## Invariant
+- System state MUST remain consistent after every operation.
+
+## Failure
+| Violation | System behavior |
+|-----------|----------------|
+| Invalid input | ValidationError thrown |
+`.trim();
+
 export async function createTestContext(): Promise<TestContext> {
   const tmpDir = await mkdtemp(join(tmpdir(), 'emberdeck_test_'));
   const cardsDir = join(tmpDir, 'cards');

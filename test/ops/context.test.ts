@@ -7,7 +7,7 @@ import {
   checkDrift,
   checkInteractions,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, SPEC_BODY, type TestContext } from '../helpers';
 
 describe('checkDrift', () => {
   let tc: TestContext;
@@ -65,6 +65,7 @@ describe('checkDrift', () => {
       key: 'h-active',
       summary: 'Active',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
     });
     await updateCardStatus(tc.ctx, 'h-active', 'active');
@@ -122,6 +123,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       key: 'drift-broken',
       summary: 'Broken link card',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
     });
     await updateCardStatus(tc.ctx, 'drift-broken', 'active');
@@ -145,6 +147,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       key: 'drift-ok',
       summary: 'OK link card',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
     });
     await updateCardStatus(tc.ctx, 'drift-ok', 'active');
@@ -187,6 +190,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       key: 'no-trans',
       summary: 'No transition',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
     });
     await updateCardStatus(tc.ctx, 'no-trans', 'active');
@@ -209,6 +213,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       key: 'tgt-upd',
       summary: 'Original summary',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
     });
     await updateCardStatus(tc.ctx, 'tgt-upd', 'active');
@@ -232,6 +237,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       key: 'skip-file',
       summary: 'S',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
     });
     await updateCardStatus(tc.ctx, 'skip-file', 'active');

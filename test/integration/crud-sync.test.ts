@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, SPEC_BODY, type TestContext } from '../helpers';
 import {
   createCard,
   updateCard,
@@ -71,7 +71,7 @@ describe('create', () => {
   it('should reject spec card with active status and no codeLinks (activation guard)', async () => {
     tc = await createTestContext();
     await expect(
-      createCard(tc.ctx, { key: 'no-links', summary: 'No links', type: 'spec', status: 'active' }),
+      createCard(tc.ctx, { key: 'no-links', summary: 'No links', type: 'spec', status: 'active', body: SPEC_BODY }),
     ).rejects.toThrow('Activation conditions not met');
   });
 
@@ -208,7 +208,7 @@ describe('update', () => {
 
   it('should apply activation guard when status set to active', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'no-act', summary: 'No activation', type: 'spec' });
+    await createCard(tc.ctx, { key: 'no-act', summary: 'No activation', type: 'spec', body: SPEC_BODY });
     await expect(
       updateCard(tc.ctx, 'no-act', { status: 'active' }),
     ).rejects.toThrow('Activation conditions not met');
@@ -231,7 +231,7 @@ describe('updateCardStatus', () => {
 
   it('should reject active status for spec without codeLinks', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'spec-no-link', summary: 'Spec', type: 'spec' });
+    await createCard(tc.ctx, { key: 'spec-no-link', summary: 'Spec', type: 'spec', body: SPEC_BODY });
     await expect(
       updateCardStatus(tc.ctx, 'spec-no-link', 'active'),
     ).rejects.toThrow('Activation conditions not met');
@@ -674,7 +674,7 @@ describe('bulk-create activation guard', () => {
   it('should reject spec card with active status and no codeLinks in bulk create', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { key: 'bc-active', summary: 'Active spec', type: 'spec', status: 'active' },
+      { key: 'bc-active', summary: 'Active spec', type: 'spec', status: 'active', body: SPEC_BODY },
     ]);
     expect(result.created).toBe(0);
     expect(result.failed).toBe(1);
@@ -779,6 +779,7 @@ describe('activation guard on active card field changes', () => {
       key: 'guard-spec',
       summary: 'Active spec',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
     });
     await updateCardStatus(tc.ctx, 'guard-spec', 'active');
@@ -795,6 +796,7 @@ describe('activation guard on active card field changes', () => {
       key: 'guard-spec2',
       summary: 'Active spec 2',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fn2' }],
     });
     await updateCardStatus(tc.ctx, 'guard-spec2', 'active');
@@ -810,6 +812,7 @@ describe('activation guard on active card field changes', () => {
       key: 'guard-safe',
       summary: 'Safe update',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'fn3' }],
     });
     await updateCardStatus(tc.ctx, 'guard-safe', 'active');

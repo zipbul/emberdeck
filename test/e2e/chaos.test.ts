@@ -37,7 +37,7 @@ import {
   type CreateCardInput,
   type CodeLink,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, SPEC_BODY, type TestContext } from '../helpers';
 
 // ============================================================================
 // Helpers
@@ -99,7 +99,7 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
     // -- Step 2: Update fields --
     const updated = await updateCard(ctx, 'auth-token', {
       summary: 'JWT token management, validation, and blacklisting',
-      body: '# Auth Token\n\nUpdated description with blacklisting.',
+      body: '# Auth Token\n\nUpdated description with blacklisting.\n\n' + SPEC_BODY,
       tags: ['auth', 'security', 'jwt'],
     });
 

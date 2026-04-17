@@ -29,7 +29,7 @@ import {
   syncSpecAnnotations,
   analyze,
 } from '../../index';
-import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, SPEC_BODY, type TestContext } from '../helpers';
 
 // ============================================================================
 // Mock gildash factory (same pattern as coverage-analysis tests)
@@ -191,6 +191,7 @@ describe('E2E Scenario 2: Code change flow', () => {
       key: 'auth-service',
       summary: 'Authentication service',
       type: 'spec',
+      body: SPEC_BODY,
       codeLinks: [
         { kind: 'function', file: 'src/auth.ts', symbol: 'login' },
         { kind: 'function', file: 'src/auth.ts', symbol: 'logout' },
@@ -262,9 +263,10 @@ describe('E2E Scenario 3: Design change flow', () => {
     expect(updated.card.frontmatter.type).toBe('spec');
     expect(updated.card.frontmatter.status).toBe('draft');
 
-    // Step 3: Add codeLinks, then activate → activation guard passes
+    // Step 3: Add codeLinks and spec body, then activate → activation guard passes
     await updateCard(tc.ctx, 'infra-layer', {
       codeLinks: [{ kind: 'class', file: 'src/infra/base.ts', symbol: 'BaseInfra' }],
+      body: SPEC_BODY,
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const reactivated = await getCard(tc.ctx, 'infra-layer');

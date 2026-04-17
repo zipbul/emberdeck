@@ -346,3 +346,38 @@ export function validateBriefSections(body: string): void {
     );
   }
 }
+
+// ── Spec Section Validation ───────────────────────────────────────
+
+/**
+ * The 3 required spec sections:
+ * - contract: behavioral guarantees (GIVEN/WHEN/THEN)
+ * - invariant: conditions that always hold
+ * - failure: violation → system behavior mapping
+ */
+export const REQUIRED_SPEC_SECTIONS = [
+  'contract',
+  'invariant',
+  'failure',
+] as const;
+
+export type SpecSection = (typeof REQUIRED_SPEC_SECTIONS)[number];
+
+/**
+ * Validate that a spec card body contains all 3 required sections.
+ * Lightweight check for use in createCard/updateCard — no DB context needed.
+ *
+ * @param body - Markdown body of the spec card.
+ * @throws {Error} When required sections are missing.
+ */
+export function validateSpecSections(body: string): void {
+  const sections = parseSections(body);
+  const presentNames = new Set(sections.map((s) => s.normalizedName));
+  const missing = REQUIRED_SPEC_SECTIONS.filter((s) => !presentNames.has(s));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Spec card body is missing required sections: ${missing.join(', ')}`,
+    );
+  }
+}

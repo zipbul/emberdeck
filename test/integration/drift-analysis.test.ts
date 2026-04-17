@@ -17,7 +17,7 @@ import {
   preChangeCheck,
   syncSpecAnnotations,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, SPEC_BODY, type TestContext } from '../helpers';
 
 // ── Mock Gildash Factory ──
 
@@ -63,6 +63,7 @@ describe('checkDrift — boundary_inactive', () => {
       key: 'bnd-inactive',
       summary: 'Boundary inactive',
       type: 'spec',
+      body: SPEC_BODY,
       boundary: ['src/nonexistent/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
     });
@@ -90,6 +91,7 @@ describe('checkDrift — boundary_inactive', () => {
       key: 'bnd-trans',
       summary: 'Boundary transition',
       type: 'spec',
+      body: SPEC_BODY,
       boundary: ['src/nonexistent/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
     });
@@ -122,6 +124,7 @@ describe('checkDrift — boundary_inactive', () => {
       key: 'bnd-active',
       summary: 'Boundary active',
       type: 'spec',
+      body: SPEC_BODY,
       boundary: ['src/ops/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
     });
@@ -156,6 +159,7 @@ describe('checkDrift — symbol_changed', () => {
       key: 'sym-changed',
       summary: 'Symbol changed',
       type: 'spec',
+      body: SPEC_BODY,
       boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],
     });
@@ -197,6 +201,7 @@ describe('checkDrift — symbol_changed', () => {
       key: 'sym-old',
       summary: 'Old change',
       type: 'spec',
+      body: SPEC_BODY,
       boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],
     });

@@ -21,7 +21,7 @@ import {
 } from '../card/validation';
 import { readGlossary } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
-import { validateBriefSections } from '../brief/validate';
+import { validateBriefSections, validateSpecSections } from '../brief/validate';
 
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
@@ -238,9 +238,10 @@ export async function updateCard(
       } else {
         nextBody = current.body;
       }
-      // Brief section validation: active brief cards must have 8 required sections
-      if (next.type === 'brief' && next.status === 'active') {
-        validateBriefSections(nextBody);
+      // Body section validation: active cards must have required sections
+      if (next.status === 'active') {
+        if (next.type === 'brief') validateBriefSections(nextBody);
+        else if (next.type === 'spec') validateSpecSections(nextBody);
       }
 
       const card: CardFile = { filePath, frontmatter: next, body: nextBody };
@@ -358,9 +359,11 @@ export async function updateCardStatus(
 
       // Activation guard for active status
       if (status === 'active') {
-        // Brief section validation
+        // Body section validation
         if (current.frontmatter.type === 'brief') {
           validateBriefSections(current.body);
+        } else if (current.frontmatter.type === 'spec') {
+          validateSpecSections(current.body);
         }
         await validateActivationGuard(ctx, {
           type: current.frontmatter.type,
