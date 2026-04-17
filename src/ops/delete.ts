@@ -29,7 +29,7 @@ export interface DeleteCardOptions {
  * @throws {CardKeyError} When fullKey is invalid.
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {CardValidationError} When the card has children and force is false.
-  * @spec spec-delete-card
+  * @spec dual-storage/card-crud
  */
 export async function deleteCard(
   ctx: EmberdeckContext,

@@ -26,6 +26,7 @@ export function validateGlossaryEntry(entry: { word: string; definition: string 
 /**
  * Validate the glossary field on a card against the glossary entries.
  * Only called when the glossary field is explicitly provided (not undefined).
+  * @spec glossary-management/glossary-ops
  */
 export function validateCardGlossaryField(
   glossary: string[],

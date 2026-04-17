@@ -56,7 +56,7 @@ export interface CardValidationResult {
 /**
  * Syncs an externally modified card file to the DB.
  * Called by the CLI when a watcher event (create/change) is received.
-  * @spec spec-card-sync
+  * @spec dual-storage/file-db-sync
  */
 export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string): Promise<void> {
   const cardFile = await readCardFile(filePath);
@@ -100,7 +100,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
  * File reads are executed in parallel via `Promise.allSettled` to minimize I/O wait time.
  * Each file's DB write is atomic, guaranteed by the transaction inside `syncCardFromFile`.
-  * @spec spec-card-sync
+  * @spec dual-storage/file-db-sync
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,
@@ -258,7 +258,7 @@ function globPatternsOverlap(pa: string, pb: string): boolean {
 /**
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
  * Performs read-only structural validation including hierarchy, relations, and boundary checks.
-  * @spec spec-card-sync
+  * @spec dual-storage/file-db-sync
  */
 export async function validateCards(
   ctx: EmberdeckContext,
@@ -524,7 +524,7 @@ export async function validateCards(
  * Regenerates a card file from the DB state (reverse sync).
  * DB row + relations + tags + codeLinks -> constructs frontmatter -> Bun.write.
  * @returns Absolute path of the written file.
-  * @spec spec-card-sync
+  * @spec dual-storage/file-db-sync
  */
 export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
   const key = parseFullKey(fullKey);
@@ -564,7 +564,6 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
 /**
  * Removes a card from the DB when its file has been externally deleted.
  * Called by the CLI when a watcher event (delete) is received.
-  * @spec spec-card-sync
  */
 export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void {
   const existing = ctx.cardRepo.findByFilePath(filePath);

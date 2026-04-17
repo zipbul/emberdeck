@@ -178,6 +178,7 @@ const MAX_PARENT_DEPTH = 20;
 
 /**
  * Validates that the parent card exists in the DB.
+  * @spec card-lifecycle/hierarchy
  */
 export function validateParentExists(ctx: EmberdeckContext, parentKey: string): void {
   if (!ctx.cardRepo.existsByKey(parentKey)) {
@@ -189,6 +190,7 @@ export function validateParentExists(ctx: EmberdeckContext, parentKey: string): 
  * Validates parent-type hierarchy rules:
  * - brief: parent must be null or brief
  * - spec: parent must be brief or spec
+  * @spec card-lifecycle/hierarchy
  */
 export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
   const parent = ctx.cardRepo.findByKey(parentKey);
@@ -214,6 +216,7 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
 
 /**
  * Detects circular parent references by walking the ancestor chain (max 20 depth).
+  * @spec card-lifecycle/hierarchy
  */
 export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, parentKey: string): void {
   let current: string | null = parentKey;
@@ -228,6 +231,7 @@ export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, pare
 
 /**
  * Validates that all relation targets exist in the DB and none is a self-reference.
+  * @spec card-lifecycle/hierarchy
  */
 export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, relations: string[]): void {
   for (const target of relations) {
@@ -242,6 +246,7 @@ export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, 
 
 /**
  * Validates that changing a card's type won't break children's parent-type hierarchy.
+  * @spec card-lifecycle/hierarchy
  */
 export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string, newType: CardType): void {
   const children = ctx.cardRepo.findChildren(cardKey);
@@ -259,6 +264,7 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
  * Activation guard: validates that a card meets the conditions for active status.
  * - brief: no conditions
  * - spec: codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
+  * @spec card-lifecycle/activation-guard
  */
 export async function validateActivationGuard(
   ctx: EmberdeckContext,

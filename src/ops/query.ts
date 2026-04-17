@@ -20,7 +20,6 @@ export interface RelationGraphOptions {
   direction?: 'forward' | 'backward' | 'both';
 }
 
-/** @spec spec-query-graph */
 export function getRelationGraph(
   ctx: EmberdeckContext,
   fullKey: string,
@@ -88,7 +87,6 @@ export interface GetCardContextOptions {
   depth?: number;
 }
 
-/** @spec spec-query-graph */
 export async function getCardContext(
   ctx: EmberdeckContext,
   fullKey: string,

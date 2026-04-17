@@ -86,7 +86,7 @@ export interface CreateCardResult {
  * @throws {ParentValidationError} When parent validation fails.
  * @throws {ActivationGuardError} When activation conditions are not met.
  * @throws {CompensationError} When file write fails after DB success and compensation also fails.
-  * @spec spec-create-card
+  * @spec dual-storage/card-crud
  */
 export async function createCard(
   ctx: EmberdeckContext,

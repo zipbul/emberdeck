@@ -334,6 +334,7 @@ export function validateBrief(
  *
  * @param body - Markdown body of the brief card.
  * @throws {Error} When required sections are missing.
+  * @spec card-lifecycle/activation-guard
  */
 export function validateBriefSections(body: string): void {
   const sections = parseSections(body);
@@ -369,6 +370,7 @@ export type SpecSection = (typeof REQUIRED_SPEC_SECTIONS)[number];
  *
  * @param body - Markdown body of the spec card.
  * @throws {Error} When required sections are missing.
+  * @spec card-lifecycle/activation-guard
  */
 export function validateSpecSections(body: string): void {
   const sections = parseSections(body);

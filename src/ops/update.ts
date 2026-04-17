@@ -102,7 +102,7 @@ export interface UpdateCardResult {
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ParentValidationError} When parent validation fails.
  * @throws {ActivationGuardError} When activation conditions are not met.
-  * @spec spec-update-card
+  * @spec dual-storage/card-crud
  */
 export async function updateCard(
   ctx: EmberdeckContext,
@@ -335,7 +335,7 @@ export async function updateCard(
  * @returns Updated result (filePath, card).
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ActivationGuardError} When activation conditions are not met for active status.
-  * @spec spec-update-card
+  * @spec dual-storage/card-crud
  */
 export async function updateCardStatus(
   ctx: EmberdeckContext,

@@ -21,6 +21,7 @@ export interface BulkCreateResult {
 /**
  * Topologically sort cards so parents are created before children.
  * Cards without parents come first.
+  * @spec dual-storage/bulk-create
  */
 function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
   const keySet = new Set(inputs.map((i) => i.key));
@@ -70,7 +71,7 @@ function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
  * @param ctx - EmberdeckContext from setupEmberdeck()
  * @param inputs - Array of card inputs (same schema as createCard)
  * @returns Summary with created count, failed count, keys, and errors
-  * @spec spec-bulk-create
+  * @spec dual-storage/bulk-create
  */
 export async function bulkCreateCards(
   ctx: EmberdeckContext,

@@ -8,7 +8,7 @@ description: Design knowledge management for codebases using Emberdeck MCP tools
 1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
 </critical>
 2. Show card analysis to user and get confirmation before creating any card.
-3. Brief cards are design documents. When creating an brief card as a **brief** (기획서), structure the body with these 8 required sections using exact `## ` headings:
+3. Brief cards are design documents. When creating a brief card as a **brief** (기획서), structure the body with these 8 required sections using exact `## ` headings:
    - `## Motivation` — Why this exists. Problem statement, background.
    - `## Scope` — Goals and non-goals. What we will and will NOT do.
    - `## Scenario` — How users/consumers interact. Happy path flows.
@@ -32,7 +32,7 @@ A card's glossary field should list the **primary topics** it addresses. Mention
 **When to add a new term to the glossary** (criteria for `emberdeck_define_glossary`, NOT for selecting which existing terms go in a card's glossary field):
 
 A term qualifies for the glossary when ALL four conditions are met:
-1. **Non-obvious meaning** — project-specific, different from dictionary definition
+1. **Project-specific semantics** — either the term does not appear in general dictionaries, OR it does but carries project-specific rules, decisions, or constraints that cannot be inferred from the dictionary meaning alone. (e.g., "glossary" is a dictionary word, but THIS project's glossary has all-or-nothing batch, global lock, file-first rename compensation — those rules are not dictionary-derivable, so the term qualifies.)
 2. **Cross-cutting** — appears in 2+ cards or design areas
 3. **Decision-bearing** — encodes a design decision
 4. **Not a code symbol** — cannot be understood by reading a single class/function/type
@@ -63,17 +63,20 @@ Match the FIRST row whose signal is true, then follow the named workflow.
    Do NOT collect: function signatures, type definitions, schema columns, configuration values, single-file implementation details.
    **After reading, list every `src/ops/*.ts` file with its cross-module contracts. Show this audit to the user before proceeding.** If a file has no contracts worth carding, state why explicitly.
 3. **Determine card boundaries by change independence.** For each group of design decisions: "If decision A changes, must decision B also change?" If no → separate cards. Apply the splitting criteria in `<card_splitting>`.
-4. Propose glossary to user (see glossary-proposal template — include Evidence column). Get confirmation. `emberdeck_define_glossary`.
-5. Create brief cards (with `glossary` field). Show card-analysis template for each. Run `<self_review>` on each card before proposing.
-6. Create spec cards under briefs (with `glossary`, `codeLinks`, `relations`). Run `<self_review>` on each card before proposing.
-7. **COLLECTION REVIEW** — after creating all cards, before gates:
+4. **Identify brief areas first** (no body yet). For each independently designable area, draft only: candidate `key`, one-line `summary`, and the **primary topic** the brief will discuss. Show this outline to the user. This precedes glossary so glossary terms can be derived from real brief topics, not guessed in isolation.
+5. Propose glossary to user (see glossary-proposal template — include Evidence column). The proposal MUST include: (a) terms derived from brief primary topics from step 4, (b) cross-cutting concepts surfaced from step 2. Get confirmation. `emberdeck_define_glossary`.
+6. Create brief cards with full bodies (with `glossary` field). Show card-analysis template for each. Run `<self_review>` on each card before proposing.
+7. Create spec cards under briefs (with `glossary`, `codeLinks`, `relations`). Run `<self_review>` on each card before proposing.
+8. **COLLECTION REVIEW** — after creating all cards, before gates:
    (a) **Brief decomposition**: For each brief, count unrelated items in its Scope "Covers" list. 3+ unrelated items → split into separate briefs.
    (b) **Function coverage check**: For each `src/ops/*.ts` file, list all exported functions. For each exported function NOT referenced by any spec card's codeLinks, apply the counter-test: "Does this function have cross-module behavior that breaks if a caller changes assumptions?" If yes → add it to an existing spec's codeLinks or create a new spec card. A file being covered by one spec does NOT mean all functions in that file are covered.
-   (c) **Glossary-brief alignment**: For each glossary term, verify at least one brief primarily discusses this concept. If a glossary term has no governing brief → create a brief or revise glossary.
+   (c) **Glossary-brief alignment** (bidirectional):
+       - Forward: For each glossary term, verify at least one brief primarily discusses this concept. If a glossary term has no governing brief → create a brief or revise glossary.
+       - Reverse: For each brief, verify its primary topic exists as a glossary term. If not → define the term or reconsider whether the brief's scope is correct.
    Fix any issues found before proceeding to gates.
-8. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken, 0 broken-chain, and 0 orphan-card warnings before finishing.
-9. GATE: `emberdeck_get_link_coverage` — every file under `src/ops/` MUST be referenced by at least one spec card's codeLinks or boundary. If uncovered files exist, create spec cards for them.
-10. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags into source code for all codeLinks.
+9. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken, 0 broken-chain, and 0 orphan-card warnings before finishing.
+10. GATE: `emberdeck_get_link_coverage` — every file under `src/ops/` MUST be referenced by at least one spec card's codeLinks or boundary. If uncovered files exist, create spec cards for them.
+11. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags into source code for all codeLinks.
 </workflow>
 
 <workflow name="glossary-backfill">
@@ -164,7 +167,7 @@ When `emberdeck_validate_cards` reports warnings:
 | glossary-broken | Card declares a glossary word that no longer exists in glossary.yaml | `emberdeck_define_glossary` to re-add, or `emberdeck_update_card` to remove the word from the card's glossary field |
 | glossary-unused | Glossary word not declared by any card | Informational — consider creating a card that discusses this concept or removing the glossary entry |
 | content-mismatch | DB and file diverged | `emberdeck_export_card_to_file` to regenerate file from DB |
-| broken-chain | Spec card has no link to any brief card | Add a relation or parent to an brief card |
+| broken-chain | Spec card has no link to any brief card | Add a relation or parent to a brief card |
 
 When `emberdeck_validate_code_links` finds broken links:
 1. Check if the symbol was renamed → `emberdeck_sync_symbol_changes`.
@@ -177,7 +180,7 @@ When `emberdeck_validate_code_links` finds broken links:
 
 ## brief — Design document
 
-An brief card answers: **"What are we building, why, and under what constraints?"**
+A brief card answers: **"What are we building, why, and under what constraints?"**
 
 It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from brief cards — no spec exists without a brief that justifies it. No codeLinks. Can be root card.
 
@@ -317,8 +320,7 @@ Deciding whether contracts belong in one card or should be split into separate c
 **Split when ANY of these is true:**
 1. **Change independence** — Contract A can drift while contract B remains valid. (e.g., createCard compensation logic vs bulkCreateCards topological sort — one can change without affecting the other.)
 2. **Different codeLink files** — Contracts reference symbols in different source files. Boundary separation signals different domains.
-3. **Size threshold** — More than 5 Given/When/Then contracts in one spec card. Cognitive load exceeds single-card purpose.
-4. **"X and Y" summary** — If the card summary uses "and" to join two unrelated capabilities, the card covers two topics.
+3. **"X and Y" summary** — If the card summary uses "and" to join two unrelated capabilities, the card covers two topics.
 
 **Merge when ALL of these are true:**
 1. Contracts describe different input cases of the **same operation** (e.g., deleteCard with force=true vs force=false).
@@ -327,9 +329,9 @@ Deciding whether contracts belong in one card or should be split into separate c
 
 **Brief decomposition:**
 Each brief card should represent one **independently designable area** — an area where design decisions can be made without consulting other briefs. Signs of under-decomposition:
-- Intent has 4+ direct spec children → consider splitting the brief
-- Intent's Scope section lists 3+ unrelated "Covers" items → each is likely its own brief
-- Intent's requirements span two unrelated subsystems → split by subsystem
+- Brief has 4+ direct spec children → consider splitting the brief
+- Brief's Scope section lists 3+ unrelated "Covers" items → each is likely its own brief
+- Brief's requirements span two unrelated subsystems → split by subsystem
 </card_splitting>
 
 <self_review>
@@ -337,19 +339,21 @@ Run on every card before creating or proposing. Any failure → revise and re-ch
 
 The single-file test applies everywhere: "Can you discover this by reading ONE source file? If yes, it does not belong in a card. If it spans multiple files, it MUST be carded."
 
-**Intent (5 checks):**
+**Brief (5 checks):**
 1. Every requirement fails the single-file test (cannot be found in one file alone)
 2. Every success criterion has a number or zero-tolerance threshold
 3. No implementation technology names in body (no WeakMap, FTS5, Drizzle, temp-rename, ON CONFLICT, WAL)
 4. Every scenario has Given/When/Then verifiable without knowing implementation
 5. Scope section states what is EXCLUDED, not just what is covered
 
-**Spec (5 checks):**
+**Spec (7 checks):**
 1. Every contract states WHAT (behavior), not HOW (implementation mechanism)
-2. Failure mode table covers every error type the linked symbols throw
-3. Splitting check: if one contract changes, must ALL others also change? If not → split
-4. All codeLinks reference real, existing symbols (verify with grep)
-5. Max 5 contracts per card; `parent` field is set; `glossary` lists primary topics only
+2. No implementation mechanism names in body (no FK CASCADE, raw UPDATE, WeakMap, temp-rename, ON CONFLICT, upsert SQL, targeted UPDATE, WAL, atomic rename). Rewrite as behavioral guarantees: "FK CASCADE propagation" → "key change MUST propagate to all referencing records"
+3. Failure mode table covers every error type the linked symbols throw
+4. Splitting check (contract-level): if one contract changes, must ALL others also change? If not → split
+5. **Splitting check (file-level)**: do `codeLinks` reference symbols in 2+ distinct source files? If yes, AND those files can change independently (per `<card_splitting>` rule #2), MUST split into one card per file
+6. All codeLinks reference real, existing symbols (verify with grep)
+7. `parent` field is set; `glossary` lists primary topics only
 </self_review>
 
 <model_notes>

@@ -11,6 +11,7 @@ import { readGlossary } from '../glossary/io';
 
 // ── check_drift ──
 
+/** @spec drift-detection/check-drift */
 export type DriftType = 'broken_link' | 'boundary_inactive' | 'symbol_changed' | 'glossary_broken';
 
 export interface SymbolChangeDetail {
@@ -65,7 +66,7 @@ interface SymbolChangeInfo {
  * When autoTransition=true (default), active cards found drifted are
  * automatically transitioned to 'drifted' status (DB + file).
  * Draft cards are excluded from drift analysis.
-  * @spec spec-check-drift
+  * @spec drift-detection/check-drift
  */
 export async function checkDrift(
   ctx: EmberdeckContext,
@@ -388,7 +389,6 @@ export interface InteractionResult {
  * Analyze interactions between a set of cards.
  * Detects shared code symbols, shared files, import dependencies,
  * existing relations, and potential conflicts.
-  * @spec spec-check-interactions
  */
 export function checkInteractions(
   ctx: EmberdeckContext,

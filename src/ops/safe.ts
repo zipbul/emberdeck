@@ -43,7 +43,7 @@ function getLocksMap(ctx: EmberdeckContext): Map<string, Promise<void>> {
 /**
  * Retries with exponential backoff on SQLITE_BUSY errors.
  * Non-busy errors are re-thrown immediately.
-  * @spec spec-safe-write
+  * @spec dual-storage/mutation-safety
  */
 export async function withRetry<T>(
   fn: () => T | Promise<T>,
@@ -72,7 +72,7 @@ export async function withRetry<T>(
 /**
  * Serializes concurrent calls for the same ctx + key in FIFO order.
  * Uses a WeakMap, so locks are automatically cleaned up when ctx is garbage collected.
-  * @spec spec-safe-write
+  * @spec dual-storage/mutation-safety
  */
 export async function withCardLock<T>(
   ctx: EmberdeckContext,
@@ -104,7 +104,7 @@ export async function withCardLock<T>(
  * Executes DB action first, then file action.
  * On file failure, attempts DB rollback via compensate.
  * If compensate also fails, throws CompensationError.
-  * @spec spec-safe-write
+  * @spec dual-storage/mutation-safety
  */
 export async function safeWriteOperation<T>(
   options: SafeWriteOptions<T>,

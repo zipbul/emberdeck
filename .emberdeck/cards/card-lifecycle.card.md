@@ -1,51 +1,71 @@
 ---
-{key: card-lifecycle,summary: Card mutation operations maintain dual-storage consistency and enforce lifecycle rules,status: draft,type: brief,glossary: [card,dual storage,activation guard,compensation]}
+{key: card-lifecycle,summary: "Card status state machine and activation guard rules for draft, active, and drifted transitions",status: draft,type: intent,glossary: [activation-guard,drift]}
 ---
 
-## Problem & Goals
-Agents create, update, delete, and rename design cards. Each mutation must keep DB and file representations in sync. If either storage fails, the other must be compensated. Parent-child hierarchy, relation targets, and activation conditions must be validated before any mutation commits.
+## Motivation
+Cards progress through lifecycle states: draft (work in progress), active (code and spec aligned), and drifted (code diverged). Without enforced preconditions at each transition, invalid cards could be marked active — misleading agents into trusting outdated or incomplete specs. The activation guard ensures only structurally sound cards reach active status.
 
-Goal: every card mutation either fully succeeds (DB + file) or fully rolls back, with no partial state.
+## Scope
+- Covers: status state machine (draft/active/drifted), activation guard conditions per card type, parent-type hierarchy enforcement, section validation for active cards, type change impact on status.
+- Excludes: how drift is detected (see drift-detection brief), code-link resolution mechanics, glossary management.
+- Assumes: card type is either brief or spec; parent hierarchy is max 3 levels deep.
 
-## User Scenarios
+## Scenario
 
-### P1: Agent creates a card
-Given an agent provides a valid card key, summary, and type,
-When it calls createCard,
-Then the card is atomically stored in both DB and file,
-And if the file write fails after DB commit, the DB change is compensated.
+### P1: Spec card activation requires resolved code links
+Given a spec card in draft status with code links,
+When status is set to active,
+Then all code links MUST resolve to existing symbols, otherwise activation is rejected.
 
-### P1: Agent updates a card with status change
-Given a draft card exists,
-When the agent sets status to active,
-Then the activation guard validates all conditions before the status change commits.
+### P1: Brief card activation requires 8 sections
+Given a brief card in draft status,
+When status is set to active,
+Then the body MUST contain all 8 required brief sections (Motivation, Scope, Scenario, Rule, Constraint, Risk, Criteria, Decision).
 
-### P2: Agent deletes a card with children
-Given a card has child cards,
-When the agent calls deleteCard with force=true,
-Then children become orphans (parent set to null) and referencing cards' relation fields are cleaned up.
+### P1: Spec card activation requires 3 sections
+Given a spec card in draft status,
+When status is set to active,
+Then the body MUST contain all 3 required spec sections (Contract, Invariant, Failure).
 
-### P2: Agent renames a card
-Given a card is referenced by other cards' relations and parent fields,
-When the agent renames it,
-Then all referencing cards' files are updated to the new key,
-And body references to the old key are reported for manual update.
+### P2: Type change on active card may force status to draft
+Given an active card,
+When its type is changed and the new type's activation conditions are unmet,
+Then the card's status is forced to draft with a warning.
 
-## Requirements
-- R-001: Every card mutation MUST write to DB first, then file. On file failure, DB MUST be compensated.
-- R-002: Concurrent mutations to the same card key MUST be serialized in FIFO order.
-- R-003: Parent validation MUST check existence, type hierarchy, and circular references before commit.
-- R-004: Relation targets MUST exist in DB at the time of creation or update.
-- R-005: Activation guard MUST reject status=active when conditions are unmet for the card type.
-- R-006: Type change on an active card MUST re-validate activation and force to draft if conditions are unmet.
-- R-007: Card rename MUST use FK cascade to propagate key changes to all referencing tables.
+### P2: Parent hierarchy is enforced
+Given a card creation or update,
+When a parent is specified,
+Then brief cards MUST have brief parents; spec cards MUST have brief or spec parents.
 
-## Success Criteria
-- SC-001: 0 cases where DB and file diverge after any single mutation.
-- SC-002: 0 cases where an active spec card has unresolved codeLinks.
-- SC-003: 0 circular parent references in the card hierarchy.
+### P3: Circular parent references are detected
+Given a card update setting parent to another card,
+When the ancestor chain forms a cycle,
+Then the update is rejected with a ParentValidationError.
 
-## Scope & Constraints
-- Covers: createCard, updateCard, updateCardStatus, deleteCard, renameCard, safe write pattern, card lock, retry.
-- Excludes: drift detection, code link resolution, glossary enforcement logic, impact analysis, bulk operations.
-- Assumes: SQLite with WAL mode and foreign keys enabled.
+## Rule
+- R-001: Draft cards have no activation constraints — they represent work in progress.
+- R-002: Active brief cards MUST have all 8 required sections present and non-empty.
+- R-003: Active spec cards MUST have at least 1 code link that resolves AND all 3 required sections.
+- R-004: Brief cards MUST have null or brief parent. Spec cards MUST have brief or spec parent.
+- R-005: Changing a card's type MUST re-validate children's parent-type hierarchy.
+- R-006: Parent chain depth MUST NOT exceed 20 levels (cycle detection guard).
+
+## Constraint
+- Status values are limited to exactly three: draft, active, drifted. No custom states.
+- Card types are limited to brief and spec. The type determines which activation rules apply.
+
+## Risk
+- If activation guard is bypassed, active cards may reference nonexistent symbols, causing false confidence.
+- Type change on a card with many children could cascade validation failures.
+- Section validation checks structural presence only — content quality requires separate L2 checks.
+
+## Criteria
+- SC-001: 0 active spec cards with unresolved code links at any point.
+- SC-002: 0 active brief cards missing any of the 8 required sections.
+- SC-003: 0 active spec cards missing any of the 3 required sections.
+- SC-004: 0 parent-type hierarchy violations in the card tree.
+
+## Decision
+- Three-state machine (draft/active/drifted) was chosen over more granular states because the key distinction is trust: can an agent rely on this spec? Draft = no, Active = yes, Drifted = was yes, now uncertain.
+- Section validation was split into L1 (structural) and L2 (lexical quality) to allow activation on L1 pass while flagging L2 warnings for improvement.
+- Activation guard runs at creation and update time, not as a background job, to prevent invalid cards from ever reaching active status.

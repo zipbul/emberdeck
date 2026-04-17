@@ -15,6 +15,7 @@ import type { EmberdeckContext } from '../config';
 
 const glossaryLocks = new WeakMap<EmberdeckContext, Promise<void>>();
 
+/** @spec glossary-management/glossary-ops */
 export async function withGlossaryLock<T>(
   ctx: EmberdeckContext,
   fn: () => T | Promise<T>,

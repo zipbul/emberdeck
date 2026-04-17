@@ -1,49 +1,72 @@
 ---
-{key: code-binding,summary: Code symbols are correctly bound to cards and spec annotations stay synchronized,status: draft,type: brief,glossary: [codeLink,gildash,card,boundary]}
+{key: code-binding,summary: "Code-to-card binding via symbol resolution, @spec annotation sync, and coverage analysis",status: draft,type: intent,glossary: [code-link,boundary,drift]}
 ---
 
-## Problem & Goals
-Spec cards must be traceable to source code via codeLinks and @spec annotations. Without correct binding, coverage reporting is wrong and agents cannot discover which design governs a code area. The system must resolve links, detect broken ones, sync annotations bidirectionally, and track symbol renames/moves.
+## Motivation
+Cards must be traceable to the code they describe. Without explicit binding, agents cannot determine which cards govern which code, and code changes cannot be checked against their governing specs. The code binding system connects cards to source symbols via code links and @spec annotations, and measures how much of the codebase is covered by specs.
 
-Goal: every codeLink on a spec card resolves to an actual symbol, and every linked symbol has a @spec annotation in source.
+## Scope
+- Covers: code link resolution via symbol index, @spec annotation reconciliation (scan, build, remove, add), symbol rename/move tracking, coverage analysis (per-card and project-wide), card discovery by symbol or file.
+- Excludes: drift auto-transition (see drift-detection), activation guard mechanics (see card-lifecycle), glossary management.
+- Assumes: a symbol indexer is available when projectRoot is configured; annotations follow @spec tag format.
 
-## User Scenarios
+## Scenario
 
-### P1: Agent resolves code links for a card
-Given a spec card has codeLinks,
+### P1: Code link resolution
+Given a spec card has code links,
 When resolveCardCodeLinks is called,
-Then each link is looked up in gildash and the resolution status (found/not found) is returned.
+Then each link is looked up in the symbol index and returns the matched symbol or null.
 
-### P1: Agent writes spec annotations after creating cards
-Given spec cards have codeLinks,
+### P1: @spec annotation reconciliation
+Given cards have code links in DB,
 When writeSpecAnnotations is called,
-Then @spec JSDoc tags are inserted above each linked symbol in source,
-And orphan @spec annotations (from deleted cards) are removed.
+Then orphan @spec annotations are removed from source and missing annotations are inserted.
 
-### P2: Symbol is renamed in source
-Given a codeLink references a symbol that was renamed,
+### P1: Find cards by symbol
+Given an agent is modifying a function,
+When findCardsBySymbol is called with the symbol name,
+Then all cards referencing that symbol via code links or boundary patterns are returned.
+
+### P2: Symbol rename tracking
+Given a symbol was renamed in source,
 When syncSymbolChanges is called with a since timestamp,
-Then the codeLink is updated to the new symbol name.
+Then code links referencing the old name are updated to the new name.
 
-### P2: Agent finds cards by symbol
-Given an agent is about to modify a function,
-When findCardsBySymbol is called,
-Then cards with codeLinks or boundary patterns matching that symbol/file are returned.
+### P2: Project-wide coverage
+Given the project has indexed symbols,
+When getUncoveredSymbols is called,
+Then symbols not referenced by any card's code links or boundary are listed.
 
-## Requirements
-- R-001: resolveCardCodeLinks MUST return resolution status for every declared link.
-- R-002: validateCodeLinks on an active card MUST auto-transition to drifted if broken links are found.
-- R-003: writeSpecAnnotations MUST be idempotent (safe to run repeatedly).
-- R-004: writeSpecAnnotations MUST remove orphan @spec annotations from source files.
-- R-005: syncSymbolChanges MUST update codeLinks for renamed/moved symbols without deleting links for removed symbols.
-- R-006: findCardsBySymbol MUST check both codeLinks and boundary glob patterns.
+### P3: Per-card coverage with unreferenced symbols
+Given a card has code links to specific files,
+When getLinkCoverage is called,
+Then symbols in the same files not linked to this card are listed as unreferenced.
 
-## Success Criteria
-- SC-001: 0 active spec cards with broken codeLinks at any point.
-- SC-002: Every codeLink has a corresponding @spec annotation in source after writeSpecAnnotations.
-- SC-003: 0 orphan @spec annotations in source after writeSpecAnnotations.
+## Rule
+- R-001: Code link resolution MUST refresh the symbol index before lookup to ensure current state.
+- R-002: @spec reconciliation MUST follow four steps in order: scan existing annotations, build desired set from DB, remove orphans, add missing. This is idempotent.
+- R-003: Symbol rename sync MUST update both the code link DB records and the card file frontmatter.
+- R-004: Coverage analysis MUST exclude files matching ignore patterns.
+- R-005: Boundary-covered files MUST be considered covered in coverage calculations (not just code-link files).
+- R-006: findCardsBySymbol MUST check code links first, then boundary patterns, with deduplication.
 
-## Scope & Constraints
-- Covers: resolveCardCodeLinks, validateCodeLinks, findCardsBySymbol, findAffectedCards, ensureReindexed, syncSpecAnnotations, writeSpecAnnotations, syncSymbolChanges, getLinkCoverage, getUncoveredSymbols, suggestCardScope.
-- Excludes: card CRUD, drift detection (except link-triggered), glossary management.
-- Assumes: gildash is available and configured with projectRoot.
+## Constraint
+- Symbol index availability depends on projectRoot configuration. Code binding features are disabled when projectRoot is not set.
+- @spec annotations are JSDoc tags — they only work in languages that support JSDoc-style comments.
+- Symbol rename detection depends on the index's change tracking capability, which may not be available in all indexers.
+
+## Risk
+- If the symbol index is stale, code link resolution may return false negatives (symbol exists but not indexed yet).
+- @spec annotation removal modifies source files — incorrect removal could delete developer-authored comments.
+- Coverage metrics may be misleading if boundary patterns are overly broad (covering files the card does not actually describe).
+
+## Criteria
+- SC-001: After writeSpecAnnotations, every code link in DB has a corresponding @spec annotation in source, and no orphan @spec annotations remain.
+- SC-002: Symbol rename sync updates 100% of affected code links (no stale references after sync).
+- SC-003: Coverage ratio accurately reflects the proportion of indexed symbols covered by cards.
+- SC-004: findCardsBySymbol returns all governing cards for a given symbol with 0 false negatives.
+
+## Decision
+- Four-step reconciliation (scan, build, remove, add) was chosen over simple overwrite because it preserves developer-authored JSDoc content while only managing @spec tags.
+- Boundary coverage is counted in coverage metrics because boundary patterns represent intentional file ownership, even without per-symbol links.
+- ensureReindexed is called before every symbol-dependent operation rather than once per session, because source files may change between calls.
