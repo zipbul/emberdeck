@@ -238,10 +238,10 @@ describe('renameCard', () => {
 
   it('should preserve type in DB after rename', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'rnm-tp-src', summary: 'Type preserve', type: 'intent' });
+    await createCard(tc.ctx, { key: 'rnm-tp-src', summary: 'Type preserve', type: 'brief' });
     await renameCard(tc.ctx, 'rnm-tp-src', 'rnm-tp-dst');
     const row = tc.ctx.cardRepo.findByKey('rnm-tp-dst');
     expect(row).not.toBeNull();
-    expect(row!.type).toBe('intent');
+    expect(row!.type).toBe('brief');
   });
 });

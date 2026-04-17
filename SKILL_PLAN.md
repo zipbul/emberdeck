@@ -16,7 +16,7 @@
 | CRUD/query/sync 미커버 | ✗ | ✗ | 0 | 0 | N3 해결 (single-file test 통일) |
 | 전수조사 결과 미제시 | ✗ | ✗ | 0 | 0 | N4 해결 (audit 출력 강제) |
 | 카드 과소 생성 | ✗ | ✗ | 0 | 0 | N5 해결 ("fewer" 하한 명확화) |
-| intent over-scope | 미확인 | ✗ | 0 | 0 | collection review (a) 해결 |
+| brief over-scope | 미확인 | ✗ | 0 | 0 | collection review (a) 해결 |
 | checkInteractions 미커버 | ✗ | ✗ | ✗ | 0 | function coverage check 해결 |
 | **spec 5 contracts 초과** | 미확인 | 0 | 2건 | **2건** | **미해결** — self_review가 텍스트 지시라 스킵됨 |
 
@@ -45,9 +45,9 @@ B4 (OpenDev 논문 [7]):
 7. COLLECTION REVIEW — copy this checklist into your response and complete every item:
 
 Collection audit:
-- [ ] Intent decomposition: [each intent's Covers count listed]
+- [ ] Brief decomposition: [each brief's Covers count listed]
 - [ ] Function coverage: [each src/ops/*.ts file + exported functions + coverage status]
-- [ ] Glossary-intent alignment: [each glossary term + governing intent]
+- [ ] Glossary-brief alignment: [each glossary term + governing brief]
 - [ ] Contract counts: [each spec card + WHEN count + PASS/FAIL]
 Fix all FAIL items before proceeding to gates.
 ```
@@ -254,7 +254,7 @@ collection review(step 7)만 텍스트 단계인데, P1(체크리스트 복사)�
 - matcher 조건이 toolName 기반이 아니라 응답 내용 기반이어야 하므로, prompt hook의 판단이 부정확할 수 있음.
 - PostToolUse Hook(H1, H2)이 카드 단위 검증을 커버하므로, Stop Hook의 추가 가치가 제한적.
 
-**조건**: PostToolUse Hook으로 해결 안 되는 collection-level 문제(intent over-scope 등)가 반복되면 추가.
+**조건**: PostToolUse Hook으로 해결 안 되는 collection-level 문제(brief over-scope 등)가 반복되면 추가.
 
 ---
 
@@ -270,9 +270,9 @@ collection review(step 7)만 텍스트 단계인데, P1(체크리스트 복사)�
 **Before**:
 ```markdown
 7. **COLLECTION REVIEW** — after creating all cards, before gates:
-   (a) **Intent decomposition**: For each intent, count unrelated items in its Scope "Covers" list. 3+ unrelated items → split into separate intents.
+   (a) **Brief decomposition**: For each brief, count unrelated items in its Scope "Covers" list. 3+ unrelated items → split into separate briefs.
    (b) **Function coverage check**: For each `src/ops/*.ts` file, list all exported functions. For each exported function NOT referenced by any spec card's codeLinks, apply the counter-test: "Does this function have cross-module behavior that breaks if a caller changes assumptions?" If yes → add it to an existing spec's codeLinks or create a new spec card. A file being covered by one spec does NOT mean all functions in that file are covered.
-   (c) **Glossary-intent alignment**: For each glossary term, verify at least one intent primarily discusses this concept. If a glossary term has no governing intent → create an intent or revise glossary.
+   (c) **Glossary-brief alignment**: For each glossary term, verify at least one brief primarily discusses this concept. If a glossary term has no governing brief → create a brief or revise glossary.
    Fix any issues found before proceeding to gates.
 ```
 
@@ -282,11 +282,11 @@ collection review(step 7)만 텍스트 단계인데, P1(체크리스트 복사)�
 
    ```
    ## Collection Audit
-   ### (a) Intent decomposition
+   ### (a) Brief decomposition
    | Intent | Covers count | Items | PASS/FAIL |
    |--------|-------------|-------|-----------|
    | {key}  | {N}         | {list}| {N<3: PASS, else FAIL} |
-   (all intents)
+   (all briefs)
 
    ### (b) Function coverage
    | File | Exported functions | In codeLinks? | Counter-test result |
@@ -294,10 +294,10 @@ collection review(step 7)만 텍스트 단계인데, P1(체크리스트 복사)�
    | {file} | {func1, func2, ...} | {yes/no per func} | {skip/need spec} |
    (all src/ops/*.ts files)
 
-   ### (c) Glossary-intent alignment
-   | Glossary term | Governing intent | PASS/FAIL |
+   ### (c) Glossary-brief alignment
+   | Glossary term | Governing brief | PASS/FAIL |
    |---------------|-----------------|-----------|
-   | {term} | {intent key or NONE} | {PASS/FAIL} |
+   | {term} | {brief key or NONE} | {PASS/FAIL} |
    (all glossary terms)
 
    ### (d) Contract count
@@ -473,8 +473,8 @@ collection review(step 7)만 텍스트 단계인데, P1(체크리스트 복사)�
 | 4 | 모든 spec 카드 5 contracts 이하 | Hook 결과 + collection review (d) |
 | 5 | 발견가능 내용 0건 | Hook의 impl_keywords 검사 + 수동 검토 |
 | 6 | collection review 체크리스트 출력됨 | 서브에이전트 응답에 audit 테이블 존재 |
-| 7 | intent over-scope 0건 | collection review (a) PASS |
-| 8 | glossary-intent 정렬 | collection review (c) PASS |
+| 7 | brief over-scope 0건 | collection review (a) PASS |
+| 8 | glossary-brief 정렬 | collection review (c) PASS |
 
 ---
 

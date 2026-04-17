@@ -278,7 +278,7 @@ describe('suggestCardScope', () => {
     await tc?.cleanup();
   });
 
-  it('suggests intent card for directory with multiple files', async () => {
+  it('suggests brief card for directory with multiple files', async () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
@@ -294,7 +294,7 @@ describe('suggestCardScope', () => {
     expect(suggestions.length).toBeGreaterThanOrEqual(1);
     const apiSuggestion = suggestions.find((s) => s.suggestedKey === 'src/api');
     expect(apiSuggestion).toBeDefined();
-    expect(apiSuggestion!.type).toBe('intent');
+    expect(apiSuggestion!.type).toBe('brief');
     expect(apiSuggestion!.files).toHaveLength(2);
   });
 

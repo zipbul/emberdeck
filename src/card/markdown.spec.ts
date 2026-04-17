@@ -71,10 +71,10 @@ describe('parseCardMarkdown', () => {
     expect(result.frontmatter.status).toBe('drifted');
   });
 
-  it('should parse type=intent when type is intent', () => {
-    const md = makeMarkdown({ type: 'intent' });
+  it('should parse type=brief when type is brief', () => {
+    const md = makeMarkdown({ type: 'brief' });
     const result = parseCardMarkdown(md);
-    expect(result.frontmatter.type).toBe('intent');
+    expect(result.frontmatter.type).toBe('brief');
   });
 
   it('should parse type=spec when type is spec', () => {
@@ -628,7 +628,7 @@ describe('serializeCardMarkdown', () => {
       key: 'spec/api',
       summary: 'API spec',
       status: 'active',
-      type: 'intent',
+      type: 'brief',
       tags: ['api', 'v2'],
       relations: ['core/module'],
       parent: 'spec/root',
@@ -656,7 +656,7 @@ describe('serializeCardMarkdown', () => {
       key: 'spec/round',
       summary: 'Round-trip spec',
       status: 'draft',
-      type: 'intent',
+      type: 'brief',
       parent: 'root',
       boundary: ['src/**', 'lib/**'],
     };
@@ -665,7 +665,7 @@ describe('serializeCardMarkdown', () => {
     const serialized = serializeCardMarkdown(fm, body);
     const reparsed = parseCardMarkdown(serialized);
     // Assert
-    expect(reparsed.frontmatter.type).toBe('intent');
+    expect(reparsed.frontmatter.type).toBe('brief');
     expect(reparsed.frontmatter.parent).toBe('root');
     expect(reparsed.frontmatter.boundary).toEqual(['src/**', 'lib/**']);
     expect(reparsed.body).toBe(body);

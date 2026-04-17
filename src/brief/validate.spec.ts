@@ -22,7 +22,7 @@ function makeCard(overrides: Partial<CardRow> = {}): CardRow {
     key: 'test-card',
     summary: 'Test card',
     status: 'draft',
-    type: 'intent',
+    type: 'brief',
     parent: null,
     boundaryJson: null,
     body: null,
@@ -115,8 +115,8 @@ function insertIntentCard(key: string, body: string, parent?: string) {
   ctx.cardRepo.upsert(
     makeCard({
       key,
-      summary: `Test intent: ${key}`,
-      type: 'intent',
+      summary: `Test brief: ${key}`,
+      type: 'brief',
       parent: parent ?? null,
       body,
       filePath: `.emberdeck/cards/${key}.card.md`,
@@ -206,7 +206,7 @@ Search and ordering only. No delivery tracking.
     expect(result.missing).toContain('decision');
   });
 
-  it('collects sections from descendant intent cards', () => {
+  it('collects sections from descendant brief cards', () => {
     insertIntentCard('root', '## Motivation\n\nWe need this product. Revenue is declining.');
     insertIntentCard('child-scope', '## Scope\n\nSearch and ordering. No delivery tracking.', 'root');
     insertIntentCard('child-scenario', '## Scenario\n\nUser searches products. User places order.', 'root');
@@ -276,6 +276,6 @@ Search and ordering only. No delivery tracking.
         filePath: '.emberdeck/cards/spec-card.card.md',
       }),
     );
-    expect(() => validateBrief(ctx, 'spec-card')).toThrow('expected "intent"');
+    expect(() => validateBrief(ctx, 'spec-card')).toThrow('expected "brief"');
   });
 });

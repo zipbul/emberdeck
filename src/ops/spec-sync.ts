@@ -901,7 +901,7 @@ export async function getUncoveredSymbols(
 
 export interface CardSuggestion {
   suggestedKey: string;
-  type: 'intent' | 'spec';
+  type: 'brief' | 'spec';
   parent?: string;
   files: string[];
   boundary: string[];
@@ -920,7 +920,7 @@ export interface SuggestCardScopeOptions {
  * Analyze directory structure and symbols to suggest card creation units.
  *
  * Looks at directories with symbols not covered by existing cards,
- * and suggests intent cards for directories or spec cards for modules.
+ * and suggests brief cards for directories or spec cards for modules.
   * @spec spec-coverage
  */
 export async function suggestCardScope(
@@ -1012,8 +1012,8 @@ export async function suggestCardScope(
     // Collect unique files in this directory
     const files = [...new Set(symbols.map((s) => s.file))];
 
-    // Determine type: directory-level = intent, single-file/module = spec
-    const isIntent = files.length > 1;
+    // Determine type: directory-level = brief, single-file/module = spec
+    const isBrief = files.length > 1;
 
     // Find parent suggestion: nearest ancestor directory with a card
     let parent: string | undefined;
@@ -1034,12 +1034,12 @@ export async function suggestCardScope(
 
     suggestions.push({
       suggestedKey,
-      type: isIntent ? 'intent' : 'spec',
+      type: isBrief ? 'brief' : 'spec',
       ...(parent ? { parent } : {}),
       files,
       boundary: [dir + '/**'],
       symbols: symbols.map((s) => ({ file: s.file, symbol: s.symbol, kind: s.kind })),
-      reason: isIntent
+      reason: isBrief
         ? `Directory ${dir} has ${symbols.length} uncovered symbols across ${files.length} files`
         : `Module ${files[0]} has ${symbols.length} uncovered symbols`,
       ...(matchedGlossary.size > 0 ? { suggestedGlossary: [...matchedGlossary] } : {}),

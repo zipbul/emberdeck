@@ -1,5 +1,5 @@
 ---
-{key: code-binding,summary: Code symbols are correctly bound to cards and spec annotations stay synchronized,status: draft,type: intent,glossary: [codeLink,gildash,card,boundary]}
+{key: code-binding,summary: Code symbols are correctly bound to cards and spec annotations stay synchronized,status: draft,type: brief,glossary: [codeLink,gildash,card,boundary]}
 ---
 
 ## Problem & Goals

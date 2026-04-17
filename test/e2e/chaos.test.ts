@@ -79,7 +79,7 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
 
     // Create dependency targets first
     await createCard(ctx, { key: 'user-session', summary: 'User session management', type: 'spec' });
-    await createCard(ctx, { key: 'api-gateway', summary: 'API gateway routing', type: 'intent' });
+    await createCard(ctx, { key: 'api-gateway', summary: 'API gateway routing', type: 'brief' });
 
     // Now create with relations
     createInput.relations = ['user-session', 'api-gateway'];
@@ -174,9 +174,9 @@ describe('Scenario 2: Bulk Create + Relations + Sync', () => {
 
     // -- Bulk create with relations --
     const result = await bulkCreateCards(ctx, [
-      { key: 'core/db', summary: 'Database layer', type: 'intent' },
+      { key: 'core/db', summary: 'Database layer', type: 'brief' },
       { key: 'core/auth', summary: 'Authentication module', type: 'spec', relations: ['core/db'] },
-      { key: 'core/api', summary: 'API gateway', type: 'intent', relations: ['core/auth'] },
+      { key: 'core/api', summary: 'API gateway', type: 'brief', relations: ['core/auth'] },
       { key: 'feature/users', summary: 'User management', type: 'spec', relations: ['core/db', 'core/auth'] },
     ]);
 

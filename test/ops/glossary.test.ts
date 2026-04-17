@@ -259,7 +259,7 @@ describe('Glossary', () => {
     it('should report affected card keys', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c1', summary: 'Job card', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c1', summary: 'Job card', type: 'brief', glossary: ['Job'] });
       const result = await removeGlossary(tc.ctx, 'Job');
       expect(result.affectedCardKeys).toContain('c1');
     });
@@ -271,7 +271,7 @@ describe('Glossary', () => {
     it('should rename word in glossary and update card DB + file', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'rc', summary: 'Job card', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'rc', summary: 'Job card', type: 'brief', glossary: ['Job'] });
 
       const result = await renameGlossary(tc.ctx, 'Job', 'Task');
       expect(result.cardsUpdated).toBe(1);
@@ -309,41 +309,41 @@ describe('Glossary', () => {
     it('M1: should reject create_card without glossary when glossary.yaml exists', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'intent' }))
+      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' }))
         .toThrow(/glossary field is required/);
     });
 
     it('M1: should reject create_card with empty glossary when glossary.yaml exists', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'intent', glossary: [] }))
+      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: [] }))
         .toThrow(/glossary field is required/);
     });
 
     it('should allow create_card without glossary when no glossary.yaml', async () => {
       tc = await createTestContext();
-      const r = await createCard(tc.ctx, { key: 'c', summary: 's', type: 'intent' });
+      const r = await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       expect(r.fullKey).toBe('c');
     });
 
     it('M2: should reject nonexistent glossary word on create', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'intent', glossary: ['Nope'] }))
+      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: ['Nope'] }))
         .toThrow(/not found in project glossary/);
     });
 
     it('M3: should reject duplicate glossary entries on create', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'intent', glossary: ['Job', 'Job'] }))
+      expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: ['Job', 'Job'] }))
         .toThrow(/duplicate/);
     });
 
     it('should store glossary in DB and file on create', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      const r = await createCard(tc.ctx, { key: 'c', summary: 'Job card', type: 'intent', glossary: ['Job'] });
+      const r = await createCard(tc.ctx, { key: 'c', summary: 'Job card', type: 'brief', glossary: ['Job'] });
       expect(r.card.frontmatter.glossary).toEqual(['Job']);
       // DB row
       const row = tc.ctx.cardRepo.findByKey('c');
@@ -353,14 +353,14 @@ describe('Glossary', () => {
     it('should validate glossary on update when provided', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       expect(() => updateCard(tc.ctx, 'c', { glossary: ['Nope'] }))
         .toThrow(/not found in project glossary/);
     });
 
     it('should allow update without glossary field (no re-validation)', async () => {
       tc = await createTestContext();
-      await createCard(tc.ctx, { key: 'c', summary: 's', type: 'intent' });
+      await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       const r = await updateCard(tc.ctx, 'c', { summary: 'new' });
       expect(r.card.frontmatter.summary).toBe('new');
     });
@@ -371,13 +371,13 @@ describe('Glossary', () => {
 
   describe('Markdown roundtrip', () => {
     it('should preserve glossary field through serialize then parse', () => {
-      const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'intent' as const, glossary: ['Job', 'Worker'] };
+      const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'brief' as const, glossary: ['Job', 'Worker'] };
       const parsed = parseCardMarkdown(serializeCardMarkdown(fm, '## Body'));
       expect(parsed.frontmatter.glossary).toEqual(['Job', 'Worker']);
     });
 
     it('should omit glossary when not set', () => {
-      const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'intent' as const };
+      const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'brief' as const };
       const parsed = parseCardMarkdown(serializeCardMarkdown(fm, ''));
       expect(parsed.frontmatter.glossary).toBeUndefined();
     });
@@ -389,7 +389,7 @@ describe('Glossary', () => {
     it('should detect glossary_broken after word removal', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', status: 'active', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: false });
       expect(result.cards.find(c => c.key === 'c')?.driftType).toBe('glossary_broken');
@@ -398,7 +398,7 @@ describe('Glossary', () => {
     it('should auto-transition active card to drifted', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', status: 'active', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: true });
       expect(result.cards.find(c => c.key === 'c')?.status).toBe('drifted');
@@ -407,7 +407,7 @@ describe('Glossary', () => {
     it('should skip draft cards', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: false });
       // Draft cards are excluded from drift analysis
@@ -421,7 +421,7 @@ describe('Glossary', () => {
     it('should report glossary-broken', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await validateCards(tc.ctx);
       expect(result.warnings.some(w => w.type === 'glossary-broken')).toBe(true);
@@ -430,7 +430,7 @@ describe('Glossary', () => {
     it('should report glossary-unused', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Orphan', definition: 'b' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const result = await validateCards(tc.ctx);
       expect(result.warnings.some(w => w.type === 'glossary-unused' && w.message.includes('Orphan'))).toBe(true);
     });
@@ -443,7 +443,7 @@ describe('Glossary', () => {
     it('get_card should include glossary field', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const result = await getCard(tc.ctx, 'c');
       expect(result.card.frontmatter.glossary).toEqual(['Job']);
     });
@@ -451,7 +451,7 @@ describe('Glossary', () => {
     it('list_cards should include glossaryJson in response', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const rows = listCards(tc.ctx);
       const row = rows.find(r => r.key === 'c');
       expect(row!.glossaryJson).toBe('["Job"]');
@@ -460,7 +460,7 @@ describe('Glossary', () => {
     it('export_card_to_file should include glossary in frontmatter', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await exportCardToFile(tc.ctx, 'c');
       const card = await getCard(tc.ctx, 'c');
       expect(card.card.frontmatter.glossary).toEqual(['Job']);
@@ -469,7 +469,7 @@ describe('Glossary', () => {
     it('sync_card_from_file should parse glossary into DB', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       // Re-sync from file
       const row = tc.ctx.cardRepo.findByKey('c');
       await syncCardFromFile(tc.ctx, row!.filePath);
@@ -479,7 +479,7 @@ describe('Glossary', () => {
 
     it('cards with empty glossary_json should not have glossary field', async () => {
       tc = await createTestContext();
-      await createCard(tc.ctx, { key: 'c', summary: 's', type: 'intent' });
+      await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       const result = await getCard(tc.ctx, 'c');
       expect(result.card.frontmatter.glossary).toBeUndefined();
     });
@@ -505,7 +505,7 @@ describe('Glossary', () => {
     it('analyze should include glossary stats', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Orphan', definition: 'b' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const result = await analyze(tc.ctx);
       expect(result.glossary.totalWords).toBe(2);
       expect(result.glossary.unusedWords).toContain('Orphan');
@@ -519,9 +519,9 @@ describe('Glossary', () => {
     it('should find cards declaring a specific glossary word', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Worker', definition: 'b' }] });
-      await createCard(tc.ctx, { key: 'c1', summary: 'Job card', type: 'intent', glossary: ['Job'] });
-      await createCard(tc.ctx, { key: 'c2', summary: 'Both card', type: 'intent', glossary: ['Job', 'Worker'] });
-      await createCard(tc.ctx, { key: 'c3', summary: 'Worker card', type: 'intent', glossary: ['Worker'] });
+      await createCard(tc.ctx, { key: 'c1', summary: 'Job card', type: 'brief', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c2', summary: 'Both card', type: 'brief', glossary: ['Job', 'Worker'] });
+      await createCard(tc.ctx, { key: 'c3', summary: 'Worker card', type: 'brief', glossary: ['Worker'] });
 
       const jobCards = findCardsByGlossaryWord(tc.ctx, 'Job');
       expect(jobCards).toHaveLength(2);
@@ -544,8 +544,8 @@ describe('Glossary', () => {
     it('should delete all cards and clear glossary', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c1', summary: 'Job', type: 'intent', glossary: ['Job'] });
-      await createCard(tc.ctx, { key: 'c2', summary: 'Job 2', type: 'intent', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c1', summary: 'Job', type: 'brief', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c2', summary: 'Job 2', type: 'brief', glossary: ['Job'] });
 
       const result = await resetEmberdeck(tc.ctx);
       expect(result.cardsDeleted).toBe(2);

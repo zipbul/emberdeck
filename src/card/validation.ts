@@ -187,8 +187,8 @@ export function validateParentExists(ctx: EmberdeckContext, parentKey: string): 
 
 /**
  * Validates parent-type hierarchy rules:
- * - intent: parent must be null or intent
- * - spec: parent must be intent or spec
+ * - brief: parent must be null or brief
+ * - spec: parent must be brief or spec
  */
 export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
   const parent = ctx.cardRepo.findByKey(parentKey);
@@ -197,16 +197,16 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
   }
   const parentType = parent.type as CardType;
 
-  if (cardType === 'intent') {
-    if (parentType !== 'intent') {
+  if (cardType === 'brief') {
+    if (parentType !== 'brief') {
       throw new ParentValidationError(
-        `intent card parent must be intent (got "${parentType}")`,
+        `brief card parent must be brief (got "${parentType}")`,
       );
     }
   } else if (cardType === 'spec') {
-    if (parentType !== 'intent' && parentType !== 'spec') {
+    if (parentType !== 'brief' && parentType !== 'spec') {
       throw new ParentValidationError(
-        `spec card parent must be intent or spec (got "${parentType}")`,
+        `spec card parent must be brief or spec (got "${parentType}")`,
       );
     }
   }
@@ -247,9 +247,9 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
   const children = ctx.cardRepo.findChildren(cardKey);
   for (const child of children) {
     const childType = child.type as CardType;
-    if (newType === 'spec' && childType === 'intent') {
+    if (newType === 'spec' && childType === 'brief') {
       throw new ParentValidationError(
-        `Cannot change to spec: child "${child.key}" is intent (intent cannot have spec parent)`,
+        `Cannot change to spec: child "${child.key}" is brief (brief cannot have spec parent)`,
       );
     }
   }
@@ -257,14 +257,14 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
 
 /**
  * Activation guard: validates that a card meets the conditions for active status.
- * - intent: no conditions
+ * - brief: no conditions
  * - spec: codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
  */
 export async function validateActivationGuard(
   ctx: EmberdeckContext,
   card: { type: CardType; codeLinks?: Array<{ file: string; symbol: string }>; boundary?: string[] },
 ): Promise<void> {
-  if (card.type === 'intent') return;
+  if (card.type === 'brief') return;
 
   // spec activation conditions
   const unmet: string[] = [];

@@ -293,12 +293,12 @@ export async function validateCards(
   }
 
   for (const row of dbRows) {
-    // Orphan card: parent=null + type is not intent
-    if (!row.parent && row.type !== 'intent') {
+    // Orphan card: parent=null + type is not brief
+    if (!row.parent && row.type !== 'brief') {
       warnings.push({
         type: 'orphan-card',
         cardKey: row.key,
-        message: `Non-intent card has no parent`,
+        message: `Non-brief card has no parent`,
       });
     }
 
@@ -314,11 +314,11 @@ export async function validateCards(
     // Type hierarchy violation
     if (row.parent && cardByKey.has(row.parent)) {
       const parent = cardByKey.get(row.parent)!;
-      if (row.type === 'intent' && parent.type !== 'intent') {
+      if (row.type === 'brief' && parent.type !== 'brief') {
         warnings.push({
           type: 'type-hierarchy-violation',
           cardKey: row.key,
-          message: `Intent card has non-intent parent "${row.parent}" (type: ${parent.type})`,
+          message: `Brief card has non-brief parent "${row.parent}" (type: ${parent.type})`,
         });
       }
     }
@@ -352,15 +352,15 @@ export async function validateCards(
     }
   }
 
-  // Empty tree: intent card with no child specs (skip draft intent)
+  // Empty tree: brief card with no child specs (skip draft brief)
   for (const row of dbRows) {
-    if (row.type === 'intent' && row.status !== 'draft') {
+    if (row.type === 'brief' && row.status !== 'draft') {
       const children = dbRows.filter((r) => r.parent === row.key);
       if (children.length === 0) {
         warnings.push({
           type: 'empty-tree',
           cardKey: row.key,
-          message: `Active intent card has no child cards`,
+          message: `Active brief card has no child cards`,
         });
       }
     }
@@ -488,30 +488,30 @@ export async function validateCards(
     }
   }
 
-  // Broken chain: spec card with no relation to any intent card
+  // Broken chain: spec card with no relation to any brief card
   for (const row of dbRows) {
     if (row.type === 'spec') {
       const relations = ctx.relationRepo.findByCardKey(row.key);
       const forwardTargets = relations.filter((r) => !r.isReverse).map((r) => r.dstCardKey);
       const reverseTargets = relations.filter((r) => r.isReverse).map((r) => r.dstCardKey);
       const allRelated = [...forwardTargets, ...reverseTargets];
-      const hasIntentRelation = allRelated.some((targetKey) => {
+      const hasBriefRelation = allRelated.some((targetKey) => {
         const target = cardByKey.get(targetKey);
-        return target && target.type === 'intent';
+        return target && target.type === 'brief';
       });
-      // Also consider parent chain: if parent is intent, chain is intact
-      let hasIntentParent = false;
+      // Also consider parent chain: if parent is brief, chain is intact
+      let hasBriefParent = false;
       let current = row.parent;
       while (current) {
         const p = cardByKey.get(current);
-        if (p && p.type === 'intent') { hasIntentParent = true; break; }
+        if (p && p.type === 'brief') { hasBriefParent = true; break; }
         current = p?.parent ?? null;
       }
-      if (!hasIntentRelation && !hasIntentParent) {
+      if (!hasBriefRelation && !hasBriefParent) {
         warnings.push({
           type: 'broken-chain',
           cardKey: row.key,
-          message: `Spec card has no relation or parent link to any intent card`,
+          message: `Spec card has no relation or parent link to any brief card`,
         });
       }
     }

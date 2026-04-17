@@ -1,7 +1,7 @@
 /**
  * Brief validation module.
  *
- * Validates intent card bodies against the 8 required brief sections,
+ * Validates brief card bodies against the 8 required brief sections,
  * with L1 (structural) and L2 (lexical/INCOSE-based) quality checks.
  */
 
@@ -224,9 +224,9 @@ export interface BriefValidationResult {
 }
 
 /**
- * Validate an intent card (and its descendant intents) as a brief.
+ * Validate a brief card (and its descendant briefs) for completeness.
  *
- * 1. Reads the target card + descendant intent cards (BFS via parent-child).
+ * 1. Reads the target card + descendant brief cards (BFS via parent-child).
  * 2. Parses ## headings from all bodies.
  * 3. Checks required sections against REQUIRED_BRIEF_SECTIONS.
  * 4. Runs L1 + L2 quality checks on each section.
@@ -235,16 +235,16 @@ export function validateBrief(
   ctx: EmberdeckContext,
   cardKey: string,
 ): BriefValidationResult {
-  // Collect the target card + all descendant intent cards
+  // Collect the target card + all descendant brief cards
   const targetCard = ctx.cardRepo.findByKey(cardKey);
   if (!targetCard) {
     throw new Error(`Card not found: "${cardKey}"`);
   }
-  if (targetCard.type !== 'intent') {
-    throw new Error(`Card "${cardKey}" is type "${targetCard.type}", expected "intent"`);
+  if (targetCard.type !== 'brief') {
+    throw new Error(`Card "${cardKey}" is type "${targetCard.type}", expected "brief"`);
   }
 
-  // BFS to find all descendant intent cards
+  // BFS to find all descendant brief cards
   const cardsToCheck: Array<{ key: string; body: string }> = [];
   const queue = [cardKey];
   const visited = new Set<string>();
@@ -256,14 +256,14 @@ export function validateBrief(
 
     const card = ctx.cardRepo.findByKey(current);
     if (!card) continue;
-    if (card.type !== 'intent') continue;
+    if (card.type !== 'brief') continue;
 
     cardsToCheck.push({ key: card.key, body: card.body ?? '' });
 
     // Find children
     const children = ctx.cardRepo.findChildren(current);
     for (const child of children) {
-      if (child.type === 'intent' && !visited.has(child.key)) {
+      if (child.type === 'brief' && !visited.has(child.key)) {
         queue.push(child.key);
       }
     }

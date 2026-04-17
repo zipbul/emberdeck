@@ -8,7 +8,7 @@ description: Design knowledge management for codebases using Emberdeck MCP tools
 1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
 </critical>
 2. Show card analysis to user and get confirmation before creating any card.
-3. Intent cards are design documents. When creating an intent card as a **brief** (기획서), structure the body with these 8 required sections using exact `## ` headings:
+3. Brief cards are design documents. When creating an brief card as a **brief** (기획서), structure the body with these 8 required sections using exact `## ` headings:
    - `## Motivation` — Why this exists. Problem statement, background.
    - `## Scope` — Goals and non-goals. What we will and will NOT do.
    - `## Scenario` — How users/consumers interact. Happy path flows.
@@ -64,12 +64,12 @@ Match the FIRST row whose signal is true, then follow the named workflow.
    **After reading, list every `src/ops/*.ts` file with its cross-module contracts. Show this audit to the user before proceeding.** If a file has no contracts worth carding, state why explicitly.
 3. **Determine card boundaries by change independence.** For each group of design decisions: "If decision A changes, must decision B also change?" If no → separate cards. Apply the splitting criteria in `<card_splitting>`.
 4. Propose glossary to user (see glossary-proposal template — include Evidence column). Get confirmation. `emberdeck_define_glossary`.
-5. Create intent cards (with `glossary` field). Show card-analysis template for each. Run `<self_review>` on each card before proposing.
-6. Create spec cards under intents (with `glossary`, `codeLinks`, `relations`). Run `<self_review>` on each card before proposing.
+5. Create brief cards (with `glossary` field). Show card-analysis template for each. Run `<self_review>` on each card before proposing.
+6. Create spec cards under briefs (with `glossary`, `codeLinks`, `relations`). Run `<self_review>` on each card before proposing.
 7. **COLLECTION REVIEW** — after creating all cards, before gates:
-   (a) **Intent decomposition**: For each intent, count unrelated items in its Scope "Covers" list. 3+ unrelated items → split into separate intents.
+   (a) **Brief decomposition**: For each brief, count unrelated items in its Scope "Covers" list. 3+ unrelated items → split into separate briefs.
    (b) **Function coverage check**: For each `src/ops/*.ts` file, list all exported functions. For each exported function NOT referenced by any spec card's codeLinks, apply the counter-test: "Does this function have cross-module behavior that breaks if a caller changes assumptions?" If yes → add it to an existing spec's codeLinks or create a new spec card. A file being covered by one spec does NOT mean all functions in that file are covered.
-   (c) **Glossary-intent alignment**: For each glossary term, verify at least one intent primarily discusses this concept. If a glossary term has no governing intent → create an intent or revise glossary.
+   (c) **Glossary-brief alignment**: For each glossary term, verify at least one brief primarily discusses this concept. If a glossary term has no governing brief → create a brief or revise glossary.
    Fix any issues found before proceeding to gates.
 8. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken, 0 broken-chain, and 0 orphan-card warnings before finishing.
 9. GATE: `emberdeck_get_link_coverage` — every file under `src/ops/` MUST be referenced by at least one spec card's codeLinks or boundary. If uncovered files exist, create spec cards for them.
@@ -91,7 +91,7 @@ Match the FIRST row whose signal is true, then follow the named workflow.
    - medium/low risk: proceed.
 2. `emberdeck_get_card` for each affected card — these are your constraints.
    - Direct cards: read full body. Transitive cards: summary only.
-3. If no cards exist for the area: create intent card first (show card-analysis, include glossary), then spec cards. Run `<self_review>` before proposing each card.
+3. If no cards exist for the area: create brief card first (show card-analysis, include glossary), then spec cards. Run `<self_review>` before proposing each card.
 4. Write code within card constraints.
 5. If a new domain concept emerges: propose glossary entry to user → `emberdeck_define_glossary` → update affected cards' glossary fields.
 6. If your change extends an existing spec's scope: update the spec card body and glossary field. Run `<self_review>` on the updated card.
@@ -120,11 +120,11 @@ Rename sequence:
 3. `emberdeck_update_card` with bodyPatches to replace old word in each affected body.
 
 Card creation — always include:
-- `type`: intent (design documents) or spec (behavioral contracts)
+- `type`: brief (design documents) or spec (behavioral contracts)
 - `glossary`: primary domain concepts this card discusses (required when glossary.yaml exists)
-- `parent`: required for spec cards (must be an intent or spec card)
+- `parent`: required for spec cards (must be a brief or spec card)
 - `codeLinks`: required for spec cards
-- `relations`: spec cards relate to at least one intent card
+- `relations`: spec cards relate to at least one brief card
 - `boundary`: file glob patterns this card is responsible for (recommended for specs)
 
 </tool_protocol>
@@ -134,7 +134,7 @@ Show this to the user before every card creation:
 
 ```
 ### Card analysis: {key}
-- **Type**: intent | spec
+- **Type**: brief | spec
 - **Glossary**: [{primary domain concepts this card discusses}]
 - **Must guarantee**: {what this card ensures}
 - **Excluded**: {what is deliberately out of scope}
@@ -164,7 +164,7 @@ When `emberdeck_validate_cards` reports warnings:
 | glossary-broken | Card declares a glossary word that no longer exists in glossary.yaml | `emberdeck_define_glossary` to re-add, or `emberdeck_update_card` to remove the word from the card's glossary field |
 | glossary-unused | Glossary word not declared by any card | Informational — consider creating a card that discusses this concept or removing the glossary entry |
 | content-mismatch | DB and file diverged | `emberdeck_export_card_to_file` to regenerate file from DB |
-| broken-chain | Spec card has no link to any intent card | Add a relation or parent to an intent card |
+| broken-chain | Spec card has no link to any brief card | Add a relation or parent to an brief card |
 
 When `emberdeck_validate_code_links` finds broken links:
 1. Check if the symbol was renamed → `emberdeck_sync_symbol_changes`.
@@ -175,13 +175,13 @@ When `emberdeck_validate_code_links` finds broken links:
 
 <card_types>
 
-## intent — Design document
+## brief — Design document
 
-An intent card answers: **"What are we building, why, and under what constraints?"**
+An brief card answers: **"What are we building, why, and under what constraints?"**
 
-It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from intent cards — no spec exists without an intent that justifies it. No codeLinks. Can be root card.
+It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from brief cards — no spec exists without a brief that justifies it. No codeLinks. Can be root card.
 
-### REQUIRED content in intent body:
+### REQUIRED content in brief body:
 
 **Problem & Goals** — What problem this design solves and what outcomes it achieves. Be specific: who has the problem, what breaks without this, what success looks like.
 
@@ -193,7 +193,7 @@ It is a design document that defines the problem, goals, user scenarios, require
 
 **Scope & Constraints** — What this design covers, what it explicitly excludes, and what assumptions were made.
 
-### GOOD intent card body:
+### GOOD brief card body:
 
 ```
 ## Problem & Goals
@@ -228,7 +228,7 @@ Then the card auto-transitions to drifted status in both DB and file.
 - Assumes: gildash is available for symbol resolution when projectRoot is set.
 ```
 
-### BAD intent card body (common mistakes):
+### BAD brief card body (common mistakes):
 
 - ✗ Code structure: "The system uses SQLite with Drizzle ORM. Cards are stored in the card table."
 - ✗ Abstract policy only: "Always: Card is source of truth." (policy without scenarios, requirements, or success criteria)
@@ -241,7 +241,7 @@ Then the card auto-transitions to drifted status in both DB and file.
 
 A spec card answers: **"What does the system guarantee?"**
 
-It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one intent card — a contract without governing design is rootless. Requires codeLinks.
+It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one brief card — a contract without governing design is rootless. Requires codeLinks.
 
 ### REQUIRED content in spec body:
 
@@ -265,7 +265,7 @@ It captures verifiable behavioral contracts bound to specific code symbols via c
 
 ### BAD spec card body (common mistakes):
 
-- ✗ Policies: "We always use compensation pattern" (belongs in intent)
+- ✗ Policies: "We always use compensation pattern" (belongs in brief)
 - ✗ Implementation: "deleteByKey() calls SQL DELETE WHERE key=?" (discoverable from code)
 - ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not contract)
 - ✗ Verification commands: "Run `bun test`" (tooling, not contract)
@@ -275,7 +275,7 @@ It captures verifiable behavioral contracts bound to specific code symbols via c
 
 ## Summary: what goes where
 
-| Content | intent | spec | Neither |
+| Content | brief | spec | Neither |
 |---------|--------|------|---------|
 | Problem & Goals | ✓ | | |
 | User Scenarios (P1/P2/P3) | ✓ | | |
@@ -307,10 +307,10 @@ Deciding whether contracts belong in one card or should be split into separate c
 2. They share the **same codeLink set** — a change to any linked symbol affects all contracts equally.
 3. One contract drifting **necessarily means** the others also drift.
 
-**Intent decomposition:**
-Each intent card should represent one **independently designable area** — an area where design decisions can be made without consulting other intents. Signs of under-decomposition:
-- Intent has 4+ direct spec children → consider splitting the intent
-- Intent's Scope section lists 3+ unrelated "Covers" items → each is likely its own intent
+**Brief decomposition:**
+Each brief card should represent one **independently designable area** — an area where design decisions can be made without consulting other briefs. Signs of under-decomposition:
+- Intent has 4+ direct spec children → consider splitting the brief
+- Intent's Scope section lists 3+ unrelated "Covers" items → each is likely its own brief
 - Intent's requirements span two unrelated subsystems → split by subsystem
 </card_splitting>
 

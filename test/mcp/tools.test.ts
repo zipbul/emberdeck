@@ -269,7 +269,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'batch-b', summary: 'B', type: 'intent', body: 'Body B' },
+        arguments: { key: 'batch-b', summary: 'B', type: 'brief', body: 'Body B' },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_get_cards',
@@ -317,7 +317,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'batch-hist', summary: 'Hist', type: 'intent' },
+        arguments: { key: 'batch-hist', summary: 'Hist', type: 'brief' },
       });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -450,7 +450,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'status-card', summary: 'Status', type: 'intent' },
+        arguments: { key: 'status-card', summary: 'Status', type: 'brief' },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -588,7 +588,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should filter cards by status', async () => {
       s = await setupMcp();
       await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'draft-card', summary: 'D', type: 'spec' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'intent' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'brief' } });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
         arguments: { key: 'acc-card', status: 'active' },
@@ -1162,7 +1162,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'intent' },
+        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'brief' },
       });
 
       const statuses = ['active', 'drifted'] as const;
@@ -1268,7 +1268,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           key: 'typed-card',
           summary: 'Typed card',
-          type: 'intent',
+          type: 'brief',
         },
       });
       expect(result.isError).toBeFalsy();
@@ -1282,7 +1282,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       const card = parseText(get) as {
         card: { frontmatter: { type: string } };
       };
-      expect(card.card.frontmatter.type).toBe('intent');
+      expect(card.card.frontmatter.type).toBe('brief');
     });
 
     it('should filter cards by type', async () => {
@@ -1293,7 +1293,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'arch-1', summary: 'Intent 1', type: 'intent' },
+        arguments: { key: 'arch-1', summary: 'Intent 1', type: 'brief' },
       });
       await s.client.callTool({
         name: 'emberdeck_create_card',
@@ -1486,7 +1486,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           key: 'brief-test',
           summary: 'Brief test',
-          type: 'intent',
+          type: 'brief',
           body: [
             '## Motivation\n\nRevenue has plateaued for 3 years. Online channel needed.',
             '## Scope\n\nProduct search and ordering. No delivery tracking.',
@@ -1517,7 +1517,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: {
           key: 'brief-partial',
           summary: 'Partial brief',
-          type: 'intent',
+          type: 'brief',
           body: '## Motivation\n\nRevenue declining. Need online channel.',
         },
       });

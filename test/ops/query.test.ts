@@ -51,7 +51,7 @@ describe('getCard', () => {
 
   it('should include history when includeHistory is true', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'intent' });
+    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'brief' });
     await updateCardStatus(tc.ctx, 'q-hist', 'active');
     const result = await getCard(tc.ctx, 'q-hist', { includeHistory: true });
     expect(result.history).toBeDefined();
@@ -69,7 +69,7 @@ describe('getCards', () => {
   it('should return all cards when all keys exist', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'gc-a', summary: 'A', type: 'spec', body: 'Body A' });
-    await createCard(tc.ctx, { key: 'gc-b', summary: 'B', type: 'intent', body: 'Body B' });
+    await createCard(tc.ctx, { key: 'gc-b', summary: 'B', type: 'brief', body: 'Body B' });
     const result = await getCards(tc.ctx, ['gc-a', 'gc-b']);
     expect(result.cards).toHaveLength(2);
     expect(result.notFound).toHaveLength(0);
@@ -102,7 +102,7 @@ describe('getCards', () => {
 
   it('should include history when includeHistory is true', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'intent' });
+    await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'brief' });
     await updateCardStatus(tc.ctx, 'gc-hist', 'active');
     const result = await getCards(tc.ctx, ['gc-hist'], { includeHistory: true });
     expect(result.cards).toHaveLength(1);
@@ -143,7 +143,7 @@ describe('listCards', () => {
   it('should return only cards with matching status when filter.status is provided', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'flt-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'intent' });
+    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'brief' });
     await updateCardStatus(tc.ctx, 'flt-acc', 'active');
     const rows = listCards(tc.ctx, { status: 'active' });
     expect(rows.every((r) => r.status === 'active')).toBe(true);
@@ -247,7 +247,7 @@ describe('searchCards', () => {
 
   it('should return all non-body fields in searchCards results', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'srch-fields', summary: 'FieldCheck', type: 'intent' });
+    await createCard(tc.ctx, { key: 'srch-fields', summary: 'FieldCheck', type: 'brief' });
     const rows = searchCards(tc.ctx, 'FieldCheck');
     expect(rows).toHaveLength(1);
     expect(rows[0]!.key).toBe('srch-fields');

@@ -368,7 +368,7 @@ describe('validateCards', () => {
   // D-2: content-mismatch detection
   it('should report content-mismatch warning when DB status differs from file status', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cm-status', summary: 'S', type: 'intent' });
+    await createCard(tc.ctx, { key: 'cm-status', summary: 'S', type: 'brief' });
     // Directly mutate DB status without updating file
     tc.ctx.db.$client.prepare('UPDATE card SET status = ? WHERE key = ?').run('drifted', 'cm-status');
     const result = await validateCards(tc.ctx);
@@ -379,7 +379,7 @@ describe('validateCards', () => {
 
   it('should report content-mismatch warning when DB summary differs from file summary', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cm-summ', summary: 'Original', type: 'intent' });
+    await createCard(tc.ctx, { key: 'cm-summ', summary: 'Original', type: 'brief' });
     tc.ctx.db.$client.prepare('UPDATE card SET summary = ? WHERE key = ?').run('Tampered', 'cm-summ');
     const result = await validateCards(tc.ctx);
     const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch' && w.cardKey === 'cm-summ');
@@ -389,7 +389,7 @@ describe('validateCards', () => {
 
   it('should report two content-mismatch warnings when both status and summary differ', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cm-both', summary: 'S', type: 'intent' });
+    await createCard(tc.ctx, { key: 'cm-both', summary: 'S', type: 'brief' });
     tc.ctx.db.$client.prepare('UPDATE card SET status = ?, summary = ? WHERE key = ?').run('drifted', 'X', 'cm-both');
     const result = await validateCards(tc.ctx);
     const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch' && w.cardKey === 'cm-both');
@@ -398,7 +398,7 @@ describe('validateCards', () => {
 
   it('should not report content-mismatch when DB and file are in sync', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cm-ok', summary: 'OK', type: 'intent' });
+    await createCard(tc.ctx, { key: 'cm-ok', summary: 'OK', type: 'brief' });
     const result = await validateCards(tc.ctx);
     const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch');
     expect(mismatch).toHaveLength(0);
@@ -406,7 +406,7 @@ describe('validateCards', () => {
 
   it('should skip content-mismatch check for stale DB rows whose file was deleted', async () => {
     tc = await createTestContext();
-    const { filePath } = await createCard(tc.ctx, { key: 'cm-del', summary: 'Del', type: 'intent' });
+    const { filePath } = await createCard(tc.ctx, { key: 'cm-del', summary: 'Del', type: 'brief' });
     await unlink(filePath);
     const result = await validateCards(tc.ctx);
     const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch' && w.cardKey === 'cm-del');
@@ -560,7 +560,7 @@ describe('syncCardFromFile — type', () => {
   it('should persist type to DB when syncing a file with type in frontmatter', async () => {
     tc = await createTestContext();
     const content = serializeCardMarkdown(
-      { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'intent' },
+      { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'brief' },
       '',
     );
     const filePath = join(tc.cardsDir, 'sync-type.card.md');
@@ -569,7 +569,7 @@ describe('syncCardFromFile — type', () => {
 
     const row = tc.ctx.cardRepo.findByKey('sync-type');
     expect(row).not.toBeNull();
-    expect(row!.type).toBe('intent');
+    expect(row!.type).toBe('brief');
   });
 });
 
@@ -586,11 +586,11 @@ describe('exportCardToFile — type round-trip', () => {
 
   it('should include type in exported file when card has type', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'exp-type', summary: 'Type export', type: 'intent' });
+    await createCard(tc.ctx, { key: 'exp-type', summary: 'Type export', type: 'brief' });
 
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-type');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCardMarkdown(text);
-    expect(parsed.frontmatter.type).toBe('intent');
+    expect(parsed.frontmatter.type).toBe('brief');
   });
 });

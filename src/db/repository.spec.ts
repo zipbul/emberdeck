@@ -45,7 +45,7 @@ describe('CardRepository', () => {
     // Arrange
     const parent = makeCard({
       key: 'parent-arch',
-      type: 'intent',
+      type: 'brief',
       filePath: '.emberdeck/cards/parent-arch.card.md',
     });
     cardRepo.upsert(parent);
@@ -83,12 +83,12 @@ describe('CardRepository', () => {
     // Arrange
     const archA = makeCard({
       key: 'arch-a',
-      type: 'intent',
+      type: 'brief',
       filePath: '.emberdeck/cards/arch-a.card.md',
     });
     const archB = makeCard({
       key: 'arch-b',
-      type: 'intent',
+      type: 'brief',
       filePath: '.emberdeck/cards/arch-b.card.md',
     });
     cardRepo.upsert(archA);
@@ -124,7 +124,7 @@ describe('CardRepository', () => {
     // Arrange
     const parent = makeCard({
       key: 'parent-card',
-      type: 'intent',
+      type: 'brief',
       filePath: '.emberdeck/cards/parent-card.card.md',
     });
     const child = makeCard({
@@ -174,7 +174,7 @@ describe('CardRepository', () => {
     // Arrange
     const root = makeCard({
       key: 'root-card',
-      type: 'intent',
+      type: 'brief',
       parent: null,
       filePath: '.emberdeck/cards/root-card.card.md',
     });
@@ -243,7 +243,7 @@ describe('CardRepository', () => {
 
   it('list with tag + parent combined filter: returns only matching cards', () => {
     // Arrange
-    const arch = makeCard({ key: 'arch', type: 'intent', filePath: '.emberdeck/cards/arch.card.md' });
+    const arch = makeCard({ key: 'arch', type: 'brief', filePath: '.emberdeck/cards/arch.card.md' });
     const childA = makeCard({ key: 'child-a', parent: 'arch', filePath: '.emberdeck/cards/child-a.card.md' });
     const childB = makeCard({ key: 'child-b', parent: 'arch', filePath: '.emberdeck/cards/child-b.card.md' });
     const other = makeCard({ key: 'other', parent: null, filePath: '.emberdeck/cards/other.card.md' });
@@ -283,7 +283,7 @@ describe('CardRepository', () => {
     // Arrange
     const parent = makeCard({
       key: 'parent',
-      type: 'intent',
+      type: 'brief',
       filePath: '.emberdeck/cards/parent.card.md',
     });
     const childA = makeCard({
@@ -325,13 +325,13 @@ describe('CardRepository', () => {
     // Arrange
     const grandparent = makeCard({
       key: 'grandparent',
-      type: 'intent',
+      type: 'brief',
       parent: null,
       filePath: '.emberdeck/cards/grandparent.card.md',
     });
     const parent = makeCard({
       key: 'parent',
-      type: 'intent',
+      type: 'brief',
       parent: 'grandparent',
       filePath: '.emberdeck/cards/parent.card.md',
     });

@@ -1,5 +1,5 @@
 ---
-{key: impact-analysis,summary: Agents know which cards are affected before code changes and regressions are detected,status: draft,type: intent,glossary: [card,codeLink,boundary,drift]}
+{key: impact-analysis,summary: Agents know which cards are affected before code changes and regressions are detected,status: draft,type: brief,glossary: [card,codeLink,boundary,drift]}
 ---
 
 ## Problem & Goals

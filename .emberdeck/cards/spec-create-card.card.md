@@ -5,7 +5,7 @@
 ## Contracts
 - WHEN createCard is called with a valid key, THEN the card MUST be written to DB first, then to file. IF file write fails, DB MUST be compensated by deleting the card row.
 - WHEN a card with the same key already exists (file or DB), THEN CardAlreadyExistsError MUST be thrown before any mutation.
-- WHEN parent is specified, THEN parent existence, type hierarchy (intent->intent, spec->intent|spec), and circular reference checks MUST all pass before commit.
+- WHEN parent is specified, THEN parent existence, type hierarchy (brief->brief, spec->brief|spec), and circular reference checks MUST all pass before commit.
 - WHEN status=active is requested for a spec card, THEN the activation guard MUST verify all codeLinks resolve and boundary matches files.
 - WHEN the project glossary has entries, THEN the glossary field MUST be non-empty and all declared words MUST exist in the glossary.
 

@@ -76,7 +76,7 @@ function fail(err: unknown) {
 
 const codeLinkSchema = z.object({ kind: z.string(), file: z.string(), symbol: z.string() });
 const statusEnum = z.enum(['draft', 'active', 'drifted']);
-const cardTypeEnum = z.enum(['intent', 'spec']);
+const cardTypeEnum = z.enum(['brief', 'spec']);
 
 // ---- McpServer Type ----
 
@@ -104,13 +104,13 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_create_card',
     {
       description:
-        'Record a new intent or spec card before implementation. ' +
+        'Record a new brief or spec card before implementation. ' +
         'Use to capture design decisions, constraints, and contracts as a card. ' +
         'The body should contain design rationale, invariants, and scope boundaries — not file listings (use codeLinks for that).',
       inputSchema: z.object({
         key: z.string().describe('Card key used as filename (e.g. "auth-token")'),
         summary: z.string().describe('One-line summary of the card'),
-        type: cardTypeEnum.describe('Card type (intent/spec)'),
+        type: cardTypeEnum.describe('Card type (brief/spec)'),
         status: statusEnum.optional().describe('Initial status (default: draft). If active, activation guard is applied'),
         parent: z.string().optional().describe('Parent card key'),
         boundary: z.array(z.string()).optional().describe('File/directory glob patterns this card is responsible for'),
@@ -124,7 +124,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: {
       key: string;
       summary: string;
-      type: 'intent' | 'spec';
+      type: 'brief' | 'spec';
       status?: 'draft' | 'active' | 'drifted';
       parent?: string;
       boundary?: string[];
@@ -170,7 +170,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       cards: Array<{
         key: string;
         summary: string;
-        type: 'intent' | 'spec';
+        type: 'brief' | 'spec';
         status?: 'draft' | 'active' | 'drifted';
         parent?: string;
         boundary?: string[];
@@ -266,7 +266,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     async (args: {
       key: string;
       summary?: string;
-      type?: 'intent' | 'spec';
+      type?: 'brief' | 'spec';
       status?: 'draft' | 'active' | 'drifted';
       parent?: string | null;
       boundary?: string[];
@@ -374,7 +374,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     },
     async (args: {
       status?: 'draft' | 'active' | 'drifted';
-      type?: 'intent' | 'spec';
+      type?: 'brief' | 'spec';
       parent?: string;
       tag?: string;
       roots?: boolean;
@@ -411,7 +411,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         status: statusEnum.optional().describe('Filter by status'),
       }).strict(),
     },
-    async (args: { query: string; type?: 'intent' | 'spec'; status?: 'draft' | 'active' | 'drifted' }) => {
+    async (args: { query: string; type?: 'brief' | 'spec'; status?: 'draft' | 'active' | 'drifted' }) => {
       try {
         const result = searchCards(ctx, args.query, {
           type: args.type,
@@ -896,7 +896,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     {
       description:
         'Analyze directory structure and symbols to suggest where new cards should be created. ' +
-        'Groups uncovered symbols by directory and suggests intent or spec cards. ' +
+        'Groups uncovered symbols by directory and suggests brief or spec cards. ' +
         'Does not create cards — returns suggestions for review. Requires gildash.',
       inputSchema: z.object({
         path: z.string().optional().describe('Directory path to analyze (default: project root)'),
@@ -1073,13 +1073,13 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_validate_brief',
     {
       description:
-        'Validate an intent card as a brief (기획서). ' +
+        'Validate a brief card (기획서). ' +
         'Checks for 8 required sections (Motivation, Scope, Scenario, Rule, Constraint, Risk, Criteria, Decision) ' +
-        'in the card body and all descendant intent cards. ' +
+        'in the card body and all descendant brief cards. ' +
         'Runs L1 structural checks (empty sections, placeholders) and L2 lexical checks (INCOSE ambiguous terms). ' +
         'Use before creating spec cards to ensure the brief is complete.',
       inputSchema: z.object({
-        cardKey: z.string().describe('Intent card key to validate as a brief'),
+        cardKey: z.string().describe('Brief card key to validate'),
       }).strict(),
     },
     async ({ cardKey }: { cardKey: string }) => {

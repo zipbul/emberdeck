@@ -130,20 +130,20 @@ describe('E2E Scenario 1: Onboarding flow', () => {
       ],
     });
 
-    // Step 1: suggestCardScope → intent/spec suggestions
+    // Step 1: suggestCardScope → brief/spec suggestions
     const suggestions = await suggestCardScope(tc.ctx);
     expect(suggestions.length).toBeGreaterThanOrEqual(1);
     const apiSuggestion = suggestions.find((s) => s.suggestedKey === 'src/api');
     expect(apiSuggestion).toBeDefined();
-    expect(apiSuggestion!.type).toBe('intent');
+    expect(apiSuggestion!.type).toBe('brief');
 
     // Step 2: bulkCreateCards with parent relationship
     const bulk = await bulkCreateCards(tc.ctx, [
-      { key: 'platform', summary: 'Platform intent', type: 'intent' },
+      { key: 'platform', summary: 'Platform brief', type: 'brief' },
       {
         key: 'api-layer',
         summary: 'API layer',
-        type: 'intent',
+        type: 'brief',
         parent: 'platform',
         boundary: ['src/api/**'],
       },
@@ -244,12 +244,12 @@ describe('E2E Scenario 3: Design change flow', () => {
   it('should handle type change, activation guard, rename, and history', async () => {
     tc = await createTestContext();
 
-    // Step 1: Create intent card (no codeLinks) and activate it
+    // Step 1: Create brief card (no codeLinks) and activate it
     // Intent cards pass activation guard without codeLinks
     await createCard(tc.ctx, {
       key: 'infra-layer',
       summary: 'Infrastructure layer',
-      type: 'intent',
+      type: 'brief',
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const afterActive = await getCard(tc.ctx, 'infra-layer');
@@ -308,7 +308,7 @@ describe('E2E Scenario 4: Card deletion + cleanup', () => {
     await createCard(tc.ctx, {
       key: 'parent-mod',
       summary: 'Parent module',
-      type: 'intent',
+      type: 'brief',
     });
     await createCard(tc.ctx, {
       key: 'child-a',

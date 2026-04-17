@@ -19,7 +19,7 @@ DB codeLink에 있는데 소스에 없는 `@spec` 주석만 삽입하고, 소스
 | 2 | renameCard (키 변경) | FK CASCADE로 cardKey 갱신 | 구 키 @spec 잔류 + 신 키 부재 |
 | 3 | updateCard: codeLink 제거 | codeLink 행 삭제 | @spec 잔류 → ORPHAN |
 | 4 | updateCard: codeLink 변경 | 구 행 삭제 + 신 행 추가 | 구 심볼에 ORPHAN + 신 심볼에 MISSING |
-| 5 | spec→intent 타입 변경 | codeLinks 무의미화 | @spec 잔류 → ORPHAN |
+| 5 | spec→brief 타입 변경 | codeLinks 무의미화 | @spec 잔류 → ORPHAN |
 | 6 | DB 초기화 후 재카드화 | 새 키로 codeLink 생성 | 구 키 ORPHAN + 신 키 중복 삽입 |
 
 ## 요구 변경

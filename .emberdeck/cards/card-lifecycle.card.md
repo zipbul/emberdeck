@@ -1,5 +1,5 @@
 ---
-{key: card-lifecycle,summary: Card mutation operations maintain dual-storage consistency and enforce lifecycle rules,status: draft,type: intent,glossary: [card,dual storage,activation guard,compensation]}
+{key: card-lifecycle,summary: Card mutation operations maintain dual-storage consistency and enforce lifecycle rules,status: draft,type: brief,glossary: [card,dual storage,activation guard,compensation]}
 ---
 
 ## Problem & Goals

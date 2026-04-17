@@ -151,7 +151,7 @@ describe('getCardTree', () => {
 
   it('builds a 3-level tree with correct structure', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'root', summary: 'Root', type: 'intent' });
+    await createCard(tc.ctx, { key: 'root', summary: 'Root', type: 'brief' });
     await createCard(tc.ctx, { key: 'child-a', summary: 'Child A', type: 'spec', parent: 'root' });
     await createCard(tc.ctx, { key: 'child-b', summary: 'Child B', type: 'spec', parent: 'root' });
     await createCard(tc.ctx, { key: 'grandchild', summary: 'Grandchild', type: 'spec', parent: 'child-a' });
@@ -174,7 +174,7 @@ describe('getCardTree', () => {
 
   it('truncates at maxDepth and sets truncated=true only when children exist', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'r', summary: 'Root', type: 'intent' });
+    await createCard(tc.ctx, { key: 'r', summary: 'Root', type: 'brief' });
     await createCard(tc.ctx, { key: 'l1', summary: 'Level 1', type: 'spec', parent: 'r' });
     await createCard(tc.ctx, { key: 'l2', summary: 'Level 2', type: 'spec', parent: 'l1' });
 
@@ -188,7 +188,7 @@ describe('getCardTree', () => {
 
   it('leaf nodes: empty children, no truncated flag', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'leaf-root', summary: 'Root', type: 'intent' });
+    await createCard(tc.ctx, { key: 'leaf-root', summary: 'Root', type: 'brief' });
     await createCard(tc.ctx, { key: 'leaf-child', summary: 'Leaf', type: 'spec', parent: 'leaf-root' });
 
     const tree = getCardTree(tc.ctx, 'leaf-root');
@@ -204,7 +204,7 @@ describe('getCardTree', () => {
 
   it('caps maxDepth at 20', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cap-root', summary: 'Root', type: 'intent' });
+    await createCard(tc.ctx, { key: 'cap-root', summary: 'Root', type: 'brief' });
     const tree = getCardTree(tc.ctx, 'cap-root', 100);
     expect(tree.key).toBe('cap-root');
     expect(tree.children).toHaveLength(0);
@@ -212,16 +212,16 @@ describe('getCardTree', () => {
 
   it('includes type and status in tree nodes', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'typed-root', summary: 'Root', type: 'intent' });
+    await createCard(tc.ctx, { key: 'typed-root', summary: 'Root', type: 'brief' });
     const tree = getCardTree(tc.ctx, 'typed-root');
-    expect(tree.type).toBe('intent');
+    expect(tree.type).toBe('brief');
     expect(tree.status).toBe('draft');
     expect(tree.summary).toBe('Root');
   });
 
   it('starting from a non-root (middle) node shows only its subtree', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'top', summary: 'Top', type: 'intent' });
+    await createCard(tc.ctx, { key: 'top', summary: 'Top', type: 'brief' });
     await createCard(tc.ctx, { key: 'mid', summary: 'Mid', type: 'spec', parent: 'top' });
     await createCard(tc.ctx, { key: 'bot', summary: 'Bot', type: 'spec', parent: 'mid' });
 
@@ -235,7 +235,7 @@ describe('getCardTree', () => {
 
   it('relations are not traversed, only parent/child hierarchy', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'tr-root', summary: 'Root', type: 'intent' });
+    await createCard(tc.ctx, { key: 'tr-root', summary: 'Root', type: 'brief' });
     await createCard(tc.ctx, { key: 'tr-child', summary: 'Child', type: 'spec', parent: 'tr-root' });
     // rel-target is related via relation, NOT a child
     await createCard(tc.ctx, { key: 'rel-target', summary: 'RelTarget', type: 'spec' });

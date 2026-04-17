@@ -75,7 +75,7 @@ describe('validateParentExists', () => {
   it('does not throw when parent exists', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'existing-parent', type: 'intent', filePath: '.emberdeck/cards/existing-parent.card.md' }),
+      makeCard({ key: 'existing-parent', type: 'brief', filePath: '.emberdeck/cards/existing-parent.card.md' }),
     );
 
     // Act / Assert
@@ -86,14 +86,14 @@ describe('validateParentExists', () => {
 // ── validateParentType ──────────────────────────────────────────────────────
 
 describe('validateParentType', () => {
-  it('intent parent for intent child: OK', () => {
+  it('brief parent for brief child: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'arch-parent', type: 'intent', filePath: '.emberdeck/cards/arch-parent.card.md' }),
+      makeCard({ key: 'arch-parent', type: 'brief', filePath: '.emberdeck/cards/arch-parent.card.md' }),
     );
 
     // Act / Assert
-    expect(() => validateParentType(ctx, 'intent', 'arch-parent')).not.toThrow();
+    expect(() => validateParentType(ctx, 'brief', 'arch-parent')).not.toThrow();
   });
 
   it('spec parent for spec child: OK', () => {
@@ -106,24 +106,24 @@ describe('validateParentType', () => {
     expect(() => validateParentType(ctx, 'spec', 'spec-parent')).not.toThrow();
   });
 
-  it('intent parent for spec child: OK', () => {
+  it('brief parent for spec child: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'arch-parent', type: 'intent', filePath: '.emberdeck/cards/arch-parent.card.md' }),
+      makeCard({ key: 'arch-parent', type: 'brief', filePath: '.emberdeck/cards/arch-parent.card.md' }),
     );
 
     // Act / Assert
     expect(() => validateParentType(ctx, 'spec', 'arch-parent')).not.toThrow();
   });
 
-  it('spec parent for intent child: throws ParentValidationError', () => {
+  it('spec parent for brief child: throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
       makeCard({ key: 'spec-parent', type: 'spec', filePath: '.emberdeck/cards/spec-parent.card.md' }),
     );
 
     // Act / Assert
-    expect(() => validateParentType(ctx, 'intent', 'spec-parent')).toThrow(ParentValidationError);
+    expect(() => validateParentType(ctx, 'brief', 'spec-parent')).toThrow(ParentValidationError);
   });
 
   it('non-existent parent: throws ParentValidationError', () => {
@@ -139,10 +139,10 @@ describe('validateParentCycle', () => {
     // Arrange — A exists with parent=B, B exists with parent=null
     // We want to set B.parent = A which would create A->B->A
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-b', parent: null, type: 'intent', filePath: '.emberdeck/cards/card-b.card.md' }),
+      makeCard({ key: 'card-b', parent: null, type: 'brief', filePath: '.emberdeck/cards/card-b.card.md' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-a', parent: 'card-b', type: 'intent', filePath: '.emberdeck/cards/card-a.card.md' }),
+      makeCard({ key: 'card-a', parent: 'card-b', type: 'brief', filePath: '.emberdeck/cards/card-a.card.md' }),
     );
 
     // Act / Assert — trying to set B's parent to A
@@ -152,13 +152,13 @@ describe('validateParentCycle', () => {
   it('A->B->C (no cycle): OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-c', parent: null, type: 'intent', filePath: '.emberdeck/cards/card-c.card.md' }),
+      makeCard({ key: 'card-c', parent: null, type: 'brief', filePath: '.emberdeck/cards/card-c.card.md' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-b', parent: 'card-c', type: 'intent', filePath: '.emberdeck/cards/card-b.card.md' }),
+      makeCard({ key: 'card-b', parent: 'card-c', type: 'brief', filePath: '.emberdeck/cards/card-b.card.md' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-a', parent: 'card-b', type: 'intent', filePath: '.emberdeck/cards/card-a.card.md' }),
+      makeCard({ key: 'card-a', parent: 'card-b', type: 'brief', filePath: '.emberdeck/cards/card-a.card.md' }),
     );
 
     // Act / Assert — setting A's parent to B (already the case, no cycle with C)
@@ -168,7 +168,7 @@ describe('validateParentCycle', () => {
   it('self-reference (parent=self): throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'self-ref', parent: null, type: 'intent', filePath: '.emberdeck/cards/self-ref.card.md' }),
+      makeCard({ key: 'self-ref', parent: null, type: 'brief', filePath: '.emberdeck/cards/self-ref.card.md' }),
     );
 
     // Act / Assert
@@ -225,28 +225,28 @@ describe('validateRelationTargets', () => {
 // ── validateChildrenHierarchy ───────────────────────────────────────────────
 
 describe('validateChildrenHierarchy', () => {
-  it('change arch->spec with intent children: throws ParentValidationError', () => {
+  it('change arch->spec with brief children: throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'parent', type: 'intent', filePath: '.emberdeck/cards/parent.card.md' }),
+      makeCard({ key: 'parent', type: 'brief', filePath: '.emberdeck/cards/parent.card.md' }),
     );
     ctx.cardRepo.upsert(
       makeCard({
         key: 'arch-child',
-        type: 'intent',
+        type: 'brief',
         parent: 'parent',
         filePath: '.emberdeck/cards/arch-child.card.md',
       }),
     );
 
-    // Act / Assert — changing parent from intent to spec
+    // Act / Assert — changing parent from brief to spec
     expect(() => validateChildrenHierarchy(ctx, 'parent', 'spec')).toThrow(ParentValidationError);
   });
 
   it('change arch->spec with spec children: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'parent', type: 'intent', filePath: '.emberdeck/cards/parent.card.md' }),
+      makeCard({ key: 'parent', type: 'brief', filePath: '.emberdeck/cards/parent.card.md' }),
     );
     ctx.cardRepo.upsert(
       makeCard({
@@ -276,13 +276,13 @@ describe('validateChildrenHierarchy', () => {
     );
 
     // Act / Assert
-    expect(() => validateChildrenHierarchy(ctx, 'parent', 'intent')).not.toThrow();
+    expect(() => validateChildrenHierarchy(ctx, 'parent', 'brief')).not.toThrow();
   });
 
   it('no children: OK for any type change', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'lonely', type: 'intent', filePath: '.emberdeck/cards/lonely.card.md' }),
+      makeCard({ key: 'lonely', type: 'brief', filePath: '.emberdeck/cards/lonely.card.md' }),
     );
 
     // Act / Assert
@@ -293,10 +293,10 @@ describe('validateChildrenHierarchy', () => {
 // ── validateActivationGuard ─────────────────────────────────────────────────
 
 describe('validateActivationGuard', () => {
-  it('intent type: always passes (no conditions)', async () => {
+  it('brief type: always passes (no conditions)', async () => {
     // Act / Assert
     await expect(
-      validateActivationGuard(ctx, { type: 'intent' }),
+      validateActivationGuard(ctx, { type: 'brief' }),
     ).resolves.toBeUndefined();
   });
 
@@ -353,7 +353,7 @@ describe('validateTypeChangeActivation', () => {
     // Act
     const result = await validateTypeChangeActivation(
       ctx,
-      { status: 'active', type: 'intent', codeLinks: [] },
+      { status: 'active', type: 'brief', codeLinks: [] },
       'spec',
     );
 
@@ -366,7 +366,7 @@ describe('validateTypeChangeActivation', () => {
     const result = await validateTypeChangeActivation(
       ctx,
       { status: 'active', type: 'spec', codeLinks: [{ file: 'src/a.ts', symbol: 'x' }] },
-      'intent',
+      'brief',
     );
 
     // Assert
@@ -378,7 +378,7 @@ describe('validateTypeChangeActivation', () => {
     const result = await validateTypeChangeActivation(
       ctx,
       { status: 'drifted', type: 'spec', codeLinks: [] },
-      'intent',
+      'brief',
     );
 
     // Assert — not active, so no re-validation
@@ -390,7 +390,7 @@ describe('validateTypeChangeActivation', () => {
     const result = await validateTypeChangeActivation(
       ctx,
       { status: 'draft', type: 'spec', codeLinks: [] },
-      'intent',
+      'brief',
     );
 
     // Assert

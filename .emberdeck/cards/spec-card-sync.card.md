@@ -5,7 +5,7 @@
 ## Contracts
 - WHEN syncCardFromFile is called, THEN the file is read and all DB tables (card, relations, tags, codeLinks) MUST be updated in a single transaction.
 - WHEN bulkSyncCards encounters duplicate keys across files, THEN duplicates MUST be reported as errors and MUST NOT be synced (data loss prevention).
-- WHEN validateCards is called, THEN it MUST detect: stale DB rows, orphan files, key mismatches, broken parents, type hierarchy violations, broken relations, boundary overlaps, content mismatches, glossary-broken, glossary-unused, and broken-chain (spec with no intent link).
+- WHEN validateCards is called, THEN it MUST detect: stale DB rows, orphan files, key mismatches, broken parents, type hierarchy violations, broken relations, boundary overlaps, content mismatches, glossary-broken, glossary-unused, and broken-chain (spec with no brief link).
 - WHEN exportCardToFile is called, THEN DB state MUST be serialized to the card file (reverse sync).
 - WHEN removeCardByFile is called, THEN the DB row and orphan tags MUST be cleaned up.
 

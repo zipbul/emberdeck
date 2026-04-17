@@ -1,5 +1,5 @@
 ---
-{key: glossary-system,summary: Domain vocabulary is consistent across all cards and glossary operations are atomic,status: draft,type: intent,glossary: [card,drift]}
+{key: glossary-system,summary: Domain vocabulary is consistent across all cards and glossary operations are atomic,status: draft,type: brief,glossary: [card,drift]}
 ---
 
 ## Problem & Goals

@@ -76,7 +76,7 @@ describe('getOnboardingSummary', () => {
     const result = await getOnboardingSummary(ctx);
 
     expect(result.totalCards).toBe(0);
-    expect(result.byType).toEqual({ intent: 0, spec: 0 });
+    expect(result.byType).toEqual({ brief: 0, spec: 0 });
     expect(result.byStatus).toEqual({ draft: 0, active: 0, drifted: 0 });
     expect(result.hierarchy).toEqual([]);
     expect(result.coverageRatio).toBeNull();
@@ -86,9 +86,9 @@ describe('getOnboardingSummary', () => {
 
   it('counts cards by type correctly', async () => {
     ctx.cardRepo.upsert(makeCard({
-      key: 'intent-a',
-      type: 'intent',
-      filePath: '.emberdeck/cards/intent-a.card.md',
+      key: 'brief-a',
+      type: 'brief',
+      filePath: '.emberdeck/cards/brief-a.card.md',
     }));
     ctx.cardRepo.upsert(makeCard({
       key: 'spec-a',
@@ -104,7 +104,7 @@ describe('getOnboardingSummary', () => {
     const result = await getOnboardingSummary(ctx);
 
     expect(result.totalCards).toBe(3);
-    expect(result.byType).toEqual({ intent: 1, spec: 2 });
+    expect(result.byType).toEqual({ brief: 1, spec: 2 });
   });
 
   it('counts cards by status correctly', async () => {
@@ -131,16 +131,16 @@ describe('getOnboardingSummary', () => {
 
   it('builds hierarchy with root cards and children', async () => {
     ctx.cardRepo.upsert(makeCard({
-      key: 'root-intent',
-      type: 'intent',
-      summary: 'Root intent',
-      filePath: '.emberdeck/cards/root-intent.card.md',
+      key: 'root-brief',
+      type: 'brief',
+      summary: 'Root brief',
+      filePath: '.emberdeck/cards/root-brief.card.md',
     }));
     ctx.cardRepo.upsert(makeCard({
       key: 'child-spec',
       type: 'spec',
       summary: 'Child spec',
-      parent: 'root-intent',
+      parent: 'root-brief',
       filePath: '.emberdeck/cards/child-spec.card.md',
     }));
 
@@ -148,7 +148,7 @@ describe('getOnboardingSummary', () => {
 
     expect(result.hierarchy).toHaveLength(1);
     const rootNode = result.hierarchy[0]!;
-    expect(rootNode.key).toBe('root-intent');
+    expect(rootNode.key).toBe('root-brief');
     expect(rootNode.children).toHaveLength(1);
     expect(rootNode.children[0]!.key).toBe('child-spec');
   });
@@ -157,13 +157,13 @@ describe('getOnboardingSummary', () => {
     // Create a 4-level deep hierarchy
     ctx.cardRepo.upsert(makeCard({
       key: 'level-0',
-      type: 'intent',
+      type: 'brief',
       summary: 'Level 0',
       filePath: '.emberdeck/cards/level-0.card.md',
     }));
     ctx.cardRepo.upsert(makeCard({
       key: 'level-1',
-      type: 'intent',
+      type: 'brief',
       summary: 'Level 1',
       parent: 'level-0',
       filePath: '.emberdeck/cards/level-1.card.md',
@@ -251,7 +251,7 @@ describe('getOnboardingSummary', () => {
     // Build a realistic small project
     ctx.cardRepo.upsert(makeCard({
       key: 'arch',
-      type: 'intent',
+      type: 'brief',
       status: 'active',
       summary: 'Architecture',
       filePath: '.emberdeck/cards/arch.card.md',
@@ -274,7 +274,7 @@ describe('getOnboardingSummary', () => {
     }));
     ctx.cardRepo.upsert(makeCard({
       key: 'standalone',
-      type: 'intent',
+      type: 'brief',
       status: 'drifted',
       summary: 'Standalone drifted',
       filePath: '.emberdeck/cards/standalone.card.md',
@@ -286,7 +286,7 @@ describe('getOnboardingSummary', () => {
     const result = await getOnboardingSummary(ctx);
 
     expect(result.totalCards).toBe(4);
-    expect(result.byType).toEqual({ intent: 2, spec: 2 });
+    expect(result.byType).toEqual({ brief: 2, spec: 2 });
     expect(result.byStatus).toEqual({ draft: 1, active: 2, drifted: 1 });
     expect(result.hierarchy).toHaveLength(2); // arch + standalone are roots
     expect(result.relationCount).toBe(1);

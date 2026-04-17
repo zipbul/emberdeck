@@ -48,9 +48,9 @@ describe('DrizzleClassificationRepository', () => {
     // Arrange
     insertCard('t1');
     // Act
-    repo.replaceTags('t1', ['intent']);
+    repo.replaceTags('t1', ['brief']);
     // Assert
-    expect(repo.findTagsByCard('t1')).toContain('intent');
+    expect(repo.findTagsByCard('t1')).toContain('brief');
   });
 
   it('should return mapped tag names when findTagsByCard is called after replaceTags', () => {

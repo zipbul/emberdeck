@@ -57,7 +57,7 @@ TBD/placeholder detection and ambiguous term blacklists are immediately applicab
 
 ### Overview
 
-The brief system structures intent card bodies with 8 required sections and validates completeness + content quality. No new card types, fields, or schema changes.
+The brief system structures brief card bodies with 8 required sections and validates completeness + content quality. No new card types, fields, or schema changes.
 
 ### Required Sections (8)
 
@@ -145,7 +145,7 @@ Sources: INCOSE 42 Rules (reqi.io), NASA Appendix C (nasa.gov), GitHub TODOCS pa
 ```markdown
 ---
 key: shopping-mall
-type: intent
+type: brief
 summary: Online shopping mall service brief
 status: draft
 glossary: [product, sku, option, order, cart]
@@ -235,14 +235,14 @@ Target: 30% revenue increase within 12 months of launch.
 
 ### Multiple Intent Cards (Large Service)
 
-For larger services, the brief splits across multiple intent cards using parent-child hierarchy:
+For larger services, the brief splits across multiple brief cards using parent-child hierarchy:
 
 ```
-shopping-mall (root intent — may contain all 8 sections or just overview)
-├── shopping-mall-product (intent — product domain brief with 8 sections)
-├── shopping-mall-order (intent — order domain brief with 8 sections)
-├── shopping-mall-payment (intent — payment domain brief with 8 sections)
-└── shopping-mall-cs (intent — customer service brief with 8 sections)
+shopping-mall (root brief — may contain all 8 sections or just overview)
+├── shopping-mall-product (brief — product domain brief with 8 sections)
+├── shopping-mall-order (brief — order domain brief with 8 sections)
+├── shopping-mall-payment (brief — payment domain brief with 8 sections)
+└── shopping-mall-cs (brief — customer service brief with 8 sections)
 ```
 
 **When to split** (research-backed criteria):
@@ -257,15 +257,15 @@ shopping-mall (root intent — may contain all 8 sections or just overview)
 - Original becomes parent, splits become children
 - Each child card has its own 8 sections relevant to its scope
 
-When split, `validate_brief` scans the target card's body AND all descendant intent cards.
+When split, `validate_brief` scans the target card's body AND all descendant brief cards.
 
 ### MCP Tool: `emberdeck_validate_brief`
 
 **Input:**
-- `cardKey` (required): Intent card key to validate.
+- `cardKey` (required): Brief card key to validate.
 
 **Logic:**
-1. Read the target intent card and all descendant intent cards (BFS via parent-child).
+1. Read the target brief card and all descendant brief cards (BFS via parent-child).
 2. Parse `## ` headings from all bodies (case-insensitive match).
 3. Check required sections against `REQUIRED_BRIEF_SECTIONS`.
 4. For each present section, run L1 and L2 quality checks.
@@ -301,7 +301,7 @@ When split, `validate_brief` scans the target card's body AND all descendant int
 
 ### Brief Change Impact Tracking
 
-When an intent card's body is updated:
+When an brief card's body is updated:
 1. Detect which `## ` sections changed (diff previous vs new body).
 2. Find all spec cards connected via `relations` or `parent-child`.
 3. If changed section is `## Rule`, `## Constraint`, or `## Risk`, flag connected spec cards for review.
@@ -311,7 +311,7 @@ This leverages existing infrastructure: `get_relation_graph` (BFS), `check_drift
 
 ### Integration Points
 
-- **SKILL.md**: Instructs AI to write 8 brief sections in intent cards before creating specs. Instructs AI to call `validate_brief` before proceeding to spec creation.
+- **SKILL.md**: Instructs AI to write 8 brief sections in brief cards before creating specs. Instructs AI to call `validate_brief` before proceeding to spec creation.
 - **`emberdeck_analyze`**: Includes brief completeness + quality as a section.
 - **`emberdeck_onboarding_summary`**: Mentions brief completion status.
 - **`emberdeck_pre_change_check`**: Surfaces brief context (rules, constraints, risks) when modifying code.
@@ -319,7 +319,7 @@ This leverages existing infrastructure: `get_relation_graph` (BFS), `check_drift
 ### Cross-Cutting Policies
 
 Policies spanning multiple features:
-- Write as `## Rule` or `## Constraint` section in an intent card
+- Write as `## Rule` or `## Constraint` section in an brief card
 - Other cards reference via `relations: [policy-card-key]`
 - `emberdeck_get_card_context` traverses relations to surface relevant policies
 
@@ -329,7 +329,7 @@ Glossary remains the only separate central system (terms are simple key-value; p
 
 | Item | Reason |
 |------|--------|
-| Card types (intent/spec) | No new types needed |
+| Card types (brief/spec) | No new types needed |
 | CardFrontmatter schema | No new fields |
 | Database schema | No migration needed |
 | Parent-child hierarchy rules | Already flexible |
@@ -376,7 +376,7 @@ User: "Make a shopping mall"
 
 Step 1 — AI reads SKILL.md, knows 8 required sections
 
-Step 2 — AI creates intent card with structured body:
+Step 2 — AI creates brief card with structured body:
   ## Motivation, ## Scope, ## Scenario, ## Rule,
   ## Constraint, ## Risk, ## Criteria, ## Decision
 
@@ -388,7 +388,7 @@ Step 4 — AI calls emberdeck_validate_brief(cardKey: "shopping-mall")
 
 Step 5 — If incomplete or quality issues, AI fixes
 
-Step 6 — AI creates spec cards under the intent card
+Step 6 — AI creates spec cards under the brief card
   → Spec cards reference brief rules/constraints via relations
 
 Step 7 — AI writes code, constrained by specs

@@ -1,5 +1,5 @@
 ---
-{key: drift-detection,summary: Drifted cards are detected and transitioned automatically with no silent drift,status: draft,type: intent,glossary: [card,drift,codeLink,boundary,gildash]}
+{key: drift-detection,summary: Drifted cards are detected and transitioned automatically with no silent drift,status: draft,type: brief,glossary: [card,drift,codeLink,boundary,gildash]}
 ---
 
 ## Problem & Goals

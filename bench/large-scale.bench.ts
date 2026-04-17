@@ -84,7 +84,7 @@ for (let i = 0; i < CARD_COUNT; i++) {
     key,
     summary: `Card ${i} summary`,
     status: i % 10 === 0 ? 'draft' : i % 5 === 0 ? 'drifted' : 'active',
-    type: i % 4 === 0 ? 'intent' : 'spec',
+    type: i % 4 === 0 ? 'brief' : 'spec',
     parent,
     boundaryJson: null,
     body: `Body content for card ${i}. This simulates a real card body with contracts and design rationale.`,

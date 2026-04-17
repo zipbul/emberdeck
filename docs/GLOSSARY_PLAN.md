@@ -15,7 +15,7 @@ Emberdeck covers 5 knowledge axes. The 6th is missing:
 | Axis | Question | Solved by |
 |------|----------|-----------|
 | WHAT | What is the design? | spec cards |
-| WHY | Why this way? | intent cards |
+| WHY | Why this way? | brief cards |
 | WHERE | Where in code? | codeLinks |
 | HOW | How connected? | relations |
 | CHANGED? | Has it drifted? | check_drift |
@@ -647,10 +647,10 @@ export function withGlossaryLock<T>(fn: () => T | Promise<T>): Promise<T>;
 
 ```
 BEFORE:
-  analyze → read codebase → create intent cards → create spec cards → validate
+  analyze → read codebase → create brief cards → create spec cards → validate
 
 AFTER:
-  analyze → read codebase → DEFINE GLOSSARY (user confirms) → create intent cards → create spec cards → validate
+  analyze → read codebase → DEFINE GLOSSARY (user confirms) → create brief cards → create spec cards → validate
 ```
 
 Glossary must exist before cards. Cards require glossary field. Glossary field requires entries to exist in glossary.yaml.
@@ -712,7 +712,7 @@ The project glossary defines canonical domain vocabulary. Every card must declar
 1. `emberdeck_analyze` — see project state
 2. Read codebase, identify domain concepts
 3. Propose glossary entries to user → `emberdeck_define_glossary` with all confirmed entries
-4. Create intent cards (with glossary field)
+4. Create brief cards (with glossary field)
 5. Create spec cards (with glossary field)
 6. `emberdeck_validate_cards`
 
@@ -894,7 +894,7 @@ The original design had TWO errors, not one:
 **Error 1: glossary field = text concordance.** M6/M7 enforce that glossary field matches body text. This is wrong because a design document naturally references concepts it doesn't define.
 
 **Error 2: glossary field = ownership.** The first redesign attempt replaced "text concordance" with "ownership" — "this card is the authority for this concept." This is also wrong because:
-- Ownership requires a 1:1 mapping (one term → one intent owner), which creates card bloat for cross-cutting concepts
+- Ownership requires a 1:1 mapping (one term → one brief owner), which creates card bloat for cross-cutting concepts
 - It has no validation mechanism — after removing M6/M7, nothing checks if the "ownership" declaration is correct
 - It's the wrong metaphor (DDD research: terms are scoped, not owned)
 
@@ -921,7 +921,7 @@ The `glossary` field on a card declares: **"This card discusses these domain con
 - IS "if you want to understand how this project handles these concepts, read this card"
 
 This means:
-- Multiple cards CAN declare the same term. A `card-lifecycle` intent discusses `compensation` in the context of lifecycle safety. A `safe-operations` intent discusses `compensation` in the context of DB-file consistency. Both declare it — different perspectives on the same concept.
+- Multiple cards CAN declare the same term. A `card-lifecycle` brief discusses `compensation` in the context of lifecycle safety. A `safe-operations` brief discusses `compensation` in the context of DB-file consistency. Both declare it — different perspectives on the same concept.
 - A card's glossary field should list the **primary topics** it addresses, not every term it mentions in passing. The distinction is judgment-based, not mechanical.
 
 ### What this changes from the original design
@@ -929,7 +929,7 @@ This means:
 | Aspect | Original (M6/M7) | First redesign (ownership) | This redesign (scope) |
 |--------|-------------------|---------------------------|----------------------|
 | Glossary field means | "Words in body text" | "Concepts this card owns" | "Topics this card discusses" |
-| Multiple cards, same term | Warning (M6) | Warning (G3 multi-intent) | Normal and expected |
+| Multiple cards, same term | Warning (M6) | Warning (G3 multi-brief) | Normal and expected |
 | Cross-cutting concepts | N/A | "Make a dedicated card" | Multiple cards declare naturally |
 | Validation | Text regex matching | Structural ownership checks | Structural consistency checks |
 | Metaphor | Concordance | Property ownership | Topic tagging |
@@ -990,8 +990,8 @@ Register?
 
 | Code | Name | Why removed |
 |------|------|-------------|
-| G3 | `glossary-multi-intent` | Multiple cards discussing the same concept is normal in the scope model. |
-| G4 | `glossary-orphan-contract` | A spec can discuss a concept without a related intent also discussing it. The parent/relation hierarchy already ensures specs connect to intents. |
+| G3 | `glossary-multi-brief` | Multiple cards discussing the same concept is normal in the scope model. |
+| G4 | `glossary-orphan-contract` | A spec can discuss a concept without a related brief also discussing it. The parent/relation hierarchy already ensures specs connect to briefs. |
 
 ### `buildGlossaryMatcher` disposition
 
@@ -1066,7 +1066,7 @@ Key changes from current version:
 - card_analysis_template: glossary line updated
 - model_notes: glossary warnings reference removed
 - onboarding step 2: 4 extraction criteria added
-- intent GOOD example: requirement numbering uses R-001 (project convention). Existing cards using FR-001 will be updated during card migration (Section 23).
+- brief GOOD example: requirement numbering uses R-001 (project convention). Existing cards using FR-001 will be updated during card migration (Section 23).
 - `<critical>` tags added for highest-priority rules
 - tool_protocol glossary field description updated
 
@@ -1081,7 +1081,7 @@ description: Design knowledge management for codebases using Emberdeck MCP tools
 1. Read relevant cards before modifying code. Run `emberdeck_validate_code_links` after. Always.
 </critical>
 2. Show card analysis to user and get confirmation before creating any card.
-3. Intent cards are design documents: problem, goals, user scenarios, requirements, success criteria, scope. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
+3. Brief cards are design documents: problem, goals, user scenarios, requirements, success criteria, scope. Spec cards capture verifiable contracts bound to code. Only put non-discoverable knowledge in cards — function signatures, file paths, and tech stack details degrade agent performance.
 4. Define glossary before creating cards. When `glossary.yaml` has entries, every new card requires a non-empty `glossary` field listing its primary topics. Multiple cards may declare the same term when they discuss it from different perspectives.
 </rules>
 
@@ -1120,7 +1120,7 @@ Match the FIRST row whose signal is true, then follow the named workflow.
 1. `emberdeck_analyze` — current state. Then `emberdeck_write_spec_annotations` to reconcile (removes orphan @spec from previous sessions, adds missing ones). Reconciler is idempotent.
 2. Read codebase. Identify domain concepts meeting ALL 4 criteria: (1) non-obvious meaning, (2) cross-cutting across 2+ areas, (3) encodes a design decision, (4) not a code symbol. Focus on concepts whose meaning is not self-evident from any single function or type.
 3. Propose glossary to user (see glossary-proposal template — include Evidence column). Get confirmation. `emberdeck_define_glossary`.
-4. Create intent cards (with `glossary` field). Show card-analysis template for each.
+4. Create brief cards (with `glossary` field). Show card-analysis template for each.
 5. Create spec cards under intents (with `glossary`, `codeLinks`, `relations`).
 6. GATE: `emberdeck_validate_cards` — pass with 0 glossary-broken and 0 broken-chain warnings before finishing.
 7. `emberdeck_write_spec_annotations` — inject `@spec card-key` JSDoc tags into source code for all codeLinks.
@@ -1141,7 +1141,7 @@ Match the FIRST row whose signal is true, then follow the named workflow.
    - medium/low risk: proceed.
 2. `emberdeck_get_card` for each affected card — these are your constraints.
    - Direct cards: read full body. Transitive cards: summary only.
-3. If no cards exist for the area: create intent card first (show card-analysis, include glossary), then spec cards.
+3. If no cards exist for the area: create brief card first (show card-analysis, include glossary), then spec cards.
 4. Write code within card constraints.
 5. If a new domain concept emerges: propose glossary entry to user → `emberdeck_define_glossary` → update affected cards' glossary fields.
 6. If your change extends an existing spec's scope: update the spec card body and glossary field.
@@ -1171,9 +1171,9 @@ Rename sequence:
 
 Card creation — always include:
 - `glossary`: primary domain concepts this card discusses (required when glossary.yaml exists)
-- `type`: intent (design documents) or spec (behavioral contracts)
+- `type`: brief (design documents) or spec (behavioral contracts)
 - `codeLinks`: required for spec cards
-- `relations`: spec cards relate to at least one intent card
+- `relations`: spec cards relate to at least one brief card
 
 </tool_protocol>
 
@@ -1182,7 +1182,7 @@ Show this to the user before every card creation:
 
 ```
 ### Card analysis: {key}
-- **Type**: intent | spec
+- **Type**: brief | spec
 - **Glossary**: [{primary domain concepts this card discusses}]
 - **Must guarantee**: {what this card ensures}
 - **Excluded**: {what is deliberately out of scope}
@@ -1212,7 +1212,7 @@ When `emberdeck_validate_cards` reports warnings:
 | glossary-broken | Card declares a glossary word that no longer exists in glossary.yaml | `emberdeck_define_glossary` to re-add, or `emberdeck_update_card` to remove the word from the card's glossary field |
 | glossary-unused | Glossary word not declared by any card | Informational — consider creating a card that discusses this concept or removing the glossary entry |
 | content-mismatch | DB and file diverged | `emberdeck_export_card_to_file` to regenerate file from DB |
-| broken-chain | Spec card has no link to any intent card | Add a relation or parent to an intent card |
+| broken-chain | Spec card has no link to any brief card | Add a relation or parent to an brief card |
 
 When `emberdeck_validate_code_links` finds broken links:
 1. Check if the symbol was renamed → `emberdeck_sync_symbol_changes`.
@@ -1223,13 +1223,13 @@ When `emberdeck_validate_code_links` finds broken links:
 
 <card_types>
 
-## intent — Design document
+## brief — Design document
 
-An intent card answers: **"What are we building, why, and under what constraints?"**
+An brief card answers: **"What are we building, why, and under what constraints?"**
 
-It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from intent cards — no spec exists without an intent that justifies it. No codeLinks. Can be root card.
+It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from brief cards — no spec exists without a brief that justifies it. No codeLinks. Can be root card.
 
-### REQUIRED content in intent body:
+### REQUIRED content in brief body:
 
 **Problem & Goals** — What problem this design solves and what outcomes it achieves. Be specific: who has the problem, what breaks without this, what success looks like.
 
@@ -1241,7 +1241,7 @@ It is a design document that defines the problem, goals, user scenarios, require
 
 **Scope & Constraints** — What this design covers, what it explicitly excludes, and what assumptions were made.
 
-### GOOD intent card body:
+### GOOD brief card body:
 
 ```
 ## Problem & Goals
@@ -1276,7 +1276,7 @@ Then the card auto-transitions to drifted status in both DB and file.
 - Assumes: gildash is available for symbol resolution when projectRoot is set.
 ```
 
-### BAD intent card body (common mistakes):
+### BAD brief card body (common mistakes):
 
 - ✗ Code structure: "The system uses SQLite with Drizzle ORM. Cards are stored in the card table."
 - ✗ Abstract policy only: "Always: Card is source of truth." (policy without scenarios, requirements, or success criteria)
@@ -1289,7 +1289,7 @@ Then the card auto-transitions to drifted status in both DB and file.
 
 A spec card answers: **"What does the system guarantee?"**
 
-It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one intent card — a contract without governing design is rootless. Requires codeLinks.
+It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one brief card — a contract without governing design is rootless. Requires codeLinks.
 
 ### REQUIRED content in spec body:
 
@@ -1313,7 +1313,7 @@ It captures verifiable behavioral contracts bound to specific code symbols via c
 
 ### BAD spec card body (common mistakes):
 
-- ✗ Policies: "We always use compensation pattern" (belongs in intent)
+- ✗ Policies: "We always use compensation pattern" (belongs in brief)
 - ✗ Implementation: "deleteByKey() calls SQL DELETE WHERE key=?" (discoverable from code)
 - ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not contract)
 - ✗ Verification commands: "Run `bun test`" (tooling, not contract)
@@ -1323,7 +1323,7 @@ It captures verifiable behavioral contracts bound to specific code symbols via c
 
 ## Summary: what goes where
 
-| Content | intent | spec | Neither |
+| Content | brief | spec | Neither |
 |---------|--------|------|---------|
 | Problem & Goals | ✓ | | |
 | User Scenarios (P1/P2/P3) | ✓ | | |
@@ -1356,10 +1356,10 @@ After code changes deploy and SKILL.md is updated:
 
 1. For each card, verify glossary field lists the **primary topics** the card discusses (not text concordance, not ownership)
 2. Remove terms that are merely referenced in passing (not a primary topic)
-3. Update requirement numbering from FR-001 to R-001 in intent card bodies (via `bodyPatches`)
+3. Update requirement numbering from FR-001 to R-001 in brief card bodies (via `bodyPatches`)
 4. Cards requiring M6/M7 content removal (explicit list):
    - **`spec/glossary-cross-validation`**: DELETE. Contracts C-03, C-04, C-06 are entirely about M6/M7. codeLinks include `crossValidateGlossary` (deleted) and `GlossaryCrossWarning` (deleted). Core subject no longer exists; G1/G2 are covered by other cards.
-   - **`glossary-system`**: Parent intent card. Body describes "cross-validates card bodies against declared glossary terms, detecting undeclared usage and phantom declarations." Must be rewritten to reflect the scope model.
+   - **`glossary-system`**: Parent brief card. Body describes "cross-validates card bodies against declared glossary terms, detecting undeclared usage and phantom declarations." Must be rewritten to reflect the scope model.
    - **`spec/create-card`**: Contract C-09 references "glossaryWarnings" field (removed). Must update or remove this contract.
 5. Run `emberdeck_validate_cards` — expect 0 `glossary-broken`
 6. Run `emberdeck_validate_code_links` — verify no broken codeLinks from deleted symbols

@@ -60,7 +60,7 @@ function normalizeCodeLinks(value: unknown): CodeLink[] | undefined {
   return out;
 }
 
-const VALID_CARD_TYPES = ['intent', 'spec'];
+const VALID_CARD_TYPES = ['brief', 'spec'];
 
 function normalizeCardType(value: unknown): CardType {
   if (typeof value !== 'string' || !VALID_CARD_TYPES.includes(value)) {

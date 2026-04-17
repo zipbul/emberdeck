@@ -73,7 +73,7 @@ What's needed based on findings:
 1. Multiple planning cards (not single root) — already possible
 2. Graph structure for planning elements — relations exist but untyped
 3. Cross-cutting elements (policies, glossary, NFRs) managed centrally — glossary exists, policies don't
-4. Flexible planning↔spec relationship (not always hierarchical) — currently spec must be under intent
+4. Flexible planning↔spec relationship (not always hierarchical) — currently spec must be under brief
 5. Completeness validation — doesn't exist
 
 Key gap: cross-cutting element management and flexible planning↔spec relationships

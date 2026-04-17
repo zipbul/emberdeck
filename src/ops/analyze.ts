@@ -240,7 +240,7 @@ export interface OnboardingDriftedCard {
 
 export interface OnboardingSummary {
   totalCards: number;
-  byType: { intent: number; spec: number };
+  byType: { brief: number; spec: number };
   byStatus: { draft: number; active: number; drifted: number };
   hierarchy: OnboardingHierarchyNode[];
   coverageRatio: number | null;
@@ -289,9 +289,9 @@ export async function getOnboardingSummary(
   const allCards = ctx.cardRepo.list();
 
   // Count by type
-  const byType = { intent: 0, spec: 0 };
+  const byType = { brief: 0, spec: 0 };
   for (const card of allCards) {
-    if (card.type === 'intent') byType.intent++;
+    if (card.type === 'brief') byType.brief++;
     else if (card.type === 'spec') byType.spec++;
   }
 

@@ -10,10 +10,10 @@ export type CardStatus = 'draft' | 'active' | 'drifted';
 /**
  * Card type classifying the nature of the spec.
  *
- * - `intent` — Upstream decisions: why it exists, scope, constraints, policies. Not bound to code.
+ * - `brief` — Upstream decisions: why it exists, scope, constraints, policies. Not bound to code.
  * - `spec` — Downstream contracts: verifiable behaviors bound to code via codeLinks.
  */
-export type CardType = 'intent' | 'spec';
+export type CardType = 'brief' | 'spec';
 
 /**
  * A record linking a card to a source code symbol (gildash integration).
@@ -39,7 +39,7 @@ export interface CardFrontmatter {
   summary: string;
   /** Current lifecycle status of the card. */
   status: CardStatus;
-  /** Card type (intent, spec). Required. */
+  /** Card type (brief, spec). Required. */
   type: CardType;
   /** Parent card key. Same type or one level up in hierarchy. */
   parent?: string;
