@@ -6,7 +6,7 @@ import {
   CardNotFoundError,
   CardValidationError,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
 
 describe('updateCard', () => {
   let tc: TestContext;
@@ -88,7 +88,7 @@ describe('updateCard', () => {
 
   it('should update status in DB when updateCardStatus is called', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-card', summary: 'Status', type: 'brief' });
+    await createCard(tc.ctx, { key: 'st-card', summary: 'Status', type: 'brief', body: BRIEF_BODY });
     await updateCardStatus(tc.ctx, 'st-card', 'active');
     const row = tc.ctx.cardRepo.findByKey('st-card');
     expect(row?.status).toBe('active');
@@ -96,7 +96,7 @@ describe('updateCard', () => {
 
   it('should update status in file frontmatter when updateCardStatus is called', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-file', summary: 'Status file', type: 'brief' });
+    await createCard(tc.ctx, { key: 'st-file', summary: 'Status file', type: 'brief', body: BRIEF_BODY });
     const result = await updateCardStatus(tc.ctx, 'st-file', 'active');
     expect(result.card.frontmatter.status).toBe('active');
   });
@@ -186,7 +186,7 @@ describe('updateCard', () => {
 
   it('should update DB row and file when updateCardStatus is called while DB row is missing', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-no-db', summary: 'No DB', type: 'brief' });
+    await createCard(tc.ctx, { key: 'st-no-db', summary: 'No DB', type: 'brief', body: BRIEF_BODY });
     tc.ctx.cardRepo.deleteByKey('st-no-db');
     const result = await updateCardStatus(tc.ctx, 'st-no-db', 'active');
     expect(result.card.frontmatter.status).toBe('active');
@@ -210,7 +210,7 @@ describe('updateCard', () => {
 
   it('should reflect latest status after multiple status transitions', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'multi-st', summary: 'Status', type: 'brief' });
+    await createCard(tc.ctx, { key: 'multi-st', summary: 'Status', type: 'brief', body: BRIEF_BODY });
     await updateCardStatus(tc.ctx, 'multi-st', 'active');
     await updateCardStatus(tc.ctx, 'multi-st', 'drifted');
     const row = tc.ctx.cardRepo.findByKey('multi-st');

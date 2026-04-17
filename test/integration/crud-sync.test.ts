@@ -220,7 +220,7 @@ describe('update', () => {
 describe('updateCardStatus', () => {
   it('should record reason in changelog', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'brief' });
+    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'brief', body: BRIEF_BODY });
     await updateCardStatus(tc.ctx, 'st-card', 'active', 'passed review');
 
     const result = await getCard(tc.ctx, 'st-card', { includeHistory: true });
@@ -720,9 +720,24 @@ describe('brief section enforcement', () => {
       updateCard(tc.ctx, 'active-brief', { body: 'Sections removed' }),
     ).rejects.toThrow('missing required sections');
   });
+
+  it('should reject updateCardStatus to active on brief without sections', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'draft-no-sections', summary: 'Draft', type: 'brief', body: 'No sections' });
+    await expect(
+      updateCardStatus(tc.ctx, 'draft-no-sections', 'active'),
+    ).rejects.toThrow('missing required sections');
+  });
+
+  it('should allow updateCardStatus to active on brief with sections', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'draft-with-sections', summary: 'Draft', type: 'brief', body: BRIEF_BODY });
+    const result = await updateCardStatus(tc.ctx, 'draft-with-sections', 'active');
+    expect(result.card.frontmatter.status).toBe('active');
+  });
 });
 
-// ── DELETE: DB CASCADE verification ─��
+// ── DELETE: DB CASCADE verification ──
 
 describe('delete cascade', () => {
   it('should cascade-delete relations, tags, code links, changelog on card delete', async () => {

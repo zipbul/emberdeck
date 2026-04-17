@@ -13,7 +13,7 @@ import {
 } from '../../index';
 import { CardKeyError, CardNotFoundError } from '../../index';
 import { getCardContext } from '../../src/ops/query';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
 
 describe('getCard', () => {
   let tc: TestContext;
@@ -51,7 +51,7 @@ describe('getCard', () => {
 
   it('should include history when includeHistory is true', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'brief' });
+    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'brief', body: BRIEF_BODY });
     await updateCardStatus(tc.ctx, 'q-hist', 'active');
     const result = await getCard(tc.ctx, 'q-hist', { includeHistory: true });
     expect(result.history).toBeDefined();
@@ -102,7 +102,7 @@ describe('getCards', () => {
 
   it('should include history when includeHistory is true', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'brief' });
+    await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'brief', body: BRIEF_BODY });
     await updateCardStatus(tc.ctx, 'gc-hist', 'active');
     const result = await getCards(tc.ctx, ['gc-hist'], { includeHistory: true });
     expect(result.cards).toHaveLength(1);
@@ -143,7 +143,7 @@ describe('listCards', () => {
   it('should return only cards with matching status when filter.status is provided', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'flt-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'brief' });
+    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'brief', body: BRIEF_BODY });
     await updateCardStatus(tc.ctx, 'flt-acc', 'active');
     const rows = listCards(tc.ctx, { status: 'active' });
     expect(rows.every((r) => r.status === 'active')).toBe(true);

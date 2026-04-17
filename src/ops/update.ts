@@ -240,9 +240,7 @@ export async function updateCard(
       }
       // Brief section validation: active brief cards must have 8 required sections
       if (next.type === 'brief' && next.status === 'active') {
-        if (fields.body !== undefined || fields.bodyPatches !== undefined || fields.type === 'brief') {
-          validateBriefSections(nextBody);
-        }
+        validateBriefSections(nextBody);
       }
 
       const card: CardFile = { filePath, frontmatter: next, body: nextBody };
@@ -360,6 +358,10 @@ export async function updateCardStatus(
 
       // Activation guard for active status
       if (status === 'active') {
+        // Brief section validation
+        if (current.frontmatter.type === 'brief') {
+          validateBriefSections(current.body);
+        }
         await validateActivationGuard(ctx, {
           type: current.frontmatter.type,
           codeLinks: current.frontmatter.codeLinks,

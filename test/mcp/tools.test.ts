@@ -11,7 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
 import { registerEmberdeckTools } from '../../index';
 import { writeCardFile } from '../../src/fs/writer';
 import { readCardFile } from '../../src/fs/reader';
@@ -317,7 +317,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'batch-hist', summary: 'Hist', type: 'brief' },
+        arguments: { key: 'batch-hist', summary: 'Hist', type: 'brief', body: BRIEF_BODY },
       });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -450,7 +450,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'status-card', summary: 'Status', type: 'brief' },
+        arguments: { key: 'status-card', summary: 'Status', type: 'brief', body: BRIEF_BODY },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -588,7 +588,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should filter cards by status', async () => {
       s = await setupMcp();
       await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'draft-card', summary: 'D', type: 'spec' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'brief' } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'brief', body: BRIEF_BODY } });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
         arguments: { key: 'acc-card', status: 'active' },
@@ -1162,7 +1162,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'brief' },
+        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'brief', body: BRIEF_BODY },
       });
 
       const statuses = ['active', 'drifted'] as const;

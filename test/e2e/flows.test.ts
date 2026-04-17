@@ -29,7 +29,7 @@ import {
   syncSpecAnnotations,
   analyze,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
 
 // ============================================================================
 // Mock gildash factory (same pattern as coverage-analysis tests)
@@ -250,6 +250,7 @@ describe('E2E Scenario 3: Design change flow', () => {
       key: 'infra-layer',
       summary: 'Infrastructure layer',
       type: 'brief',
+      body: BRIEF_BODY,
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const afterActive = await getCard(tc.ctx, 'infra-layer');
