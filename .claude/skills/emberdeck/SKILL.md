@@ -243,20 +243,34 @@ A spec card answers: **"What does the system guarantee?"**
 
 It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one brief card — a contract without governing design is rootless. Requires codeLinks.
 
-### REQUIRED content in spec body:
+### REQUIRED sections in spec body (3 sections, exact `## ` headings):
 
-**Given/When/Then contracts** — Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each contract is one testable guarantee.
+1. `## Contract` — Behavioral guarantees using GIVEN/WHEN/THEN with RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each contract is one testable guarantee. Precondition (GIVEN) is separated from trigger (WHEN) and postcondition (THEN).
 
-**Failure modes** — Table: what violation occurs → what the system does. Agents need explicit failure behavior, not just happy paths.
+2. `## Invariant` — Conditions that ALWAYS hold across all operations in this scope. Not triggered by specific calls — they are system-wide guarantees.
+
+3. `## Failure` — Table mapping violations to system behaviors. Exhaustive enumeration of all error paths.
+
+Active spec cards are **rejected** if any of these 3 sections is missing.
 
 ### GOOD spec card body:
 
 ```
-## Contracts
-- WHEN a spec card status is set to active, THEN all codeLinks MUST resolve to existing symbols via gildash. IF any link fails, activation MUST be rejected with ActivationGuardError.
-- WHEN a card is deleted with force=true AND it has children, THEN children MUST become orphans (parent=null) AND relations MUST be cleaned up bidirectionally.
+## Contract
+- GIVEN a spec card exists with codeLinks
+  WHEN status is set to active
+  THEN all codeLinks MUST resolve to existing symbols via gildash.
+  IF any link fails, activation MUST be rejected with ActivationGuardError.
+- GIVEN a card has children
+  WHEN deleteCard is called with force=true
+  THEN children MUST become orphans (parent=null)
+  AND relations MUST be cleaned up bidirectionally.
 
-## Failure modes
+## Invariant
+- DB and file representations of a card MUST be consistent after every mutation.
+- An active spec card MUST have at least 1 resolved codeLink at all times.
+
+## Failure
 | Violation | System behavior |
 |-----------|----------------|
 | codeLink target symbol deleted | Card auto-transitions to drifted |
@@ -277,13 +291,17 @@ It captures verifiable behavioral contracts bound to specific code symbols via c
 
 | Content | brief | spec | Neither |
 |---------|--------|------|---------|
-| Problem & Goals | ✓ | | |
-| User Scenarios (P1/P2/P3) | ✓ | | |
-| Requirements (R-001...) | ✓ | | |
-| Success Criteria (measurable) | ✓ | | |
-| Scope & Constraints | ✓ | | |
-| Given/When/Then contracts (code-bound) | | ✓ | |
-| Failure mode table | | ✓ | |
+| Motivation (why it exists) | ✓ | | |
+| Scope (goals / non-goals) | ✓ | | |
+| Scenario (user flows) | ✓ | | |
+| Rule (business policies) | ✓ | | |
+| Constraint (external obligations) | ✓ | | |
+| Risk (failure scenarios) | ✓ | | |
+| Criteria (success metrics) | ✓ | | |
+| Decision (alternatives + rationale) | ✓ | | |
+| Contract (GIVEN/WHEN/THEN code guarantees) | | ✓ | |
+| Invariant (always-true conditions) | | ✓ | |
+| Failure (violation → behavior table) | | ✓ | |
 | Code structure descriptions | | | ✗ discoverable |
 | File paths, class names | | | ✗ discoverable |
 | Task checklists | | | ✗ execution plan |
