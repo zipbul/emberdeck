@@ -16,6 +16,7 @@ import {
 } from '../card/validation';
 import { readGlossary, GlossaryValidationError } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
+import { validateBriefSections } from '../brief/validate';
 
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
@@ -138,6 +139,10 @@ export async function createCard(
 
       // Activation guard
       if (status === 'active') {
+        // Brief section validation: active brief cards must have 8 required sections
+        if (input.type === 'brief') {
+          validateBriefSections(input.body ?? '');
+        }
         await validateActivationGuard(ctx, {
           type: input.type,
           codeLinks: input.codeLinks,

@@ -325,3 +325,24 @@ export function validateBrief(
     qualityWarnings: totalWarnings,
   };
 }
+
+// ── Inline Validation (for create/update pipeline) ────────────────
+
+/**
+ * Validate that a brief card body contains all 8 required sections.
+ * Lightweight check for use in createCard/updateCard — no DB context needed.
+ *
+ * @param body - Markdown body of the brief card.
+ * @throws {Error} When required sections are missing.
+ */
+export function validateBriefSections(body: string): void {
+  const sections = parseSections(body);
+  const presentNames = new Set(sections.map((s) => s.normalizedName));
+  const missing = REQUIRED_BRIEF_SECTIONS.filter((s) => !presentNames.has(s));
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Brief card body is missing required sections: ${missing.join(', ')}`,
+    );
+  }
+}

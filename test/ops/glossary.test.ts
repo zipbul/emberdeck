@@ -28,7 +28,7 @@ import {
   parseCardMarkdown,
   serializeCardMarkdown,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
 
 describe('Glossary', () => {
   let tc: TestContext;
@@ -389,7 +389,7 @@ describe('Glossary', () => {
     it('should detect glossary_broken after word removal', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', body: BRIEF_BODY, glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: false });
       expect(result.cards.find(c => c.key === 'c')?.driftType).toBe('glossary_broken');
@@ -398,7 +398,7 @@ describe('Glossary', () => {
     it('should auto-transition active card to drifted', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', body: BRIEF_BODY, glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: true });
       expect(result.cards.find(c => c.key === 'c')?.status).toBe('drifted');

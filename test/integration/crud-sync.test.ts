@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
 import {
   createCard,
   updateCard,
@@ -177,7 +177,7 @@ describe('update', () => {
   it('should force draft when type change breaks activation conditions', async () => {
     tc = await createTestContext();
     // Intent card is active (no activation conditions for brief)
-    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'brief', status: 'active' });
+    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'brief', status: 'active', body: BRIEF_BODY });
     // Change to spec (requires codeLinks) → should force to draft
     const result = await updateCard(tc.ctx, 'arch-active', { type: 'spec' });
     expect(result.card.frontmatter.status).toBe('draft');
@@ -377,7 +377,7 @@ describe('sync', () => {
   it('validateCards should detect rework dependency (active → draft)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'rw-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'brief', status: 'active', relations: ['rw-draft'] });
+    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'brief', status: 'active', body: BRIEF_BODY, relations: ['rw-draft'] });
 
     const result = await validateCards(tc.ctx);
     const rework = result.warnings.find((w) => w.type === 'rework-dependency' && w.cardKey === 'rw-active');
@@ -600,7 +600,7 @@ describe('validateCards full checks', () => {
 
   it('should detect empty tree (active brief with no children)', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'brief', status: 'active' });
+    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'brief', status: 'active', body: BRIEF_BODY });
 
     const result = await validateCards(tc.ctx);
     const empty = result.warnings.find((w) => w.type === 'empty-tree' && w.cardKey === 'empty-arch');
@@ -684,14 +684,45 @@ describe('bulk-create activation guard', () => {
   it('should allow brief card with active status (no activation conditions)', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { key: 'bc-arch-active', summary: 'Active arch', type: 'brief', status: 'active' },
+      { key: 'bc-arch-active', summary: 'Active arch', type: 'brief', status: 'active', body: BRIEF_BODY },
     ]);
     expect(result.created).toBe(1);
     expect(result.failed).toBe(0);
   });
 });
 
-// ── DELETE: DB CASCADE verification ──
+// ── BRIEF SECTION ENFORCEMENT ──
+
+describe('brief section enforcement', () => {
+  it('should reject active brief card without 8 required sections', async () => {
+    tc = await createTestContext();
+    await expect(
+      createCard(tc.ctx, { key: 'no-sections', summary: 'Missing sections', type: 'brief', status: 'active', body: 'Some text' }),
+    ).rejects.toThrow('missing required sections');
+  });
+
+  it('should allow draft brief card without sections', async () => {
+    tc = await createTestContext();
+    const result = await createCard(tc.ctx, { key: 'draft-brief', summary: 'Draft', type: 'brief', body: 'No sections yet' });
+    expect(result.fullKey).toBe('draft-brief');
+  });
+
+  it('should allow active brief card with all 8 sections', async () => {
+    tc = await createTestContext();
+    const result = await createCard(tc.ctx, { key: 'full-brief', summary: 'Full', type: 'brief', status: 'active', body: BRIEF_BODY });
+    expect(result.card.frontmatter.status).toBe('active');
+  });
+
+  it('should reject body update on active brief that removes sections', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'active-brief', summary: 'Active', type: 'brief', status: 'active', body: BRIEF_BODY });
+    await expect(
+      updateCard(tc.ctx, 'active-brief', { body: 'Sections removed' }),
+    ).rejects.toThrow('missing required sections');
+  });
+});
+
+// ── DELETE: DB CASCADE verification ─��
 
 describe('delete cascade', () => {
   it('should cascade-delete relations, tags, code links, changelog on card delete', async () => {

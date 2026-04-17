@@ -15,7 +15,7 @@ import {
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string, body = '') {
   const content = serializeCardMarkdown(

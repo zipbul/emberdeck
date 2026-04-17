@@ -21,6 +21,7 @@ import {
 } from '../card/validation';
 import { readGlossary } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
+import { validateBriefSections } from '../brief/validate';
 
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
@@ -237,6 +238,13 @@ export async function updateCard(
       } else {
         nextBody = current.body;
       }
+      // Brief section validation: active brief cards must have 8 required sections
+      if (next.type === 'brief' && next.status === 'active') {
+        if (fields.body !== undefined || fields.bodyPatches !== undefined || fields.type === 'brief') {
+          validateBriefSections(nextBody);
+        }
+      }
+
       const card: CardFile = { filePath, frontmatter: next, body: nextBody };
 
       const now = new Date().toISOString();

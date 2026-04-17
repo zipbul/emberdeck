@@ -10,6 +10,36 @@ export interface TestContext {
   cleanup: () => Promise<void>;
 }
 
+/**
+ * Minimal valid brief body with all 8 required sections.
+ * Use when creating active brief cards in tests.
+ */
+export const BRIEF_BODY = `
+## Motivation
+Test motivation. This section exists for validation.
+
+## Scope
+Test scope. Goals and non-goals defined here.
+
+## Scenario
+Test scenario. User flow is described here.
+
+## Rule
+Test rule. Business policies are defined here.
+
+## Constraint
+Test constraint. External obligations listed here.
+
+## Risk
+Test risk. Failure scenarios documented here.
+
+## Criteria
+Test criteria. Success metrics defined here.
+
+## Decision
+Test decision. Alternatives considered here.
+`.trim();
+
 export async function createTestContext(): Promise<TestContext> {
   const tmpDir = await mkdtemp(join(tmpdir(), 'emberdeck_test_'));
   const cardsDir = join(tmpDir, 'cards');
