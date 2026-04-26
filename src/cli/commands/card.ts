@@ -366,6 +366,8 @@ export function registerCard(program: Command): void {
       const offset = opts.offset ?? 0;
       await run(
         async (rt: CliRuntime) => {
+          if (opts.type) validateCardType(opts.type);
+          if (opts.status) validateCardStatus(opts.status);
           const all = searchCards(rt.ctx, query, {
             type: opts.type as CardType | undefined,
             status: opts.status as CardStatus | undefined,

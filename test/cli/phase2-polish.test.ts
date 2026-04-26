@@ -281,6 +281,29 @@ describe('Phase 2 polish: enum validation at CLI layer', () => {
     expect(r.exitCode).not.toBe(0);
   });
 
+  test('card search --type invalid → rejected', async () => {
+    const r = await runCli(['--json', 'card', 'search', 'foo', '--type', 'banana'], tmp);
+    expect(r.exitCode).not.toBe(0);
+    expect(JSON.parse(r.stdout).error.message).toContain('invalid --type');
+  });
+
+  test('bulk create with invalid type in YAML → rejected, no corruption', async () => {
+    const yaml = `- key: bad-bulk
+  type: banana
+  summary: x
+`;
+    writeFileSync(join(tmp, 'bad.yaml'), yaml);
+    const r = await runCli(['--json', 'bulk', 'create', '--from', 'bad.yaml'], tmp);
+    expect(r.exitCode).toBe(2); // partial
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('partial');
+    expect(parsed.data.rejected_pre_write).toBe(1);
+    expect(parsed.data.created).toBe(0);
+    // No card actually created
+    const list = await runCli(['--json', 'card', 'list'], tmp);
+    expect(JSON.parse(list.stdout).data.total).toBe(0);
+  });
+
   test('card update --field type=invalid → rejected', async () => {
     await runCli(['card', 'create', 'x', '--type', 'brief', '--summary', 'x'], tmp);
     const r = await runCli(['--json', 'card', 'update', 'x', '--field', 'type=banana'], tmp);

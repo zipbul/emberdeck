@@ -11,7 +11,41 @@ import type { CliRuntime } from '../context';
 import { bulkCreateCards } from '../../ops/bulk-create';
 import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
+import type { CardType, CardStatus } from '../../card/types';
 import { startSpinner } from '../spinner';
+
+const VALID_TYPES: ReadonlyArray<CardType> = ['principle', 'brief', 'spec'];
+const VALID_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted', 'retired'];
+
+function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
+  const ok: CreateCardInput[] = [];
+  const errors: Array<{ index: number; key?: string; message: string }> = [];
+  items.forEach((item, i) => {
+    const it = item as Partial<CreateCardInput>;
+    if (!it || typeof it !== 'object') {
+      errors.push({ index: i, message: `item[${i}] not an object` });
+      return;
+    }
+    if (typeof it.key !== 'string' || it.key.length === 0) {
+      errors.push({ index: i, message: `item[${i}] missing/invalid 'key'` });
+      return;
+    }
+    if (typeof it.type !== 'string') {
+      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' missing 'type'` });
+      return;
+    }
+    if (!VALID_TYPES.includes(it.type as CardType)) {
+      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid type '${it.type}' (allowed: ${VALID_TYPES.join('|')})` });
+      return;
+    }
+    if (it.status !== undefined && !VALID_STATUSES.includes(it.status as CardStatus)) {
+      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid status '${it.status}' (allowed: ${VALID_STATUSES.join('|')})` });
+      return;
+    }
+    ok.push(it as CreateCardInput);
+  });
+  return { ok, errors };
+}
 
 async function readStdin(): Promise<string> {
   return await Bun.stdin.text();
@@ -44,24 +78,26 @@ export function registerBulk(program: Command): void {
           if (!Array.isArray(parsed)) {
             throw new Error('--from FILE must be an array of card inputs');
           }
-          const spinner = startSpinner(rt.output, `creating ${(parsed as unknown[]).length} cards...`, { verbose: rt.verbose });
+          // CLI-layer enum validation BEFORE write, mirrors `card create` behavior.
+          const validated = validateBulkInput(parsed);
+          const spinner = startSpinner(rt.output, `creating ${validated.ok.length} cards...`, { verbose: rt.verbose });
           let result;
           try {
-            result = await bulkCreateCards(rt.ctx, parsed as CreateCardInput[]);
+            result = await bulkCreateCards(rt.ctx, validated.ok);
           } finally {
             spinner.stop();
           }
-          const errors: CliMessage[] = result.errors.map((e) => ({
-            code: 'BULK_CREATE_FAILED',
-            message: e.message,
-            key: e.key,
-          }));
+          const errors: CliMessage[] = [
+            ...validated.errors.map((e) => ({ code: 'BULK_VALIDATION_FAILED', message: e.message, key: e.key })),
+            ...result.errors.map((e) => ({ code: 'BULK_CREATE_FAILED', message: e.message, key: e.key })),
+          ];
           const data = {
             succeeded: result.keys,
             partial_keys: result.partialKeys,
-            total: result.created + result.failed,
+            total: parsed.length,
             created: result.created,
-            failed: result.failed,
+            failed: result.failed + validated.errors.length,
+            rejected_pre_write: validated.errors.length,
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
