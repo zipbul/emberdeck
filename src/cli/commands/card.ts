@@ -24,7 +24,8 @@ import {
 } from '../../ops/update';
 import { deleteCard } from '../../ops/delete';
 import { renameCard } from '../../ops/rename';
-import { exportCardToFile } from '../../ops/sync';
+import { exportCardToFile, buildCardFromDb } from '../../ops/sync';
+import { serializeCardMarkdown } from '../../card/markdown';
 import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
 
@@ -70,47 +71,11 @@ function applyFieldValue(fields: UpdateCardFields, name: string, value: string):
 
 /**
  * Render card content from DB row WITHOUT touching the original file on disk.
- * Mirrors exportCardToFile's frontmatter assembly but emits to a string.
+ * Reuses ops/sync.ts buildCardFromDb to avoid logic drift.
  */
-async function renderCardContentFromDb(rt: CliRuntime, key: string): Promise<string> {
-  const { serializeCardMarkdown } = await import('../../card/markdown');
-  const row = rt.ctx.cardRepo.findByKey(key);
-  if (!row) throw new (await import('../../card/errors')).CardNotFoundError(key);
-  const relations = rt.ctx.relationRepo
-    .findByCardKey(key)
-    .filter((r) => !r.isReverse)
-    .map((r) => r.dstCardKey);
-  const tags = rt.ctx.classificationRepo.findTagsByCard(key);
-  const codeLinks = rt.ctx.codeLinkRepo
-    .findByCardKey(key)
-    .map((r) => ({ kind: r.kind, file: r.file, symbol: r.symbol }));
-  let glossary: string[] | undefined;
-  try {
-    if (row.glossaryJson && row.glossaryJson !== '[]') {
-      const parsed = JSON.parse(row.glossaryJson);
-      if (Array.isArray(parsed) && parsed.length > 0) glossary = parsed;
-    }
-  } catch { /* ignore */ }
-  let boundary: string[] | undefined;
-  try {
-    if (row.boundaryJson) {
-      const parsed = JSON.parse(row.boundaryJson);
-      if (Array.isArray(parsed) && parsed.length > 0) boundary = parsed;
-    }
-  } catch { /* ignore */ }
-  const fm = {
-    key: row.key,
-    summary: row.summary,
-    status: row.status as import('../../card/types').CardStatus,
-    type: row.type as import('../../card/types').CardType,
-    ...(row.parent ? { parent: row.parent } : {}),
-    ...(boundary ? { boundary } : {}),
-    ...(relations.length ? { relations } : {}),
-    ...(tags.length ? { tags } : {}),
-    ...(codeLinks.length ? { codeLinks } : {}),
-    ...(glossary ? { glossary } : {}),
-  } as import('../../card/types').CardFrontmatter;
-  return serializeCardMarkdown(fm, row.body ?? '');
+function renderCardContentFromDb(rt: CliRuntime, key: string): string {
+  const cardFile = buildCardFromDb(rt.ctx, key);
+  return serializeCardMarkdown(cardFile.frontmatter, cardFile.body);
 }
 
 async function parseInputFile(text: string): Promise<unknown> {
@@ -419,7 +384,7 @@ export function registerCard(program: Command): void {
           }
           // STDOUT or --out FILE: build content WITHOUT touching original file.
           // We render directly from DB row + relations + tags + codeLinks via a pure helper.
-          const content = await renderCardContentFromDb(rt, key);
+          const content = renderCardContentFromDb(rt, key);
           if (opts.out && opts.out !== '-') {
             await Bun.write(opts.out, content);
             return ok({ key, filePath: opts.out, mode: 'file' });

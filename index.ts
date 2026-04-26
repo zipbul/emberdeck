@@ -60,6 +60,7 @@ export {
   bulkSyncCards,
   validateCards,
   exportCardToFile,
+  buildCardFromDb,
   type BulkSyncResult,
   type CardValidationResult,
   type ValidationWarning,

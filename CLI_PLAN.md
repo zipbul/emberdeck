@@ -699,6 +699,33 @@ DELETE FROM system_lock WHERE name='glossary' AND pid=$my_pid
 
 ## Changelog
 
+### Phase 1 + Phase 2 구현 완료 (2026-04-27)
+**Phase 1 (commits 618e0d1 → 67a9e55):**
+- foundation: src/cli/{exit-codes,output,errors,context,runner,index}.ts + Commander v14
+- 7 명령 (실측 top + dogfood 보완): card get/list/create/update + validate cards/brief + check coverage
+- bin: emberdeck → ed
+- system_lock 테이블 (drizzle 0002) + glossary cross-process lock 통합
+- macOS support (ps -o lstart= fallback)
+- NO_COLOR / CLICOLOR_FORCE 환경변수, --verbose 토큰 누설 방지
+- Migration upgrade path 검증 (0001 → 0002)
+- 39 테스트 추가 (1064 → 1133)
+
+**Phase 2 (commits b5e9c7e → e0041d4):**
+- 25 나머지 명령 (총 31 subcommand 완료):
+  - card 8개 (delete/rename/search/export/set-status/tree/context/relations)
+  - glossary 4개 (define/lookup/remove/rename)
+  - validate 2개 (no-arg, links)
+  - check 4개 (drift/impact/regression/interactions)
+  - spec 3개 (annotate/sync/sync-symbols)
+  - bulk 2개 (create/sync)
+  - 단일 2개 (analyze, reset)
+- spinner 모듈 (verbose 시 NOOP, JSON/quiet 시 NOOP, try/finally cleanup)
+- system_metadata 테이블 (drizzle 0003) — sync-symbols last_symbol_sync_at persistence
+- bulk partialIsFailure: 일부 실패 → exit 2 (CI gate signal)
+- card export STDOUT 기본 (--out FILE, --in-place 분기), 원본 부작용 차단
+- buildCardFromDb 추출 (cli ↔ ops 로직 중복 제거)
+- 49 테스트 추가 (1133 → 1182)
+
 ### v6 (2026-04-27) — 서브에이전트 round 5 리뷰 반영 (final patches)
 - §4.1 `card set-status` 시노시스에 `--reason-from FILE|-` 추가
 - §4.1 `card export [--out FILE]` (기본 STDOUT) 명시

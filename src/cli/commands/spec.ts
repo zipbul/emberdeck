@@ -102,22 +102,32 @@ export function registerSpec(program: Command): void {
           }
 
           const result = await syncSymbolChanges(rt.ctx, since);
-          // record current time so the next invocation picks up from here
+          // Record current time AFTER successful sync. If upsert fails (DB locked etc.),
+          // the sync already happened — next invocation may re-process some changes.
+          // We still surface the upsert error as a warning rather than failing the whole op.
           const now = new Date().toISOString();
-          rt.ctx.db.$client
-            .prepare(
-              'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
-            )
-            .run(META_KEY, now, now);
+          let upsertWarning: string | null = null;
+          try {
+            rt.ctx.db.$client
+              .prepare(
+                'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+              )
+              .run(META_KEY, now, now);
+          } catch (e) {
+            upsertWarning = `failed to record next_sync_marker: ${e instanceof Error ? e.message : String(e)}. Next --since=auto run may re-process changes.`;
+          }
 
-          return ok({
+          const data = {
             updated: result.updated,
             broken: result.broken,
             changes: result.changes,
             since,
             since_source: sinceSource,
-            next_sync_marker: now,
-          });
+            next_sync_marker: upsertWarning ? null : now,
+          };
+          return upsertWarning
+            ? ok(data, [{ code: 'METADATA_WRITE_FAILED', message: upsertWarning }])
+            : ok(data);
         },
         [],
         globalFlags,

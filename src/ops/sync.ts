@@ -528,7 +528,11 @@ export async function validateCards(
  * DB row + relations + tags + codeLinks -> constructs frontmatter -> Bun.write.
  * @returns Absolute path of the written file.
  */
-export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
+/**
+ * Build a CardFile from the DB row + auxiliary tables. Pure — does NOT touch the filesystem.
+ * Used by both exportCardToFile (which writes to disk) and CLI `card export` (which renders to STDOUT).
+ */
+export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFile {
   const key = parseFullKey(fullKey);
   const row = ctx.cardRepo.findByKey(key);
   if (!row) throw new CardNotFoundError(key);
@@ -558,9 +562,13 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
     ...(glossary && glossary.length > 0 ? { glossary } : {}),
   };
 
-  const cardFile: CardFile = { frontmatter: fm, body: row.body ?? '', filePath: row.filePath };
-  await writeCardFile(row.filePath, cardFile);
-  return row.filePath;
+  return { frontmatter: fm, body: row.body ?? '', filePath: row.filePath };
+}
+
+export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
+  const cardFile = buildCardFromDb(ctx, fullKey);
+  await writeCardFile(cardFile.filePath!, cardFile);
+  return cardFile.filePath!;
 }
 
 /**
