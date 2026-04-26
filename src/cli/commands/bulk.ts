@@ -44,9 +44,13 @@ export function registerBulk(program: Command): void {
           if (!Array.isArray(parsed)) {
             throw new Error('--from FILE must be an array of card inputs');
           }
-          const spinner = startSpinner(rt.output, `creating ${(parsed as unknown[]).length} cards...`);
-          const result = await bulkCreateCards(rt.ctx, parsed as CreateCardInput[]);
-          spinner.stop();
+          const spinner = startSpinner(rt.output, `creating ${(parsed as unknown[]).length} cards...`, { verbose: rt.verbose });
+          let result;
+          try {
+            result = await bulkCreateCards(rt.ctx, parsed as CreateCardInput[]);
+          } finally {
+            spinner.stop();
+          }
           const errors: CliMessage[] = result.errors.map((e) => ({
             code: 'BULK_CREATE_FAILED',
             message: e.message,
@@ -63,10 +67,14 @@ export function registerBulk(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { created: number; failed: number; total: number };
-          return `bulk create: ${d.created}/${d.total} created, ${d.failed} failed`;
-        } },
+        {
+          // bulk create with any failure → exit 2 (CI gate signal). Pure success → exit 0.
+          partialIsFailure: true,
+          humanRenderer: (data) => {
+            const d = data as { created: number; failed: number; total: number };
+            return `bulk create: ${d.created}/${d.total} created, ${d.failed} failed`;
+          },
+        },
       );
     });
 
@@ -91,9 +99,13 @@ export function registerBulk(program: Command): void {
               throw new Error(`path not found: ${path}`);
             }
           }
-          const spinner = startSpinner(rt.output, `syncing cards from ${path ?? rt.ctx.cardsDir}...`);
-          const result = await bulkSyncCards(rt.ctx, path);
-          spinner.stop();
+          const spinner = startSpinner(rt.output, `syncing cards from ${path ?? rt.ctx.cardsDir}...`, { verbose: rt.verbose });
+          let result;
+          try {
+            result = await bulkSyncCards(rt.ctx, path);
+          } finally {
+            spinner.stop();
+          }
           const errors: CliMessage[] = result.errors.map((e) => ({
             code: 'SYNC_FAILED',
             message: e.error instanceof Error ? e.error.message : String(e.error),
@@ -109,10 +121,13 @@ export function registerBulk(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { synced: number; errors?: number; mode: string; path: string };
-          return `bulk sync (${d.mode}): ${d.synced} synced${d.errors ? `, ${d.errors} errors` : ''} from ${d.path}`;
-        } },
+        {
+          partialIsFailure: true,
+          humanRenderer: (data) => {
+            const d = data as { synced: number; errors?: number; mode: string; path: string };
+            return `bulk sync (${d.mode}): ${d.synced} synced${d.errors ? `, ${d.errors} errors` : ''} from ${d.path}`;
+          },
+        },
       );
     });
 }

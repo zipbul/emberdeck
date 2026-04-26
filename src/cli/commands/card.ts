@@ -68,6 +68,51 @@ function applyFieldValue(fields: UpdateCardFields, name: string, value: string):
   }
 }
 
+/**
+ * Render card content from DB row WITHOUT touching the original file on disk.
+ * Mirrors exportCardToFile's frontmatter assembly but emits to a string.
+ */
+async function renderCardContentFromDb(rt: CliRuntime, key: string): Promise<string> {
+  const { serializeCardMarkdown } = await import('../../card/markdown');
+  const row = rt.ctx.cardRepo.findByKey(key);
+  if (!row) throw new (await import('../../card/errors')).CardNotFoundError(key);
+  const relations = rt.ctx.relationRepo
+    .findByCardKey(key)
+    .filter((r) => !r.isReverse)
+    .map((r) => r.dstCardKey);
+  const tags = rt.ctx.classificationRepo.findTagsByCard(key);
+  const codeLinks = rt.ctx.codeLinkRepo
+    .findByCardKey(key)
+    .map((r) => ({ kind: r.kind, file: r.file, symbol: r.symbol }));
+  let glossary: string[] | undefined;
+  try {
+    if (row.glossaryJson && row.glossaryJson !== '[]') {
+      const parsed = JSON.parse(row.glossaryJson);
+      if (Array.isArray(parsed) && parsed.length > 0) glossary = parsed;
+    }
+  } catch { /* ignore */ }
+  let boundary: string[] | undefined;
+  try {
+    if (row.boundaryJson) {
+      const parsed = JSON.parse(row.boundaryJson);
+      if (Array.isArray(parsed) && parsed.length > 0) boundary = parsed;
+    }
+  } catch { /* ignore */ }
+  const fm = {
+    key: row.key,
+    summary: row.summary,
+    status: row.status as import('../../card/types').CardStatus,
+    type: row.type as import('../../card/types').CardType,
+    ...(row.parent ? { parent: row.parent } : {}),
+    ...(boundary ? { boundary } : {}),
+    ...(relations.length ? { relations } : {}),
+    ...(tags.length ? { tags } : {}),
+    ...(codeLinks.length ? { codeLinks } : {}),
+    ...(glossary ? { glossary } : {}),
+  } as import('../../card/types').CardFrontmatter;
+  return serializeCardMarkdown(fm, row.body ?? '');
+}
+
 async function parseInputFile(text: string): Promise<unknown> {
   const trimmed = text.trim();
   if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
@@ -361,7 +406,7 @@ export function registerCard(program: Command): void {
 
   card
     .command('export <key>')
-    .description('regenerate card content from DB row. Default: STDOUT. --out FILE writes to file. --in-place rewrites original file.')
+    .description('render card content from DB row. Default: STDOUT (no file side-effects). --out FILE writes to file. --in-place rewrites original.')
     .option('--out <file>', 'write to FILE (use - for STDOUT, default)')
     .option('--in-place', 'rewrite the card\'s original file (DB → file overwrite)')
     .action(async (key: string, opts: { out?: string; inPlace?: boolean }, cmd) => {
@@ -372,19 +417,14 @@ export function registerCard(program: Command): void {
             const filePath = await exportCardToFile(rt.ctx, key);
             return ok({ key, filePath, mode: 'in-place' });
           }
-          // Build content from DB without touching original file
-          const row = rt.ctx.cardRepo.findByKey(key);
-          if (!row) throw new Error(`Card not found: "${key}"`);
-          // Render via existing exportCardToFile by writing to temp then re-reading;
-          // simpler approach: call the export, capture content, then if --out=- or default, emit to STDOUT.
-          // Note: exportCardToFile writes to row.filePath; we reuse that file as the canonical render source.
-          const filePath = await exportCardToFile(rt.ctx, key);
-          const content = await Bun.file(filePath).text();
+          // STDOUT or --out FILE: build content WITHOUT touching original file.
+          // We render directly from DB row + relations + tags + codeLinks via a pure helper.
+          const content = await renderCardContentFromDb(rt, key);
           if (opts.out && opts.out !== '-') {
             await Bun.write(opts.out, content);
             return ok({ key, filePath: opts.out, mode: 'file' });
           }
-          // STDOUT mode (default or --out=-)
+          // STDOUT (default)
           process.stdout.write(content);
           if (!content.endsWith('\n')) process.stdout.write('\n');
           return ok({ key, mode: 'stdout', bytes: content.length });
@@ -392,7 +432,7 @@ export function registerCard(program: Command): void {
         [],
         globalFlags,
         { humanRenderer: (data) => {
-          const d = data as { key: string; mode: string; filePath?: string; bytes?: number };
+          const d = data as { key: string; mode: string; filePath?: string };
           if (d.mode === 'stdout') return ''; // already written to stdout
           return `exported '${d.key}' (${d.mode}) → ${d.filePath}`;
         } },

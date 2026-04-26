@@ -75,7 +75,7 @@ describe('Phase 2 polish: bulk create partial-success', () => {
     expect(parsed.data.created).toBe(2);
   });
 
-  test('all failure → status=partial (per CLI_PLAN §3.6)', async () => {
+  test('all failure → status=partial (per CLI_PLAN §3.6) + exit 2 (CI gate)', async () => {
     const yaml = `- key: bad1
   type: brief
   summary: X
@@ -91,6 +91,35 @@ describe('Phase 2 polish: bulk create partial-success', () => {
     expect(parsed.status).toBe('partial');
     expect(parsed.data.created).toBe(0);
     expect(parsed.data.failed).toBe(2);
+    // partial-success in bulk → exit 2 (CI gate signal, NOT exit 0)
+    expect(r.exitCode).toBe(2);
+  });
+
+  test('partial mixed → exit 2 (gate signal)', async () => {
+    const yaml = `- key: ok-card
+  type: brief
+  summary: OK
+- key: bad-parent
+  type: brief
+  summary: bad
+  parent: nonexistent
+`;
+    writeFileSync(join(tmp, 'mix2.yaml'), yaml);
+    const r = await runCli(['--json', 'bulk', 'create', '--from', 'mix2.yaml'], tmp);
+    expect(r.exitCode).toBe(2);
+  });
+
+  test('all success → exit 0', async () => {
+    const yaml = `- key: c1
+  type: brief
+  summary: c1
+- key: c2
+  type: brief
+  summary: c2
+`;
+    writeFileSync(join(tmp, 'good.yaml'), yaml);
+    const r = await runCli(['--json', 'bulk', 'create', '--from', 'good.yaml'], tmp);
+    expect(r.exitCode).toBe(0);
   });
 });
 
@@ -108,6 +137,25 @@ describe('Phase 2 polish: card export STDOUT default', () => {
     expect(r.stdout).toContain('---');
     expect(r.stdout).toContain('key: expo');
     expect(r.stdout).toContain('summary: export me');
+  });
+
+  test('default STDOUT does NOT modify original file', async () => {
+    const path = join(tmp, '.emberdeck/cards/expo.card.md');
+    const before = await Bun.file(path).text();
+    const beforeStat = await Bun.file(path).stat();
+    await runCli(['card', 'export', 'expo'], tmp);
+    const after = await Bun.file(path).text();
+    const afterStat = await Bun.file(path).stat();
+    expect(after).toBe(before);
+    expect(afterStat.mtime.getTime()).toBe(beforeStat.mtime.getTime());
+  });
+
+  test('--out FILE does NOT modify original file', async () => {
+    const path = join(tmp, '.emberdeck/cards/expo.card.md');
+    const before = await Bun.file(path).text();
+    await runCli(['card', 'export', 'expo', '--out', join(tmp, 'side.md')], tmp);
+    const after = await Bun.file(path).text();
+    expect(after).toBe(before);
   });
 
   test('--out=- explicit STDOUT', async () => {
@@ -135,20 +183,48 @@ describe('Phase 2 polish: card export STDOUT default', () => {
   });
 });
 
-describe('Phase 2 polish: spec sync-symbols --since persistence', () => {
-  let tmp: string;
-  beforeEach(() => { tmp = setupProject(); });
-  afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
+describe('Phase 2 polish: spec sync-symbols --since persistence (programmatic)', () => {
+  test('system_metadata table stores and retrieves last_symbol_sync_at', async () => {
+    // gildash unavailable in CLI test env, so verify persistence via direct DB ops.
+    const { setupEmberdeck, teardownEmberdeck } = await import('../../src/setup');
+    const tmp = mkdtempSync(join(tmpdir(), 'meta-'));
+    mkdirSync(join(tmp, 'cards'), { recursive: true });
+    const ctx = await setupEmberdeck({ cardsDir: join(tmp, 'cards'), dbPath: join(tmp, 'data.db') });
 
-  test('first run uses default_24h, subsequent uses last_sync', async () => {
-    // gildash not configured → exit 6 immediately. but the metadata write happens
-    // inside the action which runs AFTER buildRuntime. Without gildash, syncSymbolChanges throws
-    // GildashNotConfiguredError → exit 6 BEFORE metadata is written. Skip persistence test path.
-    // Instead verify that --since flag is honored.
-    const r = await runCli(['--json', 'spec', 'sync-symbols', '--since', '2026-01-01T00:00:00Z'], tmp);
-    expect(r.exitCode).toBe(6); // gildash missing
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.error.code).toBe('GILDASH_NOT_CONFIGURED');
+    // first read: empty (Bun.SQLite returns null for no rows in some versions)
+    const before = ctx.db.$client
+      .prepare('SELECT value FROM system_metadata WHERE key = ?')
+      .get('last_symbol_sync_at');
+    expect(before ?? null).toBeNull();
+
+    // upsert
+    const ts = '2026-04-27T12:00:00Z';
+    ctx.db.$client
+      .prepare(
+        'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+      )
+      .run('last_symbol_sync_at', ts, ts);
+
+    const after = ctx.db.$client
+      .prepare('SELECT value FROM system_metadata WHERE key = ?')
+      .get('last_symbol_sync_at') as { value: string };
+    expect(after.value).toBe(ts);
+
+    // upsert overwrites
+    const ts2 = '2026-04-27T13:00:00Z';
+    ctx.db.$client
+      .prepare(
+        'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+      )
+      .run('last_symbol_sync_at', ts2, ts2);
+
+    const overwritten = ctx.db.$client
+      .prepare('SELECT value FROM system_metadata WHERE key = ?')
+      .get('last_symbol_sync_at') as { value: string };
+    expect(overwritten.value).toBe(ts2);
+
+    await teardownEmberdeck(ctx);
+    rmSync(tmp, { recursive: true, force: true });
   });
 });
 

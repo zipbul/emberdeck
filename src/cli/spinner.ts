@@ -22,11 +22,15 @@ const NOOP_SPINNER: Spinner = {
 };
 
 /**
- * Start a spinner. Returns a NOOP spinner if output mode is not human or stderr isn't a TTY.
+ * Start a spinner. Returns a NOOP spinner if:
+ *   - output mode is not human (json/quiet)
+ *   - stderr is not a TTY
+ *   - --verbose is on (verbose stderr lines would interleave with spinner \r writes)
  */
-export function startSpinner(ctx: OutputContext, initialLabel: string): Spinner {
+export function startSpinner(ctx: OutputContext, initialLabel: string, opts: { verbose?: boolean } = {}): Spinner {
   if (ctx.mode !== 'human') return NOOP_SPINNER;
   if (!process.stderr.isTTY) return NOOP_SPINNER;
+  if (opts.verbose) return NOOP_SPINNER;
 
   let label = initialLabel;
   let frame = 0;

@@ -93,18 +93,21 @@ export function registerValidate(program: Command): void {
           let broken = 0;
 
           const targets = key ? [{ key }] : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec').map((c) => ({ key: c.key }));
-          const spinner = startSpinner(rt.output, `validating ${targets.length} card(s)...`);
-          let i = 0;
-          for (const t of targets) {
-            i++;
-            spinner.update(`validating links: ${i}/${targets.length} (${t.key})`);
-            const r = await validateCodeLinks(rt.ctx, t.key);
-            declared += r.declared;
-            resolved += r.valid;
-            broken += r.broken.length;
-            for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
+          const spinner = startSpinner(rt.output, `validating ${targets.length} card(s)...`, { verbose: rt.verbose });
+          try {
+            let i = 0;
+            for (const t of targets) {
+              i++;
+              spinner.update(`validating links: ${i}/${targets.length} (${t.key})`);
+              const r = await validateCodeLinks(rt.ctx, t.key);
+              declared += r.declared;
+              resolved += r.valid;
+              broken += r.broken.length;
+              for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
+            }
+          } finally {
+            spinner.stop();
           }
-          spinner.stop();
 
           const data = { declared, resolved, broken, unresolved: errors.length };
           return errors.length === 0 ? ok(data) : partial(data, errors);

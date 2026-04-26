@@ -38,13 +38,17 @@ export function registerSingle(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const spinner = startSpinner(rt.output, 'analyzing project...');
-          const result = await analyze(rt.ctx, {
-            includeBody: opts.includeBody,
-            limit: opts.driftedLimit,
-            offset: opts.driftedOffset,
-          });
-          spinner.stop();
+          const spinner = startSpinner(rt.output, 'analyzing project...', { verbose: rt.verbose });
+          let result;
+          try {
+            result = await analyze(rt.ctx, {
+              includeBody: opts.includeBody,
+              limit: opts.driftedLimit,
+              offset: opts.driftedOffset,
+            });
+          } finally {
+            spinner.stop();
+          }
           return ok({
             health: result.health,
             coverage: result.coverage,
