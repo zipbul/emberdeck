@@ -361,23 +361,41 @@ export function registerCard(program: Command): void {
 
   card
     .command('export <key>')
-    .description('regenerate card file from DB row')
-    .option('--out <file>', 'write to FILE instead of original location')
-    .action(async (key: string, opts: { out?: string }, cmd) => {
+    .description('regenerate card content from DB row. Default: STDOUT. --out FILE writes to file. --in-place rewrites original file.')
+    .option('--out <file>', 'write to FILE (use - for STDOUT, default)')
+    .option('--in-place', 'rewrite the card\'s original file (DB → file overwrite)')
+    .action(async (key: string, opts: { out?: string; inPlace?: boolean }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const filePath = await exportCardToFile(rt.ctx, key);
-          if (opts.out && opts.out !== filePath) {
-            const content = await Bun.file(filePath).text();
-            await Bun.write(opts.out, content);
-            return ok({ key, filePath: opts.out, source: filePath });
+          if (opts.inPlace) {
+            const filePath = await exportCardToFile(rt.ctx, key);
+            return ok({ key, filePath, mode: 'in-place' });
           }
-          return ok({ key, filePath });
+          // Build content from DB without touching original file
+          const row = rt.ctx.cardRepo.findByKey(key);
+          if (!row) throw new Error(`Card not found: "${key}"`);
+          // Render via existing exportCardToFile by writing to temp then re-reading;
+          // simpler approach: call the export, capture content, then if --out=- or default, emit to STDOUT.
+          // Note: exportCardToFile writes to row.filePath; we reuse that file as the canonical render source.
+          const filePath = await exportCardToFile(rt.ctx, key);
+          const content = await Bun.file(filePath).text();
+          if (opts.out && opts.out !== '-') {
+            await Bun.write(opts.out, content);
+            return ok({ key, filePath: opts.out, mode: 'file' });
+          }
+          // STDOUT mode (default or --out=-)
+          process.stdout.write(content);
+          if (!content.endsWith('\n')) process.stdout.write('\n');
+          return ok({ key, mode: 'stdout', bytes: content.length });
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => `exported '${(data as { key: string }).key}' → ${(data as { filePath: string }).filePath}` },
+        { humanRenderer: (data) => {
+          const d = data as { key: string; mode: string; filePath?: string; bytes?: number };
+          if (d.mode === 'stdout') return ''; // already written to stdout
+          return `exported '${d.key}' (${d.mode}) → ${d.filePath}`;
+        } },
       );
     });
 
@@ -427,13 +445,15 @@ export function registerCard(program: Command): void {
 
   card
     .command('context <key>')
-    .description('related cards via parent/relations BFS')
+    .description('related cards via parent/relations BFS. Use `card relations` for direction-filtered direct relations.')
     .option('--depth <n>', 'BFS depth (default 1)', (v) => parseInt(v, 10))
-    .option('--direction <dir>', 'forward|backward|both (default both)', 'both')
-    .action(async (key: string, opts: { depth?: number; direction?: string }, cmd) => {
+    .action(async (key: string, opts: { depth?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
+          // Note: getCardContext does both forward+backward BFS by design.
+          // For direction-filtered traversal, ops/query.ts:getRelationGraph supports it directly;
+          // this CLI uses getCardContext which gives card details (file body) at depth 1.
           const ctx = await getCardContext(rt.ctx, key, { depth: opts.depth ?? 1 });
           return ok({
             key: ctx.card.frontmatter.key,

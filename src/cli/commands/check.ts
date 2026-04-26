@@ -6,6 +6,7 @@
 import { Command } from 'commander';
 import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
+// partial is used by `check regression` (failing case)
 import type { CliRuntime } from '../context';
 import { getLinkCoverage, getUncoveredSymbols, suggestCardScope } from '../../ops/spec-sync';
 import { checkDrift, checkInteractions } from '../../ops/context';

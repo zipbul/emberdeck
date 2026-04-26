@@ -75,10 +75,11 @@ describe('Phase 2: card commands (delete/rename/search/export/set-status/tree/re
     expect(parsed.data.items.some((i: { key: string }) => i.key === 'parent-b')).toBe(true);
   });
 
-  test('card export rewrites file from DB', async () => {
-    const r = await runCli(['--json', 'card', 'export', 'parent-b'], tmp);
+  test('card export --in-place rewrites file from DB', async () => {
+    const r = await runCli(['--json', 'card', 'export', 'parent-b', '--in-place'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.mode).toBe('in-place');
     expect(parsed.data.filePath).toContain('parent-b');
   });
 

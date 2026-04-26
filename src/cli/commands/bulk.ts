@@ -11,6 +11,7 @@ import type { CliRuntime } from '../context';
 import { bulkCreateCards } from '../../ops/bulk-create';
 import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
+import { startSpinner } from '../spinner';
 
 async function readStdin(): Promise<string> {
   return await Bun.stdin.text();
@@ -43,7 +44,9 @@ export function registerBulk(program: Command): void {
           if (!Array.isArray(parsed)) {
             throw new Error('--from FILE must be an array of card inputs');
           }
+          const spinner = startSpinner(rt.output, `creating ${(parsed as unknown[]).length} cards...`);
           const result = await bulkCreateCards(rt.ctx, parsed as CreateCardInput[]);
+          spinner.stop();
           const errors: CliMessage[] = result.errors.map((e) => ({
             code: 'BULK_CREATE_FAILED',
             message: e.message,
@@ -88,7 +91,9 @@ export function registerBulk(program: Command): void {
               throw new Error(`path not found: ${path}`);
             }
           }
+          const spinner = startSpinner(rt.output, `syncing cards from ${path ?? rt.ctx.cardsDir}...`);
           const result = await bulkSyncCards(rt.ctx, path);
+          spinner.stop();
           const errors: CliMessage[] = result.errors.map((e) => ({
             code: 'SYNC_FAILED',
             message: e.error instanceof Error ? e.error.message : String(e.error),

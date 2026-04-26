@@ -113,6 +113,16 @@ export const systemLock = sqliteTable('system_lock', {
   acquiredAt: text('acquired_at').notNull(),
 });
 
+/**
+ * Generic key/value store for system-wide metadata (e.g., last_symbol_sync_at).
+ * Used by CLI commands that need persistent state outside of cards.
+ */
+export const systemMetadata = sqliteTable('system_metadata', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export const codeLink = sqliteTable(
   'code_link',
   {
