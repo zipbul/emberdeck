@@ -254,16 +254,25 @@ describe('Phase 2 polish: card export --json mode', () => {
   });
   afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
 
-  test('--json emits CliResult JSON, not raw markdown', async () => {
+  test('--json emits PURE CliResult JSON (jq-parseable, no raw markdown leak)', async () => {
     const r = await runCli(['--json', 'card', 'export', 'jx'], tmp);
     expect(r.exitCode).toBe(0);
-    // STDOUT mode default: in --json mode we get the CliResult wrapper
-    // The current implementation writes raw markdown to stdout BEFORE the result is rendered.
-    // Verify both pieces appear: markdown content + JSON wrapper at end.
-    // Note: this is acceptable behavior — markdown is the actual data, JSON is the result envelope.
+    // Must be parseable as a single JSON document
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('ok');
+    expect(parsed.data.mode).toBe('stdout');
+    // markdown content lives INSIDE data.content, not as raw stdout
+    expect(parsed.data.content).toContain('key: jx');
+    expect(parsed.data.content).toContain('summary: json export');
+    expect(parsed.data.bytes).toBe(parsed.data.content.length);
+  });
+
+  test('default (human) STDOUT emits raw markdown only', async () => {
+    const r = await runCli(['--output=human', 'card', 'export', 'jx'], tmp);
+    expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('key: jx');
-    // The CliResult wrapper should also be present
-    expect(r.stdout).toMatch(/"status"\s*:\s*"ok"/);
+    // No JSON envelope in human mode
+    expect(r.stdout).not.toMatch(/"schemaVersion"/);
   });
 
   test('--json --in-place emits only JSON (no raw markdown leak)', async () => {

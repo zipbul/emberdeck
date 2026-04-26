@@ -383,22 +383,22 @@ export function registerCard(program: Command): void {
             return ok({ key, filePath, mode: 'in-place' });
           }
           // STDOUT or --out FILE: build content WITHOUT touching original file.
-          // We render directly from DB row + relations + tags + codeLinks via a pure helper.
           const content = renderCardContentFromDb(rt, key);
           if (opts.out && opts.out !== '-') {
             await Bun.write(opts.out, content);
             return ok({ key, filePath: opts.out, mode: 'file' });
           }
-          // STDOUT (default)
-          process.stdout.write(content);
-          if (!content.endsWith('\n')) process.stdout.write('\n');
-          return ok({ key, mode: 'stdout', bytes: content.length });
+          // STDOUT (default).
+          // - JSON mode: content goes into data.content (single JSON envelope, jq-friendly)
+          // - Human mode: humanRenderer writes raw markdown to stdout
+          // - Quiet mode: render() suppresses by default; we still include `key` in data
+          return ok({ key, mode: 'stdout', bytes: content.length, content });
         },
         [],
         globalFlags,
         { humanRenderer: (data) => {
-          const d = data as { key: string; mode: string; filePath?: string };
-          if (d.mode === 'stdout') return ''; // already written to stdout
+          const d = data as { key: string; mode: string; filePath?: string; content?: string };
+          if (d.mode === 'stdout') return d.content ?? ''; // raw markdown in human mode
           return `exported '${d.key}' (${d.mode}) → ${d.filePath}`;
         } },
       );
