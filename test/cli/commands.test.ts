@@ -171,6 +171,65 @@ describe('CLI: card create + get (lifecycle)', () => {
   });
 });
 
+describe('CLI: card list filters', () => {
+  let tmp: string;
+
+  beforeEach(async () => {
+    tmp = mkdtempSync(join(tmpdir(), 'ed-cli-'));
+    writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'test', version: '0.0.0' }));
+    writeFileSync(
+      join(tmp, '.emberdeck.jsonc'),
+      JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
+    );
+    mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
+    await runCli(['card', 'create', 'b1', '--type', 'brief', '--summary', 'first'], tmp);
+    await runCli(['card', 'create', 'b2', '--type', 'brief', '--summary', 'second'], tmp);
+    await runCli(['card', 'create', 's1', '--type', 'spec', '--summary', 'spec one'], tmp);
+  });
+
+  afterEach(() => {
+    try { rmSync(tmp, { recursive: true, force: true }); } catch {}
+  });
+
+  test('--type filter narrows results', async () => {
+    const r = await runCli(['--json', 'card', 'list', '--type', 'brief'], tmp);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.total).toBe(2);
+    expect(parsed.data.items.every((i: { type: string }) => i.type === 'brief')).toBe(true);
+  });
+
+  test('--limit + --offset paginates', async () => {
+    const r = await runCli(['--json', 'card', 'list', '--limit', '2', '--offset', '0'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.items).toHaveLength(2);
+    expect(parsed.data.total).toBe(3);
+    expect(parsed.data.page.has_more).toBe(true);
+  });
+
+  test('--file without --symbol → error', async () => {
+    const r = await runCli(['--json', 'card', 'list', '--file', 'foo.ts'], tmp);
+    expect(r.exitCode).not.toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error.message).toContain('--symbol');
+  });
+
+  test('--symbol with no matches returns empty list', async () => {
+    const r = await runCli(['--json', 'card', 'list', '--symbol', 'nonExistentSymbol'], tmp);
+    // gildash not configured here so symbol search returns empty
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.items).toEqual([]);
+  });
+
+  test('--glossary with no glossary defined returns empty', async () => {
+    const r = await runCli(['--json', 'card', 'list', '--glossary', 'undefined-word'], tmp);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.items).toEqual([]);
+  });
+});
+
 describe('CLI: card update', () => {
   let tmp: string;
 
@@ -367,6 +426,67 @@ describe('CLI: gildash-required commands without projectRoot', () => {
   });
 });
 
+describe('CLI: NO_COLOR / CLICOLOR_FORCE env vars', () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'ed-cli-'));
+    writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'test', version: '0.0.0' }));
+    writeFileSync(
+      join(tmp, '.emberdeck.jsonc'),
+      JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
+    );
+    mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
+  });
+
+  afterEach(() => {
+    try { rmSync(tmp, { recursive: true, force: true }); } catch {}
+  });
+
+  test('NO_COLOR=1 disables ANSI escapes in human-mode error stderr', async () => {
+    // Force --output=human (which would normally use color); with NO_COLOR=1 no ANSI.
+    const proc = Bun.spawn(['bun', CLI, '--output=human', 'card', 'get', 'nonexistent'], {
+      cwd: tmp,
+      env: { ...process.env, NO_COLOR: '1' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stderr = await new Response(proc.stderr).text();
+    await proc.exited;
+    expect(stderr).not.toContain('\x1b[');
+    expect(stderr).toContain('error:');
+  });
+
+  test('CLICOLOR_FORCE=1 enables ANSI even when stdout is piped (human mode)', async () => {
+    const proc = Bun.spawn(['bun', CLI, '--output=human', 'card', 'get', 'nonexistent'], {
+      cwd: tmp,
+      env: { ...process.env, CLICOLOR_FORCE: '1', NO_COLOR: '' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stderr = await new Response(proc.stderr).text();
+    await proc.exited;
+    expect(stderr).toContain('\x1b[');
+  });
+
+  test('without --output=human (TTY auto), piped stdout stays JSON without ANSI', async () => {
+    // baseline: no env color override, output is auto = json (because piped)
+    const proc = Bun.spawn(['bun', CLI, 'card', 'get', 'nonexistent'], {
+      cwd: tmp,
+      env: { ...process.env, NO_COLOR: '', CLICOLOR_FORCE: '' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    await proc.exited;
+    // JSON output to stdout (no ANSI possible there)
+    expect(stdout).toContain('"status": "error"');
+    // stderr should be empty (JSON mode renders error to stdout in the result)
+    expect(stderr).not.toContain('\x1b[');
+  });
+});
+
 describe('CLI: --verbose', () => {
   let tmp: string;
 
@@ -390,6 +510,25 @@ describe('CLI: --verbose', () => {
     expect(r.stderr).toContain('[verbose]');
     expect(r.stderr).toContain('buildRuntime');
     expect(r.stderr).toContain('command done');
+  });
+
+  test('--verbose does NOT leak error message contents (only class name)', async () => {
+    // Trigger CardNotFoundError; key contains a token-like marker.
+    const proc = await runCli(
+      ['--verbose', '--json', 'card', 'get', 'token-MY-SECRET-abc'],
+      tmp,
+    );
+    expect(proc.exitCode).toBe(3);
+    // The [verbose] command threw line should NOT contain the user-supplied bad value;
+    // it should only emit the error class name.
+    const verboseLines = proc.stderr.split('\n').filter((l) => l.includes('[verbose] command threw'));
+    expect(verboseLines.length).toBeGreaterThan(0);
+    for (const line of verboseLines) {
+      expect(line).not.toContain('MY-SECRET');
+      expect(line).not.toContain('token-MY');
+      // should mention the error class name only
+      expect(line).toMatch(/CardNotFoundError|Error/);
+    }
   });
 
   test('without --verbose stderr stays clean for ok command', async () => {

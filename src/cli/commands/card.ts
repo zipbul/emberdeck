@@ -14,6 +14,8 @@ import { getCard } from '../../ops/query';
 import { createCard, type CreateCardInput } from '../../ops/create';
 import { updateCard, type UpdateCardFields } from '../../ops/update';
 import { listCards } from '../../ops/query';
+import { findCardsBySymbol } from '../../ops/link';
+import { findCardsByGlossaryWord } from '../../ops/glossary';
 
 async function readBodyFromOption(value: string | undefined): Promise<string | undefined> {
   if (value === undefined) return undefined;
@@ -67,33 +69,76 @@ export function registerCard(program: Command): void {
   // ── card list ──
   card
     .command('list')
-    .description('list cards (filterable)')
+    .description('list cards (filterable). --symbol/--glossary subsume find_cards_by_symbol / find_cards_by_glossary_word')
     .option('--type <type>', 'filter by type (principle|brief|spec)')
     .option('--status <status>', 'filter by status (draft|active|drifted|retired)')
     .option('--parent <key>', 'filter by parent card key')
     .option('--tag <tag>', 'filter by tag')
+    .option('--symbol <name>', 'cards bound to this code symbol (via codeLinks or boundary)')
+    .option('--file <path>', 'when used with --symbol, restrict to symbols in this file')
+    .option('--glossary <word>', 'cards declaring this glossary word')
     .option('--limit <n>', 'page size (default 50)', (v) => parseInt(v, 10))
     .option('--offset <n>', 'page offset (default 0)', (v) => parseInt(v, 10))
-    .action(async (opts: { type?: string; status?: string; parent?: string; tag?: string; limit?: number; offset?: number }, cmd) => {
+    .action(async (opts: { type?: string; status?: string; parent?: string; tag?: string; symbol?: string; file?: string; glossary?: string; limit?: number; offset?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       const limit = opts.limit ?? 50;
       const offset = opts.offset ?? 0;
       await run(
         async (rt: CliRuntime) => {
-          const all = listCards(rt.ctx, {
-            type: opts.type as CardType | undefined,
-            status: opts.status as CardStatus | undefined,
-            parent: opts.parent,
-            tag: opts.tag,
-          });
-          const total = all.length;
-          const items = all.slice(offset, offset + limit).map((row) => ({
-            key: row.key,
-            type: row.type,
-            status: row.status,
-            summary: row.summary,
-            parent: row.parent,
-          }));
+          if (opts.file && !opts.symbol) {
+            throw new Error('--file requires --symbol');
+          }
+          let rows: Array<{ key: string; type: string; status: string; summary: string; parent: string | null }>;
+
+          if (opts.symbol) {
+            // Discover via codeLinks/boundary; then apply other filters in-memory.
+            const matches = await findCardsBySymbol(rt.ctx, opts.symbol, opts.file);
+            rows = matches
+              .map((m) => ({
+                key: m.card.key,
+                type: m.card.type,
+                status: m.card.status,
+                summary: m.card.summary,
+                parent: m.card.parent,
+              }))
+              .filter((r) => !opts.type || r.type === opts.type)
+              .filter((r) => !opts.status || r.status === opts.status)
+              .filter((r) => !opts.parent || r.parent === opts.parent);
+          } else if (opts.glossary) {
+            const matches = findCardsByGlossaryWord(rt.ctx, opts.glossary);
+            // matches only have key+summary; enrich via DB query for type/status
+            const enriched = matches.map((m) => {
+              const row = rt.ctx.cardRepo.findByKey(m.key);
+              return {
+                key: m.key,
+                type: row?.type ?? '',
+                status: row?.status ?? '',
+                summary: m.summary,
+                parent: row?.parent ?? null,
+              };
+            });
+            rows = enriched
+              .filter((r) => !opts.type || r.type === opts.type)
+              .filter((r) => !opts.status || r.status === opts.status)
+              .filter((r) => !opts.parent || r.parent === opts.parent);
+          } else {
+            const all = listCards(rt.ctx, {
+              type: opts.type as CardType | undefined,
+              status: opts.status as CardStatus | undefined,
+              parent: opts.parent,
+              tag: opts.tag,
+            });
+            rows = all.map((row) => ({
+              key: row.key,
+              type: row.type,
+              status: row.status,
+              summary: row.summary,
+              parent: row.parent,
+            }));
+          }
+
+          const total = rows.length;
+          const items = rows.slice(offset, offset + limit);
           return ok({
             items,
             total,

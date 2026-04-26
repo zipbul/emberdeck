@@ -11,6 +11,23 @@ import { EXIT } from './exit-codes';
 export type CommandFn = (rt: CliRuntime, args: unknown[]) => Promise<CliResult>;
 
 /**
+ * Build an OutputContext for the catch path when buildRuntime() failed.
+ * Honors --no-color, NO_COLOR, CLICOLOR_FORCE, --json/--quiet/--output identically to buildRuntime.
+ */
+function buildFallbackOutputContext(flags: GlobalFlags): import('./output').OutputContext {
+  const mode = (() => {
+    if (flags.output === 'json' || flags.json) return 'json' as const;
+    if (flags.output === 'quiet' || flags.quiet) return 'quiet' as const;
+    if (flags.output === 'human') return 'human' as const;
+    return process.stdout.isTTY ? ('human' as const) : ('json' as const);
+  })();
+  const noColorEnv = process.env.NO_COLOR && process.env.NO_COLOR.length > 0;
+  const forceColor = process.env.CLICOLOR_FORCE && process.env.CLICOLOR_FORCE.length > 0;
+  const color = !flags.noColor && !noColorEnv && (forceColor ? true : !!process.stdout.isTTY);
+  return { mode, color };
+}
+
+/**
  * Decide CliResult.status from an error code.
  * Transient/retryable errors → 'unknown' (exit 7); everything else → 'error'.
  * Exported for testability.
@@ -68,7 +85,7 @@ export async function run(
     };
     // best-effort cleanup
     try { await rt?.cleanup(); } catch {}
-    const ctx = rt?.output ?? { mode: process.stdout.isTTY ? 'human' as const : 'json' as const, color: !!process.stdout.isTTY };
+    const ctx = rt?.output ?? buildFallbackOutputContext(globalFlags);
     render(result, ctx);
     process.exit(statusToExitCode(result, options));
   }
