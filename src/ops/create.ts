@@ -106,6 +106,8 @@ export async function createCard(
     relations: input.relations,
     codeLinks: input.codeLinks,
     boundary: input.boundary,
+    type: input.type,
+    status: input.status,
   });
   const slug = normalizeSlug(input.key);
   const fullKey = slug;

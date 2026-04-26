@@ -44,7 +44,12 @@ export interface ValidationInput {
   relations?: string[];
   codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
   boundary?: string[];
+  type?: string;
+  status?: string;
 }
+
+const VALID_TYPES = new Set(['principle', 'brief', 'spec']);
+const VALID_STATUSES = new Set(['draft', 'active', 'drifted', 'retired']);
 
 /**
  * Validates size limits of card input values.
@@ -55,7 +60,21 @@ export interface ValidationInput {
  * @throws {CardValidationError} On size limit violation.
  */
 export function validateCardInput(input: ValidationInput): void {
-  const { key, summary, body, tags, relations, codeLinks, boundary } = input;
+  const { key, summary, body, tags, relations, codeLinks, boundary, type, status } = input;
+
+  // ── type ──
+  if (type !== undefined && !VALID_TYPES.has(type)) {
+    throw new CardValidationError(
+      `Invalid card type "${type}" (expected one of: principle, brief, spec)`,
+    );
+  }
+
+  // ── status ──
+  if (status !== undefined && !VALID_STATUSES.has(status)) {
+    throw new CardValidationError(
+      `Invalid card status "${status}" (expected one of: draft, active, drifted, retired)`,
+    );
+  }
 
   // ── key ────────────────────────────────────────────────────
   if (key !== undefined && key.length > LIMITS.KEY_MAX) {

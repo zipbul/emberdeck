@@ -128,6 +128,8 @@ export async function updateCard(
     relations: fields.relations ?? undefined,
     codeLinks: fields.codeLinks ?? undefined,
     boundary: fields.boundary,
+    type: fields.type,
+    status: fields.status,
   });
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);

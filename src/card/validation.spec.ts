@@ -266,6 +266,35 @@ describe('validateCardInput', () => {
     ).not.toThrow();
   });
 
+  // ── type / status enum (defense in depth — CLI also validates) ──
+
+  it('should reject invalid card type', () => {
+    expect(() => validateCardInput({ type: 'banana' })).toThrow(CardValidationError);
+    expect(() => validateCardInput({ type: 'banana' })).toThrow(/Invalid card type/);
+  });
+
+  it('should accept valid card types', () => {
+    expect(() => validateCardInput({ type: 'principle' })).not.toThrow();
+    expect(() => validateCardInput({ type: 'brief' })).not.toThrow();
+    expect(() => validateCardInput({ type: 'spec' })).not.toThrow();
+  });
+
+  it('should reject invalid card status', () => {
+    expect(() => validateCardInput({ status: 'pending' })).toThrow(CardValidationError);
+    expect(() => validateCardInput({ status: 'pending' })).toThrow(/Invalid card status/);
+  });
+
+  it('should accept valid card statuses', () => {
+    for (const s of ['draft', 'active', 'drifted', 'retired'] as const) {
+      expect(() => validateCardInput({ status: s })).not.toThrow();
+    }
+  });
+
+  it('should skip type/status validation when undefined', () => {
+    expect(() => validateCardInput({})).not.toThrow();
+    expect(() => validateCardInput({ summary: 'x' })).not.toThrow();
+  });
+
   // ── CO-1: validation order — summary checked before other fields ──
 
   it('should throw on summary validation before checking other fields when multiple fields invalid', () => {
