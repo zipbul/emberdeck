@@ -37,7 +37,7 @@ import {
   type CreateCardInput,
   type CodeLink,
 } from '../../index';
-import { createTestContext, SPEC_BODY, type TestContext } from '../helpers';
+import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 // ============================================================================
 // Helpers
@@ -75,6 +75,7 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
         { kind: 'function', file: 'src/auth/token.ts', symbol: 'refreshToken' },
         { kind: 'class', file: 'src/auth/TokenService.ts', symbol: 'TokenService' },
       ],
+      spec: makeTestSpec('src/auth/token.ts', 'refreshToken'),
     };
 
     // Create dependency targets first

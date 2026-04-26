@@ -51,7 +51,9 @@ import {
   suggestCardScope,
 } from '../ops/spec-sync';
 import { analyze, getOnboardingSummary } from '../ops/analyze';
-import { validateBrief } from '../brief/validate';
+import { migrateCardToNamespace } from '../ops/migrate';
+import { validateBriefRefs } from '../brief/validate-refs';
+import { readCardFile } from '../fs/reader';
 import {
   defineGlossary,
   lookupGlossary,
@@ -75,8 +77,11 @@ function fail(err: unknown) {
 // ---- Shared Schemas ----
 
 const codeLinkSchema = z.object({ kind: z.string(), file: z.string(), symbol: z.string() });
-const statusEnum = z.enum(['draft', 'active', 'drifted']);
-const cardTypeEnum = z.enum(['brief', 'spec']);
+const statusEnum = z.enum(['draft', 'active', 'drifted', 'retired']);
+const cardTypeEnum = z.enum(['principle', 'brief', 'spec']);
+// Type-specific structured body namespaces. Validated by createCard/updateCard internally
+// against the strict TypeScript shapes (BriefBody/SpecBody/PrincipleBody).
+const namespaceBodySchema = z.record(z.string(), z.unknown());
 
 // ---- McpServer Type ----
 
@@ -104,13 +109,13 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_create_card',
     {
       description:
-        'Record a new brief or spec card before implementation. ' +
+        'Record a new principle, brief, or spec card before implementation. ' +
         'Use to capture design decisions, constraints, and contracts as a card. ' +
         'The body should contain design rationale, invariants, and scope boundaries — not file listings (use codeLinks for that).',
       inputSchema: z.object({
         key: z.string().describe('Card key used as filename (e.g. "auth-token")'),
         summary: z.string().describe('One-line summary of the card'),
-        type: cardTypeEnum.describe('Card type (brief/spec)'),
+        type: cardTypeEnum.describe('Card type (principle/brief/spec)'),
         status: statusEnum.optional().describe('Initial status (default: draft). If active, activation guard is applied'),
         parent: z.string().optional().describe('Parent card key'),
         boundary: z.array(z.string()).optional().describe('File/directory glob patterns this card is responsible for'),
@@ -119,13 +124,16 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         relations: z.array(z.string()).optional().describe('Related card keys'),
         codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
         glossary: z.array(z.string()).optional().describe('Glossary words declared by this card'),
+        principle: namespaceBodySchema.optional().describe('principle namespace body (only when type=principle). Required to activate.'),
+        brief: namespaceBodySchema.optional().describe('brief namespace body (only when type=brief). Required to activate.'),
+        spec: namespaceBodySchema.optional().describe('spec namespace body (only when type=spec). Required to activate.'),
       }).strict(),
     },
     async (args: {
       key: string;
       summary: string;
-      type: 'brief' | 'spec';
-      status?: 'draft' | 'active' | 'drifted';
+      type: 'principle' | 'brief' | 'spec';
+      status?: 'draft' | 'active' | 'drifted' | 'retired';
       parent?: string;
       boundary?: string[];
       body?: string;
@@ -133,9 +141,12 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       relations?: string[];
       codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
       glossary?: string[];
+      principle?: Record<string, unknown>;
+      brief?: Record<string, unknown>;
+      spec?: Record<string, unknown>;
     }) => {
       try {
-        const result = await createCard(ctx, args);
+        const result = await createCard(ctx, args as Parameters<typeof createCard>[1]);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -163,6 +174,9 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
           relations: z.array(z.string()).optional().describe('Related card keys'),
           codeLinks: z.array(codeLinkSchema).optional().describe('Code links [{kind, file, symbol}]'),
           glossary: z.array(z.string()).optional().describe('Glossary words declared by this card'),
+          principle: namespaceBodySchema.optional().describe('principle namespace body (required to activate principle cards)'),
+          brief: namespaceBodySchema.optional().describe('brief namespace body (required to activate brief cards)'),
+          spec: namespaceBodySchema.optional().describe('spec namespace body (required to activate spec cards)'),
         }).strict()).describe('Array of card inputs'),
       }).strict(),
     },
@@ -170,8 +184,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       cards: Array<{
         key: string;
         summary: string;
-        type: 'brief' | 'spec';
-        status?: 'draft' | 'active' | 'drifted';
+        type: 'principle' | 'brief' | 'spec';
+        status?: 'draft' | 'active' | 'drifted' | 'retired';
         parent?: string;
         boundary?: string[];
         body?: string;
@@ -179,10 +193,13 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         relations?: string[];
         codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
         glossary?: string[];
+        principle?: Record<string, unknown>;
+        brief?: Record<string, unknown>;
+        spec?: Record<string, unknown>;
       }>;
     }) => {
       try {
-        const result = await bulkCreateCards(ctx, args.cards);
+        const result = await bulkCreateCards(ctx, args.cards as Parameters<typeof bulkCreateCards>[1]);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -261,13 +278,16 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         relations: z.array(z.string()).nullable().optional().describe('Related card keys (null to remove)'),
         codeLinks: z.array(codeLinkSchema).nullable().optional().describe('Code links (null to remove)'),
         glossary: z.array(z.string()).optional().describe('Glossary words declared by this card'),
+        principle: namespaceBodySchema.nullable().optional().describe('principle namespace body (null to remove)'),
+        brief: namespaceBodySchema.nullable().optional().describe('brief namespace body (null to remove)'),
+        spec: namespaceBodySchema.nullable().optional().describe('spec namespace body (null to remove)'),
       }).strict(),
     },
     async (args: {
       key: string;
       summary?: string;
-      type?: 'brief' | 'spec';
-      status?: 'draft' | 'active' | 'drifted';
+      type?: 'principle' | 'brief' | 'spec';
+      status?: 'draft' | 'active' | 'drifted' | 'retired';
       parent?: string | null;
       boundary?: string[];
       body?: string;
@@ -276,10 +296,13 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       relations?: string[] | null;
       codeLinks?: Array<{ kind: string; file: string; symbol: string }> | null;
       glossary?: string[];
+      principle?: Record<string, unknown> | null;
+      brief?: Record<string, unknown> | null;
+      spec?: Record<string, unknown> | null;
     }) => {
       try {
         const { key, ...fields } = args;
-        const result = await updateCard(ctx, key, fields);
+        const result = await updateCard(ctx, key, fields as Parameters<typeof updateCard>[2]);
         return ok(result);
       } catch (err) {
         return fail(err);
@@ -300,7 +323,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         reason: z.string().optional().describe('Reason for the status change (recorded in changelog)'),
       }).strict(),
     },
-    async (args: { key: string; status: 'draft' | 'active' | 'drifted'; reason?: string }) => {
+    async (args: { key: string; status: 'draft' | 'active' | 'drifted' | 'retired'; reason?: string }) => {
       try {
         const result = await updateCardStatus(ctx, args.key, args.status, args.reason);
         return ok(result);
@@ -373,8 +396,8 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
       }).strict(),
     },
     async (args: {
-      status?: 'draft' | 'active' | 'drifted';
-      type?: 'brief' | 'spec';
+      status?: 'draft' | 'active' | 'drifted' | 'retired';
+      type?: 'principle' | 'brief' | 'spec';
       parent?: string;
       tag?: string;
       roots?: boolean;
@@ -411,7 +434,7 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
         status: statusEnum.optional().describe('Filter by status'),
       }).strict(),
     },
-    async (args: { query: string; type?: 'brief' | 'spec'; status?: 'draft' | 'active' | 'drifted' }) => {
+    async (args: { query: string; type?: 'principle' | 'brief' | 'spec'; status?: 'draft' | 'active' | 'drifted' | 'retired' }) => {
       try {
         const result = searchCards(ctx, args.query, {
           type: args.type,
@@ -1073,18 +1096,60 @@ export function registerEmberdeckTools(server: McpServerLike, ctx: EmberdeckCont
     'emberdeck_validate_brief',
     {
       description:
-        'Validate a brief card (기획서). ' +
-        'Checks for 8 required sections (Motivation, Scope, Scenario, Rule, Constraint, Risk, Criteria, Decision) ' +
-        'in the card body and all descendant brief cards. ' +
-        'Runs L1 structural checks (empty sections, placeholders) and L2 lexical checks (INCOSE ambiguous terms). ' +
-        'Use before creating spec cards to ensure the brief is complete.',
+        'Validate a brief card structure and cross-references. ' +
+        'Checks: (1) brief namespace presence in frontmatter, (2) all required sections (context/scope/flow/design/policy/external/compatibility/limits/criteria/rationale), ' +
+        '(3) cross-refs (covers→goals, governs→flow, verifies→flow, addresses→external/limits), ' +
+        '(4) coverage (every goal covered, every flow governed+verified), (5) ≥1 happy + ≥1 failure scenario. ' +
+        'Use before activating a brief or creating spec cards under it.',
       inputSchema: z.object({
         cardKey: z.string().describe('Brief card key to validate'),
       }).strict(),
     },
     async ({ cardKey }: { cardKey: string }) => {
       try {
-        const result = validateBrief(ctx, cardKey);
+        const card = ctx.cardRepo.findByKey(cardKey);
+        if (!card) {
+          return fail(new Error(`Card not found: "${cardKey}"`));
+        }
+        if (card.type !== 'brief') {
+          return fail(new Error(`Card "${cardKey}" is type "${card.type}", expected "brief"`));
+        }
+        // Read full file to access frontmatter.brief namespace (DB stores body as text).
+        const file = await readCardFile(card.filePath);
+        if (!file.frontmatter.brief) {
+          return fail(new Error(`Brief card "${cardKey}" is missing required \`brief\` namespace in frontmatter`));
+        }
+        validateBriefRefs(file.frontmatter.brief);
+        return ok({
+          cardKey,
+          valid: true,
+          goals: file.frontmatter.brief.scope.goals.length,
+          flow: file.frontmatter.brief.flow.length,
+          policy: file.frontmatter.brief.policy.length,
+          criteria: file.frontmatter.brief.criteria.length,
+        });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    'emberdeck_migrate_card_to_namespace',
+    {
+      description:
+        'DRY-RUN: Convert a legacy markdown-body brief card to the structured `brief:` namespace. ' +
+        'Parses ## Motivation/Scope/Scenario/Rule/Constraint/Risk/Criteria/Decision sections and emits the proposed BriefBody. ' +
+        'Returns proposed namespace + warnings + validationStatus. DOES NOT modify the file. ' +
+        'Apply the result manually after review (recommended only for `draft` cards).',
+      inputSchema: z.object({
+        cardKey: z.string().describe('Brief card key to convert'),
+        autoLinkRefs: z.boolean().optional().describe('Auto-fill heuristic cross-refs covers/governs/verifies/addresses (default: false)'),
+      }).strict(),
+    },
+    async ({ cardKey, autoLinkRefs }: { cardKey: string; autoLinkRefs?: boolean }) => {
+      try {
+        const result = await migrateCardToNamespace(ctx, { cardKey, autoLinkRefs });
         return ok(result);
       } catch (err) {
         return fail(err);

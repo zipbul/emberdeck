@@ -17,7 +17,7 @@ import {
   preChangeCheck,
   syncSpecAnnotations,
 } from '../../index';
-import { createTestContext, SPEC_BODY, type TestContext } from '../helpers';
+import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 // ── Mock Gildash Factory ──
 
@@ -66,6 +66,7 @@ describe('checkDrift — boundary_inactive', () => {
       body: SPEC_BODY,
       boundary: ['src/nonexistent/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+      spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'bnd-inactive', 'active');
 
@@ -94,6 +95,7 @@ describe('checkDrift — boundary_inactive', () => {
       body: SPEC_BODY,
       boundary: ['src/nonexistent/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+      spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'bnd-trans', 'active');
 
@@ -127,6 +129,7 @@ describe('checkDrift — boundary_inactive', () => {
       body: SPEC_BODY,
       boundary: ['src/ops/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+      spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'bnd-active', 'active');
 
@@ -162,6 +165,7 @@ describe('checkDrift — symbol_changed', () => {
       body: SPEC_BODY,
       boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],
+      spec: makeTestSpec('src/auth/login.ts', 'login'),
     });
     await updateCardStatus(tc.ctx, 'sym-changed', 'active');
 
@@ -204,6 +208,7 @@ describe('checkDrift — symbol_changed', () => {
       body: SPEC_BODY,
       boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],
+      spec: makeTestSpec('src/auth/login.ts', 'login'),
     });
     await updateCardStatus(tc.ctx, 'sym-old', 'active');
 

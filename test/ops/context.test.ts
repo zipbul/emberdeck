@@ -7,7 +7,7 @@ import {
   checkDrift,
   checkInteractions,
 } from '../../index';
-import { createTestContext, SPEC_BODY, type TestContext } from '../helpers';
+import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 describe('checkDrift', () => {
   let tc: TestContext;
@@ -67,6 +67,7 @@ describe('checkDrift', () => {
       type: 'spec',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+      spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'h-active', 'active');
     await createCard(tc.ctx, { key: 'h-draft', summary: 'Draft', type: 'spec' });
@@ -125,6 +126,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       type: 'spec',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+      spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'drift-broken', 'active');
     tc.ctx.gildash = createMockGildash({
@@ -149,6 +151,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       type: 'spec',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
+      spec: makeTestSpec('src/ok.ts', 'okFn'),
     });
     await updateCardStatus(tc.ctx, 'drift-ok', 'active');
     tc.ctx.gildash = createMockGildash({
@@ -192,6 +195,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       type: 'spec',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+      spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'no-trans', 'active');
     tc.ctx.gildash = createMockGildash({
@@ -215,6 +219,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       type: 'spec',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+      spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'tgt-upd', 'active');
     // Simulate concurrent summary update directly in DB
@@ -239,6 +244,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       type: 'spec',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+      spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'skip-file', 'active');
     // Simulate: status already changed to drifted by another op

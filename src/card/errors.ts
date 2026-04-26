@@ -58,7 +58,6 @@ export class ParentValidationError extends Error {
 /**
  * Thrown when activation guard conditions are not met.
  * Contains the list of unmet conditions for the caller to display.
-  * @spec card-lifecycle/activation-guard
  */
 export class ActivationGuardError extends Error {
   constructor(
@@ -97,7 +96,6 @@ export class GildashNotConfiguredError extends Error {
  * compensation (rollback) also fails. Contains both `originalError` and `compensationError`,
  * so both should be logged. This state risks database-filesystem inconsistency and may
  * require manual inspection.
-  * @spec dual-storage/mutation-safety
  */
 export class CompensationError extends Error {
   constructor(

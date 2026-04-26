@@ -1,10 +1,13 @@
 import type { EmberdeckContext } from '../config';
 import type {
+  BriefBody,
   CardFile,
   CardFrontmatter,
   CardStatus,
   CardType,
   CodeLink,
+  PrincipleBody,
+  SpecBody,
 } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
@@ -33,6 +36,7 @@ import { DrizzleChangelogRepository } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { withCardLock, withRetry, safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
+import { buildSearchableText } from '../card/searchable-text';
 
 /**
  * Partial update fields passed to `updateCard`.
@@ -73,6 +77,12 @@ export interface UpdateCardFields {
   codeLinks?: CodeLink[] | null;
   /** Glossary words declared by this card. */
   glossary?: string[];
+  /** principle namespace (only when type=principle). null deletes. */
+  principle?: PrincipleBody | null;
+  /** brief namespace (only when type=brief). null deletes. */
+  brief?: BriefBody | null;
+  /** spec namespace (only when type=spec). null deletes. */
+  spec?: SpecBody | null;
 }
 
 /**
@@ -102,7 +112,6 @@ export interface UpdateCardResult {
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ParentValidationError} When parent validation fails.
  * @throws {ActivationGuardError} When activation conditions are not met.
-  * @spec dual-storage/card-crud
  */
 export async function updateCard(
   ctx: EmberdeckContext,
@@ -174,6 +183,18 @@ export async function updateCard(
         if (fields.codeLinks === null || fields.codeLinks.length === 0) delete next.codeLinks;
         else next.codeLinks = fields.codeLinks;
       }
+      if (fields.principle !== undefined) {
+        if (fields.principle === null) delete next.principle;
+        else next.principle = fields.principle;
+      }
+      if (fields.brief !== undefined) {
+        if (fields.brief === null) delete next.brief;
+        else next.brief = fields.brief;
+      }
+      if (fields.spec !== undefined) {
+        if (fields.spec === null) delete next.spec;
+        else next.spec = fields.spec;
+      }
       // Glossary validation (M2, M3) — only when explicitly provided
       const glossaryEntries = readGlossary(ctx);
       if (fields.glossary !== undefined) {
@@ -189,7 +210,15 @@ export async function updateCard(
         validateChildrenHierarchy(ctx, key, fields.type);
         const newStatus = await validateTypeChangeActivation(
           ctx,
-          { status: next.status, type: fields.type, codeLinks: next.codeLinks, boundary: next.boundary },
+          {
+            status: next.status,
+            type: fields.type,
+            codeLinks: next.codeLinks,
+            boundary: next.boundary,
+            principle: next.principle,
+            brief: next.brief,
+            spec: next.spec,
+          },
           fields.type,
         );
         if (newStatus !== next.status) {
@@ -215,6 +244,10 @@ export async function updateCard(
           type: next.type,
           codeLinks: next.codeLinks,
           boundary: next.boundary,
+          principle: next.principle,
+          brief: next.brief,
+          spec: next.spec,
+          key,
         });
       }
 
@@ -265,7 +298,10 @@ export async function updateCard(
               type: next.type,
               parent: next.parent ?? null,
               boundaryJson: next.boundary ? JSON.stringify(next.boundary) : null,
-              body: nextBody,
+              body: (() => {
+                const ns = buildSearchableText(next);
+                return [nextBody, ns].filter((s) => s.trim().length > 0).join('\n\n');
+              })(),
               glossaryJson: next.glossary ? JSON.stringify(next.glossary) : '[]',
               filePath,
               updatedAt: now,
@@ -335,7 +371,6 @@ export async function updateCard(
  * @returns Updated result (filePath, card).
  * @throws {CardNotFoundError} When no card exists for the given key.
  * @throws {ActivationGuardError} When activation conditions are not met for active status.
-  * @spec dual-storage/card-crud
  */
 export async function updateCardStatus(
   ctx: EmberdeckContext,
@@ -369,6 +404,10 @@ export async function updateCardStatus(
           type: current.frontmatter.type,
           codeLinks: current.frontmatter.codeLinks,
           boundary: current.frontmatter.boundary,
+          principle: current.frontmatter.principle,
+          brief: current.frontmatter.brief,
+          spec: current.frontmatter.spec,
+          key,
         });
       }
 

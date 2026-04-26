@@ -62,7 +62,7 @@ const PLACEHOLDER_PATTERNS = [
 
 // ── Section Parsing ────────────────────────────────────────────────
 
-interface ParsedSection {
+export interface ParsedSection {
   heading: string;
   normalizedName: string;
   body: string;
@@ -330,13 +330,17 @@ export function validateBrief(
 
 /**
  * Validate that a brief card body contains all 8 required sections.
- * Lightweight check for use in createCard/updateCard — no DB context needed.
+ *
+ * Legacy markdown-body validator. Skipped when body is empty (the modern
+ * structured-body path uses `frontmatter.brief` namespace + `validateBriefRefs`).
  *
  * @param body - Markdown body of the brief card.
  * @throws {Error} When required sections are missing.
-  * @spec card-lifecycle/activation-guard
  */
 export function validateBriefSections(body: string): void {
+  // Skip legacy markdown-section check for cards with no body (structured-namespace path).
+  if (!body || body.trim().length === 0) return;
+
   const sections = parseSections(body);
   const presentNames = new Set(sections.map((s) => s.normalizedName));
   const missing = REQUIRED_BRIEF_SECTIONS.filter((s) => !presentNames.has(s));
@@ -366,13 +370,17 @@ export type SpecSection = (typeof REQUIRED_SPEC_SECTIONS)[number];
 
 /**
  * Validate that a spec card body contains all 3 required sections.
- * Lightweight check for use in createCard/updateCard — no DB context needed.
+ *
+ * Legacy markdown-body validator. Skipped when body is empty (the modern
+ * structured-body path uses `frontmatter.spec` namespace + `validateSpecRefs`).
  *
  * @param body - Markdown body of the spec card.
  * @throws {Error} When required sections are missing.
-  * @spec card-lifecycle/activation-guard
  */
 export function validateSpecSections(body: string): void {
+  // Skip legacy markdown-section check for cards with no body (structured-namespace path).
+  if (!body || body.trim().length === 0) return;
+
   const sections = parseSections(body);
   const presentNames = new Set(sections.map((s) => s.normalizedName));
   const missing = REQUIRED_SPEC_SECTIONS.filter((s) => !presentNames.has(s));

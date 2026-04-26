@@ -2,7 +2,8 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { CardFile, CodeLink, CardType, CardStatus } from '../card/types';
+import type { BriefBody, CardFile, CodeLink, CardType, CardStatus, PrincipleBody, SpecBody } from '../card/types';
+import { buildSearchableText } from '../card/searchable-text';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
 import { CardAlreadyExistsError } from '../card/errors';
@@ -52,6 +53,12 @@ export interface CreateCardInput {
   codeLinks?: CodeLink[];
   /** Glossary words declared by this card (optional). */
   glossary?: string[];
+  /** principle namespace (only when type=principle). */
+  principle?: PrincipleBody;
+  /** brief namespace (only when type=brief). */
+  brief?: BriefBody;
+  /** spec namespace (only when type=spec). */
+  spec?: SpecBody;
 }
 
 /**
@@ -86,7 +93,6 @@ export interface CreateCardResult {
  * @throws {ParentValidationError} When parent validation fails.
  * @throws {ActivationGuardError} When activation conditions are not met.
  * @throws {CompensationError} When file write fails after DB success and compensation also fails.
-  * @spec dual-storage/card-crud
  */
 export async function createCard(
   ctx: EmberdeckContext,
@@ -149,6 +155,10 @@ export async function createCard(
           type: input.type,
           codeLinks: input.codeLinks,
           boundary: input.boundary,
+          principle: input.principle,
+          brief: input.brief,
+          spec: input.spec,
+          key: fullKey,
         });
       }
 
@@ -163,10 +173,18 @@ export async function createCard(
         ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
         ...(input.codeLinks && input.codeLinks.length > 0 ? { codeLinks: input.codeLinks } : {}),
         ...(input.glossary && input.glossary.length > 0 ? { glossary: input.glossary } : {}),
+        ...(input.principle ? { principle: input.principle } : {}),
+        ...(input.brief ? { brief: input.brief } : {}),
+        ...(input.spec ? { spec: input.spec } : {}),
       };
 
       const body = input.body ?? '';
       const card: CardFile = { filePath, frontmatter, body };
+      // Concatenate body + searchable namespace text for FTS5 indexing.
+      const searchableBody = (() => {
+        const ns = buildSearchableText(frontmatter);
+        return [body, ns].filter((s) => s.trim().length > 0).join('\n\n');
+      })();
 
       const now = new Date().toISOString();
 
@@ -188,7 +206,7 @@ export async function createCard(
               boundaryJson: input.boundary && input.boundary.length > 0
                 ? JSON.stringify(input.boundary)
                 : null,
-              body,
+              body: searchableBody,
               glossaryJson: input.glossary && input.glossary.length > 0
                 ? JSON.stringify(input.glossary)
                 : '[]',

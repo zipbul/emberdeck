@@ -27,7 +27,6 @@ export interface DefineGlossaryResult {
 /**
  * Define or update words in the project glossary.
  * All-or-nothing: if any entry fails validation, entire call is rejected.
-  * @spec glossary-management/glossary-ops
  */
 export async function defineGlossary(
   ctx: EmberdeckContext,
@@ -88,7 +87,6 @@ export interface LookupGlossaryResult {
  * Look up a word in the project glossary, or list all entries.
  * Case-sensitive exact match when word is provided.
  * No lock needed — read-only.
-  * @spec glossary-management/glossary-ops
  */
 export function lookupGlossary(
   ctx: EmberdeckContext,
@@ -116,7 +114,6 @@ export interface RemoveGlossaryResult {
 /**
  * Remove a word from the project glossary.
  * Cards referencing this word will become drifted on next check_drift.
-  * @spec glossary-management/glossary-ops
  */
 export async function removeGlossary(
   ctx: EmberdeckContext,
@@ -168,7 +165,6 @@ export interface RenameGlossaryResult {
  * Uses safeWriteOperation pattern: glossary.yaml write first, DB transaction second.
  * If glossary.yaml write fails -> nothing changed.
  * If DB transaction fails -> compensate by reverting glossary.yaml.
-  * @spec glossary-management/glossary-ops
  */
 export async function renameGlossary(
   ctx: EmberdeckContext,

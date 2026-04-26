@@ -1,6 +1,9 @@
 import { CardValidationError, ParentValidationError, ActivationGuardError } from './errors';
 import type { EmberdeckContext } from '../config';
-import type { CardType } from './types';
+import type { BriefBody, CardFrontmatter, CardType, SpecBody } from './types';
+import { validateBriefRefs } from '../brief/validate-refs';
+import { validateSpecRefs } from '../spec/validate-refs';
+import { validatePrincipleCard } from '../principle/validate';
 
 /**
  * Per-field maximum size constants applied by `validateCardInput`.
@@ -178,7 +181,6 @@ const MAX_PARENT_DEPTH = 20;
 
 /**
  * Validates that the parent card exists in the DB.
-  * @spec card-lifecycle/hierarchy
  */
 export function validateParentExists(ctx: EmberdeckContext, parentKey: string): void {
   if (!ctx.cardRepo.existsByKey(parentKey)) {
@@ -190,7 +192,6 @@ export function validateParentExists(ctx: EmberdeckContext, parentKey: string): 
  * Validates parent-type hierarchy rules:
  * - brief: parent must be null or brief
  * - spec: parent must be brief or spec
-  * @spec card-lifecycle/hierarchy
  */
 export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
   const parent = ctx.cardRepo.findByKey(parentKey);
@@ -199,7 +200,11 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
   }
   const parentType = parent.type as CardType;
 
-  if (cardType === 'brief') {
+  if (cardType === 'principle') {
+    throw new ParentValidationError(
+      `principle card cannot have a parent (principle is always root-level)`,
+    );
+  } else if (cardType === 'brief') {
     if (parentType !== 'brief') {
       throw new ParentValidationError(
         `brief card parent must be brief (got "${parentType}")`,
@@ -216,7 +221,6 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
 
 /**
  * Detects circular parent references by walking the ancestor chain (max 20 depth).
-  * @spec card-lifecycle/hierarchy
  */
 export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, parentKey: string): void {
   let current: string | null = parentKey;
@@ -231,7 +235,6 @@ export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, pare
 
 /**
  * Validates that all relation targets exist in the DB and none is a self-reference.
-  * @spec card-lifecycle/hierarchy
  */
 export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, relations: string[]): void {
   for (const target of relations) {
@@ -246,7 +249,6 @@ export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, 
 
 /**
  * Validates that changing a card's type won't break children's parent-type hierarchy.
-  * @spec card-lifecycle/hierarchy
  */
 export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string, newType: CardType): void {
   const children = ctx.cardRepo.findChildren(cardKey);
@@ -262,18 +264,73 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
 
 /**
  * Activation guard: validates that a card meets the conditions for active status.
- * - brief: no conditions
- * - spec: codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
-  * @spec card-lifecycle/activation-guard
+ * - principle: requires `principle` namespace + valid applies_to
+ * - brief: requires `brief` namespace + cross-ref validation passes
+ * - spec: requires `spec` namespace, codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
  */
 export async function validateActivationGuard(
   ctx: EmberdeckContext,
-  card: { type: CardType; codeLinks?: Array<{ file: string; symbol: string }>; boundary?: string[] },
+  card: {
+    type: CardType;
+    codeLinks?: Array<{ file: string; symbol: string }>;
+    boundary?: string[];
+    principle?: CardFrontmatter['principle'];
+    brief?: BriefBody;
+    spec?: SpecBody;
+    key?: string;
+  },
 ): Promise<void> {
-  if (card.type === 'brief') return;
+  if (card.type === 'principle') {
+    if (!card.principle) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        'principle card must have `principle` namespace in frontmatter to activate',
+      ]);
+    }
+    try {
+      validatePrincipleCard({
+        type: 'principle',
+        key: card.key ?? '',
+        summary: '',
+        status: 'draft',
+        principle: card.principle,
+      } as CardFrontmatter);
+    } catch (e) {
+      throw new ActivationGuardError(
+        'Activation conditions not met',
+        [(e as Error).message],
+      );
+    }
+    return;
+  }
+  if (card.type === 'brief') {
+    if (!card.brief) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        'brief card must have `brief` namespace in frontmatter to activate',
+      ]);
+    }
+    try {
+      validateBriefRefs(card.brief);
+    } catch (e) {
+      throw new ActivationGuardError(
+        'Activation conditions not met',
+        [(e as Error).message],
+      );
+    }
+    return;
+  }
 
   // spec activation conditions
   const unmet: string[] = [];
+
+  if (!card.spec) {
+    unmet.push('spec card must have `spec` namespace in frontmatter to activate');
+  } else {
+    try {
+      validateSpecRefs(card.spec, { codeLinks: card.codeLinks } as CardFrontmatter);
+    } catch (e) {
+      unmet.push((e as Error).message);
+    }
+  }
 
   const links = card.codeLinks ?? [];
   if (links.length === 0) {
@@ -329,7 +386,15 @@ export async function validateActivationGuard(
  */
 export async function validateTypeChangeActivation(
   ctx: EmberdeckContext,
-  card: { status: string; type: CardType; codeLinks?: Array<{ file: string; symbol: string }>; boundary?: string[] },
+  card: {
+    status: string;
+    type: CardType;
+    codeLinks?: Array<{ file: string; symbol: string }>;
+    boundary?: string[];
+    principle?: CardFrontmatter['principle'];
+    brief?: BriefBody;
+    spec?: SpecBody;
+  },
   newType: CardType,
 ): Promise<string> {
   if (card.status !== 'active') return card.status;

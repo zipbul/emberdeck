@@ -178,137 +178,220 @@ When `emberdeck_validate_code_links` finds broken links:
 
 <card_types>
 
-## brief — Design document
+## principle — Project-wide constraint
 
-A brief card answers: **"What are we building, why, and under what constraints?"**
+A principle card answers: **"What rule applies across multiple briefs?"**
 
-It is a design document that defines the problem, goals, user scenarios, requirements, success criteria, and scope boundaries for a domain area. Spec cards are derived from brief cards — no spec exists without a brief that justifies it. No codeLinks. Can be root card.
+It captures a single project-wide constraint (process / quality / compliance / security / architecture) that governs many briefs. No code binding. Always root-level (no parent). Multiple briefs reference one principle via `governed_by`.
 
-### REQUIRED content in brief body:
+### REQUIRED frontmatter fields:
 
-**Problem & Goals** — What problem this design solves and what outcomes it achieves. Be specific: who has the problem, what breaks without this, what success looks like.
+- `key` — identifier (e.g., `payment-idempotency`)
+- `type: "principle"` — fixed
+- `status` — `draft` / `active` / `retired` (no `drifted` — principle has no codeLinks)
+- `summary` — one-line summary
+- `statement` — the rule itself, MUST/SHALL/SHOULD/MAY in single sentence
+- `rationale` — why this rule exists (background / motivation)
+- `applies_to` — `"*"` (all cards) or array of card keys / boundary globs
+- `enforcement` — `blocking` (reject violations) / `warning` (report only) / `advisory` (informational)
 
-**User Scenarios** — Prioritized (P1/P2/P3) scenarios describing how the system is used. Each scenario must be independently testable with Given/When/Then acceptance criteria.
+### OPTIONAL frontmatter fields:
 
-**Requirements** — Numbered requirements (R-001, R-002, ...) using RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each requirement must be testable and unambiguous.
+- `metric` — quantitative thresholds. Array of `{name, threshold, unit, comparator, kind?: "threshold"|"budget", window_kind?, distributable?}`. Use `kind: "budget"` for shared/distributable quotas (frame budget, error budget, mass budget).
+- `exemptions` — explicit exception targets. Array of `{target, reason}`.
+- `references` — external sources (regulations, standards). Array of `{title, url}`.
 
-**Success Criteria** — Measurable outcomes that define when the design is fulfilled. Technology-agnostic, verifiable without knowing implementation.
+### Body
 
-**Scope & Constraints** — What this design covers, what it explicitly excludes, and what assumptions were made.
+Free-form prose explanation. No required sections. Body supports detailed background, examples, edge case discussion. Validation is at frontmatter level only.
 
-### GOOD brief card body:
+### GOOD principle example:
 
+```yaml
+---
+key: payment-idempotency
+type: principle
+status: active
+summary: All payment mutations require idempotency_key
+statement: Payment mutation operations MUST accept a client-provided idempotency_key and return identical results for repeat requests within a 24-hour window.
+rationale: Network retries, timeouts, and double-clicks can cause duplicate charges. Payment is irreversible; correction cost is high.
+applies_to:
+  - src/payment/**
+  - src/billing/**
+  - src/refund/**
+enforcement: blocking
+metric:
+  - name: duplicate_payment_rate
+    threshold: 0
+    unit: per_million_requests
+    comparator: "="
+exemptions:
+  - target: src/payment/webhook-receiver.ts
+    reason: External gateway callbacks have their own idempotency mechanism
+references:
+  - title: Stripe API idempotency
+    url: https://stripe.com/docs/api/idempotent_requests
+---
+
+Body explanation here. Free-form prose.
 ```
-## Problem & Goals
-Agents modifying code need to know which design decisions govern each area. Without this, agents silently violate cross-module contracts. Goal: every code change is checked against its governing design before execution.
 
-## User Scenarios
+### BAD principle examples:
 
-### P1: Agent reads design before code change
-Given an agent is about to modify src/ops/create.ts,
-When it calls pre_change_check with the file path,
-Then it receives affected cards, risk level, and must read each card before proceeding.
+- ✗ Scope-specific rule: "Order checkout MUST validate inventory" → belongs in brief.policy, not principle (single-area, not project-wide)
+- ✗ No `applies_to` or `enforcement`
+- ✗ `statement` without RFC 2119 keyword
+- ✗ Multiple unrelated rules in one principle (split into separate principles)
 
-### P2: Drift detected after code change
-Given a spec card is active with resolved codeLinks,
-When the linked symbol is renamed or deleted,
-Then the card auto-transitions to drifted status in both DB and file.
+---
 
-## Requirements
-- R-001: System MUST store every card in both DB and markdown file (dual-storage invariant).
-- R-002: System MUST reject spec card activation when any codeLink is unresolved.
-- R-003: System MUST auto-detect drift via 4 mechanisms: broken_link, boundary_inactive, symbol_changed, glossary_broken.
-- R-004: System MUST compensate DB changes when file write fails after DB commit.
+## brief — Designable area
 
-## Success Criteria
-- SC-001: 0 broken codeLinks on active spec cards at any point in time.
-- SC-002: Every code change to a card-covered file is preceded by pre_change_check.
-- SC-003: Drifted cards are detected within one check_drift cycle — no silent drift.
+A brief card answers: **"What are we building in this area, why, and under what constraints?"**
 
-## Scope & Constraints
-- Covers: card lifecycle, dual-storage, drift detection, code binding, glossary enforcement.
-- Excludes: code generation, linting, CI, test automation, workflow orchestration.
-- Assumes: gildash is available for symbol resolution when projectRoot is set.
+Structured body lives at `frontmatter.brief` namespace. All sections are required and validated at parse time. Cross-references between sections are checked by `validateBriefRefs`.
+
+### REQUIRED structure under `brief:` namespace:
+
+| Section | Content | Required IDs |
+|---------|--------|----------|
+| `context` | `{problem, impact: [{statement, metric?}]}` | — |
+| `scope` | `{goals[], non_goals[], assumptions[]}` | G-001 / NG-001 / A-001 |
+| `flow` | `[{id, kind: happy/failure, given, when, then, covers}]` (≥1 happy + ≥1 failure) | S-H-01 / S-F-01 |
+| `design` | `{overview, components[], data_flow[], invariants[]}` | DI-001 |
+| `policy` | `[{id, subject, keyword: MUST/SHALL/.., predicate, governs}]` | R-001 |
+| `external` | `[{id, statement, reference: {title, locator}}]` | C-001 |
+| `compatibility` | `{guarantees[], migration_path?}` | — |
+| `limits` | `[{id, statement}]` | KL-001 |
+| `criteria` | `[{id, type: numeric/binary/verification, measure, verifies}]` | SC-001 |
+| `rationale` | `{alternatives[≥2], chosen, trade_off?, addresses}` | — |
+
+### Cross-references (auto-validated):
+
+- `flow[].covers` MUST reference existing `scope.goals[].id`
+- `policy[].governs` MUST reference existing `flow[].id`
+- `criteria[].verifies` MUST reference existing `flow[].id`
+- `rationale.addresses` MUST reference existing `external[].id` or `limits[].id`
+- Every `goal` MUST be covered by ≥1 `flow`
+- Every `flow` MUST be governed by ≥1 `policy` AND verified by ≥1 `criterion`
+
+### Example (excerpt):
+
+```yaml
+---
+key: order-payment
+type: brief
+status: active
+summary: 카트 결제 → 주문 확정 흐름
+brief:
+  context:
+    problem: 결제 도중 재고 경쟁/가격 변경으로 일관성 깨짐
+    impact:
+      - statement: 미스픽 1건당 보정 비용 $12
+        metric: {value: 12, unit: USD}
+  scope:
+    goals:
+      - {id: G-001, statement: 카드/페이팔/카카오페이 인증+캡처}
+    non_goals:
+      - {id: NG-001, statement: 분할 결제 (별도 brief)}
+    assumptions:
+      - {id: A-001, statement: PG 응답 p95 < 3s, verification: APM, reevaluate_when: PG 변경}
+  flow:
+    - {id: S-H-01, kind: happy, given: 카트 결제 의도, when: 버튼 클릭, then: 인증→캡처→주문 confirmed, covers: [G-001]}
+    - {id: S-F-01, kind: failure, given: 캡처 timeout, when: 30s 응답없음, then: unknown 마킹+reconciliation, covers: [G-001]}
+  policy:
+    - {id: R-001, subject: 결제 시도, keyword: MUST, predicate: 5분 내 5회 실패 시 다른 수단 권유, governs: [S-F-01]}
+  criteria:
+    - {id: SC-001, type: numeric, measure: {value: 99.5, comparator: ">=", unit: "%"}, verifies: [S-H-01]}
+  # ... external, compatibility, limits, design, rationale ...
+---
 ```
 
-### BAD brief card body (common mistakes):
+### BAD (common mistakes):
 
-- ✗ Code structure: "The system uses SQLite with Drizzle ORM. Cards are stored in the card table."
-- ✗ Abstract policy only: "Always: Card is source of truth." (policy without scenarios, requirements, or success criteria)
-- ✗ Implementation detail: "writeCardFile uses atomic rename via temp file."
-- ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not design)
+- ✗ markdown body 그대로 (`## Motivation` heading) — 구조화된 namespace 사용 必
+- ✗ `flow[].covers: [G-999]`처럼 존재하지 않는 ID 참조
+- ✗ Goal 정의해놓고 어떤 flow도 covers 안 함 (orphan goal)
+- ✗ Flow 정의해놓고 governs/verifies 매핑 없음
+- ✗ `alternatives` 1개만 (chosen + 비교 1개 = 최소 2개)
 
 ---
 
 ## spec — Behavioral contract bound to code
 
-A spec card answers: **"What does the system guarantee?"**
+A spec card answers: **"What contracts does the bound code guarantee?"**
 
-It captures verifiable behavioral contracts bound to specific code symbols via codeLinks. Every spec card MUST relate to at least one brief card — a contract without governing design is rootless. Requires codeLinks.
+Structured body lives at `frontmatter.spec` namespace. Cross-refs validated by `validateSpecRefs`.
 
-### REQUIRED sections in spec body (3 sections, exact `## ` headings):
+### REQUIRED structure under `spec:` namespace:
 
-1. `## Contract` — Behavioral guarantees using GIVEN/WHEN/THEN with RFC 2119 keywords (MUST, SHALL, SHOULD, MAY). Each contract is one testable guarantee. Precondition (GIVEN) is separated from trigger (WHEN) and postcondition (THEN).
+| Section | Content | Required IDs |
+|---------|--------|----------|
+| `preconditions` | `[{id, condition, binds, derives}]` (≥1) | PRE-001 |
+| `postconditions` | `[{id, guarantee, keyword: MUST/SHALL, binds, derives}]` (≥1) | POST-001 |
+| `invariants` | `[{id, statement, binds, always_holds: per-call/cross-call/cross-process}]` (≥1) | INV-001 |
+| `failures` | `[{violation, behavior, exception: {class, file}}]` (≥1) | — |
+| `state_transitions` | `[{from, trigger, to, binds}]` | — (optional) |
 
-2. `## Invariant` — Conditions that ALWAYS hold across all operations in this scope. Not triggered by specific calls — they are system-wide guarantees.
+### Cross-references (auto-validated):
 
-3. `## Failure` — Table mapping violations to system behaviors. Exhaustive enumeration of all error paths.
+- Every `binds` reference (`{file, symbol}`) MUST exist in card's `codeLinks`
+- Every `derives` reference (`"brief-key#R-001"`) MUST follow format and (when brief loadable) point to real brief item
 
-Active spec cards are **rejected** if any of these 3 sections is missing.
+### Example:
 
-### GOOD spec card body:
-
+```yaml
+---
+key: order-payment/charge
+type: spec
+parent: order-payment
+relations: [order-payment]
+codeLinks:
+  - {kind: function, file: src/payment/charge.ts, symbol: chargeCard}
+spec:
+  preconditions:
+    - {id: PRE-001, condition: idempotency_key 형식 UUIDv4, binds: [{file: src/payment/charge.ts, symbol: chargeCard}], derives: order-payment#R-001}
+  postconditions:
+    - {id: POST-001, guarantee: 성공 시 payment_id 반환 status=AUTHORIZED, keyword: MUST, binds: [{file: src/payment/charge.ts, symbol: chargeCard}], derives: order-payment#S-H-01}
+  invariants:
+    - {id: INV-001, statement: PAN 패턴 어떤 인자/반환/로그에도 등장 X, binds: [{file: src/payment/charge.ts, symbol: chargeCard}], always_holds: cross-call}
+  failures:
+    - {violation: PG 5xx, behavior: fallback PG 라우팅 후 재시도, exception: {class: PaymentGatewayUnavailable, file: src/payment/errors.ts}}
+---
 ```
-## Contract
-- GIVEN a spec card exists with codeLinks
-  WHEN status is set to active
-  THEN all codeLinks MUST resolve to existing symbols via gildash.
-  IF any link fails, activation MUST be rejected with ActivationGuardError.
-- GIVEN a card has children
-  WHEN deleteCard is called with force=true
-  THEN children MUST become orphans (parent=null)
-  AND relations MUST be cleaned up bidirectionally.
 
-## Invariant
-- DB and file representations of a card MUST be consistent after every mutation.
-- An active spec card MUST have at least 1 resolved codeLink at all times.
+### BAD (common mistakes):
 
-## Failure
-| Violation | System behavior |
-|-----------|----------------|
-| codeLink target symbol deleted | Card auto-transitions to drifted |
-| File write fails after DB commit | Compensation reverts DB change; CompensationError thrown if revert also fails |
-```
-
-### BAD spec card body (common mistakes):
-
-- ✗ Policies: "We always use compensation pattern" (belongs in brief)
-- ✗ Implementation: "deleteByKey() calls SQL DELETE WHERE key=?" (discoverable from code)
-- ✗ Task list: "1. Add migration 2. Update schema 3. Write tests" (execution plan, not contract)
-- ✗ Verification commands: "Run `bun test`" (tooling, not contract)
-- ✗ File paths in body text (use codeLinks field instead)
+- ✗ markdown body 그대로
+- ✗ `binds`에 codeLinks 없는 file/symbol 참조
+- ✗ `derives` 형식 위반 (예: "R-001" — brief key prefix 누락)
+- ✗ Implementation 기법 본문에 (WeakMap, FK CASCADE 등)
+- ✗ Task list 또는 verification command
 
 ---
 
 ## Summary: what goes where
 
-| Content | brief | spec | Neither |
-|---------|--------|------|---------|
-| Motivation (why it exists) | ✓ | | |
-| Scope (goals / non-goals) | ✓ | | |
-| Scenario (user flows) | ✓ | | |
-| Rule (business policies) | ✓ | | |
-| Constraint (external obligations) | ✓ | | |
-| Risk (failure scenarios) | ✓ | | |
-| Criteria (success metrics) | ✓ | | |
-| Decision (alternatives + rationale) | ✓ | | |
-| Contract (GIVEN/WHEN/THEN code guarantees) | | ✓ | |
-| Invariant (always-true conditions) | | ✓ | |
-| Failure (violation → behavior table) | | ✓ | |
-| Code structure descriptions | | | ✗ discoverable |
-| File paths, class names | | | ✗ discoverable |
-| Task checklists | | | ✗ execution plan |
-| Verification commands | | | ✗ tooling |
+| Content | principle | brief | spec | Neither |
+|---------|:---:|:---:|:---:|---------|
+| Project-wide rule (statement + rationale) | ✓ | | | |
+| Cross-cutting metric / quota | ✓ | | | |
+| External regulation reference | ✓ | | | |
+| Motivation (why it exists) | | ✓ | | |
+| Scope (goals / non-goals) | | ✓ | | |
+| Scenario (user flows) | | ✓ | | |
+| Rule (area-specific policy) | | ✓ | | |
+| Constraint (external obligations) | | ✓ | | |
+| Risk (failure scenarios) | | ✓ | | |
+| Criteria (success metrics) | | ✓ | | |
+| Decision (alternatives + rationale) | | ✓ | | |
+| Contract (GIVEN/WHEN/THEN code guarantees) | | | ✓ | |
+| Invariant (always-true conditions) | | | ✓ | |
+| Failure (violation → behavior table) | | | ✓ | |
+| Code structure descriptions | | | | ✗ discoverable |
+| File paths, class names | | | | ✗ discoverable |
+| Task checklists | | | | ✗ execution plan |
+| Verification commands | | | | ✗ tooling |
 
 Hierarchy: parent-child when scope is strict subset. Flat peers otherwise. Max 3 levels.
 

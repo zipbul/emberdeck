@@ -11,7 +11,6 @@ import { readGlossary } from '../glossary/io';
 
 // ── check_drift ──
 
-/** @spec drift-detection/check-drift */
 export type DriftType = 'broken_link' | 'boundary_inactive' | 'symbol_changed' | 'glossary_broken';
 
 export interface SymbolChangeDetail {
@@ -66,7 +65,6 @@ interface SymbolChangeInfo {
  * When autoTransition=true (default), active cards found drifted are
  * automatically transitioned to 'drifted' status (DB + file).
  * Draft cards are excluded from drift analysis.
-  * @spec drift-detection/check-drift
  */
 export async function checkDrift(
   ctx: EmberdeckContext,

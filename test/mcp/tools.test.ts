@@ -11,7 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
-import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, makeTestBrief, type TestContext } from '../helpers';
 import { registerEmberdeckTools } from '../../index';
 import { writeCardFile } from '../../src/fs/writer';
 import { readCardFile } from '../../src/fs/reader';
@@ -77,7 +77,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should return 19 tools via listTools', async () => {
       s = await setupMcp();
       const { tools } = await s.client.listTools();
-      expect(tools).toHaveLength(40);
+      expect(tools).toHaveLength(41);
     });
 
     // #2
@@ -317,7 +317,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'batch-hist', summary: 'Hist', type: 'brief', body: BRIEF_BODY },
+        arguments: { key: 'batch-hist', summary: 'Hist', type: 'brief', body: BRIEF_BODY, brief: makeTestBrief() },
       });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -450,7 +450,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'status-card', summary: 'Status', type: 'brief', body: BRIEF_BODY },
+        arguments: { key: 'status-card', summary: 'Status', type: 'brief', body: BRIEF_BODY, brief: makeTestBrief() },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_update_card_status',
@@ -588,7 +588,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
     it('should filter cards by status', async () => {
       s = await setupMcp();
       await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'draft-card', summary: 'D', type: 'spec' } });
-      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'brief', body: BRIEF_BODY } });
+      await s.client.callTool({ name: 'emberdeck_create_card', arguments: { key: 'acc-card', summary: 'A', type: 'brief', body: BRIEF_BODY, brief: makeTestBrief() } });
       await s.client.callTool({
         name: 'emberdeck_update_card_status',
         arguments: { key: 'acc-card', status: 'active' },
@@ -1162,7 +1162,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
-        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'brief', body: BRIEF_BODY },
+        arguments: { key: 'lifecycle', summary: 'Lifecycle card', type: 'brief', body: BRIEF_BODY, brief: makeTestBrief() },
       });
 
       const statuses = ['active', 'drifted'] as const;
@@ -1479,7 +1479,8 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
   // ════════════════════════════════════════
 
   describe('emberdeck_validate_brief', () => {
-    it('should validate a complete brief', async () => {
+    it('should validate a complete brief with namespace', async () => {
+      const { makeTestBrief } = await import('../helpers');
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
@@ -1487,16 +1488,7 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
           key: 'brief-test',
           summary: 'Brief test',
           type: 'brief',
-          body: [
-            '## Motivation\n\nRevenue has plateaued for 3 years. Online channel needed.',
-            '## Scope\n\nProduct search and ordering. No delivery tracking.',
-            '## Scenario\n\nUser searches products. User places order and pays.',
-            '## Rule\n\nRefund within 7 days. Max 2 discounts per order.',
-            '## Constraint\n\n전자상거래법 7-day return. PG settlement T+2.',
-            '## Risk\n\nPG failure during peak. Circuit breaker mitigation.',
-            '## Criteria\n\n15% conversion rate. Below 40% cart abandonment.',
-            '## Decision\n\nStripe over Toss for international support. Monolith over microservices.',
-          ].join('\n\n'),
+          brief: makeTestBrief(),
         },
       });
       const result = await s.client.callTool({
@@ -1504,13 +1496,13 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
         arguments: { cardKey: 'brief-test' },
       });
       expect(result.isError).toBeFalsy();
-      const data = parseText(result) as { complete: boolean; missing: string[]; present: string[] };
-      expect(data.complete).toBe(true);
-      expect(data.missing).toHaveLength(0);
-      expect(data.present).toHaveLength(8);
+      const data = parseText(result) as { valid: boolean; goals: number; flow: number };
+      expect(data.valid).toBe(true);
+      expect(data.goals).toBeGreaterThan(0);
+      expect(data.flow).toBeGreaterThan(0);
     });
 
-    it('should detect missing sections', async () => {
+    it('should detect missing brief namespace', async () => {
       s = await setupMcp();
       await s.client.callTool({
         name: 'emberdeck_create_card',
@@ -1518,17 +1510,14 @@ describe('registerEmberdeckTools (MCP protocol)', () => {
           key: 'brief-partial',
           summary: 'Partial brief',
           type: 'brief',
-          body: '## Motivation\n\nRevenue declining. Need online channel.',
+          // no brief namespace, no body either
         },
       });
       const result = await s.client.callTool({
         name: 'emberdeck_validate_brief',
         arguments: { cardKey: 'brief-partial' },
       });
-      expect(result.isError).toBeFalsy();
-      const data = parseText(result) as { complete: boolean; missing: string[] };
-      expect(data.complete).toBe(false);
-      expect(data.missing.length).toBeGreaterThan(0);
+      expect(result.isError).toBe(true);
     });
 
     it('should return error for spec card', async () => {

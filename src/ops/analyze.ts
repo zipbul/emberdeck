@@ -239,8 +239,8 @@ export interface OnboardingDriftedCard {
 
 export interface OnboardingSummary {
   totalCards: number;
-  byType: { brief: number; spec: number };
-  byStatus: { draft: number; active: number; drifted: number };
+  byType: { principle: number; brief: number; spec: number };
+  byStatus: { draft: number; active: number; drifted: number; retired: number };
   hierarchy: OnboardingHierarchyNode[];
   coverageRatio: number | null;
   driftedCards: OnboardingDriftedCard[];
@@ -287,18 +287,20 @@ export async function getOnboardingSummary(
   const allCards = ctx.cardRepo.list();
 
   // Count by type
-  const byType = { brief: 0, spec: 0 };
+  const byType = { principle: 0, brief: 0, spec: 0 };
   for (const card of allCards) {
-    if (card.type === 'brief') byType.brief++;
+    if (card.type === 'principle') byType.principle++;
+    else if (card.type === 'brief') byType.brief++;
     else if (card.type === 'spec') byType.spec++;
   }
 
   // Count by status
-  const byStatus = { draft: 0, active: 0, drifted: 0 };
+  const byStatus = { draft: 0, active: 0, drifted: 0, retired: 0 };
   for (const card of allCards) {
     if (card.status === 'draft') byStatus.draft++;
     else if (card.status === 'active') byStatus.active++;
     else if (card.status === 'drifted') byStatus.drifted++;
+    else if (card.status === 'retired') byStatus.retired++;
   }
 
   // Build hierarchy from root cards (cards without a parent)

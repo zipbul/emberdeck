@@ -293,10 +293,21 @@ describe('validateChildrenHierarchy', () => {
 // ── validateActivationGuard ─────────────────────────────────────────────────
 
 describe('validateActivationGuard', () => {
-  it('brief type: always passes (no conditions)', async () => {
-    // Act / Assert
+  it('brief type: requires brief namespace to activate', async () => {
+    // brief without namespace MUST be rejected
+    try {
+      await validateActivationGuard(ctx, { type: 'brief' });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/brief.*namespace/);
+    }
+  });
+
+  it('brief type with valid namespace: passes', async () => {
+    const { makeTestBrief } = await import('../../test/helpers');
     await expect(
-      validateActivationGuard(ctx, { type: 'brief' }),
+      validateActivationGuard(ctx, { type: 'brief', brief: makeTestBrief() }),
     ).resolves.toBeUndefined();
   });
 
@@ -324,25 +335,41 @@ describe('validateActivationGuard', () => {
   });
 
   it('spec type with boundary and no gildash: passes (boundary check skipped)', async () => {
+    const { makeTestSpec } = await import('../../test/helpers');
     // Without gildash, boundary check is skipped — anyMatch defaults to true
     await expect(
       validateActivationGuard(ctx, {
         type: 'spec',
         codeLinks: [{ file: 'src/a.ts', symbol: 'x' }],
         boundary: ['src/**'],
+        spec: makeTestSpec('src/a.ts', 'x'),
       }),
     ).resolves.toBeUndefined();
   });
 
   it('spec type with codeLinks (gildash=undefined): passes if codeLinks exist', async () => {
+    const { makeTestSpec } = await import('../../test/helpers');
     // Without gildash, symbol resolution is skipped — only count check matters
-    // Act / Assert
     await expect(
       validateActivationGuard(ctx, {
         type: 'spec',
         codeLinks: [{ file: 'src/foo.ts', symbol: 'bar' }],
+        spec: makeTestSpec('src/foo.ts', 'bar'),
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it('spec type without spec namespace: throws ActivationGuardError', async () => {
+    try {
+      await validateActivationGuard(ctx, {
+        type: 'spec',
+        codeLinks: [{ file: 'src/foo.ts', symbol: 'bar' }],
+      });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/spec.*namespace/);
+    }
   });
 });
 
@@ -361,16 +388,31 @@ describe('validateTypeChangeActivation', () => {
     expect(result).toBe('draft');
   });
 
-  it('active spec -> arch: returns active (arch has no conditions)', async () => {
+  it('active spec -> brief: keeps active when brief namespace present', async () => {
+    const { makeTestBrief } = await import('../../test/helpers');
     // Act
     const result = await validateTypeChangeActivation(
       ctx,
-      { status: 'active', type: 'spec', codeLinks: [{ file: 'src/a.ts', symbol: 'x' }] },
+      {
+        status: 'active',
+        type: 'spec',
+        codeLinks: [{ file: 'src/a.ts', symbol: 'x' }],
+        brief: makeTestBrief(),
+      },
       'brief',
     );
 
     // Assert
     expect(result).toBe('active');
+  });
+
+  it('active spec -> brief: forces draft when brief namespace missing', async () => {
+    const result = await validateTypeChangeActivation(
+      ctx,
+      { status: 'active', type: 'spec', codeLinks: [{ file: 'src/a.ts', symbol: 'x' }] },
+      'brief',
+    );
+    expect(result).toBe('draft');
   });
 
   it('drifted card: returns drifted unchanged', async () => {

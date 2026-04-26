@@ -6,6 +6,7 @@ import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { CardNotFoundError } from '../card/errors';
+import { buildSearchableText } from '../card/searchable-text';
 import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/types';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
@@ -56,12 +57,16 @@ export interface CardValidationResult {
 /**
  * Syncs an externally modified card file to the DB.
  * Called by the CLI when a watcher event (create/change) is received.
-  * @spec dual-storage/file-db-sync
  */
 export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string): Promise<void> {
   const cardFile = await readCardFile(filePath);
   const key = parseFullKey(cardFile.frontmatter.key);
   const now = new Date().toISOString();
+  // (buildSearchableText imported below; cf. row.body assignment)
+
+  // Concatenate markdown body + searchable namespace text so FTS5 matches namespace content.
+  const namespaceText = buildSearchableText(cardFile.frontmatter);
+  const fullBody = [cardFile.body, namespaceText].filter((s) => s.trim().length > 0).join('\n\n');
 
   const row: CardRow = {
     key,
@@ -72,7 +77,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     boundaryJson: cardFile.frontmatter.boundary
       ? JSON.stringify(cardFile.frontmatter.boundary)
       : null,
-    body: cardFile.body,
+    body: fullBody,
     glossaryJson: cardFile.frontmatter.glossary
       ? JSON.stringify(cardFile.frontmatter.glossary)
       : '[]',
@@ -100,7 +105,6 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
  * File reads are executed in parallel via `Promise.allSettled` to minimize I/O wait time.
  * Each file's DB write is atomic, guaranteed by the transaction inside `syncCardFromFile`.
-  * @spec dual-storage/file-db-sync
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,
@@ -258,7 +262,6 @@ function globPatternsOverlap(pa: string, pb: string): boolean {
 /**
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
  * Performs read-only structural validation including hierarchy, relations, and boundary checks.
-  * @spec dual-storage/file-db-sync
  */
 export async function validateCards(
   ctx: EmberdeckContext,
@@ -293,12 +296,12 @@ export async function validateCards(
   }
 
   for (const row of dbRows) {
-    // Orphan card: parent=null + type is not brief
-    if (!row.parent && row.type !== 'brief') {
+    // Orphan card: parent=null + type is not brief or principle (both can be root-level)
+    if (!row.parent && row.type !== 'brief' && row.type !== 'principle') {
       warnings.push({
         type: 'orphan-card',
         cardKey: row.key,
-        message: `Non-brief card has no parent`,
+        message: `${row.type} card has no parent`,
       });
     }
 
@@ -524,7 +527,6 @@ export async function validateCards(
  * Regenerates a card file from the DB state (reverse sync).
  * DB row + relations + tags + codeLinks -> constructs frontmatter -> Bun.write.
  * @returns Absolute path of the written file.
-  * @spec dual-storage/file-db-sync
  */
 export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
   const key = parseFullKey(fullKey);

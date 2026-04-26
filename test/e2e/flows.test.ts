@@ -29,7 +29,7 @@ import {
   syncSpecAnnotations,
   analyze,
 } from '../../index';
-import { createTestContext, BRIEF_BODY, SPEC_BODY, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
 
 // ============================================================================
 // Mock gildash factory (same pattern as coverage-analysis tests)
@@ -197,6 +197,7 @@ describe('E2E Scenario 2: Code change flow', () => {
         { kind: 'function', file: 'src/auth.ts', symbol: 'logout' },
       ],
       boundary: ['src/auth/**'],
+      spec: makeTestSpec('src/auth.ts', 'login'),
     });
     await updateCardStatus(tc.ctx, 'auth-service', 'active');
 
@@ -252,6 +253,7 @@ describe('E2E Scenario 3: Design change flow', () => {
       summary: 'Infrastructure layer',
       type: 'brief',
       body: BRIEF_BODY,
+      brief: makeTestBrief(),
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const afterActive = await getCard(tc.ctx, 'infra-layer');
@@ -267,6 +269,7 @@ describe('E2E Scenario 3: Design change flow', () => {
     await updateCard(tc.ctx, 'infra-layer', {
       codeLinks: [{ kind: 'class', file: 'src/infra/base.ts', symbol: 'BaseInfra' }],
       body: SPEC_BODY,
+      spec: makeTestSpec('src/infra/base.ts', 'BaseInfra'),
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const reactivated = await getCard(tc.ctx, 'infra-layer');

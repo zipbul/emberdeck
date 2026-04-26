@@ -6,7 +6,7 @@ import {
   preChangeCheck,
   regressionGuard,
 } from '../../index';
-import { createTestContext, SPEC_BODY, type TestContext } from '../helpers';
+import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 describe('preChangeCheck', () => {
   let tc: TestContext;
@@ -253,6 +253,7 @@ describe('regressionGuard', () => {
       type: 'spec',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+      spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'drift-detect', 'active');
 
