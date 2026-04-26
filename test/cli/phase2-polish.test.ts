@@ -246,6 +246,48 @@ describe('Phase 2 polish: unknown command/option', () => {
   });
 });
 
+describe('Phase 2 polish: enum validation at CLI layer', () => {
+  let tmp: string;
+  beforeEach(() => { tmp = setupProject(); });
+  afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
+
+  test('card create --type invalid → rejected before write (no corrupt file)', async () => {
+    const r = await runCli(['--json', 'card', 'create', 'bad-type', '--type', 'banana', '--summary', 'x'], tmp);
+    expect(r.exitCode).not.toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('error');
+    expect(parsed.error.message).toContain('invalid --type');
+    // Verify NO file was created (no corruption)
+    const list = await runCli(['--json', 'card', 'list'], tmp);
+    expect(JSON.parse(list.stdout).data.total).toBe(0);
+  });
+
+  test('card create --status invalid → rejected', async () => {
+    const r = await runCli(['--json', 'card', 'create', 'x', '--type', 'brief', '--summary', 'x', '--status', 'banana'], tmp);
+    expect(r.exitCode).not.toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error.message).toContain('invalid status');
+  });
+
+  test('card set-status invalid → rejected', async () => {
+    await runCli(['card', 'create', 'x', '--type', 'brief', '--summary', 'x'], tmp);
+    const r = await runCli(['--json', 'card', 'set-status', 'x', 'banana'], tmp);
+    expect(r.exitCode).not.toBe(0);
+    expect(JSON.parse(r.stdout).error.message).toContain('invalid status');
+  });
+
+  test('card list --type invalid → rejected', async () => {
+    const r = await runCli(['--json', 'card', 'list', '--type', 'banana'], tmp);
+    expect(r.exitCode).not.toBe(0);
+  });
+
+  test('card update --field type=invalid → rejected', async () => {
+    await runCli(['card', 'create', 'x', '--type', 'brief', '--summary', 'x'], tmp);
+    const r = await runCli(['--json', 'card', 'update', 'x', '--field', 'type=banana'], tmp);
+    expect(r.exitCode).not.toBe(0);
+  });
+});
+
 describe('Phase 2 polish: card export --json mode', () => {
   let tmp: string;
   beforeEach(async () => {

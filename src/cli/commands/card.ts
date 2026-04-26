@@ -31,6 +31,23 @@ import { findCardsByGlossaryWord } from '../../ops/glossary';
 
 // ── helpers ──
 
+const VALID_TYPES: ReadonlyArray<CardType> = ['principle', 'brief', 'spec'];
+const VALID_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted', 'retired'];
+
+function validateCardType(value: string): CardType {
+  if (!VALID_TYPES.includes(value as CardType)) {
+    throw new Error(`invalid --type '${value}'. Allowed: ${VALID_TYPES.join('|')}`);
+  }
+  return value as CardType;
+}
+
+function validateCardStatus(value: string): CardStatus {
+  if (!VALID_STATUSES.includes(value as CardStatus)) {
+    throw new Error(`invalid status '${value}'. Allowed: ${VALID_STATUSES.join('|')}`);
+  }
+  return value as CardStatus;
+}
+
 async function readBodyFromOption(value: string | undefined): Promise<string | undefined> {
   if (value === undefined) return undefined;
   if (value === '-') {
@@ -56,13 +73,13 @@ function applyFieldValue(fields: UpdateCardFields, name: string, value: string):
       fields.summary = value;
       return;
     case 'status':
-      fields.status = value as UpdateCardFields['status'];
+      fields.status = validateCardStatus(value);
       return;
     case 'parent':
       fields.parent = value === '' ? null : value;
       return;
     case 'type':
-      fields.type = value as UpdateCardFields['type'];
+      fields.type = validateCardType(value);
       return;
     default:
       throw new Error(`unsupported --field name: ${name} (allowed: summary, status, parent, type)`);
@@ -141,6 +158,8 @@ export function registerCard(program: Command): void {
           if (opts.file && !opts.symbol) {
             throw new Error('--file requires --symbol');
           }
+          if (opts.type) validateCardType(opts.type);
+          if (opts.status) validateCardStatus(opts.status);
           let rows: Array<{ key: string; type: string; status: string; summary: string; parent: string | null }>;
           if (opts.symbol) {
             const matches = await findCardsBySymbol(rt.ctx, opts.symbol, opts.file);
@@ -211,18 +230,20 @@ export function registerCard(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
+          const validatedType = validateCardType(opts.type);
+          const validatedStatus = opts.status ? validateCardStatus(opts.status) : undefined;
           let input: CreateCardInput = {
             key,
-            type: opts.type as CardType,
+            type: validatedType,
             summary: opts.summary ?? '',
-            ...(opts.status ? { status: opts.status as CardStatus } : {}),
+            ...(validatedStatus ? { status: validatedStatus } : {}),
           };
           if (opts.from) {
             const text = await readBodyFromOption(opts.from);
             if (!text) throw new Error('--from produced empty input');
             const parsed = (await parseInputFile(text)) as Partial<CreateCardInput>;
             const summary = opts.summary ?? parsed.summary ?? '';
-            input = { ...parsed, key, type: opts.type as CardType, summary };
+            input = { ...parsed, key, type: validatedType, summary };
           }
           if (!input.summary) {
             throw new Error('--summary or --from with summary field required');
@@ -413,9 +434,10 @@ export function registerCard(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
+          const validatedStatus = validateCardStatus(status);
           let reason = opts.reason;
           if (opts.reasonFrom) reason = await readBodyFromOption(opts.reasonFrom);
-          const result = await updateCardStatus(rt.ctx, key, status as CardStatus, reason);
+          const result = await updateCardStatus(rt.ctx, key, validatedStatus, reason);
           return ok({
             key: result.card.frontmatter.key,
             status: result.card.frontmatter.status,
