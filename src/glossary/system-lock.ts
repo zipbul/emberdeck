@@ -25,25 +25,51 @@ interface LockRow {
 }
 
 /**
- * Read /proc/<pid>/stat field 22 (start_time in clock ticks since boot).
- * Returns null on non-Linux or read failure.
+ * Read process start time as a stable identifier across the process's lifetime.
+ *
+ * - Linux: /proc/<pid>/stat field 22 (clock ticks since boot)
+ * - macOS/BSD: `ps -o lstart= -p <pid>` (date string), parsed to epoch ms
+ * - Other platforms: returns 0 (PID-only check, accepts PID-recycle race)
+ *
+ * The exact unit/scale doesn't matter — only that the value is stable for the
+ * process's lifetime and changes when PID is recycled.
  */
-function readStartTimeTicks(pid: number): number | null {
+function readStartTimeTicks(pid: number): number {
+  // Linux: /proc/<pid>/stat
   try {
     const content = readFileSync(`/proc/${pid}/stat`, 'utf-8');
-    // Format: pid (comm) state ppid pgrp ... — comm may contain spaces/parens.
-    // Find the LAST ')' which closes comm, then split the rest by space.
     const lastParen = content.lastIndexOf(')');
-    if (lastParen < 0) return null;
-    const after = content.slice(lastParen + 2).split(' ');
-    // After "comm" we have state(0) ppid(1) ... start_time is original field 22 = after[19]
-    const startTime = after[19];
-    if (!startTime) return null;
-    const n = parseInt(startTime, 10);
-    return Number.isFinite(n) ? n : null;
+    if (lastParen >= 0) {
+      const after = content.slice(lastParen + 2).split(' ');
+      const startTime = after[19];
+      if (startTime) {
+        const n = parseInt(startTime, 10);
+        if (Number.isFinite(n)) return n;
+      }
+    }
   } catch {
-    return null;
+    // fall through to macOS/BSD path
   }
+
+  // macOS / BSD: `ps -o lstart= -p <pid>` returns a date string like "Sun Apr 27 05:50:31 2026"
+  if (process.platform === 'darwin' || process.platform.startsWith('freebsd')) {
+    try {
+      const proc = Bun.spawnSync(['ps', '-o', 'lstart=', '-p', String(pid)]);
+      if (proc.exitCode === 0) {
+        const text = proc.stdout?.toString().trim();
+        if (text) {
+          const ms = Date.parse(text);
+          if (Number.isFinite(ms)) return ms;
+        }
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  // Unsupported platform / error: return 0. PID-recycle protection lost,
+  // but lock acquisition still works (just falls back to PID-only liveness).
+  return 0;
 }
 
 function isAlive(pid: number): boolean {
@@ -57,7 +83,7 @@ function isAlive(pid: number): boolean {
 }
 
 function getMyStartTime(): number {
-  return readStartTimeTicks(process.pid) ?? 0;
+  return readStartTimeTicks(process.pid);
 }
 
 function selectLock(ctx: EmberdeckContext, name: string): LockRow | null {
@@ -92,7 +118,9 @@ function casDelete(ctx: EmberdeckContext, name: string, pid: number, st: number)
 function isStale(holder: LockRow): boolean {
   if (!isAlive(holder.pid)) return true;
   const currentSt = readStartTimeTicks(holder.pid);
-  if (currentSt == null) return false; // can't verify (non-Linux); assume alive
+  // start_time = 0 means we cannot determine; fall back to PID-only liveness
+  // (still safe — PID-recycling race is rare on systems with large pid_max).
+  if (currentSt === 0 || holder.start_time_ticks === 0) return false;
   return currentSt !== holder.start_time_ticks;
 }
 

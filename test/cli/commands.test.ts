@@ -272,6 +272,45 @@ describe('CLI: STDIN input', () => {
     expect(fetched.data.summary).toBe('from stdin');
   });
 
+  test('card create --from - empty STDIN → exits with error (not crash)', async () => {
+    const proc = Bun.spawn(['bun', CLI, '--json', 'card', 'create', 'empty-stdin', '--type', 'brief', '--from', '-'], {
+      cwd: tmp,
+      env: { ...process.env, NO_COLOR: '1' },
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    await proc.stdin.end();
+    const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
+    expect(proc.exitCode).not.toBe(0);
+    if (stdout.trim().startsWith('{')) {
+      const parsed = JSON.parse(stdout);
+      expect(parsed.status).toBe('error');
+    }
+  });
+
+  test('card update --body - large STDIN (10KB)', async () => {
+    await runCli(['card', 'create', 'big-body', '--type', 'brief', '--summary', 'orig'], tmp);
+    const big = 'x'.repeat(10_000);
+    const proc = Bun.spawn(['bun', CLI, '--json', 'card', 'update', 'big-body', '--body', '-'], {
+      cwd: tmp,
+      env: { ...process.env, NO_COLOR: '1' },
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    proc.stdin.write(big);
+    await proc.stdin.end();
+    await new Response(proc.stdout).text();
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+
+    const get = await runCli(['--json', 'card', 'get', 'big-body'], tmp);
+    const fetched = JSON.parse(get.stdout);
+    expect(fetched.data.body.length).toBeGreaterThanOrEqual(10_000);
+  });
+
   test('card update --body - reads body from STDIN', async () => {
     await runCli(['card', 'create', 'with-body', '--type', 'brief', '--summary', 'orig'], tmp);
     const newBody = 'fresh body content\n';

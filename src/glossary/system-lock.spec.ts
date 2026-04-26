@@ -81,6 +81,24 @@ describe('system-lock', () => {
     releaseSystemLock(ctx, 'stale');
   });
 
+  test('integration: glossary mutations through withGlossaryLock acquire system_lock', async () => {
+    const { withGlossaryLock } = await import('./lock');
+    let lockHeldDuringFn = false;
+    await withGlossaryLock(ctx, () => {
+      const row = ctx.db.$client
+        .prepare('SELECT pid FROM system_lock WHERE name = ?')
+        .get('glossary') as { pid: number } | undefined;
+      lockHeldDuringFn = row?.pid === process.pid;
+    });
+    expect(lockHeldDuringFn).toBe(true);
+
+    // After return, lock released
+    const after = ctx.db.$client
+      .prepare('SELECT pid FROM system_lock WHERE name = ?')
+      .get('glossary');
+    expect(after ?? null).toBeNull();
+  });
+
   test('alive lock blocks until timeout', async () => {
     // hold the lock with our own PID + start_time so it looks alive
     const myPid = process.pid;

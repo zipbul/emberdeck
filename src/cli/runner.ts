@@ -11,6 +11,19 @@ import { EXIT } from './exit-codes';
 export type CommandFn = (rt: CliRuntime, args: unknown[]) => Promise<CliResult>;
 
 /**
+ * Decide CliResult.status from an error code.
+ * Transient/retryable errors → 'unknown' (exit 7); everything else → 'error'.
+ * Exported for testability.
+ */
+export function classifyErrorStatus(code: string): 'unknown' | 'error' {
+  // Add codes here when ops layer surfaces transient failures. Currently:
+  // - GILDASH_TRANSIENT: gildash search timeout (not yet emitted; reserved)
+  // - NETWORK_TRANSIENT: future remote integrations
+  if (code === 'GILDASH_TRANSIENT' || code === 'NETWORK_TRANSIENT') return 'unknown';
+  return 'error';
+}
+
+/**
  * Execute a command with full lifecycle: build runtime, run, render, exit.
  *
  * @param fn - Command implementation
@@ -27,6 +40,9 @@ export async function run(
   let rt: CliRuntime | undefined;
   let result: CliResult;
 
+  // Verbose only emits structural metadata (paths, status, error class names) —
+  // never user input, command args, card body content, or anything containing
+  // potential secrets/tokens from frontmatter fields.
   const verboseLog = globalFlags.verbose
     ? (msg: string) => process.stderr.write(`[verbose] ${msg}\n`)
     : (_msg: string) => {};
@@ -36,15 +52,15 @@ export async function run(
     rt = await buildRuntime(globalFlags);
     verboseLog(`runtime ready: cardsDir=${rt.ctx.cardsDir} gildash=${rt.ctx.gildash ? 'on' : 'off'}`);
     result = await fn(rt, args);
-    verboseLog(`command done: status=${result.status}`);
+    verboseLog(`command done: status=${result.status} warnings=${result.warnings.length} errors=${result.errors.length}`);
   } catch (e) {
-    verboseLog(`command threw: ${e instanceof Error ? e.message : String(e)}`);
+    // Verbose only emits the error class name; full message goes to user via render(),
+    // not duplicated here, to avoid leaking secrets through stderr verbose channel.
+    verboseLog(`command threw: ${e instanceof Error ? e.constructor.name : 'unknown'}`);
     const cliErr = toCliError(e);
-    // transient gildash errors → unknown (exit 7)
-    const isTransient = cliErr.code === 'GILDASH_TRANSIENT';
     result = {
       schemaVersion: { major: 1, minor: 0 },
-      status: isTransient ? 'unknown' : 'error',
+      status: classifyErrorStatus(cliErr.code),
       data: null,
       warnings: [],
       errors: [],
