@@ -5,7 +5,7 @@
   "type": "module",
   "module": "index.ts",
   "bin": {
-    "emberdeck": "./cli.ts"
+    "ed": "./cli.ts"
   },
   "exports": {
     ".": {
@@ -24,6 +24,7 @@
   "dependencies": {
     "@zipbul/gildash": "0.10.0",
     "@zipbul/result": "^0.0.3",
+    "commander": "^14.0.3",
     "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
