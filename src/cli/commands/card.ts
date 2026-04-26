@@ -1,7 +1,5 @@
 /**
- * `ed card` subcommands. Phase 1 implements: get, list, create, update.
- * Other card subcommands (delete, rename, search, export, set-status, tree, context, relations)
- * land in Phase 2.
+ * `ed card` subcommands per CLI_PLAN §4.1 (12 commands, migrate excluded per user decision).
  */
 
 import { Command } from 'commander';
@@ -10,18 +8,32 @@ import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import type { CardType, CardStatus } from '../../card/types';
-import { getCard } from '../../ops/query';
+import {
+  getCard,
+  listCards,
+  searchCards,
+  listCardRelations,
+  getCardTree,
+  getCardContext,
+} from '../../ops/query';
 import { createCard, type CreateCardInput } from '../../ops/create';
-import { updateCard, type UpdateCardFields } from '../../ops/update';
-import { listCards } from '../../ops/query';
+import {
+  updateCard,
+  updateCardStatus,
+  type UpdateCardFields,
+} from '../../ops/update';
+import { deleteCard } from '../../ops/delete';
+import { renameCard } from '../../ops/rename';
+import { exportCardToFile } from '../../ops/sync';
 import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
+
+// ── helpers ──
 
 async function readBodyFromOption(value: string | undefined): Promise<string | undefined> {
   if (value === undefined) return undefined;
   if (value === '-') {
-    const stdin = Bun.stdin;
-    return await stdin.text();
+    return await Bun.stdin.text();
   }
   return await readFile(value, 'utf-8');
 }
@@ -37,10 +49,42 @@ function parseFields(fieldFlags: string[] | undefined): Record<string, string> {
   return out;
 }
 
+function applyFieldValue(fields: UpdateCardFields, name: string, value: string): void {
+  switch (name) {
+    case 'summary':
+      fields.summary = value;
+      return;
+    case 'status':
+      fields.status = value as UpdateCardFields['status'];
+      return;
+    case 'parent':
+      fields.parent = value === '' ? null : value;
+      return;
+    case 'type':
+      fields.type = value as UpdateCardFields['type'];
+      return;
+    default:
+      throw new Error(`unsupported --field name: ${name} (allowed: summary, status, parent, type)`);
+  }
+}
+
+async function parseInputFile(text: string): Promise<unknown> {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      // fall through to YAML
+    }
+  }
+  return Bun.YAML.parse(text);
+}
+
+// ── register ──
+
 export function registerCard(program: Command): void {
   const card = program.command('card').description('card-level operations');
 
-  // ── card get ──
   card
     .command('get <key>')
     .description('read a card from file')
@@ -62,11 +106,10 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => renderCardHuman(data) },
+        { humanRenderer: renderCardHuman },
       );
     });
 
-  // ── card list ──
   card
     .command('list')
     .description('list cards (filterable). --symbol/--glossary subsume find_cards_by_symbol / find_cards_by_glossary_word')
@@ -74,7 +117,7 @@ export function registerCard(program: Command): void {
     .option('--status <status>', 'filter by status (draft|active|drifted|retired)')
     .option('--parent <key>', 'filter by parent card key')
     .option('--tag <tag>', 'filter by tag')
-    .option('--symbol <name>', 'cards bound to this code symbol (via codeLinks or boundary)')
+    .option('--symbol <name>', 'cards bound to this code symbol')
     .option('--file <path>', 'when used with --symbol, restrict to symbols in this file')
     .option('--glossary <word>', 'cards declaring this glossary word')
     .option('--limit <n>', 'page size (default 50)', (v) => parseInt(v, 10))
@@ -89,9 +132,7 @@ export function registerCard(program: Command): void {
             throw new Error('--file requires --symbol');
           }
           let rows: Array<{ key: string; type: string; status: string; summary: string; parent: string | null }>;
-
           if (opts.symbol) {
-            // Discover via codeLinks/boundary; then apply other filters in-memory.
             const matches = await findCardsBySymbol(rt.ctx, opts.symbol, opts.file);
             rows = matches
               .map((m) => ({
@@ -106,7 +147,6 @@ export function registerCard(program: Command): void {
               .filter((r) => !opts.parent || r.parent === opts.parent);
           } else if (opts.glossary) {
             const matches = findCardsByGlossaryWord(rt.ctx, opts.glossary);
-            // matches only have key+summary; enrich via DB query for type/status
             const enriched = matches.map((m) => {
               const row = rt.ctx.cardRepo.findByKey(m.key);
               return {
@@ -136,7 +176,6 @@ export function registerCard(program: Command): void {
               parent: row.parent,
             }));
           }
-
           const total = rows.length;
           const items = rows.slice(offset, offset + limit);
           return ok({
@@ -147,11 +186,10 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => renderListHuman(data) },
+        { humanRenderer: renderListHuman },
       );
     });
 
-  // ── card create ──
   card
     .command('create <key>')
     .description('create a new card')
@@ -189,11 +227,10 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => renderCreatedHuman(data) },
+        { humanRenderer: renderCreatedHuman },
       );
     });
 
-  // ── card update ──
   card
     .command('update <key>')
     .description('update a card')
@@ -206,25 +243,21 @@ export function registerCard(program: Command): void {
       await run(
         async (rt: CliRuntime) => {
           const fields: UpdateCardFields = {};
-
           if (opts.patch) {
             const text = await readBodyFromOption(opts.patch);
             if (!text) throw new Error('--patch produced empty input');
             const parsed = (await parseInputFile(text)) as UpdateCardFields;
             Object.assign(fields, parsed);
           }
-
           const fieldMap = parseFields(opts.field);
           if (opts.summary) fieldMap.summary = opts.summary;
           for (const [name, value] of Object.entries(fieldMap)) {
             applyFieldValue(fields, name, value);
           }
-
           if (opts.body !== undefined) {
             const body = await readBodyFromOption(opts.body);
             if (body !== undefined) fields.body = body;
           }
-
           const result = await updateCard(rt.ctx, key, fields);
           const warnings: CliMessage[] = (result.warnings ?? []).map((m) => ({
             code: 'UPDATE_WARNING',
@@ -241,47 +274,215 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => renderUpdatedHuman(data) },
+        { humanRenderer: renderUpdatedHuman },
       );
     });
-}
 
-function applyFieldValue(fields: UpdateCardFields, name: string, value: string): void {
-  switch (name) {
-    case 'summary':
-      fields.summary = value;
-      return;
-    case 'status':
-      fields.status = value as UpdateCardFields['status'];
-      return;
-    case 'parent':
-      fields.parent = value === '' ? null : value;
-      return;
-    case 'type':
-      fields.type = value as UpdateCardFields['type'];
-      return;
-    default:
-      throw new Error(`unsupported --field name: ${name} (allowed: summary, status, parent, type)`);
-  }
-}
+  card
+    .command('delete <key>')
+    .description('delete a card (DB + file)')
+    .option('--force', 'delete even when children exist (cascade)')
+    .option('--yes', 'skip confirmation prompt (required for non-TTY invocation)')
+    .action(async (key: string, opts: { force?: boolean; yes?: boolean }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          if (!opts.yes && !process.stdin.isTTY) {
+            throw new Error('card delete requires --yes when stdin is not a TTY (destructive op)');
+          }
+          const result = await deleteCard(rt.ctx, key, { force: opts.force });
+          return ok({ key, filePath: result.filePath });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: (data) => `deleted card '${(data as { key: string }).key}'\n  → ${(data as { filePath: string }).filePath}` },
+      );
+    });
 
-async function parseInputFile(text: string): Promise<unknown> {
-  const trimmed = text.trim();
-  // try JSON first if starts with { or [
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return JSON.parse(text);
-    } catch {
-      // fall through to YAML
-    }
-  }
-  return Bun.YAML.parse(text);
+  card
+    .command('rename <oldKey> <newKey>')
+    .description('rename a card key (FK CASCADE through DB + file move)')
+    .action(async (oldKey: string, newKey: string, _opts, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const result = await renameCard(rt.ctx, oldKey, newKey);
+          return ok({
+            old_key: oldKey,
+            new_key: result.newFullKey,
+            old_path: result.oldFilePath,
+            new_path: result.newFilePath,
+            body_references: result.bodyReferencesFound ?? [],
+            failed_reference_updates: result.failedReferenceUpdates ?? [],
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: renderRenameHuman },
+      );
+    });
+
+  card
+    .command('search <query>')
+    .description('FTS5 search')
+    .option('--type <type>', 'filter by card type')
+    .option('--status <status>', 'filter by status')
+    .option('--limit <n>', 'page size (default 50)', (v) => parseInt(v, 10))
+    .option('--offset <n>', 'page offset (default 0)', (v) => parseInt(v, 10))
+    .action(async (query: string, opts: { type?: string; status?: string; limit?: number; offset?: number }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      const limit = opts.limit ?? 50;
+      const offset = opts.offset ?? 0;
+      await run(
+        async (rt: CliRuntime) => {
+          const all = searchCards(rt.ctx, query, {
+            type: opts.type as CardType | undefined,
+            status: opts.status as CardStatus | undefined,
+          });
+          const total = all.length;
+          const items = all.slice(offset, offset + limit).map((row) => ({
+            key: row.key,
+            type: row.type,
+            status: row.status,
+            summary: row.summary,
+            parent: row.parent,
+          }));
+          return ok({
+            items,
+            total,
+            page: { limit, offset, has_more: offset + items.length < total },
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: renderListHuman },
+      );
+    });
+
+  card
+    .command('export <key>')
+    .description('regenerate card file from DB row')
+    .option('--out <file>', 'write to FILE instead of original location')
+    .action(async (key: string, opts: { out?: string }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const filePath = await exportCardToFile(rt.ctx, key);
+          if (opts.out && opts.out !== filePath) {
+            const content = await Bun.file(filePath).text();
+            await Bun.write(opts.out, content);
+            return ok({ key, filePath: opts.out, source: filePath });
+          }
+          return ok({ key, filePath });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: (data) => `exported '${(data as { key: string }).key}' → ${(data as { filePath: string }).filePath}` },
+      );
+    });
+
+  card
+    .command('set-status <key> <status>')
+    .description('change card status (draft|active|drifted|retired)')
+    .option('--reason <text>', 'reason recorded in changelog')
+    .option('--reason-from <file|->', 'read reason from file or STDIN')
+    .action(async (key: string, status: string, opts: { reason?: string; reasonFrom?: string }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          let reason = opts.reason;
+          if (opts.reasonFrom) reason = await readBodyFromOption(opts.reasonFrom);
+          const result = await updateCardStatus(rt.ctx, key, status as CardStatus, reason);
+          return ok({
+            key: result.card.frontmatter.key,
+            status: result.card.frontmatter.status,
+            filePath: result.filePath,
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: (data) => {
+          const d = data as { key: string; status: string };
+          return `card '${d.key}' status → ${d.status}`;
+        } },
+      );
+    });
+
+  card
+    .command('tree <key>')
+    .description('parent-child hierarchy starting from KEY')
+    .option('--depth <n>', 'max depth (default 10, capped at 20)', (v) => parseInt(v, 10))
+    .action(async (key: string, opts: { depth?: number }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const tree = getCardTree(rt.ctx, key, opts.depth);
+          return ok(tree);
+        },
+        [],
+        globalFlags,
+        { humanRenderer: renderTreeHuman },
+      );
+    });
+
+  card
+    .command('context <key>')
+    .description('related cards via parent/relations BFS')
+    .option('--depth <n>', 'BFS depth (default 1)', (v) => parseInt(v, 10))
+    .option('--direction <dir>', 'forward|backward|both (default both)', 'both')
+    .action(async (key: string, opts: { depth?: number; direction?: string }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const ctx = await getCardContext(rt.ctx, key, { depth: opts.depth ?? 1 });
+          return ok({
+            key: ctx.card.frontmatter.key,
+            type: ctx.card.frontmatter.type,
+            upstream: ctx.upstreamCards.map((c) => ({ key: c.key, type: c.type, status: c.status })),
+            downstream: ctx.downstreamCards.map((c) => ({ key: c.key, type: c.type, status: c.status })),
+            related: (ctx.related ?? []).map((r) => ({
+              key: r.card.key,
+              type: r.card.type,
+              depth: r.depth,
+              direction: r.direction,
+            })),
+            truncated: ctx.truncated ?? false,
+            code_links_resolved: ctx.codeLinks.filter((cl) => cl.symbol).length,
+            code_links_total: ctx.codeLinks.length,
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: renderContextHuman },
+      );
+    });
+
+  card
+    .command('relations <key>')
+    .description('list direct relations (forward + reverse)')
+    .action(async (key: string, _opts, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const relations = listCardRelations(rt.ctx, key);
+          return ok({
+            key,
+            forward: relations.filter((r) => !r.isReverse).map((r) => r.dstCardKey),
+            reverse: relations.filter((r) => r.isReverse).map((r) => r.dstCardKey),
+            total: relations.length,
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: renderRelationsHuman },
+      );
+    });
 }
 
 // ── human renderers ──
 
 function renderCardHuman(data: unknown): string {
-  const card = data as { key: string; type: string; status: string; summary: string; body?: string; frontmatter?: unknown };
+  const card = data as { key: string; type: string; status: string; summary: string; body?: string };
   const lines = [
     `key:     ${card.key}`,
     `type:    ${card.type}`,
@@ -321,5 +522,46 @@ function renderUpdatedHuman(data: unknown): string {
   return `updated card '${d.key}' (${d.status})\n  → ${d.filePath}`;
 }
 
-// avoid unused export warnings — partial is reserved for future bulk subcommands here
+function renderRenameHuman(data: unknown): string {
+  const d = data as { old_key: string; new_key: string; new_path: string; body_references: string[]; failed_reference_updates: string[] };
+  const lines = [`renamed '${d.old_key}' → '${d.new_key}'`, `  → ${d.new_path}`];
+  if (d.body_references.length > 0) lines.push(`  body references found in: ${d.body_references.join(', ')}`);
+  if (d.failed_reference_updates.length > 0) lines.push(`  failed reference updates: ${d.failed_reference_updates.join(', ')}`);
+  return lines.join('\n');
+}
+
+function renderTreeHuman(data: unknown): string {
+  const lines: string[] = [];
+  const walk = (node: { key: string; type: string; status: string; children: unknown[]; truncated?: boolean }, indent: string): void => {
+    lines.push(`${indent}${node.key} (${node.type}, ${node.status})${node.truncated ? ' [truncated]' : ''}`);
+    for (const child of node.children) {
+      walk(child as Parameters<typeof walk>[0], indent + '  ');
+    }
+  };
+  walk(data as Parameters<typeof walk>[0], '');
+  return lines.join('\n');
+}
+
+function renderContextHuman(data: unknown): string {
+  const d = data as { key: string; upstream: Array<{ key: string }>; downstream: Array<{ key: string }>; related: Array<{ key: string; depth: number; direction: string }>; code_links_resolved: number; code_links_total: number };
+  const lines = [`context of '${d.key}':`];
+  if (d.upstream.length > 0) lines.push(`  upstream (${d.upstream.length}): ${d.upstream.map((u) => u.key).join(', ')}`);
+  if (d.downstream.length > 0) lines.push(`  downstream (${d.downstream.length}): ${d.downstream.map((u) => u.key).join(', ')}`);
+  if (d.related.length > 0) {
+    lines.push(`  related (${d.related.length}):`);
+    for (const r of d.related) lines.push(`    ${r.key} (depth=${r.depth}, ${r.direction})`);
+  }
+  lines.push(`  codeLinks: ${d.code_links_resolved}/${d.code_links_total} resolved`);
+  return lines.join('\n');
+}
+
+function renderRelationsHuman(data: unknown): string {
+  const d = data as { key: string; forward: string[]; reverse: string[] };
+  const lines = [`relations of '${d.key}':`];
+  if (d.forward.length > 0) lines.push(`  forward (${d.forward.length}): ${d.forward.join(', ')}`);
+  if (d.reverse.length > 0) lines.push(`  reverse (${d.reverse.length}): ${d.reverse.join(', ')}`);
+  if (d.forward.length === 0 && d.reverse.length === 0) lines.push('  (none)');
+  return lines.join('\n');
+}
+
 export { partial as _partial };

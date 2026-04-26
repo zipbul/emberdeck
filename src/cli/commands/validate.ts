@@ -9,9 +9,111 @@ import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { validateCards } from '../../ops/sync';
 import { validateBrief } from '../../brief/validate';
+import { validateCodeLinks } from '../../ops/link';
 
 export function registerValidate(program: Command): void {
   const validate = program.command('validate').description('integrity gates');
+
+  // ── validate (no args = all) ──
+  validate
+    .action(async (_opts, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const cardsResult = await validateCards(rt.ctx);
+          const cardErrors: CliMessage[] = cardsResult.warnings.map((w) => ({
+            code: w.type.toUpperCase().replace(/-/g, '_'),
+            message: w.message,
+            ...(w.cardKey ? { key: w.cardKey } : {}),
+          }));
+          for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `DB row has no file: ${stale.filePath}`, key: stale.key });
+          for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no DB row: ${orphan}` });
+
+          // links validation: per-card iteration
+          const allCards = rt.ctx.cardRepo.list();
+          const linkErrors: CliMessage[] = [];
+          let linkDeclared = 0;
+          let linkBroken = 0;
+          if (rt.ctx.gildash) {
+            for (const c of allCards) {
+              const r = await validateCodeLinks(rt.ctx, c.key);
+              linkDeclared += r.declared;
+              linkBroken += r.broken.length;
+              for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
+            }
+          }
+
+          // brief validation: per active brief
+          const briefErrors: CliMessage[] = [];
+          for (const c of allCards) {
+            if (c.type !== 'brief' || c.status === 'draft') continue;
+            try {
+              const r = validateBrief(rt.ctx, c.key);
+              if (!r.complete) {
+                for (const m of r.missing) briefErrors.push({ code: 'BRIEF_SECTION_MISSING', message: `[${c.key}] missing: ${m}`, key: c.key });
+              }
+            } catch (e) {
+              briefErrors.push({ code: 'BRIEF_VALIDATION_ERROR', message: String((e as Error).message), key: c.key });
+            }
+          }
+
+          const allErrors = [...cardErrors, ...linkErrors, ...briefErrors];
+          const data = {
+            cards: { issues: cardErrors.length },
+            links: { declared: linkDeclared, broken: linkBroken },
+            briefs: { issues: briefErrors.length },
+            total_issues: allErrors.length,
+          };
+          return allErrors.length === 0 ? ok(data) : partial(data, allErrors);
+        },
+        [],
+        globalFlags,
+        {
+          partialIsFailure: true,
+          humanRenderer: (data) => {
+            const d = data as { cards: { issues: number }; links: { declared: number; broken: number }; briefs: { issues: number }; total_issues: number };
+            return `validate: cards=${d.cards.issues} links=${d.links.broken}/${d.links.declared} briefs=${d.briefs.issues} total=${d.total_issues}`;
+          },
+        },
+      );
+    });
+
+  // ── validate links ──
+  validate
+    .command('links [key]')
+    .description('validate code links resolve via gildash (one card or all)')
+    .action(async (key: string | undefined, _opts, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const errors: CliMessage[] = [];
+          let declared = 0;
+          let resolved = 0;
+          let broken = 0;
+
+          const targets = key ? [{ key }] : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec').map((c) => ({ key: c.key }));
+          for (const t of targets) {
+            const r = await validateCodeLinks(rt.ctx, t.key);
+            declared += r.declared;
+            resolved += r.valid;
+            broken += r.broken.length;
+            for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
+          }
+
+          const data = { declared, resolved, broken, unresolved: errors.length };
+          return errors.length === 0 ? ok(data) : partial(data, errors);
+        },
+        [],
+        globalFlags,
+        {
+          partialIsFailure: true,
+          humanRenderer: (data) => {
+            const d = data as { declared: number; resolved: number; broken: number };
+            return `validate links: declared=${d.declared} resolved=${d.resolved} broken=${d.broken}`;
+          },
+        },
+      );
+    });
 
   // ── validate cards ──
   validate

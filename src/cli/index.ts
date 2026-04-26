@@ -19,6 +19,10 @@ import { Command } from 'commander';
 import { registerCard } from './commands/card';
 import { registerValidate } from './commands/validate';
 import { registerCheck } from './commands/check';
+import { registerGlossary } from './commands/glossary';
+import { registerSpec } from './commands/spec';
+import { registerBulk } from './commands/bulk';
+import { registerSingle } from './commands/single';
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -40,8 +44,12 @@ export function buildProgram(): Command {
     .showHelpAfterError('(run `ed --help` for full usage)');
 
   registerCard(program);
+  registerGlossary(program);
   registerValidate(program);
   registerCheck(program);
+  registerSpec(program);
+  registerBulk(program);
+  registerSingle(program);
 
   return program;
 }

@@ -5,12 +5,49 @@
 
 import { Command } from 'commander';
 import { run, extractGlobalFlags } from '../runner';
-import { ok } from '../output';
+import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { getLinkCoverage, getUncoveredSymbols, suggestCardScope } from '../../ops/spec-sync';
+import { checkDrift, checkInteractions } from '../../ops/context';
+import { preChangeCheck, regressionGuard } from '../../ops/impact';
 
 export function registerCheck(program: Command): void {
   const check = program.command('check').description('state reports (descriptive)');
+
+  // ── check drift ──
+  check
+    .command('drift [key]')
+    .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken)')
+    .option('--max-depth <n>', 'BFS depth when key given (default 3)', (v) => parseInt(v, 10))
+    .option('--no-auto-transition', 'do not auto-mark active→drifted')
+    .action(async (key: string | undefined, opts: { maxDepth?: number; autoTransition?: boolean }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const result = await checkDrift(rt.ctx, key, {
+            maxDepth: opts.maxDepth,
+            autoTransition: opts.autoTransition !== false,
+          });
+          return ok({
+            health: result.health,
+            cards: result.cards,
+            total_drifted: result.health.drifted,
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: (data) => {
+          const d = data as { health: { total: number; active: number; drifted: number; draft: number }; cards: Array<{ key: string; status: string; driftType?: string }> };
+          const lines = [
+            `drift: total=${d.health.total} active=${d.health.active} drifted=${d.health.drifted} draft=${d.health.draft}`,
+          ];
+          for (const c of d.cards.filter((c) => c.driftType)) {
+            lines.push(`  ${c.key}: ${c.driftType}`);
+          }
+          return lines.join('\n');
+        } },
+      );
+    });
 
   // ── check coverage ──
   check
@@ -62,9 +99,110 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => renderCoverageHuman(data) },
+        { humanRenderer: renderCoverageHuman },
       );
     });
+
+  // ── check impact ──
+  check
+    .command('impact <files...>')
+    .description('pre-change impact analysis (direct / boundary / transitive)')
+    .option('--symbol <names...>', 'optional: restrict to specific symbols')
+    .action(async (files: string[], opts: { symbol?: string[] }, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const result = preChangeCheck(rt.ctx, files, opts.symbol);
+          return ok({
+            risk_level: result.riskLevel,
+            affected_count: result.affectedCards.length,
+            affected_cards: result.affectedCards,
+            new_uncovered_files: result.newUncoveredFiles,
+            suggested_actions: result.suggestedActions,
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: (data) => {
+          const d = data as { risk_level: string; affected_count: number; affected_cards: Array<{ key: string; linkType: string; affectedLinks: number }>; suggested_actions: string[] };
+          const lines = [`impact: risk=${d.risk_level}, ${d.affected_count} card(s) affected`];
+          for (const c of d.affected_cards) lines.push(`  ${c.key} (${c.linkType}, ${c.affectedLinks} link(s))`);
+          for (const a of d.suggested_actions) lines.push(`  → ${a}`);
+          return lines.join('\n');
+        } },
+      );
+    });
+
+  // ── check regression ──
+  check
+    .command('regression <files...>')
+    .description('regression guard: drifted ratio of affected cards vs threshold')
+    .action(async (files: string[], _opts, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const result = await regressionGuard(rt.ctx, files);
+          if (result.passOrFail === 'fail') {
+            const errors: CliMessage[] = result.affectedCards
+              .filter((c) => c.driftType || c.status === 'drifted')
+              .map((c) => ({ code: 'REGRESSION_DRIFT', message: `${c.key}: ${c.driftType ?? c.status}`, key: c.key }));
+            return partial({
+              pass_or_fail: result.passOrFail,
+              drifted_ratio: result.driftedRatio,
+              threshold: result.threshold,
+              affected: result.affectedCards,
+            }, errors);
+          }
+          return ok({
+            pass_or_fail: result.passOrFail,
+            drifted_ratio: result.driftedRatio,
+            threshold: result.threshold,
+            affected: result.affectedCards,
+          });
+        },
+        [],
+        globalFlags,
+        {
+          partialIsFailure: true,
+          humanRenderer: (data) => {
+            const d = data as { pass_or_fail: string; drifted_ratio: number; threshold: number };
+            return `regression: ${d.pass_or_fail} (drifted_ratio=${d.drifted_ratio.toFixed(2)}, threshold=${d.threshold})`;
+          },
+        },
+      );
+    });
+
+  // ── check interactions ──
+  check
+    .command('interactions <keys...>')
+    .description('analyze interactions between cards (shared symbols/files/imports)')
+    .action(async (keys: string[], _opts, cmd) => {
+      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
+      await run(
+        async (rt: CliRuntime) => {
+          const result = checkInteractions(rt.ctx, keys);
+          return ok({
+            interactions: result.interactions,
+            undefined_relations: result.undefinedRelations,
+          });
+        },
+        [],
+        globalFlags,
+        { humanRenderer: (data) => {
+          const d = data as { interactions: Array<{ pair: string[]; sharedSymbols: unknown[]; sharedFiles: string[]; hasRelation: boolean; potentialConflicts: string[] }>; undefined_relations: Array<{ pair: string[] }> };
+          if (d.interactions.length === 0) return '(no interactions)\n';
+          const lines: string[] = [];
+          for (const i of d.interactions) {
+            lines.push(`${i.pair[0]} ↔ ${i.pair[1]}: shared symbols=${i.sharedSymbols.length}, shared files=${i.sharedFiles.length}, relation=${i.hasRelation ? 'yes' : 'no'}`);
+            for (const c of i.potentialConflicts) lines.push(`  ⚠ ${c}`);
+          }
+          if (d.undefined_relations.length > 0) lines.push(`\n${d.undefined_relations.length} undefined relation(s):`);
+          for (const u of d.undefined_relations) lines.push(`  ${u.pair[0]} ↔ ${u.pair[1]}`);
+          return lines.join('\n');
+        } },
+      );
+    });
+
 }
 
 function renderCoverageHuman(data: unknown): string {
