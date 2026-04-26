@@ -27,14 +27,24 @@ export async function run(
   let rt: CliRuntime | undefined;
   let result: CliResult;
 
+  const verboseLog = globalFlags.verbose
+    ? (msg: string) => process.stderr.write(`[verbose] ${msg}\n`)
+    : (_msg: string) => {};
+
   try {
+    verboseLog(`buildRuntime: config=${globalFlags.config ?? '(auto)'} dir=${globalFlags.dir ?? '(default)'}`);
     rt = await buildRuntime(globalFlags);
+    verboseLog(`runtime ready: cardsDir=${rt.ctx.cardsDir} gildash=${rt.ctx.gildash ? 'on' : 'off'}`);
     result = await fn(rt, args);
+    verboseLog(`command done: status=${result.status}`);
   } catch (e) {
+    verboseLog(`command threw: ${e instanceof Error ? e.message : String(e)}`);
     const cliErr = toCliError(e);
+    // transient gildash errors → unknown (exit 7)
+    const isTransient = cliErr.code === 'GILDASH_TRANSIENT';
     result = {
       schemaVersion: { major: 1, minor: 0 },
-      status: 'error',
+      status: isTransient ? 'unknown' : 'error',
       data: null,
       warnings: [],
       errors: [],

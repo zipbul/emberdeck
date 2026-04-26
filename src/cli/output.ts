@@ -175,9 +175,12 @@ export function render(result: CliResult, ctx: OutputContext, humanRenderer?: (d
   }
 
   // human mode
+  const RED = ctx.color ? Bun.color('red', 'ansi-256') ?? '' : '';
+  const YELLOW = ctx.color ? Bun.color('yellow', 'ansi-256') ?? '' : '';
+  const RESET = ctx.color ? '\x1b[0m' : '';
+
   if (result.error) {
-    const prefix = ctx.color ? '\x1b[31merror\x1b[0m' : 'error';
-    process.stderr.write(`${prefix}: ${result.error.message}\n`);
+    process.stderr.write(`${RED}error${RESET}: ${result.error.message}\n`);
     if (result.error.details) {
       for (const [k, v] of Object.entries(result.error.details)) {
         process.stderr.write(`  ${k}: ${JSON.stringify(v)}\n`);
@@ -196,11 +199,9 @@ export function render(result: CliResult, ctx: OutputContext, humanRenderer?: (d
 
   // warnings/errors to STDERR
   for (const w of result.warnings) {
-    const prefix = ctx.color ? '\x1b[33mwarning\x1b[0m' : 'warning';
-    process.stderr.write(`${prefix}: ${w.message}\n`);
+    process.stderr.write(`${YELLOW}warning${RESET}: ${w.message}\n`);
   }
   for (const e of result.errors) {
-    const prefix = ctx.color ? '\x1b[31merror\x1b[0m' : 'error';
-    process.stderr.write(`${prefix}: ${e.message}${e.key ? ` (key: ${e.key})` : ''}\n`);
+    process.stderr.write(`${RED}error${RESET}: ${e.message}${e.key ? ` (key: ${e.key})` : ''}\n`);
   }
 }

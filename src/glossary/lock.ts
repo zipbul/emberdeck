@@ -1,10 +1,13 @@
 import type { EmberdeckContext } from '../config';
+import { acquireSystemLock, releaseSystemLock } from './system-lock';
 
 /**
  * Global mutex for all glossary write operations (define, remove, rename).
  *
- * Same Promise-chaining pattern as withCardLock in src/ops/safe.ts,
- * but uses a single global lock (not per-key) since glossary is one shared file.
+ * Two layers:
+ * 1. In-process: Promise chaining (FIFO within same process). Same pattern as withCardLock.
+ * 2. Cross-process: SQLite system_lock table (CLI_PLAN §9.1) — defeats PID recycling
+ *    via (pid, start_time_ticks) tuple, CAS DELETE on stale recovery.
  *
  * Read-only operations (lookup) do NOT acquire this lock.
  *
@@ -14,6 +17,7 @@ import type { EmberdeckContext } from '../config';
  */
 
 const glossaryLocks = new WeakMap<EmberdeckContext, Promise<void>>();
+const GLOSSARY_LOCK_NAME = 'glossary';
 
 export async function withGlossaryLock<T>(
   ctx: EmberdeckContext,
@@ -29,9 +33,13 @@ export async function withGlossaryLock<T>(
 
   await prev;
 
+  // Cross-process lock — only after in-process FIFO order is established.
+  await acquireSystemLock(ctx, GLOSSARY_LOCK_NAME);
+
   try {
     return await Promise.resolve(fn());
   } finally {
+    releaseSystemLock(ctx, GLOSSARY_LOCK_NAME);
     release!();
     if (glossaryLocks.get(ctx) === current) {
       glossaryLocks.delete(ctx);

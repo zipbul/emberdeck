@@ -232,6 +232,134 @@ describe('CLI: validate cards', () => {
   });
 });
 
+describe('CLI: STDIN input', () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'ed-cli-'));
+    writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'test', version: '0.0.0' }));
+    writeFileSync(
+      join(tmp, '.emberdeck.jsonc'),
+      JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
+    );
+    mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
+  });
+
+  afterEach(() => {
+    try { rmSync(tmp, { recursive: true, force: true }); } catch {}
+  });
+
+  test('card create --from - reads YAML from STDIN', async () => {
+    const yaml = 'summary: from stdin\nstatus: draft\n';
+    const proc = Bun.spawn(['bun', CLI, '--json', 'card', 'create', 'from-stdin', '--type', 'brief', '--from', '-'], {
+      cwd: tmp,
+      env: { ...process.env, NO_COLOR: '1' },
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    proc.stdin.write(yaml);
+    await proc.stdin.end();
+    const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.status).toBe('ok');
+    expect(parsed.data.key).toBe('from-stdin');
+
+    const get = await runCli(['--json', 'card', 'get', 'from-stdin'], tmp);
+    const fetched = JSON.parse(get.stdout);
+    expect(fetched.data.summary).toBe('from stdin');
+  });
+
+  test('card update --body - reads body from STDIN', async () => {
+    await runCli(['card', 'create', 'with-body', '--type', 'brief', '--summary', 'orig'], tmp);
+    const newBody = 'fresh body content\n';
+    const proc = Bun.spawn(['bun', CLI, '--json', 'card', 'update', 'with-body', '--body', '-'], {
+      cwd: tmp,
+      env: { ...process.env, NO_COLOR: '1' },
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    proc.stdin.write(newBody);
+    await proc.stdin.end();
+    await new Response(proc.stdout).text();
+    await proc.exited;
+    expect(proc.exitCode).toBe(0);
+
+    const get = await runCli(['--json', 'card', 'get', 'with-body'], tmp);
+    const fetched = JSON.parse(get.stdout);
+    expect(fetched.data.body).toContain('fresh body content');
+  });
+});
+
+describe('CLI: gildash-required commands without projectRoot', () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'ed-cli-'));
+    writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'test', version: '0.0.0' }));
+    writeFileSync(
+      join(tmp, '.emberdeck.jsonc'),
+      // intentionally NO projectRoot — gildash will be undefined
+      JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
+    );
+    mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
+  });
+
+  afterEach(() => {
+    try { rmSync(tmp, { recursive: true, force: true }); } catch {}
+  });
+
+  test('check coverage --uncovered without gildash → exit 6', async () => {
+    const r = await runCli(['--json', 'check', 'coverage', '--uncovered'], tmp);
+    expect(r.exitCode).toBe(6);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('error');
+    expect(parsed.error.code).toBe('GILDASH_NOT_CONFIGURED');
+  });
+
+  test('check coverage --suggest without gildash → exit 6', async () => {
+    const r = await runCli(['--json', 'check', 'coverage', '--suggest'], tmp);
+    expect(r.exitCode).toBe(6);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error.code).toBe('GILDASH_NOT_CONFIGURED');
+  });
+});
+
+describe('CLI: --verbose', () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'ed-cli-'));
+    writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'test', version: '0.0.0' }));
+    writeFileSync(
+      join(tmp, '.emberdeck.jsonc'),
+      JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
+    );
+    mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
+  });
+
+  afterEach(() => {
+    try { rmSync(tmp, { recursive: true, force: true }); } catch {}
+  });
+
+  test('--verbose emits [verbose] lines to stderr', async () => {
+    const r = await runCli(['--verbose', '--json', 'card', 'list'], tmp);
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).toContain('[verbose]');
+    expect(r.stderr).toContain('buildRuntime');
+    expect(r.stderr).toContain('command done');
+  });
+
+  test('without --verbose stderr stays clean for ok command', async () => {
+    const r = await runCli(['--json', 'card', 'list'], tmp);
+    expect(r.exitCode).toBe(0);
+    expect(r.stderr).not.toContain('[verbose]');
+  });
+});
+
 describe('CLI: invalid invocation', () => {
   let tmp: string;
 

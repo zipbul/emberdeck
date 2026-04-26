@@ -15,6 +15,13 @@
       "when": 1774915200000,
       "tag": "0001_glossary",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777219789966,
+      "tag": "0002_new_ender_wiggin",
+      "breakpoints": true
     }
   ]
 }
