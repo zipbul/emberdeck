@@ -35,8 +35,10 @@ export async function defineGlossary(
   if (!input.entries || input.entries.length === 0) {
     throw new GlossaryValidationError('entries must contain at least one entry');
   }
-  if (input.entries.length > 50) {
-    throw new GlossaryValidationError('entries exceeds max 50 per call');
+  if (input.entries.length > GLOSSARY_LIMITS.MAX_ENTRIES_PER_CALL) {
+    throw new GlossaryValidationError(
+      `entries exceeds max ${GLOSSARY_LIMITS.MAX_ENTRIES_PER_CALL} per call (got ${input.entries.length})`,
+    );
   }
 
   // Validate all entries before acquiring lock (fail fast)

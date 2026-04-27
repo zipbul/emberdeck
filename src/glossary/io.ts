@@ -19,6 +19,8 @@ export const GLOSSARY_LIMITS = {
   DEFINITION_MAX: 1000,
   /** Max total glossary entries */
   MAX_ENTRIES: 500,
+  /** Max entries per single defineGlossary call (batch limit) */
+  MAX_ENTRIES_PER_CALL: 50,
 } as const;
 
 // ── Errors ───────────────────────────────────────────────────────────────
