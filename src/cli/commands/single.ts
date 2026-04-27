@@ -11,21 +11,7 @@ import { analyze } from '../../ops/analyze';
 import { resetEmberdeck } from '../../ops/glossary';
 import { startSpinner } from '../spinner';
 import { parsePositiveInt } from '../parsers';
-
-async function readLineFromStdin(): Promise<string> {
-  // Read a single line from stdin (TTY-safe — does not block forever).
-  const reader = Bun.stdin.stream().getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    if (buf.includes('\n')) break;
-  }
-  reader.releaseLock();
-  return buf.split('\n')[0] ?? '';
-}
+import { confirmDestructive } from '../confirm';
 
 export function registerSingle(program: Command): void {
   // ── analyze ──
@@ -86,16 +72,11 @@ export function registerSingle(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          if (!opts.yes) {
-            if (!process.stdin.isTTY || !process.stderr.isTTY) {
-              throw new Error('reset requires --yes when not running in interactive TTY (DESTRUCTIVE op)');
-            }
-            process.stderr.write('reset will DELETE ALL cards and glossary. Type "yes" to proceed: ');
-            const answer = (await readLineFromStdin()).trim();
-            if (answer !== 'yes') {
-              throw new Error('reset aborted by user');
-            }
-          }
+          await confirmDestructive({
+            yes: !!opts.yes,
+            opName: 'reset',
+            prompt: 'reset will DELETE ALL cards and glossary. Type "yes" to proceed: ',
+          });
           const result = await resetEmberdeck(rt.ctx);
           return ok({
             cards_deleted: result.cardsDeleted,

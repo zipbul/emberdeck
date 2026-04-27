@@ -29,6 +29,7 @@ import { serializeCardMarkdown } from '../../card/markdown';
 import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
 import { parsePositiveInt } from '../parsers';
+import { confirmDestructive } from '../confirm';
 
 // ── helpers ──
 
@@ -335,9 +336,11 @@ export function registerCard(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          if (!opts.yes && !process.stdin.isTTY) {
-            throw new Error('card delete requires --yes when stdin is not a TTY (destructive op)');
-          }
+          await confirmDestructive({
+            yes: !!opts.yes,
+            opName: 'card delete',
+            prompt: `card delete will REMOVE card '${key}' (DB row + file)${opts.force ? ' and CASCADE to children' : ''}. Type "yes" to proceed: `,
+          });
           const result = await deleteCard(rt.ctx, key, { force: opts.force });
           return ok({ key, filePath: result.filePath });
         },

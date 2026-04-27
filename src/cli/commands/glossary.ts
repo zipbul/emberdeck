@@ -8,6 +8,7 @@ import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { defineGlossary, lookupGlossary, removeGlossary, renameGlossary } from '../../ops/glossary';
+import { confirmDestructive } from '../confirm';
 
 interface YamlGlossaryItem {
   word?: string;
@@ -113,9 +114,11 @@ export function registerGlossary(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          if (!opts.yes && !process.stdin.isTTY) {
-            throw new Error('glossary remove requires --yes when stdin is not a TTY');
-          }
+          await confirmDestructive({
+            yes: !!opts.yes,
+            opName: 'glossary remove',
+            prompt: `glossary remove will DELETE word '${word}' (cards referencing it become drifted). Type "yes" to proceed: `,
+          });
           const result = await removeGlossary(rt.ctx, word);
           return ok({ removed: result.removed, affected_card_keys: result.affectedCardKeys });
         },
