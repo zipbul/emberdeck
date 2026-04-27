@@ -355,14 +355,24 @@ export function registerCard(program: Command): void {
       await run(
         async (rt: CliRuntime) => {
           const result = await renameCard(rt.ctx, oldKey, newKey);
-          return ok({
+          const data = {
             old_key: oldKey,
             new_key: result.newFullKey,
             old_path: result.oldFilePath,
             new_path: result.newFilePath,
             body_references: result.bodyReferencesFound ?? [],
             failed_reference_updates: result.failedReferenceUpdates ?? [],
-          });
+          };
+          const failed = result.failedReferenceUpdates ?? [];
+          if (failed.length > 0) {
+            const errors: CliMessage[] = failed.map((key) => ({
+              code: 'CARD_RENAME_REFERENCE_UPDATE_FAILED',
+              message: `failed to rewrite body reference to renamed card`,
+              key,
+            }));
+            return partial(data, errors);
+          }
+          return ok(data);
         },
         [],
         globalFlags,
