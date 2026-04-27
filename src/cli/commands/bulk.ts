@@ -13,6 +13,7 @@ import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
 import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
 import { startSpinner } from '../spinner';
+import { CliUsageError } from '../errors';
 
 function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
   const ok: CreateCardInput[] = [];
@@ -73,7 +74,7 @@ export function registerBulk(program: Command): void {
             parsed = Bun.YAML.parse(text);
           }
           if (!Array.isArray(parsed)) {
-            throw new Error('--from FILE must be an array of card inputs');
+            throw new CliUsageError('--from FILE must be an array of card inputs');
           }
           // CLI-layer enum validation BEFORE write, mirrors `card create` behavior.
           const validated = validateBulkInput(parsed);
@@ -124,7 +125,7 @@ export function registerBulk(program: Command): void {
             try {
               s = await stat(path);
             } catch {
-              throw new Error(`path not found: ${path}`);
+              throw new CliUsageError(`path not found: ${path}`);
             }
             if (s.isFile()) {
               await syncCardFromFile(rt.ctx, path);

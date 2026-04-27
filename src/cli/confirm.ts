@@ -7,6 +7,8 @@
  *   - --yes                  → no-op
  */
 
+import { CliUsageError } from './usage-error';
+
 async function readLineFromStdin(): Promise<string> {
   const reader = Bun.stdin.stream().getReader();
   const decoder = new TextDecoder();
@@ -29,12 +31,12 @@ export async function confirmDestructive(opts: {
 }): Promise<void> {
   if (opts.yes) return;
   if (!process.stdin.isTTY || !process.stderr.isTTY) {
-    throw new Error(`${opts.opName} requires --yes when not running in interactive TTY (DESTRUCTIVE op)`);
+    throw new CliUsageError(`${opts.opName} requires --yes when not running in interactive TTY (DESTRUCTIVE op)`);
   }
   const expected = (opts.expected ?? 'yes').toLowerCase();
   process.stderr.write(opts.prompt);
   const answer = (await readLineFromStdin()).trim().toLowerCase();
   if (answer !== expected) {
-    throw new Error(`${opts.opName} aborted by user`);
+    throw new CliUsageError(`${opts.opName} aborted by user`);
   }
 }

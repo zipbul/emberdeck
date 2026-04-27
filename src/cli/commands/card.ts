@@ -30,19 +30,20 @@ import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
 import { parsePositiveInt } from '../parsers';
 import { confirmDestructive } from '../confirm';
+import { CliUsageError } from '../errors';
 
 // ── helpers ──
 
 function validateCardType(value: string): CardType {
   if (!CARD_TYPES.includes(value as CardType)) {
-    throw new Error(`invalid --type '${value}'. Allowed: ${CARD_TYPES.join('|')}`);
+    throw new CliUsageError(`invalid --type '${value}'. Allowed: ${CARD_TYPES.join('|')}`);
   }
   return value as CardType;
 }
 
 function validateCardStatus(value: string): CardStatus {
   if (!CARD_STATUSES.includes(value as CardStatus)) {
-    throw new Error(`invalid status '${value}'. Allowed: ${CARD_STATUSES.join('|')}`);
+    throw new CliUsageError(`invalid status '${value}'. Allowed: ${CARD_STATUSES.join('|')}`);
   }
   return value as CardStatus;
 }
@@ -60,7 +61,7 @@ function parseFields(fieldFlags: string[] | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   for (const f of fieldFlags) {
     const idx = f.indexOf('=');
-    if (idx <= 0) throw new Error(`--field expects NAME=VALUE, got: ${f}`);
+    if (idx <= 0) throw new CliUsageError(`--field expects NAME=VALUE, got: ${f}`);
     out[f.slice(0, idx)] = f.slice(idx + 1);
   }
   return out;
@@ -81,7 +82,7 @@ function applyFieldValue(fields: UpdateCardFields, name: string, value: string):
       fields.type = validateCardType(value);
       return;
     default:
-      throw new Error(`unsupported --field name: ${name} (allowed: summary, status, parent, type)`);
+      throw new CliUsageError(`unsupported --field name: ${name} (allowed: summary, status, parent, type)`);
   }
 }
 
@@ -155,7 +156,7 @@ export function registerCard(program: Command): void {
       await run(
         async (rt: CliRuntime) => {
           if (opts.file && !opts.symbol) {
-            throw new Error('--file requires --symbol');
+            throw new CliUsageError('--file requires --symbol');
           }
           if (opts.type) validateCardType(opts.type);
           if (opts.status) validateCardStatus(opts.status);
@@ -245,7 +246,7 @@ export function registerCard(program: Command): void {
           };
           if (opts.from) {
             const text = await readBodyFromOption(opts.from);
-            if (!text) throw new Error('--from produced empty input');
+            if (!text) throw new CliUsageError('--from produced empty input');
             const parsed = (await parseInputFile(text)) as Partial<CreateCardInput>;
             const summary = opts.summary ?? parsed.summary ?? '';
             input = {
@@ -260,7 +261,7 @@ export function registerCard(program: Command): void {
             };
           }
           if (!input.summary) {
-            throw new Error('--summary or --from with summary field required');
+            throw new CliUsageError('--summary or --from with summary field required');
           }
           const result = await createCard(rt.ctx, input);
           return ok({
@@ -292,7 +293,7 @@ export function registerCard(program: Command): void {
           const fields: UpdateCardFields = {};
           if (opts.patch) {
             const text = await readBodyFromOption(opts.patch);
-            if (!text) throw new Error('--patch produced empty input');
+            if (!text) throw new CliUsageError('--patch produced empty input');
             const parsed = (await parseInputFile(text)) as UpdateCardFields;
             Object.assign(fields, parsed);
           }

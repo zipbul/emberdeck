@@ -12,6 +12,7 @@
  */
 
 import { EXIT, type ExitCode } from './exit-codes';
+import { CliUsageError } from './usage-error';
 
 export type OutputMode = 'human' | 'json' | 'quiet';
 export type Status = 'ok' | 'partial' | 'error' | 'unknown';
@@ -51,7 +52,7 @@ export function resolveOutputMode(opts: {
   quiet?: boolean;
 }): OutputMode {
   if (opts.output !== undefined && !VALID_OUTPUT_MODES.includes(opts.output as OutputMode)) {
-    throw new Error(`invalid --output '${opts.output}'. Allowed: ${VALID_OUTPUT_MODES.join('|')}`);
+    throw new CliUsageError(`invalid --output '${opts.output}'. Allowed: ${VALID_OUTPUT_MODES.join('|')}`);
   }
   if (opts.output === 'json' || opts.json) return 'json';
   if (opts.output === 'quiet' || opts.quiet) return 'quiet';
@@ -139,6 +140,7 @@ export function statusToExitCode(
       if (code === 'CONFIG_MISSING' || code === 'GILDASH_NOT_CONFIGURED') return EXIT.CONFIG_MISSING;
       if (code === 'PERMISSION' || code === 'IO_ERROR') return EXIT.PERMISSION_OR_IO;
       // All validation-class codes → exit 2 (CI-friendly).
+      // CLI_USAGE_ERROR is also exit 2 per bash convention for misuse.
       if (
         code === 'VALIDATION_ERROR' ||
         code === 'VALIDATION_FAILURE' ||
@@ -147,7 +149,8 @@ export function statusToExitCode(
         code === 'BOUNDARY_VALIDATION_ERROR' ||
         code === 'ACTIVATION_GUARD_FAILED' ||
         code === 'GLOSSARY_PARSE_ERROR' ||
-        code === 'GLOSSARY_VALIDATION_ERROR'
+        code === 'GLOSSARY_VALIDATION_ERROR' ||
+        code === 'CLI_USAGE_ERROR'
       ) {
         return EXIT.VALIDATION_FAILURE;
       }

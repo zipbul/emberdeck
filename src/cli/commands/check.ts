@@ -10,6 +10,7 @@ import { getLinkCoverage, getUncoveredSymbols, suggestCardScope } from '../../op
 import { checkDrift, checkInteractions } from '../../ops/context';
 import { preChangeCheck, regressionGuard } from '../../ops/impact';
 import { parsePositiveInt } from '../parsers';
+import { CliUsageError } from '../errors';
 
 export function registerCheck(program: Command): void {
   const check = program.command('check').description('state reports (descriptive)');
@@ -85,7 +86,7 @@ export function registerCheck(program: Command): void {
             });
           }
           if (!key) {
-            throw new Error('coverage requires <key> argument, or use --uncovered / --suggest');
+            throw new CliUsageError('coverage requires <key> argument, or use --uncovered / --suggest');
           }
           const cov = await getLinkCoverage(rt.ctx, key);
           return ok({

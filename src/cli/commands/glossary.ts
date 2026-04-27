@@ -9,6 +9,7 @@ import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { defineGlossary, lookupGlossary, removeGlossary, renameGlossary } from '../../ops/glossary';
 import { confirmDestructive } from '../confirm';
+import { CliUsageError } from '../errors';
 
 interface YamlGlossaryItem {
   word?: string;
@@ -21,7 +22,7 @@ async function readStdin(): Promise<string> {
 
 function parseDefinitionPair(arg: string): { word: string; definition: string } {
   const idx = arg.indexOf('=');
-  if (idx <= 0) throw new Error(`expected WORD=DEFINITION, got: ${arg}`);
+  if (idx <= 0) throw new CliUsageError(`expected WORD=DEFINITION, got: ${arg}`);
   return { word: arg.slice(0, idx), definition: arg.slice(idx + 1) };
 }
 
@@ -29,11 +30,11 @@ async function loadEntriesFromFile(value: string): Promise<Array<{ word: string;
   const text = value === '-' ? await readStdin() : await readFile(value, 'utf-8');
   const parsed = Bun.YAML.parse(text);
   if (!Array.isArray(parsed)) {
-    throw new Error('--from FILE must be a YAML array of {word, definition} objects');
+    throw new CliUsageError('--from FILE must be a YAML array of {word, definition} objects');
   }
   return parsed.map((item: YamlGlossaryItem, i: number) => {
     if (!item.word || !item.definition) {
-      throw new Error(`--from FILE entry ${i} missing word or definition`);
+      throw new CliUsageError(`--from FILE entry ${i} missing word or definition`);
     }
     return { word: item.word, definition: item.definition };
   });
@@ -56,7 +57,7 @@ export function registerGlossary(program: Command): void {
             entries = await loadEntriesFromFile(opts.from);
           }
           for (const arg of pairs) entries.push(parseDefinitionPair(arg));
-          if (entries.length === 0) throw new Error('no entries provided (use WORD=DEF args or --from)');
+          if (entries.length === 0) throw new CliUsageError('no entries provided (use WORD=DEF args or --from)');
           const result = await defineGlossary(rt.ctx, { entries });
           return ok({
             results: result.results,
