@@ -18,6 +18,17 @@ import type { EmberdeckContext } from '../config';
 const POLL_INTERVAL_MS = 50;
 const TIMEOUT_MS = 5000;
 
+/**
+ * Thrown when acquireSystemLock cannot obtain the lock within TIMEOUT_MS.
+ * Surfaced as transient (exit 7) so retry-aware callers/CI can act on it.
+ */
+export class SystemLockTimeoutError extends Error {
+  constructor(name: string, ms: number) {
+    super(`failed to acquire system lock '${name}' after ${ms}ms`);
+    this.name = 'SystemLockTimeoutError';
+  }
+}
+
 interface LockRow {
   pid: number;
   start_time_ticks: number;
@@ -147,7 +158,7 @@ export async function acquireSystemLock(ctx: EmberdeckContext, name: string): Pr
     }
     await Bun.sleep(POLL_INTERVAL_MS);
   }
-  throw new Error(`failed to acquire system lock '${name}' after ${TIMEOUT_MS}ms`);
+  throw new SystemLockTimeoutError(name, TIMEOUT_MS);
 }
 
 /**

@@ -6,6 +6,7 @@
  */
 
 import type { EmberdeckContext } from '../config';
+import { CardNotFoundError, CardValidationError } from '../card/errors';
 
 // ── Required Sections ──────────────────────────────────────────────
 
@@ -238,10 +239,10 @@ export function validateBrief(
   // Collect the target card + all descendant brief cards
   const targetCard = ctx.cardRepo.findByKey(cardKey);
   if (!targetCard) {
-    throw new Error(`Card not found: "${cardKey}"`);
+    throw new CardNotFoundError(cardKey);
   }
   if (targetCard.type !== 'brief') {
-    throw new Error(`Card "${cardKey}" is type "${targetCard.type}", expected "brief"`);
+    throw new CardValidationError(`Card "${cardKey}" is type "${targetCard.type}", expected "brief"`);
   }
 
   // BFS to find all descendant brief cards
@@ -346,7 +347,7 @@ export function validateBriefSections(body: string): void {
   const missing = REQUIRED_BRIEF_SECTIONS.filter((s) => !presentNames.has(s));
 
   if (missing.length > 0) {
-    throw new Error(
+    throw new CardValidationError(
       `Brief card body is missing required sections: ${missing.join(', ')}`,
     );
   }
@@ -386,7 +387,7 @@ export function validateSpecSections(body: string): void {
   const missing = REQUIRED_SPEC_SECTIONS.filter((s) => !presentNames.has(s));
 
   if (missing.length > 0) {
-    throw new Error(
+    throw new CardValidationError(
       `Spec card body is missing required sections: ${missing.join(', ')}`,
     );
   }

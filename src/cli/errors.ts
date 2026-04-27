@@ -16,6 +16,7 @@ import {
   CompensationError,
 } from '../card/errors';
 import { GlossaryParseError, GlossaryValidationError } from '../glossary/io';
+import { SystemLockTimeoutError } from '../glossary/system-lock';
 import type { CliMessage } from './output';
 import { CliUsageError } from './usage-error';
 
@@ -71,6 +72,9 @@ export function toCliError(e: unknown): CliMessage {
   }
   if (e instanceof GlossaryValidationError) {
     return { code: 'GLOSSARY_VALIDATION_ERROR', message: e.message };
+  }
+  if (e instanceof SystemLockTimeoutError) {
+    return { code: 'LOCK_TIMEOUT', message: e.message };
   }
 
   // unknown error

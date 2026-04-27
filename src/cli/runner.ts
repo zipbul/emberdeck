@@ -33,7 +33,8 @@ export function classifyErrorStatus(code: string): 'unknown' | 'error' {
   // Add codes here when ops layer surfaces transient failures. Currently:
   // - GILDASH_TRANSIENT: gildash search timeout (not yet emitted; reserved)
   // - NETWORK_TRANSIENT: future remote integrations
-  if (code === 'GILDASH_TRANSIENT' || code === 'NETWORK_TRANSIENT') return 'unknown';
+  // - LOCK_TIMEOUT: system_lock acquire deadline — retry-aware callers should retry
+  if (code === 'GILDASH_TRANSIENT' || code === 'NETWORK_TRANSIENT' || code === 'LOCK_TIMEOUT') return 'unknown';
   return 'error';
 }
 
