@@ -287,7 +287,7 @@ export async function checkDrift(
 // ── check_drift helpers ──
 
 function parseGlossaryJsonField(card: { glossaryJson?: string }): string[] {
-  const raw = (card as any).glossaryJson;
+  const raw = card.glossaryJson;
   if (!raw || raw === '[]') return [];
   try {
     const parsed = JSON.parse(raw);

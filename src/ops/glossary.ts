@@ -344,7 +344,7 @@ export async function resetEmberdeck(
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function parseGlossaryJson(card: CardRow): string[] {
-  const raw = (card as any).glossaryJson;
+  const raw = card.glossaryJson;
   if (!raw || raw === '[]') return [];
   try {
     const parsed = JSON.parse(raw);

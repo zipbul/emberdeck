@@ -3,6 +3,7 @@ import type { CardRow } from '../db/repository';
 import { checkDrift, type DriftType } from './context';
 import { getUncoveredSymbols } from './spec-sync';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
+import { buildCardFromDb } from './sync';
 
 // ── Types ──
 
@@ -111,8 +112,14 @@ export async function analyze(
         totalLinks: card.totalLinks,
       };
       if (includeBody) {
-        const row = ctx.cardRepo.findByKey(card.key);
-        entry.body = row?.body ?? null;
+        try {
+          // Use buildCardFromDb so the body returned to callers does NOT include
+          // the FTS5-only namespace tail concatenated into row.body at sync time.
+          const cardFile = buildCardFromDb(ctx, card.key);
+          entry.body = cardFile.body;
+        } catch {
+          entry.body = null;
+        }
       }
       driftedCards.push(entry);
     } else if (card.status === 'drifted') {
@@ -126,8 +133,14 @@ export async function analyze(
         totalLinks: card.totalLinks,
       };
       if (includeBody) {
-        const row = ctx.cardRepo.findByKey(card.key);
-        entry.body = row?.body ?? null;
+        try {
+          // Use buildCardFromDb so the body returned to callers does NOT include
+          // the FTS5-only namespace tail concatenated into row.body at sync time.
+          const cardFile = buildCardFromDb(ctx, card.key);
+          entry.body = cardFile.body;
+        } catch {
+          entry.body = null;
+        }
       }
       driftedCards.push(entry);
     } else {
@@ -185,7 +198,7 @@ export async function analyze(
   const glossaryEntries = readGlossary(ctx);
   const usedGlossaryWords = new Set<string>();
   for (const card of allCards) {
-    const gj = (card as any).glossaryJson;
+    const gj = card.glossaryJson;
     if (gj && gj !== '[]') {
       try {
         const parsed = JSON.parse(gj);
