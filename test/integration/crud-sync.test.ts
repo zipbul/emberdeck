@@ -9,7 +9,6 @@
  *  - sync: parent/boundary reflection, validateCards read-time checks
  *  - bulk-create: topological sort, parent reference
  *  - query: getCard includeHistory, getRelationGraph no relationType
- *  - MCP: .strict() rejects unknown keys, removed tools error
  */
 
 import { describe, it, expect, afterEach } from 'bun:test';

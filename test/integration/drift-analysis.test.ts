@@ -505,17 +505,17 @@ describe('preChangeCheck — ignorePatterns', () => {
 });
 
 // ════════════════════════════════════════
-// 8. validateCodeLinks — batch mode via MCP tool
+// 8. validateCodeLinks — batch mode (used by `ed validate links`)
 // ════════════════════════════════════════
 
-describe('validateCodeLinks — batch mode (MCP layer)', () => {
+describe('validateCodeLinks — batch mode (CLI layer)', () => {
   let tc: TestContext;
 
   afterEach(async () => {
     await tc?.cleanup();
   });
 
-  it('should validate all cards when key is omitted via MCP tool pattern', async () => {
+  it('should validate all cards when key is omitted (batch pattern)', async () => {
     tc = await createTestContext();
     const { validateCodeLinks } = await import('../../index');
 
@@ -537,7 +537,7 @@ describe('validateCodeLinks — batch mode (MCP layer)', () => {
       searchSymbols: () => [], // all links broken → planned (draft cards)
     });
 
-    // Simulate MCP batch pattern: iterate all cards
+    // CLI batch pattern: iterate all cards
     const allCards = tc.ctx.cardRepo.list();
     const results: Record<string, any> = {};
     for (const card of allCards) {
