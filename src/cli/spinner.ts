@@ -44,6 +44,8 @@ export function startSpinner(ctx: OutputContext, initialLabel: string, opts: { v
 
   draw();
   const interval = setInterval(draw, FRAME_INTERVAL_MS);
+  // Don't keep the event loop alive if the command throws and stop() never runs.
+  interval.unref?.();
 
   return {
     update(newLabel: string) {

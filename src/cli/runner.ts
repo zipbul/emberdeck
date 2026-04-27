@@ -95,7 +95,9 @@ export async function run(
       error: cliErr,
     };
     // best-effort cleanup
-    try { await rt?.cleanup(); } catch {}
+    try { await rt?.cleanup(); } catch (ce) {
+      verboseLog(`cleanup failed (catch path): ${ce instanceof Error ? ce.constructor.name : 'unknown'}`);
+    }
     process.off('SIGINT', onSigint);
     process.off('SIGTERM', onSigterm);
     const ctx = rt?.output ?? buildFallbackOutputContext(globalFlags);
@@ -103,7 +105,9 @@ export async function run(
     process.exit(statusToExitCode(result, options));
   }
 
-  try { await rt.cleanup(); } catch {}
+  try { await rt.cleanup(); } catch (ce) {
+    verboseLog(`cleanup failed (success path): ${ce instanceof Error ? ce.constructor.name : 'unknown'}`);
+  }
   process.off('SIGINT', onSigint);
   process.off('SIGTERM', onSigterm);
   render(result, rt.output, options.humanRenderer);
