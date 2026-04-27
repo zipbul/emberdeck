@@ -48,15 +48,8 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     projectRoot: flags.projectRoot,
   });
 
-  const ctx = await setupEmberdeck({
-    cardsDir: merged.cardsDir,
-    dbPath: merged.dbPath,
-    projectRoot: merged.projectRoot,
-    gildashIgnore: merged.gildashIgnore,
-    ignorePatterns: merged.ignorePatterns,
-    regressionThreshold: merged.regressionThreshold,
-  });
-
+  // Resolve cheap/throwable settings BEFORE opening DB resources, so that
+  // `--output=invalid` etc. fail fast without leaking an open DB connection.
   const mode = resolveOutputMode({
     output: flags.output,
     json: flags.json,
@@ -71,6 +64,15 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
   const noColorEnv = process.env.NO_COLOR && process.env.NO_COLOR.length > 0;
   const forceColor = process.env.CLICOLOR_FORCE && process.env.CLICOLOR_FORCE.length > 0;
   const color = !flags.noColor && !noColorEnv && (forceColor ? true : !!process.stdout.isTTY);
+
+  const ctx = await setupEmberdeck({
+    cardsDir: merged.cardsDir,
+    dbPath: merged.dbPath,
+    projectRoot: merged.projectRoot,
+    gildashIgnore: merged.gildashIgnore,
+    ignorePatterns: merged.ignorePatterns,
+    regressionThreshold: merged.regressionThreshold,
+  });
 
   return {
     ctx,

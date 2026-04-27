@@ -92,6 +92,11 @@ describe('output: statusToExitCode', () => {
     expect(statusToExitCode(err({ code: 'CARD_ALREADY_EXISTS', message: 'x' }))).toBe(EXIT.CONFLICT);
     expect(statusToExitCode(err({ code: 'GILDASH_NOT_CONFIGURED', message: 'x' }))).toBe(EXIT.CONFIG_MISSING);
     expect(statusToExitCode(err({ code: 'VALIDATION_ERROR', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);
+    expect(statusToExitCode(err({ code: 'INVALID_CARD_KEY', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);
+    expect(statusToExitCode(err({ code: 'BOUNDARY_VALIDATION_ERROR', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);
+    expect(statusToExitCode(err({ code: 'GLOSSARY_VALIDATION_ERROR', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);
+    expect(statusToExitCode(err({ code: 'ACTIVATION_GUARD_FAILED', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);
+    expect(statusToExitCode(err({ code: 'RENAME_SAME_PATH', message: 'x' }))).toBe(EXIT.CONFLICT);
     expect(statusToExitCode(err({ code: 'UNKNOWN_CODE', message: 'x' }))).toBe(EXIT.GENERIC_ERROR);
   });
 });

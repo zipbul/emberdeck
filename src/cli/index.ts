@@ -1,7 +1,7 @@
 /**
  * `ed` CLI dispatcher (Commander v14).
  *
- * Top-level structure (per CLI_PLAN §4):
+ * Top-level structure:
  *   ed card     {create, update, delete, rename, get, list, search, export, set-status, tree, context, relations}
  *   ed glossary {define, lookup, remove, rename}
  *   ed validate {(no arg), cards, links, brief}
@@ -10,9 +10,6 @@
  *   ed bulk     {create, sync}
  *   ed analyze
  *   ed reset
- *
- * Phase 1 implements: card {get, list, create, update}, validate {cards, brief}, check coverage.
- * Other commands return "not yet implemented" stub in Phase 1.
  */
 
 import { Command } from 'commander';

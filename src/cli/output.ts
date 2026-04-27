@@ -135,10 +135,22 @@ export function statusToExitCode(
     case 'error': {
       const code = result.error?.code;
       if (code === 'CARD_NOT_FOUND' || code === 'NOT_FOUND') return EXIT.NOT_FOUND;
-      if (code === 'CARD_ALREADY_EXISTS' || code === 'CONFLICT') return EXIT.CONFLICT;
+      if (code === 'CARD_ALREADY_EXISTS' || code === 'CONFLICT' || code === 'RENAME_SAME_PATH') return EXIT.CONFLICT;
       if (code === 'CONFIG_MISSING' || code === 'GILDASH_NOT_CONFIGURED') return EXIT.CONFIG_MISSING;
       if (code === 'PERMISSION' || code === 'IO_ERROR') return EXIT.PERMISSION_OR_IO;
-      if (code === 'VALIDATION_ERROR' || code === 'VALIDATION_FAILURE') return EXIT.VALIDATION_FAILURE;
+      // All validation-class codes → exit 2 (CI-friendly).
+      if (
+        code === 'VALIDATION_ERROR' ||
+        code === 'VALIDATION_FAILURE' ||
+        code === 'INVALID_CARD_KEY' ||
+        code === 'PARENT_VALIDATION_ERROR' ||
+        code === 'BOUNDARY_VALIDATION_ERROR' ||
+        code === 'ACTIVATION_GUARD_FAILED' ||
+        code === 'GLOSSARY_PARSE_ERROR' ||
+        code === 'GLOSSARY_VALIDATION_ERROR'
+      ) {
+        return EXIT.VALIDATION_FAILURE;
+      }
       return EXIT.GENERIC_ERROR;
     }
   }
