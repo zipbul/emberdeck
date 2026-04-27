@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, spyOn } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -80,110 +80,39 @@ describe('writeCardFile', () => {
 });
 
 // ---- deleteCardFile ----
+//
+// Behavioral tests against a real tmp filesystem. The previous implementation
+// used Bun.file().exists() then .delete() — vulnerable to TOCTOU. The current
+// implementation calls unlink directly and swallows ENOENT, so the contract is:
+//   - existing file → removed
+//   - missing file  → no-op (idempotent, no throw)
+//   - permission/IO error → re-throw
 
 describe('deleteCardFile', () => {
-  // HP
-  it('should call file.delete() once when file.exists() returns true', async () => {
-    const mockDelete = mock(async () => {});
-    const mockExists = mock(async () => true);
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mockExists,
-      delete: mockDelete,
-    } as unknown as ReturnType<typeof Bun.file>);
-    await deleteCardFile('/cards/k.card.md');
-    expect(mockDelete).toHaveBeenCalledTimes(1);
-    fileSpy.mockRestore();
+  it('removes an existing file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ed-del-'));
+    const path = join(dir, 'k.card.md');
+    await Bun.write(path, 'x');
+    expect(await Bun.file(path).exists()).toBe(true);
+    await deleteCardFile(path);
+    expect(await Bun.file(path).exists()).toBe(false);
+    await rm(dir, { recursive: true, force: true });
   });
 
-  it('should not call file.delete() when file.exists() returns false', async () => {
-    const mockDelete = mock(async () => {});
-    const mockExists = mock(async () => false);
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mockExists,
-      delete: mockDelete,
-    } as unknown as ReturnType<typeof Bun.file>);
-    await deleteCardFile('/cards/k.card.md');
-    expect(mockDelete).toHaveBeenCalledTimes(0);
-    fileSpy.mockRestore();
+  it('is a no-op when file does not exist (idempotent, no throw)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ed-del-'));
+    const path = join(dir, 'missing.card.md');
+    await deleteCardFile(path); // first call — file never existed
+    await deleteCardFile(path); // second call — still missing
+    expect(await Bun.file(path).exists()).toBe(false);
+    await rm(dir, { recursive: true, force: true });
   });
 
-  it('should call Bun.file with given filePath once when invoked', async () => {
-    const filePath = '/cards/k.card.md';
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mock(async () => false),
-      delete: mock(async () => {}),
-    } as unknown as ReturnType<typeof Bun.file>);
-    await deleteCardFile(filePath);
-    expect(fileSpy).toHaveBeenCalledTimes(1);
-    expect(fileSpy).toHaveBeenCalledWith(filePath);
-    fileSpy.mockRestore();
-  });
-
-  it('should call file.exists() once when invoked', async () => {
-    const mockExists = mock(async () => false);
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mockExists,
-      delete: mock(async () => {}),
-    } as unknown as ReturnType<typeof Bun.file>);
-    await deleteCardFile('/cards/k.card.md');
-    expect(mockExists).toHaveBeenCalledTimes(1);
-    fileSpy.mockRestore();
-  });
-
-  it('should resolve void without calling delete when file does not exist', async () => {
-    const mockDelete = mock(async () => {});
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mock(async () => false),
-      delete: mockDelete,
-    } as unknown as ReturnType<typeof Bun.file>);
-    const result = await deleteCardFile('/cards/k.card.md');
-    expect(result).toBeUndefined();
-    expect(mockDelete).toHaveBeenCalledTimes(0);
-    fileSpy.mockRestore();
-  });
-
-  // NE
-  it('should reject when file.exists() rejects', async () => {
-    const existsError = new Error('exists error');
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mock(async () => { throw existsError; }),
-      delete: mock(async () => {}),
-    } as unknown as ReturnType<typeof Bun.file>);
-    await expect(deleteCardFile('/cards/k.card.md')).rejects.toThrow('exists error');
-    fileSpy.mockRestore();
-  });
-
-  it('should reject when file.delete() rejects and file exists', async () => {
-    const deleteError = new Error('delete error');
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mock(async () => true),
-      delete: mock(async () => { throw deleteError; }),
-    } as unknown as ReturnType<typeof Bun.file>);
-    await expect(deleteCardFile('/cards/k.card.md')).rejects.toThrow('delete error');
-    fileSpy.mockRestore();
-  });
-
-  // ED
-  it('should call Bun.file with empty string when filePath is empty', async () => {
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mock(async () => false),
-      delete: mock(async () => {}),
-    } as unknown as ReturnType<typeof Bun.file>);
-    await deleteCardFile('');
-    expect(fileSpy).toHaveBeenCalledWith('');
-    fileSpy.mockRestore();
-  });
-
-  // ID
-  it('should not call delete when called twice and file does not exist', async () => {
-    const mockDelete = mock(async () => {});
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      exists: mock(async () => false),
-      delete: mockDelete,
-    } as unknown as ReturnType<typeof Bun.file>);
-    await deleteCardFile('/cards/k.card.md');
-    await deleteCardFile('/cards/k.card.md');
-    expect(mockDelete).toHaveBeenCalledTimes(0);
-    fileSpy.mockRestore();
+  it('re-throws non-ENOENT errors (e.g. permission)', async () => {
+    // Simulate non-ENOENT by passing a directory path — unlink on a dir
+    // returns EISDIR or EPERM (depending on platform); both must propagate.
+    const dir = await mkdtemp(join(tmpdir(), 'ed-del-'));
+    await expect(deleteCardFile(dir)).rejects.toThrow();
+    await rm(dir, { recursive: true, force: true });
   });
 });

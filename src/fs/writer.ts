@@ -28,8 +28,11 @@ export async function atomicWrite(filePath: string, text: string): Promise<void>
 }
 
 export async function deleteCardFile(filePath: string): Promise<void> {
-  const file = Bun.file(filePath);
-  if (await file.exists()) {
-    await file.delete();
+  // unlink + swallow ENOENT defeats the exists()/delete() TOCTOU race
+  // (another process may delete the file between the two calls).
+  try {
+    await unlink(filePath);
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
   }
 }
