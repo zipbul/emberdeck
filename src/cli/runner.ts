@@ -57,6 +57,17 @@ export async function run(
   let rt: CliRuntime | undefined;
   let result: CliResult;
 
+  // Trap SIGINT/SIGTERM: best-effort cleanup (DB close, file handle release) then exit 130.
+  const signalHandler = async (sig: string): Promise<void> => {
+    try { await rt?.cleanup(); } catch { /* best-effort */ }
+    process.stderr.write(`\n${sig} received, exiting\n`);
+    process.exit(EXIT.SIGINT);
+  };
+  const onSigint = (): void => { void signalHandler('SIGINT'); };
+  const onSigterm = (): void => { void signalHandler('SIGTERM'); };
+  process.on('SIGINT', onSigint);
+  process.on('SIGTERM', onSigterm);
+
   // Verbose only emits structural metadata (paths, status, error class names) —
   // never user input, command args, card body content, or anything containing
   // potential secrets/tokens from frontmatter fields.
@@ -85,12 +96,16 @@ export async function run(
     };
     // best-effort cleanup
     try { await rt?.cleanup(); } catch {}
+    process.off('SIGINT', onSigint);
+    process.off('SIGTERM', onSigterm);
     const ctx = rt?.output ?? buildFallbackOutputContext(globalFlags);
     render(result, ctx);
     process.exit(statusToExitCode(result, options));
   }
 
   try { await rt.cleanup(); } catch {}
+  process.off('SIGINT', onSigint);
+  process.off('SIGTERM', onSigterm);
   render(result, rt.output, options.humanRenderer);
   process.exit(statusToExitCode(result, options));
 }
