@@ -64,14 +64,14 @@ export function registerBulk(program: Command): void {
           const text = opts.from === '-' ? await readStdin() : await readFile(opts.from, 'utf-8');
           const trimmed = text.trim();
           let parsed: unknown;
-          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-            try {
-              parsed = JSON.parse(text);
-            } catch {
+          try {
+            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+              try { parsed = JSON.parse(text); } catch { parsed = Bun.YAML.parse(text); }
+            } else {
               parsed = Bun.YAML.parse(text);
             }
-          } else {
-            parsed = Bun.YAML.parse(text);
+          } catch (e) {
+            throw new CliUsageError(`failed to parse --from input as JSON or YAML: ${e instanceof Error ? e.message : String(e)}`);
           }
           if (!Array.isArray(parsed)) {
             throw new CliUsageError('--from FILE must be an array of card inputs');

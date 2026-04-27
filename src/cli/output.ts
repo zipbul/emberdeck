@@ -43,6 +43,16 @@ export interface OutputContext {
 const VALID_OUTPUT_MODES: ReadonlyArray<OutputMode> = ['human', 'json', 'quiet'];
 
 /**
+ * Resolve color enable per the no-color.org standard.
+ * Single source of truth for buildRuntime + the runner's catch-path fallback.
+ */
+export function resolveColor(noColorFlag: boolean): boolean {
+  const noColorEnv = process.env.NO_COLOR && process.env.NO_COLOR.length > 0;
+  const forceColor = process.env.CLICOLOR_FORCE && process.env.CLICOLOR_FORCE.length > 0;
+  return !noColorFlag && !noColorEnv && (forceColor ? true : !!process.stdout.isTTY);
+}
+
+/**
  * Resolve output mode based on flags + TTY detection.
  * Throws on invalid --output value.
  */

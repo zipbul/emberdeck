@@ -4,7 +4,7 @@
  */
 
 import { buildRuntime, type GlobalFlags, type CliRuntime } from './context';
-import { render, statusToExitCode, type CliResult } from './output';
+import { render, statusToExitCode, resolveColor, type CliResult } from './output';
 import { toCliError } from './errors';
 import { EXIT } from './exit-codes';
 
@@ -21,10 +21,7 @@ function buildFallbackOutputContext(flags: GlobalFlags): import('./output').Outp
     if (flags.output === 'human') return 'human' as const;
     return process.stdout.isTTY ? ('human' as const) : ('json' as const);
   })();
-  const noColorEnv = process.env.NO_COLOR && process.env.NO_COLOR.length > 0;
-  const forceColor = process.env.CLICOLOR_FORCE && process.env.CLICOLOR_FORCE.length > 0;
-  const color = !flags.noColor && !noColorEnv && (forceColor ? true : !!process.stdout.isTTY);
-  return { mode, color };
+  return { mode, color: resolveColor(!!flags.noColor) };
 }
 
 /**

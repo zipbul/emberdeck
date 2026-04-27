@@ -104,7 +104,11 @@ async function parseInputFile(text: string): Promise<unknown> {
       // fall through to YAML
     }
   }
-  return Bun.YAML.parse(text);
+  try {
+    return Bun.YAML.parse(text);
+  } catch (e) {
+    throw new CliUsageError(`failed to parse --from/--patch input as JSON or YAML: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 // ── register ──

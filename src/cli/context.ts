@@ -8,7 +8,7 @@ import { setupEmberdeck, teardownEmberdeck } from '../setup';
 import { loadConfig, loadConfigFromPath, mergeCliArgs } from '../config-file';
 import type { EmberdeckContext } from '../config';
 import type { OutputContext } from './output';
-import { resolveOutputMode } from './output';
+import { resolveOutputMode, resolveColor } from './output';
 
 export interface GlobalFlags {
   config?: string;
@@ -56,14 +56,7 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     quiet: flags.quiet,
   });
 
-  // Color enable rule (no-color.org standard):
-  // 1. --no-color CLI flag → off
-  // 2. NO_COLOR env var (any non-empty value) → off
-  // 3. CLICOLOR_FORCE env var (any non-empty value) → on (override TTY check)
-  // 4. else: TTY → on, pipe → off
-  const noColorEnv = process.env.NO_COLOR && process.env.NO_COLOR.length > 0;
-  const forceColor = process.env.CLICOLOR_FORCE && process.env.CLICOLOR_FORCE.length > 0;
-  const color = !flags.noColor && !noColorEnv && (forceColor ? true : !!process.stdout.isTTY);
+  const color = resolveColor(!!flags.noColor);
 
   const ctx = await setupEmberdeck({
     cardsDir: merged.cardsDir,

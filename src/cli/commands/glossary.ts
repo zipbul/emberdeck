@@ -28,7 +28,12 @@ function parseDefinitionPair(arg: string): { word: string; definition: string } 
 
 async function loadEntriesFromFile(value: string): Promise<Array<{ word: string; definition: string }>> {
   const text = value === '-' ? await readStdin() : await readFile(value, 'utf-8');
-  const parsed = Bun.YAML.parse(text);
+  let parsed: unknown;
+  try {
+    parsed = Bun.YAML.parse(text);
+  } catch (e) {
+    throw new CliUsageError(`failed to parse --from as YAML: ${e instanceof Error ? e.message : String(e)}`);
+  }
   if (!Array.isArray(parsed)) {
     throw new CliUsageError('--from FILE must be a YAML array of {word, definition} objects');
   }
