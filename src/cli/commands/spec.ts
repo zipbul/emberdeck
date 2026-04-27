@@ -7,6 +7,7 @@ import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { writeSpecAnnotations, syncSpecAnnotations, syncSymbolChanges } from '../../ops/spec-sync';
+import { CliUsageError } from '../errors';
 
 export function registerSpec(program: Command): void {
   const spec = program.command('spec').description('source code ↔ card binding sync');
@@ -86,6 +87,13 @@ export function registerSpec(program: Command): void {
           let since: string;
           let sinceSource: string;
           if (opts.since) {
+            // Validate that --since parses as either ISO 8601 or numeric epoch ms.
+            // Without this, garbage strings flow into gildash and surface as
+            // confusing internal errors instead of a clean usage error.
+            const epochMs = /^\d+$/.test(opts.since) ? parseInt(opts.since, 10) : Date.parse(opts.since);
+            if (!Number.isFinite(epochMs)) {
+              throw new CliUsageError(`--since must be ISO 8601 timestamp or epoch ms (got '${opts.since}')`);
+            }
             since = opts.since;
             sinceSource = 'flag';
           } else {
