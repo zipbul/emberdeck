@@ -292,9 +292,18 @@ export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, 
 
 /**
  * Validates that changing a card's type won't break children's parent-type hierarchy.
+ * Mirrors the rules in validateParentType but applied retroactively to existing children.
  */
 export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string, newType: CardType): void {
   const children = ctx.cardRepo.findChildren(cardKey);
+  if (children.length === 0) return;
+
+  if (newType === 'principle') {
+    // principle is always root-level → cannot retain any children
+    throw new ParentValidationError(
+      `Cannot change to principle: card has ${children.length} child card(s); principle must be root-level`,
+    );
+  }
   for (const child of children) {
     const childType = child.type as CardType;
     if (newType === 'spec' && childType === 'brief') {
@@ -302,6 +311,7 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
         `Cannot change to spec: child "${child.key}" is brief (brief cannot have spec parent)`,
       );
     }
+    // brief parent is valid for both brief and spec children — nothing to check
   }
 }
 
