@@ -366,7 +366,10 @@ export async function validateCards(
       });
     }
 
-    // Type hierarchy violation
+    // Type hierarchy violation — mirrors validateParentType (creation-time rule).
+    // brief: parent must be brief
+    // spec:  parent must be brief or spec
+    // principle: parent must be null (caught by orphan-card check above for non-brief/principle)
     if (row.parent && cardByKey.has(row.parent)) {
       const parent = cardByKey.get(row.parent)!;
       if (row.type === 'brief' && parent.type !== 'brief') {
@@ -374,6 +377,18 @@ export async function validateCards(
           type: 'type-hierarchy-violation',
           cardKey: row.key,
           message: `Brief card has non-brief parent "${row.parent}" (type: ${parent.type})`,
+        });
+      } else if (row.type === 'spec' && parent.type !== 'brief' && parent.type !== 'spec') {
+        warnings.push({
+          type: 'type-hierarchy-violation',
+          cardKey: row.key,
+          message: `Spec card parent must be brief or spec, got "${row.parent}" (type: ${parent.type})`,
+        });
+      } else if (row.type === 'principle') {
+        warnings.push({
+          type: 'type-hierarchy-violation',
+          cardKey: row.key,
+          message: `Principle card must be root-level, but has parent "${row.parent}"`,
         });
       }
     }
