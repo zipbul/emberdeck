@@ -199,9 +199,9 @@ function parseScenarios(body: string): ParsedScenario[] {
   for (const block of blocks) {
     const text = block.lines.join('\n');
     const gwt = parseGivenWhenThen(text) ?? {
-      given: '미정',
-      when: '미정',
-      then: '미정',
+      given: 'TBD',
+      when: 'TBD',
+      then: 'TBD',
     };
     const kind = guessKind(block.heading, text);
     const idx = kind === 'happy' ? ++happyCount : ++failureCount;
@@ -223,7 +223,7 @@ function parseGivenWhenThen(text: string): { given: string; when: string; then: 
   const thenM = /(?:^|\n)\s*(?:[-*+]\s+)?\*?\*?Then\*?\*?\s*[:：]?\s*(.+?)(?=\n\s*(?:[-*+]\s+)?\*?\*?(?:Given|When)\*?\*?\s*[:：]|$)/is.exec(text);
   if (!givenM && !whenM && !thenM) return null;
   const collapse = (s: string | undefined): string =>
-    (s ?? '').replace(/\s+/g, ' ').trim() || '미정';
+    (s ?? '').replace(/\s+/g, ' ').trim() || 'TBD';
   return {
     given: collapse(givenM?.[1]),
     when: collapse(whenM?.[1]),
@@ -234,8 +234,8 @@ function parseGivenWhenThen(text: string): { given: string; when: string; then: 
 function guessKind(heading: string, body: string): 'happy' | 'failure' {
   const h = (heading + ' ' + body).toLowerCase();
   // Korean and English happy/failure cues.
-  const failureCues = ['fail', 'failure', 'error', 'unhappy', 'edge', 'p2', 'sad', '실패', '에러', '오류', '예외'];
-  const happyCues = ['happy', 'p1', 'success', 'ok', 'normal', '성공', '정상'];
+  const failureCues = ['fail', 'failure', 'error', 'unhappy', 'edge', 'p2', 'sad', 'failure', 'error', 'fault', 'exception'];
+  const happyCues = ['happy', 'p1', 'success', 'ok', 'normal', 'success', 'normal'];
   for (const c of happyCues) if (h.includes(c)) return 'happy';
   for (const c of failureCues) if (h.includes(c)) return 'failure';
   return 'happy';
@@ -285,7 +285,7 @@ function guessCriterionType(
     };
   }
   // binary fallback
-  return { type: 'binary', measure: { predicate: text.slice(0, 200) || '미정' } };
+  return { type: 'binary', measure: { predicate: text.slice(0, 200) || 'TBD' } };
 }
 
 // ── Section converters ────────────────────────────────────────────
@@ -293,7 +293,7 @@ function guessCriterionType(
 function convertMotivation(section: ParsedSection | undefined): { problem: string; impact: BriefBody['context']['impact'] } {
   const text = section?.body.trim() ?? '';
   if (text.length === 0) {
-    return { problem: '미정 (마이그레이션 시 채울 것)', impact: [{ statement: '미정' }] };
+    return { problem: 'TBD (fill in during migration)', impact: [{ statement: 'TBD' }] };
   }
   // First paragraph → problem; remaining paragraphs → impact statements.
   const paragraphs = splitParagraphs(text);
@@ -365,9 +365,9 @@ function convertRule(section: ParsedSection | undefined): BriefPolicy[] {
   if (tagged.length > 0) {
     return tagged.map((t) => ({
       id: t.id,
-      subject: '미정',
+      subject: 'TBD',
       keyword: extractMustKeyword(t.text),
-      predicate: t.text || '미정',
+      predicate: t.text || 'TBD',
       governs: [],
     }));
   }
@@ -375,7 +375,7 @@ function convertRule(section: ParsedSection | undefined): BriefPolicy[] {
   const bullets = splitBullets(section.body);
   return bullets.map((b, i) => ({
     id: padId('R', i + 1),
-    subject: '미정',
+    subject: 'TBD',
     keyword: extractMustKeyword(b),
     predicate: b,
     governs: [],
@@ -390,8 +390,8 @@ function convertConstraint(section: ParsedSection | undefined): BriefExternal[] 
     : splitBullets(section.body).map((b, i) => ({ id: padId('C', i + 1), statement: b }));
   return items.map((it) => ({
     id: it.id,
-    statement: it.statement || '미정',
-    reference: { title: 'existing-system', locator: '미정 (마이그레이션 시 채울 것)' },
+    statement: it.statement || 'TBD',
+    reference: { title: 'existing-system', locator: 'TBD (fill in during migration)' },
   }));
 }
 
@@ -399,7 +399,7 @@ function convertRisk(section: ParsedSection | undefined): BriefLimit[] {
   if (!section) return [];
   const tagged = extractIdPrefixedItems(section.body, /^(KL-\d{3,})/);
   if (tagged.length > 0) {
-    return tagged.map((t) => ({ id: t.id, statement: t.text || '미정' }));
+    return tagged.map((t) => ({ id: t.id, statement: t.text || 'TBD' }));
   }
   const bullets = splitBullets(section.body);
   return bullets.map((b, i) => ({ id: padId('KL', i + 1), statement: b }));
@@ -427,10 +427,10 @@ function convertDecision(section: ParsedSection | undefined): BriefBody['rationa
   if (text.length === 0) {
     return {
       alternatives: [
-        { option: '미정 (chosen)', pros: ['마이그레이션 시 채울 것'], cons: ['마이그레이션 시 채울 것'] },
-        { option: '미정 (alternative)', pros: ['마이그레이션 시 채울 것'], cons: ['마이그레이션 시 채울 것'] },
+        { option: 'TBD (chosen)', pros: ['fill in during migration'], cons: ['fill in during migration'] },
+        { option: 'TBD (alternative)', pros: ['fill in during migration'], cons: ['fill in during migration'] },
       ],
-      chosen: { option: '미정 (chosen)', reasoning: '미정 (마이그레이션 시 채울 것)' },
+      chosen: { option: 'TBD (chosen)', reasoning: 'TBD (fill in during migration)' },
       addresses: [],
     };
   }
@@ -440,14 +440,14 @@ function convertDecision(section: ParsedSection | undefined): BriefBody['rationa
   const second = paragraphs[1] ?? '';
   return {
     alternatives: [
-      { option: '채택안', pros: [first], cons: ['마이그레이션 시 채울 것'] },
+      { option: 'chosen', pros: [first], cons: ['fill in during migration'] },
       {
-        option: '대안 (placeholder)',
-        pros: ['마이그레이션 시 채울 것'],
-        cons: [second || '마이그레이션 시 채울 것'],
+        option: 'alternative (placeholder)',
+        pros: ['fill in during migration'],
+        cons: [second || 'fill in during migration'],
       },
     ],
-    chosen: { option: '채택안', reasoning: first },
+    chosen: { option: 'chosen', reasoning: first },
     addresses: [],
   };
 }
@@ -491,38 +491,38 @@ export async function migrateCardToNamespace(
 
   // Per-section conversions
   const context = convertMotivation(sec('motivation'));
-  if (!sec('motivation')) warnings.push('## Motivation 섹션 없음 — context.problem placeholder 사용');
+  if (!sec('motivation')) warnings.push('missing ## Motivation section — context.problem set to placeholder');
 
   const scope = convertScope(sec('scope'));
-  if (!sec('scope')) warnings.push('## Scope 섹션 없음 — goals/non_goals/assumptions 비어있음');
-  if (scope.goals.length === 0) warnings.push('Scope에서 goal 추출 실패 — 최소 1개 goal이 필요함');
+  if (!sec('scope')) warnings.push('missing ## Scope section — goals/non_goals/assumptions left empty');
+  if (scope.goals.length === 0) warnings.push('failed to extract goals from Scope — at least 1 goal is required');
 
   const flow = convertScenario(sec('scenario'));
-  if (!sec('scenario')) warnings.push('## Scenario 섹션 없음 — flow 비어있음');
-  if (flow.length === 0) warnings.push('Scenario에서 flow 추출 실패 — 최소 happy 1 + failure 1이 필요함');
+  if (!sec('scenario')) warnings.push('missing ## Scenario section — flow left empty');
+  if (flow.length === 0) warnings.push('failed to extract flow from Scenario — at least 1 happy + 1 failure are required');
   const hasHappy = flow.some((f) => f.kind === 'happy');
   const hasFailure = flow.some((f) => f.kind === 'failure');
-  if (flow.length > 0 && !hasHappy) warnings.push('happy scenario 없음 — failure만 발견됨');
-  if (flow.length > 0 && !hasFailure) warnings.push('failure scenario 없음 — happy만 발견됨');
+  if (flow.length > 0 && !hasHappy) warnings.push('no happy scenario found — only failure detected');
+  if (flow.length > 0 && !hasFailure) warnings.push('no failure scenario found — only happy detected');
 
   const policy = convertRule(sec('rule'));
-  if (!sec('rule')) warnings.push('## Rule 섹션 없음 — policy 비어있음');
+  if (!sec('rule')) warnings.push('missing ## Rule section — policy left empty');
 
   const external = convertConstraint(sec('constraint'));
-  if (!sec('constraint')) warnings.push('## Constraint 섹션 없음 — external 비어있음');
+  if (!sec('constraint')) warnings.push('missing ## Constraint section — external left empty');
   if (external.length > 0) {
-    warnings.push('Constraint에서 reference.locator 추론 불가 — 수동으로 채울 것');
+    warnings.push('cannot infer reference.locator from Constraint — fill in manually');
   }
 
   const limits = convertRisk(sec('risk'));
-  if (!sec('risk')) warnings.push('## Risk 섹션 없음 — limits 비어있음');
+  if (!sec('risk')) warnings.push('missing ## Risk section — limits left empty');
 
   const criteria = convertCriteria(sec('criteria'));
-  if (!sec('criteria')) warnings.push('## Criteria 섹션 없음 — criteria 비어있음');
+  if (!sec('criteria')) warnings.push('missing ## Criteria section — criteria left empty');
 
   const rationale = convertDecision(sec('decision'));
-  if (!sec('decision')) warnings.push('## Decision 섹션 없음 — rationale placeholder 사용');
-  warnings.push('rationale.alternatives 1개는 placeholder이며 수동으로 채워야 함');
+  if (!sec('decision')) warnings.push('missing ## Decision section — rationale set to placeholder');
+  warnings.push('one rationale.alternatives entry is a placeholder — fill in manually');
 
   // Auto cross-refs
   if (options.autoLinkRefs === true) {
@@ -532,7 +532,7 @@ export async function migrateCardToNamespace(
         if (f.covers.length === 0) f.covers = [firstGoal];
       }
     } else {
-      warnings.push('autoLinkRefs: goals가 없어 flow.covers를 채울 수 없음');
+      warnings.push('autoLinkRefs: no goals available — cannot populate flow.covers');
     }
 
     const allFlowIds = flow.map((f) => f.id);
@@ -550,7 +550,7 @@ export async function migrateCardToNamespace(
       rationale.addresses = [firstAddrId];
     }
   } else {
-    warnings.push('cross-refs (covers/governs/verifies/addresses) 빈 채로 — autoLinkRefs=true로 채우거나 수동 작성');
+    warnings.push('cross-refs (covers/governs/verifies/addresses) left empty — pass autoLinkRefs=true or fill in manually');
   }
 
   const newBriefBody: BriefBody = {
@@ -558,7 +558,7 @@ export async function migrateCardToNamespace(
     scope,
     flow,
     design: {
-      overview: '미정 (마이그레이션 시 채울 것)',
+      overview: 'TBD (fill in during migration)',
       components: [],
       data_flow: [],
       invariants: [],
