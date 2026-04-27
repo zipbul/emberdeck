@@ -58,7 +58,16 @@ export async function run(
   let result: CliResult;
 
   // Trap SIGINT/SIGTERM: best-effort cleanup (DB close, file handle release) then exit 130.
+  // Repeated Ctrl+C during cleanup must not re-enter; second signal short-circuits to hard exit.
+  let signalInFlight = false;
   const signalHandler = async (sig: string): Promise<void> => {
+    if (signalInFlight) {
+      process.stderr.write(`\nsecond ${sig} received, hard exit\n`);
+      process.exit(EXIT.SIGINT);
+    }
+    signalInFlight = true;
+    process.off('SIGINT', onSigint);
+    process.off('SIGTERM', onSigterm);
     try { await rt?.cleanup(); } catch { /* best-effort */ }
     process.stderr.write(`\n${sig} received, exiting\n`);
     process.exit(EXIT.SIGINT);
