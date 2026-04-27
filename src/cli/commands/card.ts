@@ -162,6 +162,12 @@ export function registerCard(program: Command): void {
           if (opts.file && !opts.symbol) {
             throw new CliUsageError('--file requires --symbol');
           }
+          if (opts.symbol && opts.glossary) {
+            throw new CliUsageError('--symbol and --glossary are mutually exclusive');
+          }
+          if ((opts.symbol || opts.glossary) && opts.tag) {
+            throw new CliUsageError('--tag cannot be combined with --symbol/--glossary (the tag filter is only applied to plain list)');
+          }
           if (opts.type) validateCardType(opts.type);
           if (opts.status) validateCardStatus(opts.status);
           let rows: Array<{ key: string; type: string; status: string; summary: string; parent: string | null }>;
