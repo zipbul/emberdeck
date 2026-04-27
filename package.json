@@ -7,6 +7,16 @@
   "bin": {
     "ed": "./cli.ts"
   },
+  "files": [
+    "cli.ts",
+    "index.ts",
+    "src",
+    "dist",
+    "drizzle",
+    "drizzle.config.ts",
+    "tsconfig.build.json",
+    "CLAUDE.md"
+  ],
   "exports": {
     ".": {
       "bun": "./index.ts",
