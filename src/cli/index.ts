@@ -16,6 +16,7 @@
  */
 
 import { Command } from 'commander';
+import pkg from '../../package.json' with { type: 'json' };
 import { registerCard } from './commands/card';
 import { registerValidate } from './commands/validate';
 import { registerCheck } from './commands/check';
@@ -29,7 +30,7 @@ export function buildProgram(): Command {
   program
     .name('ed')
     .description('Emberdeck — card-based design knowledge for AI vibe coding')
-    .version('0.3.0-cli')
+    .version(pkg.version)
     // global flags
     .option('--config <path>', 'config file (.emberdeck.jsonc/.json)')
     .option('--dir <path>', 'cards directory (overrides config)')
