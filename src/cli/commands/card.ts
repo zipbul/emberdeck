@@ -28,6 +28,7 @@ import { exportCardToFile, buildCardFromDb } from '../../ops/sync';
 import { serializeCardMarkdown } from '../../card/markdown';
 import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
+import { parsePositiveInt } from '../parsers';
 
 // ── helpers ──
 
@@ -144,8 +145,8 @@ export function registerCard(program: Command): void {
     .option('--symbol <name>', 'cards bound to this code symbol')
     .option('--file <path>', 'when used with --symbol, restrict to symbols in this file')
     .option('--glossary <word>', 'cards declaring this glossary word')
-    .option('--limit <n>', 'page size (default 50)', (v) => parseInt(v, 10))
-    .option('--offset <n>', 'page offset (default 0)', (v) => parseInt(v, 10))
+    .option('--limit <n>', 'page size (default 50)', parsePositiveInt('--limit'))
+    .option('--offset <n>', 'page offset (default 0)', parsePositiveInt('--offset'))
     .action(async (opts: { type?: string; status?: string; parent?: string; tag?: string; symbol?: string; file?: string; glossary?: string; limit?: number; offset?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       const limit = opts.limit ?? 50;
@@ -374,8 +375,8 @@ export function registerCard(program: Command): void {
     .description('FTS5 search')
     .option('--type <type>', 'filter by card type')
     .option('--status <status>', 'filter by status')
-    .option('--limit <n>', 'page size (default 50)', (v) => parseInt(v, 10))
-    .option('--offset <n>', 'page offset (default 0)', (v) => parseInt(v, 10))
+    .option('--limit <n>', 'page size (default 50)', parsePositiveInt('--limit'))
+    .option('--offset <n>', 'page offset (default 0)', parsePositiveInt('--offset'))
     .action(async (query: string, opts: { type?: string; status?: string; limit?: number; offset?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       const limit = opts.limit ?? 50;
@@ -474,7 +475,7 @@ export function registerCard(program: Command): void {
   card
     .command('tree <key>')
     .description('parent-child hierarchy starting from KEY')
-    .option('--depth <n>', 'max depth (default 10, capped at 20)', (v) => parseInt(v, 10))
+    .option('--depth <n>', 'max depth (default 10, capped at 20)', parsePositiveInt('--depth'))
     .action(async (key: string, opts: { depth?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
@@ -491,7 +492,7 @@ export function registerCard(program: Command): void {
   card
     .command('context <key>')
     .description('related cards via parent/relations BFS. Use `card relations` for direction-filtered direct relations.')
-    .option('--depth <n>', 'BFS depth (default 1)', (v) => parseInt(v, 10))
+    .option('--depth <n>', 'BFS depth (default 1)', parsePositiveInt('--depth'))
     .action(async (key: string, opts: { depth?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(

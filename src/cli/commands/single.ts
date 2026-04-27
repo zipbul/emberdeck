@@ -10,6 +10,7 @@ import type { CliRuntime } from '../context';
 import { analyze } from '../../ops/analyze';
 import { resetEmberdeck } from '../../ops/glossary';
 import { startSpinner } from '../spinner';
+import { parsePositiveInt } from '../parsers';
 
 async function readLineFromStdin(): Promise<string> {
   // Read a single line from stdin (TTY-safe — does not block forever).
@@ -32,8 +33,8 @@ export function registerSingle(program: Command): void {
     .command('analyze')
     .description('full project analysis (drift + coverage + glossary)')
     .option('--include-body', 'include body of drifted cards')
-    .option('--drifted-limit <n>', 'paginate drifted cards (default: all)', (v) => parseInt(v, 10))
-    .option('--drifted-offset <n>', 'drifted cards offset', (v) => parseInt(v, 10))
+    .option('--drifted-limit <n>', 'paginate drifted cards (default: all)', parsePositiveInt('--drifted-limit'))
+    .option('--drifted-offset <n>', 'drifted cards offset', parsePositiveInt('--drifted-offset'))
     .action(async (opts: { includeBody?: boolean; driftedLimit?: number; driftedOffset?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(

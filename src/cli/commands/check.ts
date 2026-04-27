@@ -1,16 +1,15 @@
 /**
- * `ed check` subcommands. Phase 1: coverage.
- * Other check subcommands (drift, impact, regression, interactions) land in Phase 2.
+ * `ed check` subcommands: drift / coverage / impact / regression / interactions.
  */
 
 import { Command } from 'commander';
 import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
-// partial is used by `check regression` (failing case)
 import type { CliRuntime } from '../context';
 import { getLinkCoverage, getUncoveredSymbols, suggestCardScope } from '../../ops/spec-sync';
 import { checkDrift, checkInteractions } from '../../ops/context';
 import { preChangeCheck, regressionGuard } from '../../ops/impact';
+import { parsePositiveInt } from '../parsers';
 
 export function registerCheck(program: Command): void {
   const check = program.command('check').description('state reports (descriptive)');
@@ -19,7 +18,7 @@ export function registerCheck(program: Command): void {
   check
     .command('drift [key]')
     .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken)')
-    .option('--max-depth <n>', 'BFS depth when key given (default 3)', (v) => parseInt(v, 10))
+    .option('--max-depth <n>', 'BFS depth when key given (default 3)', parsePositiveInt('--max-depth'))
     .option('--no-auto-transition', 'do not auto-mark active→drifted')
     .action(async (key: string | undefined, opts: { maxDepth?: number; autoTransition?: boolean }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
