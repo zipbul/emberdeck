@@ -300,6 +300,35 @@ describe('Phase 2 polish: card create/update --glossary/--tag/--parent', () => {
   });
 });
 
+describe('Phase 2 polish: --output mode validation', () => {
+  let tmp: string;
+  beforeEach(() => { tmp = setupProject(); });
+  afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
+
+  test('--output=invalid → rejected', async () => {
+    const r = await runCli(['--output=invalid', 'card', 'list'], tmp);
+    expect(r.exitCode).not.toBe(0);
+    // error rendered to stdout (json default for piped) or stderr; one must contain
+    const all = r.stdout + r.stderr;
+    expect(all).toMatch(/invalid --output/i);
+  });
+
+  test('--output=human valid', async () => {
+    const r = await runCli(['--output=human', 'card', 'list'], tmp);
+    expect(r.exitCode).toBe(0);
+  });
+
+  test('--output=json valid', async () => {
+    const r = await runCli(['--output=json', 'card', 'list'], tmp);
+    expect(r.exitCode).toBe(0);
+  });
+
+  test('--output=quiet valid', async () => {
+    const r = await runCli(['--output=quiet', 'card', 'list'], tmp);
+    expect(r.exitCode).toBe(0);
+  });
+});
+
 describe('Phase 2 polish: enum validation at CLI layer', () => {
   let tmp: string;
   beforeEach(() => { tmp = setupProject(); });

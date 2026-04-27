@@ -39,14 +39,20 @@ export interface OutputContext {
   color: boolean;
 }
 
+const VALID_OUTPUT_MODES: ReadonlyArray<OutputMode> = ['human', 'json', 'quiet'];
+
 /**
  * Resolve output mode based on flags + TTY detection.
+ * Throws on invalid --output value.
  */
 export function resolveOutputMode(opts: {
   output?: string;
   json?: boolean;
   quiet?: boolean;
 }): OutputMode {
+  if (opts.output !== undefined && !VALID_OUTPUT_MODES.includes(opts.output as OutputMode)) {
+    throw new Error(`invalid --output '${opts.output}'. Allowed: ${VALID_OUTPUT_MODES.join('|')}`);
+  }
   if (opts.output === 'json' || opts.json) return 'json';
   if (opts.output === 'quiet' || opts.quiet) return 'quiet';
   if (opts.output === 'human') return 'human';
