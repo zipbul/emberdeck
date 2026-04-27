@@ -246,6 +246,60 @@ describe('Phase 2 polish: unknown command/option', () => {
   });
 });
 
+describe('Phase 2 polish: card create/update --glossary/--tag/--parent', () => {
+  let tmp: string;
+  beforeEach(async () => {
+    tmp = setupProject();
+    await runCli(['glossary', 'define', 'foo=Foo def', 'bar=Bar def'], tmp);
+  });
+  afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
+
+  test('card create with --glossary single word', async () => {
+    const r = await runCli(['--json', 'card', 'create', 'g1', '--type', 'brief', '--summary', 's', '--glossary', 'foo'], tmp);
+    expect(r.exitCode).toBe(0);
+    const get = await runCli(['--json', 'card', 'get', 'g1'], tmp);
+    const parsed = JSON.parse(get.stdout);
+    expect(parsed.data.frontmatter.glossary).toEqual(['foo']);
+  });
+
+  test('card create with --glossary comma-separated', async () => {
+    const r = await runCli(['--json', 'card', 'create', 'g2', '--type', 'brief', '--summary', 's', '--glossary', 'foo,bar'], tmp);
+    expect(r.exitCode).toBe(0);
+    const get = await runCli(['--json', 'card', 'get', 'g2'], tmp);
+    expect(JSON.parse(get.stdout).data.frontmatter.glossary).toEqual(['foo', 'bar']);
+  });
+
+  test('card create with repeated --glossary flag', async () => {
+    const r = await runCli(['--json', 'card', 'create', 'g3', '--type', 'brief', '--summary', 's', '--glossary', 'foo', '--glossary', 'bar'], tmp);
+    expect(r.exitCode).toBe(0);
+    const get = await runCli(['--json', 'card', 'get', 'g3'], tmp);
+    expect(JSON.parse(get.stdout).data.frontmatter.glossary).toEqual(['foo', 'bar']);
+  });
+
+  test('card create with --tag (repeatable)', async () => {
+    const r = await runCli(['--json', 'card', 'create', 't1', '--type', 'brief', '--summary', 's', '--glossary', 'foo', '--tag', 'alpha', '--tag', 'beta'], tmp);
+    expect(r.exitCode).toBe(0);
+    const get = await runCli(['--json', 'card', 'get', 't1'], tmp);
+    expect(JSON.parse(get.stdout).data.frontmatter.tags).toEqual(['alpha', 'beta']);
+  });
+
+  test('card create with --parent', async () => {
+    await runCli(['card', 'create', 'parent-of-p', '--type', 'brief', '--summary', 'p', '--glossary', 'foo'], tmp);
+    const r = await runCli(['--json', 'card', 'create', 'p-child', '--type', 'spec', '--summary', 'c', '--parent', 'parent-of-p', '--glossary', 'foo'], tmp);
+    expect(r.exitCode).toBe(0);
+    const get = await runCli(['--json', 'card', 'get', 'p-child'], tmp);
+    expect(JSON.parse(get.stdout).data.frontmatter.parent).toBe('parent-of-p');
+  });
+
+  test('card update --glossary replaces existing glossary', async () => {
+    await runCli(['card', 'create', 'u1', '--type', 'brief', '--summary', 's', '--glossary', 'foo'], tmp);
+    const r = await runCli(['--json', 'card', 'update', 'u1', '--glossary', 'bar'], tmp);
+    expect(r.exitCode).toBe(0);
+    const get = await runCli(['--json', 'card', 'get', 'u1'], tmp);
+    expect(JSON.parse(get.stdout).data.frontmatter.glossary).toEqual(['bar']);
+  });
+});
+
 describe('Phase 2 polish: enum validation at CLI layer', () => {
   let tmp: string;
   beforeEach(() => { tmp = setupProject(); });

@@ -226,7 +226,10 @@ export function registerCard(program: Command): void {
     .option('--summary <s>', 'one-line summary')
     .option('--from <file>', 'read frontmatter+body from YAML/JSON file (- for STDIN)')
     .option('--status <status>', 'initial status (default: draft)')
-    .action(async (key: string, opts: { type: string; summary?: string; from?: string; status?: string }, cmd) => {
+    .option('--parent <key>', 'parent card key')
+    .option('--glossary <words>', 'comma-separated glossary words (or repeat flag)', (val: string, prev: string[] = []) => [...prev, ...val.split(',').map((s) => s.trim()).filter(Boolean)], [] as string[])
+    .option('--tag <name>', 'tag (repeatable)', (val: string, prev: string[] = []) => [...prev, val], [] as string[])
+    .action(async (key: string, opts: { type: string; summary?: string; from?: string; status?: string; parent?: string; glossary?: string[]; tag?: string[] }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
@@ -237,13 +240,25 @@ export function registerCard(program: Command): void {
             type: validatedType,
             summary: opts.summary ?? '',
             ...(validatedStatus ? { status: validatedStatus } : {}),
+            ...(opts.parent ? { parent: opts.parent } : {}),
+            ...(opts.glossary && opts.glossary.length > 0 ? { glossary: opts.glossary } : {}),
+            ...(opts.tag && opts.tag.length > 0 ? { tags: opts.tag } : {}),
           };
           if (opts.from) {
             const text = await readBodyFromOption(opts.from);
             if (!text) throw new Error('--from produced empty input');
             const parsed = (await parseInputFile(text)) as Partial<CreateCardInput>;
             const summary = opts.summary ?? parsed.summary ?? '';
-            input = { ...parsed, key, type: validatedType, summary };
+            input = {
+              ...parsed,
+              key,
+              type: validatedType,
+              summary,
+              ...(validatedStatus ? { status: validatedStatus } : (parsed.status ? { status: parsed.status } : {})),
+              ...(opts.parent ? { parent: opts.parent } : (parsed.parent ? { parent: parsed.parent } : {})),
+              ...(opts.glossary && opts.glossary.length > 0 ? { glossary: opts.glossary } : (parsed.glossary ? { glossary: parsed.glossary } : {})),
+              ...(opts.tag && opts.tag.length > 0 ? { tags: opts.tag } : (parsed.tags ? { tags: parsed.tags } : {})),
+            };
           }
           if (!input.summary) {
             throw new Error('--summary or --from with summary field required');
@@ -269,7 +284,9 @@ export function registerCard(program: Command): void {
     .option('--field <name=value>', 'set frontmatter field (repeatable)', (val: string, prev: string[] = []) => [...prev, val], [] as string[])
     .option('--summary <s>', 'shortcut for --field summary=<s>')
     .option('--body <file>', 'replace body from file (- for STDIN)')
-    .action(async (key: string, opts: { patch?: string; field?: string[]; summary?: string; body?: string }, cmd) => {
+    .option('--glossary <words>', 'set glossary words (comma-separated or repeated)', (val: string, prev: string[] = []) => [...prev, ...val.split(',').map((s) => s.trim()).filter(Boolean)], [] as string[])
+    .option('--tag <name>', 'set tag (repeatable; replaces existing tags)', (val: string, prev: string[] = []) => [...prev, val], [] as string[])
+    .action(async (key: string, opts: { patch?: string; field?: string[]; summary?: string; body?: string; glossary?: string[]; tag?: string[] }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
@@ -285,6 +302,8 @@ export function registerCard(program: Command): void {
           for (const [name, value] of Object.entries(fieldMap)) {
             applyFieldValue(fields, name, value);
           }
+          if (opts.glossary && opts.glossary.length > 0) fields.glossary = opts.glossary;
+          if (opts.tag && opts.tag.length > 0) fields.tags = opts.tag;
           if (opts.body !== undefined) {
             const body = await readBodyFromOption(opts.body);
             if (body !== undefined) fields.body = body;
