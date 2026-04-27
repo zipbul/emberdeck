@@ -208,6 +208,13 @@ export async function createCard(
               boundaryJson: input.boundary && input.boundary.length > 0
                 ? JSON.stringify(input.boundary)
                 : null,
+              namespacesJson: (() => {
+                const ns: Record<string, unknown> = {};
+                if (frontmatter.principle) ns.principle = frontmatter.principle;
+                if (frontmatter.brief) ns.brief = frontmatter.brief;
+                if (frontmatter.spec) ns.spec = frontmatter.spec;
+                return Object.keys(ns).length === 0 ? null : JSON.stringify(ns);
+              })(),
               body: searchableBody,
               glossaryJson: input.glossary && input.glossary.length > 0
                 ? JSON.stringify(input.glossary)

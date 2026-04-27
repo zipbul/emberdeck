@@ -9,6 +9,8 @@ export interface CardRow {
   type: string;
   parent: string | null;
   boundaryJson: string | null;
+  /** JSON-serialized {principle?, brief?, spec?} namespaces from frontmatter. NULL when card has no namespace structures. */
+  namespacesJson: string | null;
   body: string | null;
   glossaryJson: string;
   filePath: string;

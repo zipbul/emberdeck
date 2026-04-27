@@ -32,6 +32,7 @@ function insertCard(key: string): void {
     type: 'spec',
     parent: null,
     boundaryJson: null,
+    namespacesJson: null,
     body: null,
     glossaryJson: '[]',
     filePath: `/cards/${key}.card.md`,

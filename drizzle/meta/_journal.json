@@ -29,6 +29,13 @@
       "when": 1777222242849,
       "tag": "0003_majestic_starhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777248000000,
+      "tag": "0004_namespaces_json",
+      "breakpoints": true
     }
   ]
 }

@@ -300,6 +300,13 @@ export async function updateCard(
               type: next.type,
               parent: next.parent ?? null,
               boundaryJson: next.boundary ? JSON.stringify(next.boundary) : null,
+              namespacesJson: (() => {
+                const nsObj: Record<string, unknown> = {};
+                if (next.principle) nsObj.principle = next.principle;
+                if (next.brief) nsObj.brief = next.brief;
+                if (next.spec) nsObj.spec = next.spec;
+                return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
+              })(),
               body: (() => {
                 const ns = buildSearchableText(next);
                 return [nextBody, ns].filter((s) => s.trim().length > 0).join('\n\n');
@@ -441,6 +448,13 @@ export async function updateCardStatus(
                   boundaryJson: current.frontmatter.boundary
                     ? JSON.stringify(current.frontmatter.boundary)
                     : null,
+                  namespacesJson: (() => {
+                    const nsObj: Record<string, unknown> = {};
+                    if (current.frontmatter.principle) nsObj.principle = current.frontmatter.principle;
+                    if (current.frontmatter.brief) nsObj.brief = current.frontmatter.brief;
+                    if (current.frontmatter.spec) nsObj.spec = current.frontmatter.spec;
+                    return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
+                  })(),
                   body: current.body,
                   glossaryJson: current.frontmatter.glossary
                     ? JSON.stringify(current.frontmatter.glossary)

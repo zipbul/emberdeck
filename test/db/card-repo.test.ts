@@ -14,6 +14,7 @@ function makeRow(overrides: Partial<CardRow> = {}): CardRow {
     type: 'spec',
     parent: null,
     boundaryJson: null,
+    namespacesJson: null,
     body: 'body content',
     glossaryJson: '[]',
     filePath: '/cards/test/card.card.md',

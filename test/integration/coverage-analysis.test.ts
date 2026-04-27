@@ -25,6 +25,7 @@ function insertCard(
     type: 'spec',
     parent: null,
     boundaryJson: opts?.boundary ? JSON.stringify(opts.boundary) : null,
+    namespacesJson: null,
     body: opts?.body ?? null,
     glossaryJson: '[]',
     filePath: `cards/${key}.card.md`,

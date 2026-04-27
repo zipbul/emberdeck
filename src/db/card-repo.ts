@@ -31,6 +31,7 @@ export class DrizzleCardRepository implements CardRepository {
           type: row.type,
           parent: row.parent,
           boundaryJson: row.boundaryJson,
+          namespacesJson: row.namespacesJson,
           body: row.body,
           glossaryJson: row.glossaryJson,
           filePath: row.filePath,
@@ -63,7 +64,9 @@ export class DrizzleCardRepository implements CardRepository {
       const rows = this.db.$client
         .prepare(
           `SELECT c.key, c.summary, c.status, c.type, c.parent,
-                  c.boundary_json AS boundaryJson, c.body,
+                  c.boundary_json AS boundaryJson,
+                  c.namespaces_json AS namespacesJson,
+                  c.body,
                   c.glossary_json AS glossaryJson,
                   c.file_path AS filePath, c.updated_at AS updatedAt
            FROM card c
@@ -104,7 +107,9 @@ export class DrizzleCardRepository implements CardRepository {
       return this.db.$client
         .prepare(
           `SELECT c.key, c.summary, c.status, c.type, c.parent,
-                  c.boundary_json AS boundaryJson, c.body,
+                  c.boundary_json AS boundaryJson,
+                  c.namespaces_json AS namespacesJson,
+                  c.body,
                   c.glossary_json AS glossaryJson,
                   c.file_path AS filePath, c.updated_at AS updatedAt
            FROM card c

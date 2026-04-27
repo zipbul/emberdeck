@@ -8,6 +8,46 @@ import { writeCardFile } from '../fs/writer';
 import { CardNotFoundError } from '../card/errors';
 import { buildSearchableText } from '../card/searchable-text';
 import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/types';
+
+/**
+ * Reverse of the body+namespace concatenation done at write-time
+ * (syncCardFromFile / create / update). We store `body \n\n namespaceText`
+ * in row.body to feed FTS5; on export we must strip the trailing namespace
+ * text or the .card.md file gets corrupted (and grows on every round-trip).
+ */
+function stripNamespaceText(storedBody: string, fm: CardFrontmatter): string {
+  const ns = buildSearchableText(fm);
+  if (!ns) return storedBody;
+  // Be permissive about the join whitespace: file round-trips can introduce/remove
+  // a trailing newline before the namespace tail, so match anywhere it ends the body.
+  const idx = storedBody.lastIndexOf(ns);
+  if (idx >= 0 && idx + ns.length === storedBody.length) {
+    return storedBody.slice(0, idx).replace(/\s+$/, '');
+  }
+  return storedBody;
+}
+
+/**
+ * Serialize the principle/brief/spec namespace blocks from frontmatter for DB storage.
+ * Returns null when the card has no namespace structures (typical for plain markdown cards).
+ */
+function serializeNamespaces(fm: CardFrontmatter): string | null {
+  const ns: Record<string, unknown> = {};
+  if (fm.principle) ns.principle = fm.principle;
+  if (fm.brief) ns.brief = fm.brief;
+  if (fm.spec) ns.spec = fm.spec;
+  return Object.keys(ns).length === 0 ? null : JSON.stringify(ns);
+}
+
+function parseNamespaces(json: string | null): { principle?: unknown; brief?: unknown; spec?: unknown } {
+  if (!json) return {};
+  try {
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
@@ -77,6 +117,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     boundaryJson: cardFile.frontmatter.boundary
       ? JSON.stringify(cardFile.frontmatter.boundary)
       : null,
+    namespacesJson: serializeNamespaces(cardFile.frontmatter),
     body: fullBody,
     glossaryJson: cardFile.frontmatter.glossary
       ? JSON.stringify(cardFile.frontmatter.glossary)
@@ -549,6 +590,7 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
 
   const glossary = safeParseGlossaryJson(row.glossaryJson);
 
+  const ns = parseNamespaces(row.namespacesJson);
   const fm: CardFrontmatter = {
     key: row.key,
     summary: row.summary,
@@ -560,9 +602,13 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     ...(tags.length ? { tags } : {}),
     ...(codeLinks.length ? { codeLinks } : {}),
     ...(glossary && glossary.length > 0 ? { glossary } : {}),
+    ...(ns.principle ? { principle: ns.principle as CardFrontmatter['principle'] } : {}),
+    ...(ns.brief ? { brief: ns.brief as CardFrontmatter['brief'] } : {}),
+    ...(ns.spec ? { spec: ns.spec as CardFrontmatter['spec'] } : {}),
   };
 
-  return { frontmatter: fm, body: row.body ?? '', filePath: row.filePath };
+  const cleanBody = stripNamespaceText(row.body ?? '', fm);
+  return { frontmatter: fm, body: cleanBody, filePath: row.filePath };
 }
 
 export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {

@@ -30,6 +30,7 @@ function makeCard(overrides: Partial<CardRow> = {}): CardRow {
     type: 'spec',
     parent: null,
     boundaryJson: null,
+    namespacesJson: null,
     body: null,
     glossaryJson: '[]',
     filePath: '.emberdeck/cards/test-card.card.md',

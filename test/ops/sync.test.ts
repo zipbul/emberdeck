@@ -15,7 +15,7 @@ import {
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
-import { createTestContext, BRIEF_BODY, type TestContext } from '../helpers';
+import { createTestContext, BRIEF_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string, body = '') {
   const content = serializeCardMarkdown(
@@ -506,6 +506,32 @@ describe('exportCardToFile', () => {
     const parsed = parseCardMarkdown(text);
     expect(returnedPath).toBe(filePath);
     expect(parsed.body).toContain('## Details');
+  });
+
+  it('should NOT append namespace text to body on round-trip when frontmatter has spec namespace', async () => {
+    // Regression: row.body stored body+namespaceText for FTS5; export must strip the
+    // namespace tail so .card.md doesn't grow on each round-trip.
+    tc = await createTestContext();
+    const userBody = '## Notes\n\nuser-authored body content';
+    await createCard(tc.ctx, {
+      key: 'exp-ns-rt',
+      summary: 'NS round-trip',
+      type: 'spec',
+      body: userBody,
+      spec: makeTestSpec('src/x.ts', 'foo'),
+      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'foo' }],
+    });
+    // Export twice — second export must produce identical content.
+    const path1 = await exportCardToFile(tc.ctx, 'exp-ns-rt');
+    const text1 = await Bun.file(path1).text();
+    // Re-sync to refresh DB row from the just-exported file (closes the loop).
+    await syncCardFromFile(tc.ctx, path1);
+    const path2 = await exportCardToFile(tc.ctx, 'exp-ns-rt');
+    const text2 = await Bun.file(path2).text();
+    expect(text2).toBe(text1);
+    // Body must not contain the FTS5 helper concatenation (namespace text leaks).
+    const parsed = parseCardMarkdown(text1);
+    expect(parsed.body.trim()).toBe(userBody);
   });
 
   it('should throw CardKeyError when the key format is invalid', async () => {

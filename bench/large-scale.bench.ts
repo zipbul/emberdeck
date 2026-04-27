@@ -87,6 +87,7 @@ for (let i = 0; i < CARD_COUNT; i++) {
     type: i % 4 === 0 ? 'brief' : 'spec',
     parent,
     boundaryJson: null,
+      namespacesJson: null,
     body: `Body content for card ${i}. This simulates a real card body with contracts and design rationale.`,
     glossaryJson: '[]',
     filePath: `.emberdeck/cards/${key}.card.md`,
