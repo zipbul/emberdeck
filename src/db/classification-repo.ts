@@ -11,14 +11,18 @@ export class DrizzleClassificationRepository implements ClassificationRepository
     this.db.delete(cardTag).where(eq(cardTag.cardKey, cardKey)).run();
     if (names.length === 0) return;
 
-    for (const name of names) {
+    // Dedupe: same tag name twice in `names` would otherwise UNIQUE-violate
+    // on the second cardTag insert (PK is (cardKey, tagId)).
+    const uniqueNames = [...new Set(names)];
+
+    for (const name of uniqueNames) {
       this.db.insert(tag).values({ name }).onConflictDoNothing().run();
     }
 
     const rows = this.db
       .select({ id: tag.id, name: tag.name })
       .from(tag)
-      .where(inArray(tag.name, names))
+      .where(inArray(tag.name, uniqueNames))
       .all();
 
     for (const row of rows) {

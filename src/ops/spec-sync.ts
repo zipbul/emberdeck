@@ -3,6 +3,7 @@ import type { CodeLink } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
 import { ensureReindexed } from './link';
 import { parseBoundaryJson } from '../card/json-fields';
+import { atomicWrite } from '../fs/writer';
 import { join, relative, dirname } from 'node:path';
 
 // ── @spec annotation sync ──
@@ -292,7 +293,7 @@ export async function writeSpecAnnotations(
     }
 
     if (fileModified) {
-      await Bun.write(absPath, lines.join('\n'));
+      await atomicWrite(absPath, lines.join('\n'));
     }
   }
 
@@ -451,7 +452,7 @@ export async function writeSpecAnnotations(
     }
 
     if (modified) {
-      await Bun.write(absPath, lines.join('\n'));
+      await atomicWrite(absPath, lines.join('\n'));
     }
   }
 

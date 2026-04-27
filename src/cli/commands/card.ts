@@ -31,6 +31,7 @@ import { findCardsByGlossaryWord } from '../../ops/glossary';
 import { parsePositiveInt } from '../parsers';
 import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../errors';
+import { atomicWrite } from '../../fs/writer';
 
 // ── helpers ──
 
@@ -456,7 +457,7 @@ export function registerCard(program: Command): void {
           // STDOUT or --out FILE: build content WITHOUT touching original file.
           const content = renderCardContentFromDb(rt, key);
           if (opts.out && opts.out !== '-') {
-            await Bun.write(opts.out, content);
+            await atomicWrite(opts.out, content);
             return ok({ key, filePath: opts.out, mode: 'file' });
           }
           // STDOUT (default).
