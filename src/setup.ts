@@ -64,6 +64,11 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
  * Should be called before process exit or when recreating the context.
  */
 export async function teardownEmberdeck(ctx: EmberdeckContext): Promise<void> {
-  await ctx.gildash?.close();
-  closeDb(ctx.db);
+  // Always close DB even if gildash.close throws — leaking a SQLite handle
+  // (with WAL mode + lock files) is worse than swallowing a gildash close error.
+  try {
+    await ctx.gildash?.close();
+  } finally {
+    closeDb(ctx.db);
+  }
 }
