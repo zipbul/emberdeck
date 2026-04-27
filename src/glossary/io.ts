@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
@@ -99,18 +99,24 @@ export function readGlossary(ctx: EmberdeckContext): GlossaryEntry[] {
 /**
  * Write glossary entries to glossary.yaml.
  * Entries are sorted alphabetically by word for deterministic git diffs.
- * Uses writeFileSync for atomic single-call write.
+ * Uses tmp file + rename for atomic replacement (prevents truncation on
+ * interrupted writes — half-written glossary is worse than a failed write).
  */
 export function writeGlossary(ctx: EmberdeckContext, entries: GlossaryEntry[]): void {
   const path = glossaryFilePath(ctx);
   mkdirSync(dirname(path), { recursive: true });
 
-  if (entries.length === 0) {
-    writeFileSync(path, '', 'utf-8');
-    return;
-  }
+  const sorted = entries.length > 0
+    ? [...entries].sort((a, b) => a.word.localeCompare(b.word))
+    : [];
+  const yaml = sorted.length === 0 ? '' : Bun.YAML.stringify(sorted);
 
-  const sorted = [...entries].sort((a, b) => a.word.localeCompare(b.word));
-  const yaml = Bun.YAML.stringify(sorted);
-  writeFileSync(path, yaml, 'utf-8');
+  const tmpPath = path + '.tmp.' + Math.random().toString(36).slice(2, 10);
+  writeFileSync(tmpPath, yaml, 'utf-8');
+  try {
+    renameSync(tmpPath, path);
+  } catch (err) {
+    try { unlinkSync(tmpPath); } catch { /* best-effort */ }
+    throw err;
+  }
 }
