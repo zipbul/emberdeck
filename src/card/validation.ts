@@ -64,28 +64,46 @@ export function validateCardInput(input: ValidationInput): void {
   const { key, summary, body, tags, relations, codeLinks, boundary, type, status } = input;
 
   // ── type ──
-  if (type !== undefined && !VALID_TYPES.has(type)) {
-    throw new CardValidationError(
-      `Invalid card type "${type}" (expected one of: principle, brief, spec)`,
-    );
+  if (type !== undefined) {
+    if (typeof type !== 'string') {
+      throw new CardValidationError(`Invalid card type: must be a string (got ${typeof type})`);
+    }
+    if (!VALID_TYPES.has(type)) {
+      throw new CardValidationError(
+        `Invalid card type "${type}" (expected one of: principle, brief, spec)`,
+      );
+    }
   }
 
   // ── status ──
-  if (status !== undefined && !VALID_STATUSES.has(status)) {
-    throw new CardValidationError(
-      `Invalid card status "${status}" (expected one of: draft, active, drifted, retired)`,
-    );
+  if (status !== undefined) {
+    if (typeof status !== 'string') {
+      throw new CardValidationError(`Invalid card status: must be a string (got ${typeof status})`);
+    }
+    if (!VALID_STATUSES.has(status)) {
+      throw new CardValidationError(
+        `Invalid card status "${status}" (expected one of: draft, active, drifted, retired)`,
+      );
+    }
   }
 
   // ── key ────────────────────────────────────────────────────
-  if (key !== undefined && key.length > LIMITS.KEY_MAX) {
-    throw new CardValidationError(
-      `key exceeds maximum length of ${LIMITS.KEY_MAX} characters (got ${key.length})`,
-    );
+  if (key !== undefined) {
+    if (typeof key !== 'string') {
+      throw new CardValidationError(`key must be a string (got ${typeof key})`);
+    }
+    if (key.length > LIMITS.KEY_MAX) {
+      throw new CardValidationError(
+        `key exceeds maximum length of ${LIMITS.KEY_MAX} characters (got ${key.length})`,
+      );
+    }
   }
 
   // ── summary ──────────────────────────────────────────────
   if (summary !== undefined) {
+    if (typeof summary !== 'string') {
+      throw new CardValidationError(`summary must be a string (got ${typeof summary})`);
+    }
     if (summary.length === 0) {
       throw new CardValidationError('summary must not be empty');
     }
@@ -97,10 +115,15 @@ export function validateCardInput(input: ValidationInput): void {
   }
 
   // ── body ─────────────────────────────────────────────────
-  if (body !== undefined && body.length > LIMITS.BODY_MAX) {
-    throw new CardValidationError(
-      `body exceeds maximum length of ${LIMITS.BODY_MAX} characters (got ${body.length})`,
-    );
+  if (body !== undefined) {
+    if (typeof body !== 'string') {
+      throw new CardValidationError(`body must be a string (got ${typeof body})`);
+    }
+    if (body.length > LIMITS.BODY_MAX) {
+      throw new CardValidationError(
+        `body exceeds maximum length of ${LIMITS.BODY_MAX} characters (got ${body.length})`,
+      );
+    }
   }
 
   // ── tags ─────────────────────────────────────────────────
