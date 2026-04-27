@@ -4,6 +4,7 @@ import { checkDrift, type DriftType } from './context';
 import { getUncoveredSymbols } from './spec-sync';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { buildCardFromDb } from './sync';
+import { parseBoundaryJson, parseGlossaryJson } from '../card/json-fields';
 
 // ── Types ──
 
@@ -152,11 +153,10 @@ export async function analyze(
   let staleBoundary = 0;
   if (ctx.projectRoot) {
     for (const card of allCards) {
-      if (!card.boundaryJson) continue;
+      const boundary = parseBoundaryJson(card.boundaryJson);
+      if (boundary.length === 0) continue;
+      let anyMatch = false;
       try {
-        const boundary: string[] = JSON.parse(card.boundaryJson);
-        if (!Array.isArray(boundary) || boundary.length === 0) continue;
-        let anyMatch = false;
         for (const pattern of boundary) {
           const glob = new Bun.Glob(pattern);
           for (const _ of glob.scanSync({ cwd: ctx.projectRoot })) {
@@ -165,10 +165,10 @@ export async function analyze(
           }
           if (anyMatch) break;
         }
-        if (!anyMatch) staleBoundary++;
       } catch {
-        // skip
+        // unreadable projectRoot — count as stale
       }
+      if (!anyMatch) staleBoundary++;
     }
   }
 
@@ -198,15 +198,7 @@ export async function analyze(
   const glossaryEntries = readGlossary(ctx);
   const usedGlossaryWords = new Set<string>();
   for (const card of allCards) {
-    const gj = card.glossaryJson;
-    if (gj && gj !== '[]') {
-      try {
-        const parsed = JSON.parse(gj);
-        if (Array.isArray(parsed)) {
-          for (const w of parsed) usedGlossaryWords.add(w);
-        }
-      } catch { /* skip */ }
-    }
+    for (const w of parseGlossaryJson(card.glossaryJson)) usedGlossaryWords.add(w);
   }
   const unusedWords = glossaryEntries
     .filter((e) => !usedGlossaryWords.has(e.word))

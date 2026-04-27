@@ -286,25 +286,14 @@ export async function checkDrift(
 
 // ── check_drift helpers ──
 
+import { parseBoundaryJson, parseGlossaryJson } from '../card/json-fields';
+
 function parseGlossaryJsonField(card: { glossaryJson?: string }): string[] {
-  const raw = card.glossaryJson;
-  if (!raw || raw === '[]') return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return parseGlossaryJson(card.glossaryJson);
 }
 
 function parseBoundary(boundaryJson: string | null): string[] {
-  if (!boundaryJson) return [];
-  try {
-    const parsed = JSON.parse(boundaryJson);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return parseBoundaryJson(boundaryJson);
 }
 
 async function collectSymbolChanges(
@@ -416,19 +405,14 @@ export function checkInteractions(
     // Also add boundary-expanded files if projectRoot available
     if (ctx.projectRoot) {
       const row = ctx.cardRepo.findByKey(key);
-      if (row?.boundaryJson) {
+      for (const pattern of parseBoundaryJson(row?.boundaryJson)) {
         try {
-          const boundary: string[] = JSON.parse(row.boundaryJson);
-          if (Array.isArray(boundary)) {
-            for (const pattern of boundary) {
-              const glob = new Bun.Glob(pattern);
-              for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
-                files.add(file);
-              }
-            }
+          const glob = new Bun.Glob(pattern);
+          for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
+            files.add(file);
           }
         } catch {
-          // skip
+          // skip invalid boundary
         }
       }
     }

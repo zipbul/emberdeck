@@ -3,6 +3,7 @@ import type { CardRow } from '../db/repository';
 import { getRelationGraph } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
+import { parseBoundaryJson } from '../card/json-fields';
 
 // ── pre_change_check ──
 
@@ -58,14 +59,8 @@ export function preChangeCheck(
   const allCards = ctx.cardRepo.list();
   for (const card of allCards) {
     if (directCards.has(card.key)) continue; // Already a direct match
-    if (!card.boundaryJson) continue;
-    let boundary: string[];
-    try {
-      boundary = JSON.parse(card.boundaryJson);
-    } catch {
-      continue;
-    }
-    if (!Array.isArray(boundary) || boundary.length === 0) continue;
+    const boundary = parseBoundaryJson(card.boundaryJson);
+    if (boundary.length === 0) continue;
 
     for (const file of files) {
       let matched = false;
@@ -141,21 +136,13 @@ export function preChangeCheck(
       coveredFiles.add(link.file);
     }
     // Files covered by boundary
-    if (card.boundaryJson) {
-      try {
-        const boundary: string[] = JSON.parse(card.boundaryJson);
-        if (Array.isArray(boundary)) {
-          for (const file of files) {
-            for (const pattern of boundary) {
-              const glob = new Bun.Glob(pattern);
-              if (glob.match(file)) {
-                coveredFiles.add(file);
-              }
-            }
-          }
+    const boundary = parseBoundaryJson(card.boundaryJson);
+    for (const file of files) {
+      for (const pattern of boundary) {
+        const glob = new Bun.Glob(pattern);
+        if (glob.match(file)) {
+          coveredFiles.add(file);
         }
-      } catch {
-        // skip
       }
     }
   }

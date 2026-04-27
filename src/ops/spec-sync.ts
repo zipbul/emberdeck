@@ -2,6 +2,7 @@ import type { EmberdeckContext } from '../config';
 import type { CodeLink } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
 import { ensureReindexed } from './link';
+import { parseBoundaryJson } from '../card/json-fields';
 import { join, relative, dirname } from 'node:path';
 
 // ── @spec annotation sync ──
@@ -665,19 +666,16 @@ export async function getLinkCoverage(
   // Collect boundary-covered files for this card
   const boundaryFiles = new Set<string>();
   const row = ctx.cardRepo.findByKey(fullKey);
-  if (row?.boundaryJson && ctx.projectRoot) {
-    try {
-      const boundary: string[] = JSON.parse(row.boundaryJson);
-      if (Array.isArray(boundary)) {
-        for (const pattern of boundary) {
-          const glob = new Bun.Glob(pattern);
-          for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
-            boundaryFiles.add(file);
-          }
+  if (ctx.projectRoot) {
+    for (const pattern of parseBoundaryJson(row?.boundaryJson)) {
+      try {
+        const glob = new Bun.Glob(pattern);
+        for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
+          boundaryFiles.add(file);
         }
+      } catch {
+        // skip invalid boundary
       }
-    } catch {
-      // skip invalid boundary
     }
   }
 
@@ -805,18 +803,15 @@ export async function getUncoveredSymbols(
   const boundaryFiles = new Set<string>();
   if (ctx.projectRoot) {
     for (const card of allCards) {
-      if (!card.boundaryJson) continue;
-      try {
-        const boundary: string[] = JSON.parse(card.boundaryJson);
-        if (!Array.isArray(boundary)) continue;
-        for (const pattern of boundary) {
+      for (const pattern of parseBoundaryJson(card.boundaryJson)) {
+        try {
           const glob = new Bun.Glob(pattern);
           for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
             boundaryFiles.add(file);
           }
+        } catch {
+          // skip invalid boundary
         }
-      } catch {
-        // skip invalid boundary
       }
     }
   }
@@ -963,16 +958,8 @@ export async function suggestCardScope(
   // Build existing boundary globs for overlap check
   const existingBoundaryGlobs: Bun.Glob[] = [];
   for (const card of allCards) {
-    if (!card.boundaryJson) continue;
-    try {
-      const boundary: string[] = JSON.parse(card.boundaryJson);
-      if (Array.isArray(boundary)) {
-        for (const pattern of boundary) {
-          existingBoundaryGlobs.push(new Bun.Glob(pattern));
-        }
-      }
-    } catch {
-      // skip
+    for (const pattern of parseBoundaryJson(card.boundaryJson)) {
+      existingBoundaryGlobs.push(new Bun.Glob(pattern));
     }
   }
 

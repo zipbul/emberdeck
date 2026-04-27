@@ -7,6 +7,7 @@ import { parseFullKey, buildCardPath } from '../card/card-key';
 import { GildashNotConfiguredError, CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
+import { parseBoundaryJson } from '../card/json-fields';
 
 
 // ---- Public Types ----
@@ -124,15 +125,8 @@ export async function findCardsBySymbol(
     const allCards = ctx.cardRepo.list();
     for (const card of allCards) {
       if (seen.has(card.key)) continue;
-      if (!card.boundaryJson) continue;
-      let boundaries: string[];
-      try {
-        const parsed = JSON.parse(card.boundaryJson);
-        if (!Array.isArray(parsed)) continue;
-        boundaries = parsed;
-      } catch {
-        continue;
-      }
+      const boundaries = parseBoundaryJson(card.boundaryJson);
+      if (boundaries.length === 0) continue;
       for (const pattern of boundaries) {
         const glob = new Bun.Glob(pattern);
         if (glob.match(filePath)) {
