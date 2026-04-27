@@ -76,6 +76,9 @@ export function registerBulk(program: Command): void {
           if (!Array.isArray(parsed)) {
             throw new CliUsageError('--from FILE must be an array of card inputs');
           }
+          if (parsed.length === 0) {
+            throw new CliUsageError('--from input contains zero cards (empty array) — nothing to create');
+          }
           // CLI-layer enum validation BEFORE write, mirrors `card create` behavior.
           const validated = validateBulkInput(parsed);
           const spinner = startSpinner(rt.output, `creating ${validated.ok.length} cards...`, { verbose: rt.verbose });

@@ -326,6 +326,9 @@ export function registerCard(program: Command): void {
             const body = await readBodyFromOption(opts.body);
             if (body !== undefined) fields.body = body;
           }
+          if (Object.keys(fields).length === 0) {
+            throw new CliUsageError('card update: no changes specified — pass --field/--summary/--body/--patch/--glossary/--tag');
+          }
           const result = await updateCard(rt.ctx, key, fields);
           const warnings: CliMessage[] = (result.warnings ?? []).map((m) => ({
             code: 'UPDATE_WARNING',
