@@ -34,7 +34,17 @@ export async function withGlossaryLock<T>(
   await prev;
 
   // Cross-process lock — only after in-process FIFO order is established.
-  await acquireSystemLock(ctx, GLOSSARY_LOCK_NAME);
+  // If acquireSystemLock throws, we must still release the in-process slot
+  // or every later glossary op in this process hangs forever.
+  try {
+    await acquireSystemLock(ctx, GLOSSARY_LOCK_NAME);
+  } catch (e) {
+    release!();
+    if (glossaryLocks.get(ctx) === current) {
+      glossaryLocks.delete(ctx);
+    }
+    throw e;
+  }
 
   try {
     return await Promise.resolve(fn());

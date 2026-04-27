@@ -82,8 +82,10 @@ function isAlive(pid: number): boolean {
   }
 }
 
+let cachedMyStartTime: number | null = null;
 function getMyStartTime(): number {
-  return readStartTimeTicks(process.pid);
+  if (cachedMyStartTime === null) cachedMyStartTime = readStartTimeTicks(process.pid);
+  return cachedMyStartTime;
 }
 
 function selectLock(ctx: EmberdeckContext, name: string): LockRow | null {
