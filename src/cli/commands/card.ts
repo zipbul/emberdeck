@@ -251,7 +251,11 @@ export function registerCard(program: Command): void {
           if (opts.from) {
             const text = await readBodyFromOption(opts.from);
             if (!text) throw new CliUsageError('--from produced empty input');
-            const parsed = (await parseInputFile(text)) as Partial<CreateCardInput>;
+            const parsedRaw = await parseInputFile(text);
+            if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
+              throw new CliUsageError('--from must be a JSON/YAML object (got non-object root)');
+            }
+            const parsed = parsedRaw as Partial<CreateCardInput>;
             const summary = opts.summary ?? parsed.summary ?? '';
             input = {
               ...parsed,
@@ -298,8 +302,11 @@ export function registerCard(program: Command): void {
           if (opts.patch) {
             const text = await readBodyFromOption(opts.patch);
             if (!text) throw new CliUsageError('--patch produced empty input');
-            const parsed = (await parseInputFile(text)) as UpdateCardFields;
-            Object.assign(fields, parsed);
+            const parsedRaw = await parseInputFile(text);
+            if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
+              throw new CliUsageError('--patch must be a JSON/YAML object (got non-object root)');
+            }
+            Object.assign(fields, parsedRaw as UpdateCardFields);
           }
           const fieldMap = parseFields(opts.field);
           if (opts.summary) fieldMap.summary = opts.summary;
