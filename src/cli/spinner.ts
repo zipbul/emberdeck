@@ -49,7 +49,9 @@ export function startSpinner(ctx: OutputContext, initialLabel: string, opts: { v
 
   return {
     update(newLabel: string) {
-      label = newLabel;
+      // Strip newlines — \r repaint can't undo line wraps and the cursor
+      // would scroll past the spinner, leaving garbled output.
+      label = newLabel.replace(/[\r\n]/g, ' ');
     },
     stop(finalLabel?: string) {
       if (stopped) return;
