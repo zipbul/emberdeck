@@ -1,6 +1,5 @@
 /**
- * `ed validate` subcommands. Phase 1: cards, brief.
- * `links` and aggregate `validate` (all) land in Phase 2.
+ * `ed validate` subcommands: aggregate (no args) / cards / links / brief.
  */
 
 import { Command } from 'commander';
@@ -21,41 +20,60 @@ export function registerValidate(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const cardsResult = await validateCards(rt.ctx);
-          const cardErrors: CliMessage[] = cardsResult.warnings.map((w) => ({
-            code: w.type.toUpperCase().replace(/-/g, '_'),
-            message: w.message,
-            ...(w.cardKey ? { key: w.cardKey } : {}),
-          }));
-          for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `DB row has no file: ${stale.filePath}`, key: stale.key });
-          for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no DB row: ${orphan}` });
-
-          // links validation: per-card iteration
-          const allCards = rt.ctx.cardRepo.list();
-          const linkErrors: CliMessage[] = [];
+          const spinner = startSpinner(rt.output, 'validating cards...', { verbose: rt.verbose });
+          let cardErrors: CliMessage[];
+          let linkErrors: CliMessage[];
+          let briefErrors: CliMessage[];
           let linkDeclared = 0;
           let linkBroken = 0;
-          if (rt.ctx.gildash) {
-            for (const c of allCards) {
-              const r = await validateCodeLinks(rt.ctx, c.key);
-              linkDeclared += r.declared;
-              linkBroken += r.broken.length;
-              for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
+          try {
+            const cardsResult = await validateCards(rt.ctx);
+            cardErrors = cardsResult.warnings.map((w) => ({
+              code: w.type.toUpperCase().replace(/-/g, '_'),
+              message: w.message,
+              ...(w.cardKey ? { key: w.cardKey } : {}),
+            }));
+            for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `DB row has no file: ${stale.filePath}`, key: stale.key });
+            for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no DB row: ${orphan}` });
+            for (const km of cardsResult.keyMismatches) {
+              cardErrors.push({
+                code: 'KEY_MISMATCH',
+                message: `card key '${km.row.key}' does not match path-derived '${km.expectedKey}'`,
+                key: km.row.key,
+              });
             }
-          }
 
-          // brief validation: per active brief
-          const briefErrors: CliMessage[] = [];
-          for (const c of allCards) {
-            if (c.type !== 'brief' || c.status === 'draft') continue;
-            try {
-              const r = validateBrief(rt.ctx, c.key);
-              if (!r.complete) {
-                for (const m of r.missing) briefErrors.push({ code: 'BRIEF_SECTION_MISSING', message: `[${c.key}] missing: ${m}`, key: c.key });
+            // links validation: per-card iteration
+            const allCards = rt.ctx.cardRepo.list();
+            linkErrors = [];
+            if (rt.ctx.gildash) {
+              let i = 0;
+              for (const c of allCards) {
+                i++;
+                spinner.update(`validating links: ${i}/${allCards.length} (${c.key})`);
+                const r = await validateCodeLinks(rt.ctx, c.key);
+                linkDeclared += r.declared;
+                linkBroken += r.broken.length;
+                for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
               }
-            } catch (e) {
-              briefErrors.push({ code: 'BRIEF_VALIDATION_ERROR', message: String((e as Error).message), key: c.key });
             }
+
+            // brief validation: per active brief
+            briefErrors = [];
+            spinner.update('validating briefs...');
+            for (const c of allCards) {
+              if (c.type !== 'brief' || c.status === 'draft') continue;
+              try {
+                const r = validateBrief(rt.ctx, c.key);
+                if (!r.complete) {
+                  for (const m of r.missing) briefErrors.push({ code: 'BRIEF_SECTION_MISSING', message: `[${c.key}] missing: ${m}`, key: c.key });
+                }
+              } catch (e) {
+                briefErrors.push({ code: 'BRIEF_VALIDATION_ERROR', message: String((e as Error).message), key: c.key });
+              }
+            }
+          } finally {
+            spinner.stop();
           }
 
           const allErrors = [...cardErrors, ...linkErrors, ...briefErrors];

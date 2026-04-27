@@ -5,7 +5,7 @@
 import { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
 import { run, extractGlobalFlags } from '../runner';
-import { ok } from '../output';
+import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { defineGlossary, lookupGlossary, removeGlossary, renameGlossary } from '../../ops/glossary';
 
@@ -142,13 +142,22 @@ export function registerGlossary(program: Command): void {
       await run(
         async (rt: CliRuntime) => {
           const result = await renameGlossary(rt.ctx, oldWord, newWord, opts.def);
-          return ok({
+          const data = {
             renamed_from: result.renamedFrom,
             renamed_to: result.renamedTo,
             definition: result.definition,
             cards_updated: result.cardsUpdated,
             file_write_failures: result.fileWriteFailures,
-          });
+          };
+          if (result.fileWriteFailures.length > 0) {
+            const errors: CliMessage[] = result.fileWriteFailures.map((key) => ({
+              code: 'GLOSSARY_RENAME_FILE_WRITE_FAILED',
+              message: `failed to write updated glossary into card file`,
+              key,
+            }));
+            return partial(data, errors);
+          }
+          return ok(data);
         },
         [],
         globalFlags,
