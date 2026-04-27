@@ -178,7 +178,6 @@ export type { ValidationInput } from './src/card/validation';
 export { migrateEmberdeck, type EmberdeckDb } from './src/db/connection';
 
 // ---- MCP (optional — available when @modelcontextprotocol/sdk is installed) ----
-export { registerEmberdeckTools } from './src/mcp/tools';
 
 // ---- Safe operations (concurrency / rollback) ----
 export {
