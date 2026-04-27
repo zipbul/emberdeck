@@ -10,6 +10,7 @@ export type {
   CardFile,
   CodeLink,
 } from './src/card/types';
+export { CARD_TYPES, CARD_STATUSES } from './src/card/types';
 export {
   CardKeyError,
   CardValidationError,
@@ -22,6 +23,7 @@ export {
   GildashNotConfiguredError,
   CompensationError,
 } from './src/card/errors';
+export { SystemLockTimeoutError } from './src/glossary/system-lock';
 
 // ---- Operations ----
 export { createCard, type CreateCardInput, type CreateCardResult } from './src/ops/create';
