@@ -8,6 +8,8 @@
  */
 export type CardStatus = 'draft' | 'active' | 'drifted' | 'retired';
 
+export const CARD_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted', 'retired'];
+
 /**
  * Card type.
  *
@@ -16,6 +18,8 @@ export type CardStatus = 'draft' | 'active' | 'drifted' | 'retired';
  * - `spec` — Behavioral contract bound to code via codeLinks.
  */
 export type CardType = 'principle' | 'brief' | 'spec';
+
+export const CARD_TYPES: ReadonlyArray<CardType> = ['principle', 'brief', 'spec'];
 
 /**
  * A record linking a card to a source code symbol (gildash integration).

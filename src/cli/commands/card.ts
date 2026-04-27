@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
-import type { CardType, CardStatus } from '../../card/types';
+import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
 import {
   getCard,
   listCards,
@@ -31,19 +31,16 @@ import { findCardsByGlossaryWord } from '../../ops/glossary';
 
 // ── helpers ──
 
-const VALID_TYPES: ReadonlyArray<CardType> = ['principle', 'brief', 'spec'];
-const VALID_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted', 'retired'];
-
 function validateCardType(value: string): CardType {
-  if (!VALID_TYPES.includes(value as CardType)) {
-    throw new Error(`invalid --type '${value}'. Allowed: ${VALID_TYPES.join('|')}`);
+  if (!CARD_TYPES.includes(value as CardType)) {
+    throw new Error(`invalid --type '${value}'. Allowed: ${CARD_TYPES.join('|')}`);
   }
   return value as CardType;
 }
 
 function validateCardStatus(value: string): CardStatus {
-  if (!VALID_STATUSES.includes(value as CardStatus)) {
-    throw new Error(`invalid status '${value}'. Allowed: ${VALID_STATUSES.join('|')}`);
+  if (!CARD_STATUSES.includes(value as CardStatus)) {
+    throw new Error(`invalid status '${value}'. Allowed: ${CARD_STATUSES.join('|')}`);
   }
   return value as CardStatus;
 }

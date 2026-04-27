@@ -48,8 +48,9 @@ export interface ValidationInput {
   status?: string;
 }
 
-const VALID_TYPES = new Set(['principle', 'brief', 'spec']);
-const VALID_STATUSES = new Set(['draft', 'active', 'drifted', 'retired']);
+import { CARD_TYPES, CARD_STATUSES } from './types';
+const VALID_TYPES = new Set<string>(CARD_TYPES);
+const VALID_STATUSES = new Set<string>(CARD_STATUSES);
 
 /**
  * Validates size limits of card input values.

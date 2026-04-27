@@ -11,11 +11,8 @@ import type { CliRuntime } from '../context';
 import { bulkCreateCards } from '../../ops/bulk-create';
 import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
-import type { CardType, CardStatus } from '../../card/types';
+import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
 import { startSpinner } from '../spinner';
-
-const VALID_TYPES: ReadonlyArray<CardType> = ['principle', 'brief', 'spec'];
-const VALID_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted', 'retired'];
 
 function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
   const ok: CreateCardInput[] = [];
@@ -34,12 +31,12 @@ function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: A
       errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' missing 'type'` });
       return;
     }
-    if (!VALID_TYPES.includes(it.type as CardType)) {
-      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid type '${it.type}' (allowed: ${VALID_TYPES.join('|')})` });
+    if (!CARD_TYPES.includes(it.type as CardType)) {
+      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid type '${it.type}' (allowed: ${CARD_TYPES.join('|')})` });
       return;
     }
-    if (it.status !== undefined && !VALID_STATUSES.includes(it.status as CardStatus)) {
-      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid status '${it.status}' (allowed: ${VALID_STATUSES.join('|')})` });
+    if (it.status !== undefined && !CARD_STATUSES.includes(it.status as CardStatus)) {
+      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid status '${it.status}' (allowed: ${CARD_STATUSES.join('|')})` });
       return;
     }
     ok.push(it as CreateCardInput);
@@ -123,16 +120,15 @@ export function registerBulk(program: Command): void {
       await run(
         async (rt: CliRuntime) => {
           if (path) {
-            // detect file vs dir
+            let s;
             try {
-              const s = await stat(path);
-              if (s.isFile()) {
-                await syncCardFromFile(rt.ctx, path);
-                return ok({ synced: 1, path, mode: 'file' });
-              }
+              s = await stat(path);
             } catch {
-              // PATH might not exist
               throw new Error(`path not found: ${path}`);
+            }
+            if (s.isFile()) {
+              await syncCardFromFile(rt.ctx, path);
+              return ok({ synced: 1, path, mode: 'file' });
             }
           }
           const spinner = startSpinner(rt.output, `syncing cards from ${path ?? rt.ctx.cardsDir}...`, { verbose: rt.verbose });
