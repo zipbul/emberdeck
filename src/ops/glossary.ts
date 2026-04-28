@@ -222,20 +222,22 @@ export async function renameGlossary(
 
     writeGlossary(ctx, entries);
 
-    // DB transaction: update all affected cards' glossary_json
+    // DB transaction: update all affected cards' glossary_json.
+    // Prepare statement once per transaction instead of per row.
     try {
       if (affectedCards.length > 0) {
         const now = new Date().toISOString();
         ctx.db.transaction((tx) => {
           const d = txDb(tx);
           const changelogRepo = new DrizzleChangelogRepository(d);
+          const updateStmt = ctx.db.$client.prepare(
+            'UPDATE card SET glossary_json = ?, updated_at = ? WHERE key = ?',
+          );
 
           for (const card of affectedCards) {
             const glossary = parseGlossaryJson(card);
             const updated = glossary.map((w: string) => (w === oldWord ? newWord : w));
-            ctx.db.$client.prepare(
-              'UPDATE card SET glossary_json = ?, updated_at = ? WHERE key = ?',
-            ).run(JSON.stringify(updated), now, card.key);
+            updateStmt.run(JSON.stringify(updated), now, card.key);
 
             changelogRepo.insert({
               cardKey: card.key,
