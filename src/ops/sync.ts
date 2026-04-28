@@ -576,10 +576,11 @@ export async function validateCards(
     }
   }
 
-  // Broken chain: spec card with no relation to any brief card
+  // Broken chain: spec card with no relation to any brief card.
+  // Reuses the relationsBySrc prefetch built above (no extra DB round-trips).
   for (const row of dbRows) {
     if (row.type === 'spec') {
-      const relations = ctx.relationRepo.findByCardKey(row.key);
+      const relations = relationsBySrc.get(row.key) ?? [];
       const forwardTargets = relations.filter((r) => !r.isReverse).map((r) => r.dstCardKey);
       const reverseTargets = relations.filter((r) => r.isReverse).map((r) => r.dstCardKey);
       const allRelated = [...forwardTargets, ...reverseTargets];
