@@ -194,6 +194,30 @@ describe('update', () => {
     ).rejects.toThrow(/Cannot change to spec/);
   });
 
+  it('promotes brief → domain when children are still brief (4-tier valid)', async () => {
+    tc = await createTestContext();
+    // Start as brief with brief child (legacy 3-tier shape)
+    await createCard(tc.ctx, { key: 'pre-dom', summary: 'Pre-domain', type: 'brief' });
+    await createCard(tc.ctx, { key: 'pre-brief', summary: 'Inner brief', type: 'brief' });
+    // Force pre-brief.parent = pre-dom directly (validateParentType would block in 4-tier);
+    // simulating data migrated from legacy.
+    tc.ctx.db.$client.run("UPDATE card SET parent = 'pre-dom' WHERE key = 'pre-brief'");
+
+    // Now promote pre-dom to domain — children must remain brief, which they do.
+    await updateCard(tc.ctx, 'pre-dom', { type: 'domain' });
+    const promoted = await getCard(tc.ctx, 'pre-dom');
+    expect(promoted.card.frontmatter.type).toBe('domain');
+  });
+
+  it('rejects brief → domain promotion when children include non-brief', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'mixed-parent', summary: 'Mixed', type: 'brief' });
+    await createCard(tc.ctx, { key: 'mixed-spec', summary: 'Spec child', type: 'spec', parent: 'mixed-parent' });
+    await expect(
+      updateCard(tc.ctx, 'mixed-parent', { type: 'domain' }),
+    ).rejects.toThrow(/Cannot change to domain/);
+  });
+
   it('should update boundary and record in changelog', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'bnd', summary: 'Boundary', type: 'spec' });

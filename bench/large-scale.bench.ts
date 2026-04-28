@@ -74,26 +74,48 @@ console.log('Seeding data...');
 
 const seedStart = performance.now();
 
-// Insert cards
+// Insert cards in 4-tier shape: 5% domain (root) → 20% brief (parent=domain) →
+// rest spec (parent=brief|spec). Bypassing validation via direct upsert is fine
+// for a synthetic perf benchmark — the rows still satisfy the FK shape.
+const DOMAIN_COUNT = Math.max(1, Math.floor(CARD_COUNT * 0.05));
+const BRIEF_COUNT = Math.floor(CARD_COUNT * 0.20);
+const SPEC_COUNT = CARD_COUNT - DOMAIN_COUNT - BRIEF_COUNT;
+
 for (let i = 0; i < CARD_COUNT; i++) {
   const key = `card-${String(i).padStart(4, '0')}`;
-  const parentIdx = i > 0 ? Math.floor(Math.random() * i) : null;
-  const parent = parentIdx !== null ? `card-${String(parentIdx).padStart(4, '0')}` : null;
+  let type: 'domain' | 'brief' | 'spec';
+  let parent: string | null;
+  if (i < DOMAIN_COUNT) {
+    type = 'domain';
+    parent = null;
+  } else if (i < DOMAIN_COUNT + BRIEF_COUNT) {
+    type = 'brief';
+    const dIdx = (i - DOMAIN_COUNT) % DOMAIN_COUNT;
+    parent = `card-${String(dIdx).padStart(4, '0')}`;
+  } else {
+    type = 'spec';
+    // parent is a brief or earlier spec
+    const briefStart = DOMAIN_COUNT;
+    const candidatePool = i - briefStart;
+    const pIdx = briefStart + Math.floor(Math.random() * candidatePool);
+    parent = `card-${String(pIdx).padStart(4, '0')}`;
+  }
 
   cardRepo.upsert({
     key,
     summary: `Card ${i} summary`,
     status: i % 10 === 0 ? 'draft' : i % 5 === 0 ? 'drifted' : 'active',
-    type: i % 4 === 0 ? 'brief' : 'spec',
+    type,
     parent,
     boundaryJson: null,
-      namespacesJson: null,
+    namespacesJson: null,
     body: `Body content for card ${i}. This simulates a real card body with contracts and design rationale.`,
     glossaryJson: '[]',
     filePath: `.emberdeck/cards/${key}.card.md`,
     updatedAt: new Date().toISOString(),
   });
 }
+void SPEC_COUNT; // counted for clarity, unused at runtime
 
 // Insert code links
 for (let i = 0; i < CARD_COUNT; i++) {

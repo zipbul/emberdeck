@@ -181,6 +181,23 @@ describe('Structured card flow E2E', () => {
     expect(results.some((r) => r.key === 'searchable')).toBe(true);
   });
 
+  it('FTS5 search finds domain card by overview/scope text', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'searchable-domain',
+      summary: 'd',
+      type: 'domain',
+      status: 'draft',
+      domain: {
+        overview: 'unique-domain-keyword-aurora',
+        scope: 'covers something',
+      },
+    });
+
+    const results = tc.ctx.cardRepo.search('aurora');
+    expect(results.some((r) => r.key === 'searchable-domain')).toBe(true);
+  });
+
   it('bulkSyncCards processes a directory of structured cards', async () => {
     tc = await createTestContext();
     const sub = join(tc.cardsDir, 'group');

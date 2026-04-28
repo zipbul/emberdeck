@@ -4,6 +4,7 @@ import type { BriefBody, CardFrontmatter, CardType, SpecBody } from './types';
 import { validateBriefRefs } from '../brief/validate-refs';
 import { validateSpecRefs } from '../spec/validate-refs';
 import { validatePrincipleCard } from '../principle/validate';
+import { validateDomainCard } from '../domain/validate';
 
 /**
  * Per-field maximum size constants applied by `validateCardInput`.
@@ -395,25 +396,27 @@ export async function validateActivationGuard(
     return;
   }
   if (card.type === 'domain') {
-    if (!card.domain) {
-      throw new ActivationGuardError('Activation conditions not met', [
-        'domain card must have `domain` namespace in frontmatter to activate',
-      ]);
+    // Pure shape validation (no DB) lives in src/domain/validate.ts.
+    try {
+      validateDomainCard({
+        type: 'domain',
+        key: card.key ?? '',
+        summary: '',
+        status: 'draft',
+        domain: card.domain,
+      } as CardFrontmatter);
+    } catch (e) {
+      throw new ActivationGuardError('Activation conditions not met', [(e as Error).message]);
     }
+    // DB-dependent: every cross_domain_dependencies target must exist and be a domain card.
     const unmetD: string[] = [];
-    if (!card.domain.overview?.trim()) unmetD.push('domain.overview must be non-empty to activate');
-    if (!card.domain.scope?.trim()) unmetD.push('domain.scope must be non-empty to activate');
-    // cross_domain_dependencies must reference cards that exist AND are domain type
-    if (card.domain.cross_domain_dependencies) {
+    if (card.domain?.cross_domain_dependencies) {
       for (const dep of card.domain.cross_domain_dependencies) {
         const target = ctx.cardRepo.findByKey(dep.domain);
         if (!target) {
           unmetD.push(`cross_domain_dependencies references unknown card "${dep.domain}"`);
         } else if (target.type !== 'domain') {
           unmetD.push(`cross_domain_dependencies["${dep.domain}"] target is type "${target.type}", expected "domain"`);
-        }
-        if (dep.domain === card.key) {
-          unmetD.push(`cross_domain_dependencies["${dep.domain}"] is a self-reference`);
         }
       }
     }
