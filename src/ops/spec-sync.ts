@@ -919,7 +919,10 @@ export interface SuggestCardScopeOptions {
  * Analyze directory structure and symbols to suggest card creation units.
  *
  * Looks at directories with symbols not covered by existing cards,
- * and suggests brief cards for directories or spec cards for modules.
+ * and suggests cards per 4-tier:
+ *   - single-file scope                  → spec
+ *   - directory + domain ancestor        → brief (parent=domain)
+ *   - directory + no domain ancestor     → domain (new root-level bounded context)
  */
 export async function suggestCardScope(
   ctx: EmberdeckContext,

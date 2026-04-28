@@ -28,7 +28,7 @@ function stripNamespaceText(storedBody: string, fm: CardFrontmatter): string {
 }
 
 /**
- * Serialize the principle/brief/spec namespace blocks from frontmatter for DB storage.
+ * Serialize the principle/domain/brief/spec namespace blocks from frontmatter for DB storage.
  * Returns null when the card has no namespace structures (typical for plain markdown cards).
  */
 function serializeNamespaces(fm: CardFrontmatter): string | null {
@@ -436,7 +436,7 @@ export async function validateCards(
     }
   }
 
-  // Empty tree: brief card with no child specs (skip draft brief).
+  // Empty tree: brief or domain card with no children (skip draft).
   // Pre-build parent → has-children index to avoid full-scan inside the loop
   // (was O(N×M) — N briefs × M total).
   const hasChildren = new Set<string>();

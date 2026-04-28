@@ -2,7 +2,7 @@
  * Generates searchable text from a card's structured frontmatter namespaces.
  *
  * Used to populate the `body` column for FTS5 indexing when the actual markdown
- * body is empty (cards using `principle:` / `brief:` / `spec:` namespace structure).
+ * body is empty (cards using `principle:` / `domain:` / `brief:` / `spec:` namespace structure).
  *
  * Concatenates all human-readable text fields so full-text search returns
  * matches against namespace content, not just summary.
