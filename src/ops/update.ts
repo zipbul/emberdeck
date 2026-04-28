@@ -121,6 +121,12 @@ export async function updateCard(
   if (fields.body !== undefined && fields.bodyPatches !== undefined) {
     throw new CardValidationError('body and bodyPatches are mutually exclusive');
   }
+  // Defense in depth: CLI 'card update' already rejects no-field payloads, but
+  // direct lib callers (and bulk paths) could still pass {} — refuse explicitly
+  // rather than silently doing a wasteful timestamp-only write.
+  if (Object.keys(fields).length === 0) {
+    throw new CardValidationError('updateCard called with no fields — nothing to update');
+  }
   validateCardInput({
     summary: fields.summary,
     body: fields.body,

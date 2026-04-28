@@ -71,12 +71,10 @@ describe('updateCard', () => {
     expect(result.card.frontmatter.key).toBe('upd-shape');
   });
 
-  it('should preserve existing fields when empty fields object is provided', async () => {
+  it('rejects empty fields object — wasteful no-op write', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'upd-nop', summary: 'No change', type: 'spec', body: 'preserved' });
-    const result = await updateCard(tc.ctx, 'upd-nop', {});
-    expect(result.card.frontmatter.summary).toBe('No change');
-    expect(result.card.body).toBe('preserved');
+    await expect(updateCard(tc.ctx, 'upd-nop', {})).rejects.toThrow(/no fields/);
   });
 
   it('should preserve existing body when body field is not in update fields', async () => {
