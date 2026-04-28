@@ -127,16 +127,15 @@ export function preChangeCheck(
     }
   }
 
-  // Detect uncovered files
+  // Detect uncovered files. Single bulk read of code links instead of N
+  // findByCardKey calls — only the file column matters here.
   const coveredFiles = new Set<string>();
+  for (const link of ctx.codeLinkRepo.findAll()) {
+    coveredFiles.add(link.file);
+  }
   for (const card of allCards) {
-    // Files covered by codeLinks
-    const links = ctx.codeLinkRepo.findByCardKey(card.key);
-    for (const link of links) {
-      coveredFiles.add(link.file);
-    }
-    // Files covered by boundary
     const boundary = parseBoundaryJson(card.boundaryJson);
+    if (boundary.length === 0) continue;
     for (const file of files) {
       for (const pattern of boundary) {
         const glob = new Bun.Glob(pattern);

@@ -786,14 +786,11 @@ export async function getUncoveredSymbols(
   // Build set of covered symbol keys: "file:symbol"
   const coveredKeys = new Set<string>();
 
-  // 1. Collect all codeLink-covered symbols
-  const allCards = ctx.cardRepo.list();
-  for (const card of allCards) {
-    const links = ctx.codeLinkRepo.findByCardKey(card.key);
-    for (const link of links) {
-      coveredKeys.add(`${link.file}:${link.symbol}`);
-    }
+  // 1. Collect all codeLink-covered symbols (single bulk read).
+  for (const link of ctx.codeLinkRepo.findAll()) {
+    coveredKeys.add(`${link.file}:${link.symbol}`);
   }
+  const allCards = ctx.cardRepo.list();
 
   // 2. Collect boundary-covered files
   const boundaryFiles = new Set<string>();
