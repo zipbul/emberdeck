@@ -257,6 +257,7 @@ export async function updateCard(
       if (next.status === 'active' && (fields.status === 'active' || prev.status !== 'active' || activationFieldsChanged)) {
         await validateActivationGuard(ctx, {
           type: next.type,
+          parent: next.parent ?? null,
           codeLinks: next.codeLinks,
           boundary: next.boundary,
           principle: next.principle,
@@ -426,6 +427,7 @@ export async function updateCardStatus(
         }
         await validateActivationGuard(ctx, {
           type: current.frontmatter.type,
+          parent: current.frontmatter.parent ?? null,
           codeLinks: current.frontmatter.codeLinks,
           boundary: current.frontmatter.boundary,
           principle: current.frontmatter.principle,

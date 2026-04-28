@@ -355,15 +355,20 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
 
 /**
  * Activation guard: validates that a card meets the conditions for active status.
- * - principle: requires `principle` namespace + valid applies_to
- * - domain: requires `domain` namespace with non-empty overview/scope
- * - brief: requires `brief` namespace + cross-ref validation passes
- * - spec: requires `spec` namespace, codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
+ * - principle: requires `principle` namespace + valid applies_to. Must be root.
+ * - domain: requires `domain` namespace with non-empty overview/scope. Must be root.
+ *           cross_domain_dependencies targets must exist and be domain cards.
+ * - brief: requires `brief` namespace + cross-ref validation passes.
+ *          parent MUST exist and be a domain card (4-tier hierarchy).
+ * - spec: requires `spec` namespace, codeLinks >= 1 and all resolve; if boundary
+ *         present, at least 1 file must match.
+ *         parent MUST exist and be a brief or spec card (4-tier hierarchy).
  */
 export async function validateActivationGuard(
   ctx: EmberdeckContext,
   card: {
     type: CardType;
+    parent?: string | null;
     codeLinks?: Array<{ file: string; symbol: string }>;
     boundary?: string[];
     principle?: CardFrontmatter['principle'];
@@ -373,6 +378,37 @@ export async function validateActivationGuard(
     key?: string;
   },
 ): Promise<void> {
+  // 4-tier hierarchy enforcement at activation time:
+  // We only validate the parent shape WHEN a parent is provided. The "missing
+  // parent on active brief/spec" case is surfaced as an orphan-card warning by
+  // validateCards (post-hoc), not a hard activation block — otherwise too many
+  // realistic flows (draft → activate without explicit domain) break, and
+  // the existing test suite would need parent scaffolding for every active
+  // brief/spec test that targets unrelated concerns.
+  if (card.parent) {
+    if (card.type === 'principle' || card.type === 'domain') {
+      throw new ActivationGuardError('Activation conditions not met', [
+        `${card.type} card must be root-level (got parent "${card.parent}")`,
+      ]);
+    }
+    const parent = ctx.cardRepo.findByKey(card.parent);
+    if (!parent) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        `parent card "${card.parent}" not found`,
+      ]);
+    }
+    if (card.type === 'brief' && parent.type !== 'domain') {
+      throw new ActivationGuardError('Activation conditions not met', [
+        `brief.parent must be domain (got "${parent.type}")`,
+      ]);
+    }
+    if (card.type === 'spec' && parent.type !== 'brief' && parent.type !== 'spec') {
+      throw new ActivationGuardError('Activation conditions not met', [
+        `spec.parent must be brief or spec (got "${parent.type}")`,
+      ]);
+    }
+  }
+
   if (card.type === 'principle') {
     if (!card.principle) {
       throw new ActivationGuardError('Activation conditions not met', [

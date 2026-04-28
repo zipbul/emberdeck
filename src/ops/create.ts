@@ -157,6 +157,7 @@ export async function createCard(
         }
         await validateActivationGuard(ctx, {
           type: input.type,
+          parent: input.parent ?? null,
           codeLinks: input.codeLinks,
           boundary: input.boundary,
           principle: input.principle,

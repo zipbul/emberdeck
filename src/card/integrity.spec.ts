@@ -301,8 +301,29 @@ describe('validateChildrenHierarchy', () => {
 // ── validateActivationGuard ─────────────────────────────────────────────────
 
 describe('validateActivationGuard', () => {
+  it('brief with non-domain parent: rejected (4-tier strict)', async () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'p-spec', type: 'spec', filePath: '/p-spec.card.md' }));
+    try {
+      await validateActivationGuard(ctx, { type: 'brief', parent: 'p-spec' });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/parent must be domain/);
+    }
+  });
+
+  it('principle/domain with parent: rejected (must be root-level)', async () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'any-parent', type: 'domain', filePath: '/ap.card.md' }));
+    try {
+      await validateActivationGuard(ctx, { type: 'principle', parent: 'any-parent', principle: { statement: 's', rationale: 'r', applies_to: '*', enforcement: 'blocking' } });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/root-level/);
+    }
+  });
+
   it('brief type: requires brief namespace to activate', async () => {
-    // brief without namespace MUST be rejected
     try {
       await validateActivationGuard(ctx, { type: 'brief' });
       expect.unreachable('should have thrown');
@@ -376,7 +397,6 @@ describe('validateActivationGuard', () => {
   });
 
   it('spec type with no codeLinks: throws ActivationGuardError', async () => {
-    // Act / Assert
     try {
       await validateActivationGuard(ctx, { type: 'spec', codeLinks: [] });
       expect.unreachable('should have thrown');
@@ -389,7 +409,6 @@ describe('validateActivationGuard', () => {
   });
 
   it('spec type with undefined codeLinks: throws ActivationGuardError', async () => {
-    // codeLinks not provided → treated as empty
     try {
       await validateActivationGuard(ctx, { type: 'spec' });
       expect.unreachable('should have thrown');
@@ -400,7 +419,6 @@ describe('validateActivationGuard', () => {
 
   it('spec type with boundary and no gildash: passes (boundary check skipped)', async () => {
     const { makeTestSpec } = await import('../../test/helpers');
-    // Without gildash, boundary check is skipped — anyMatch defaults to true
     await expect(
       validateActivationGuard(ctx, {
         type: 'spec',
@@ -413,7 +431,6 @@ describe('validateActivationGuard', () => {
 
   it('spec type with codeLinks (gildash=undefined): passes if codeLinks exist', async () => {
     const { makeTestSpec } = await import('../../test/helpers');
-    // Without gildash, symbol resolution is skipped — only count check matters
     await expect(
       validateActivationGuard(ctx, {
         type: 'spec',
@@ -433,6 +450,21 @@ describe('validateActivationGuard', () => {
     } catch (e) {
       expect(e).toBeInstanceOf(ActivationGuardError);
       expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/spec.*namespace/);
+    }
+  });
+
+  it('spec type with non-spec/non-brief parent: rejected', async () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'p-dom', type: 'domain', filePath: '/p-dom.card.md' }));
+    try {
+      await validateActivationGuard(ctx, {
+        type: 'spec',
+        parent: 'p-dom',
+        codeLinks: [{ file: 'src/a.ts', symbol: 'x' }],
+      });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/spec\.parent must be brief or spec/);
     }
   });
 });
