@@ -9,6 +9,11 @@ export type {
   CardFrontmatter,
   CardFile,
   CodeLink,
+  PrincipleBody,
+  DomainBody,
+  DomainCrossDependency,
+  BriefBody,
+  SpecBody,
 } from './src/card/types';
 export { CARD_TYPES, CARD_STATUSES } from './src/card/types';
 export {

@@ -34,12 +34,13 @@ function stripNamespaceText(storedBody: string, fm: CardFrontmatter): string {
 function serializeNamespaces(fm: CardFrontmatter): string | null {
   const ns: Record<string, unknown> = {};
   if (fm.principle) ns.principle = fm.principle;
+  if (fm.domain) ns.domain = fm.domain;
   if (fm.brief) ns.brief = fm.brief;
   if (fm.spec) ns.spec = fm.spec;
   return Object.keys(ns).length === 0 ? null : JSON.stringify(ns);
 }
 
-function parseNamespaces(json: string | null): { principle?: unknown; brief?: unknown; spec?: unknown } {
+function parseNamespaces(json: string | null): { principle?: unknown; domain?: unknown; brief?: unknown; spec?: unknown } {
   if (!json) return {};
   try {
     const parsed = JSON.parse(json);
@@ -356,8 +357,9 @@ export async function validateCards(
   }
 
   for (const row of dbRows) {
-    // Orphan card: parent=null + type is not brief or principle (both can be root-level)
-    if (!row.parent && row.type !== 'brief' && row.type !== 'principle') {
+    // Orphan card: only principle and domain are root-allowed.
+    // brief/spec require a parent (brief → domain, spec → brief|spec).
+    if (!row.parent && row.type !== 'principle' && row.type !== 'domain') {
       warnings.push({
         type: 'orphan-card',
         cardKey: row.key,
@@ -375,28 +377,32 @@ export async function validateCards(
     }
 
     // Type hierarchy violation — mirrors validateParentType (creation-time rule).
-    // brief: parent must be brief
-    // spec:  parent must be brief or spec
-    // principle: parent must be null (caught by orphan-card check above for non-brief/principle)
+    // 4-tier: principle/domain root, brief.parent=domain, spec.parent=brief|spec.
     if (row.parent && cardByKey.has(row.parent)) {
       const parent = cardByKey.get(row.parent)!;
-      if (row.type === 'brief' && parent.type !== 'brief') {
+      if (row.type === 'principle') {
         warnings.push({
           type: 'type-hierarchy-violation',
           cardKey: row.key,
-          message: `Brief card has non-brief parent "${row.parent}" (type: ${parent.type})`,
+          message: `Principle card must be root-level, but has parent "${row.parent}"`,
+        });
+      } else if (row.type === 'domain') {
+        warnings.push({
+          type: 'type-hierarchy-violation',
+          cardKey: row.key,
+          message: `Domain card must be root-level, but has parent "${row.parent}"`,
+        });
+      } else if (row.type === 'brief' && parent.type !== 'domain') {
+        warnings.push({
+          type: 'type-hierarchy-violation',
+          cardKey: row.key,
+          message: `Brief card parent must be domain, got "${row.parent}" (type: ${parent.type})`,
         });
       } else if (row.type === 'spec' && parent.type !== 'brief' && parent.type !== 'spec') {
         warnings.push({
           type: 'type-hierarchy-violation',
           cardKey: row.key,
           message: `Spec card parent must be brief or spec, got "${row.parent}" (type: ${parent.type})`,
-        });
-      } else if (row.type === 'principle') {
-        warnings.push({
-          type: 'type-hierarchy-violation',
-          cardKey: row.key,
-          message: `Principle card must be root-level, but has parent "${row.parent}"`,
         });
       }
     }
@@ -438,11 +444,12 @@ export async function validateCards(
     if (row.parent) hasChildren.add(row.parent);
   }
   for (const row of dbRows) {
-    if (row.type === 'brief' && row.status !== 'draft' && !hasChildren.has(row.key)) {
+    if (row.status === 'draft') continue;
+    if ((row.type === 'brief' || row.type === 'domain') && !hasChildren.has(row.key)) {
       warnings.push({
         type: 'empty-tree',
         cardKey: row.key,
-        message: `Active brief card has no child cards`,
+        message: `Active ${row.type} card has no child cards`,
       });
     }
   }
@@ -640,6 +647,7 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     ...(codeLinks.length ? { codeLinks } : {}),
     ...(glossary && glossary.length > 0 ? { glossary } : {}),
     ...(ns.principle ? { principle: ns.principle as CardFrontmatter['principle'] } : {}),
+    ...(ns.domain ? { domain: ns.domain as CardFrontmatter['domain'] } : {}),
     ...(ns.brief ? { brief: ns.brief as CardFrontmatter['brief'] } : {}),
     ...(ns.spec ? { spec: ns.spec as CardFrontmatter['spec'] } : {}),
   };

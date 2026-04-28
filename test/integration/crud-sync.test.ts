@@ -103,12 +103,12 @@ describe('create', () => {
     expect(result.card.frontmatter.tags).toEqual(['auth', 'token']);
   });
 
-  it('should reject parent type hierarchy violation (spec under brief only)', async () => {
+  it('should reject parent type hierarchy violation (brief.parent must be domain in 4-tier)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'spec-parent', summary: 'Spec parent', type: 'spec' });
     await expect(
       createCard(tc.ctx, { key: 'arch-child', summary: 'Arch child', type: 'brief', parent: 'spec-parent' }),
-    ).rejects.toThrow('brief card parent must be brief');
+    ).rejects.toThrow(/brief card parent must be domain/);
   });
 
   it('should reject non-existent parent', async () => {
@@ -134,13 +134,12 @@ describe('create', () => {
 
   it('should reject circular parent reference', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cycle-a', summary: 'A', type: 'brief' });
-    await createCard(tc.ctx, { key: 'cycle-b', summary: 'B', type: 'brief', parent: 'cycle-a' });
-    // Try to make cycle-a's parent = cycle-b (cycle-b → cycle-a → cycle-b)
+    // Use spec type (the only type that allows recursion) to exercise cycle detection
+    await createCard(tc.ctx, { key: 'cycle-a', summary: 'A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'cycle-b', summary: 'B', type: 'spec', parent: 'cycle-a' });
     await expect(
-      createCard(tc.ctx, { key: 'cycle-c', summary: 'C', type: 'brief', parent: 'cycle-b' }),
+      createCard(tc.ctx, { key: 'cycle-c', summary: 'C', type: 'spec', parent: 'cycle-b' }),
     ).resolves.toBeDefined(); // No cycle — just a chain
-    // Now update cycle-a's parent to cycle-c to create a real cycle
     await expect(
       updateCard(tc.ctx, 'cycle-a', { parent: 'cycle-c' }),
     ).rejects.toThrow('Circular parent reference');
@@ -186,12 +185,13 @@ describe('update', () => {
 
   it('should reject type change that breaks children hierarchy', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'arch-p', summary: 'Arch parent', type: 'brief' });
-    await createCard(tc.ctx, { key: 'arch-c', summary: 'Arch child', type: 'brief', parent: 'arch-p' });
-    // Can't change parent to spec because child is brief
+    // domain → brief children is the only valid root-to-brief shape in 4-tier
+    await createCard(tc.ctx, { key: 'dom-p', summary: 'Domain parent', type: 'domain' });
+    await createCard(tc.ctx, { key: 'arch-c', summary: 'Brief child', type: 'brief', parent: 'dom-p' });
+    // Cannot change parent to spec — spec children must be spec, not brief
     await expect(
-      updateCard(tc.ctx, 'arch-p', { type: 'spec' }),
-    ).rejects.toThrow('Cannot change to spec');
+      updateCard(tc.ctx, 'dom-p', { type: 'spec' }),
+    ).rejects.toThrow(/Cannot change to spec/);
   });
 
   it('should update boundary and record in changelog', async () => {
@@ -575,12 +575,21 @@ describe('validateCards full checks', () => {
     expect(orphan).toBeDefined();
   });
 
-  it('should NOT flag brief card without parent as orphan', async () => {
+  it('flags brief card without parent as orphan (4-tier requires brief.parent=domain)', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'root-arch', summary: 'Root arch', type: 'brief' });
 
     const result = await validateCards(tc.ctx);
     const orphan = result.warnings.find((w) => w.type === 'orphan-card' && w.cardKey === 'root-arch');
+    expect(orphan).toBeDefined();
+  });
+
+  it('does NOT flag domain card without parent as orphan (root-allowed)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'root-domain', summary: 'Root domain', type: 'domain' });
+
+    const result = await validateCards(tc.ctx);
+    const orphan = result.warnings.find((w) => w.type === 'orphan-card' && w.cardKey === 'root-domain');
     expect(orphan).toBeUndefined();
   });
 

@@ -87,14 +87,21 @@ describe('validateParentExists', () => {
 // ── validateParentType ──────────────────────────────────────────────────────
 
 describe('validateParentType', () => {
-  it('brief parent for brief child: OK', () => {
+  it('domain parent for brief child: OK (4-tier — brief.parent must be domain)', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'arch-parent', type: 'brief', filePath: '.emberdeck/cards/arch-parent.card.md' }),
+      makeCard({ key: 'arch-parent', type: 'domain', filePath: '.emberdeck/cards/arch-parent.card.md' }),
     );
 
     // Act / Assert
     expect(() => validateParentType(ctx, 'brief', 'arch-parent')).not.toThrow();
+  });
+
+  it('brief parent for brief child: REJECTED (no brief recursion in 4-tier)', () => {
+    ctx.cardRepo.upsert(
+      makeCard({ key: 'rec-parent', type: 'brief', filePath: '.emberdeck/cards/rec-parent.card.md' }),
+    );
+    expect(() => validateParentType(ctx, 'brief', 'rec-parent')).toThrow(ParentValidationError);
   });
 
   it('spec parent for spec child: OK', () => {

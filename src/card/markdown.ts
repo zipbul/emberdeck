@@ -22,6 +22,7 @@ import type {
   CardStatus,
   CardType,
   CodeLink,
+  DomainBody,
   PrincipleBody,
   PrincipleMetric,
   SpecBindRef,
@@ -480,6 +481,27 @@ function normalizeBinds(value: unknown, field: string): SpecBindRef[] {
   });
 }
 
+function normalizeDomainBody(value: unknown): DomainBody {
+  const o = asObj(value, 'domain');
+  const body: DomainBody = {
+    overview: asString(o.overview, 'domain.overview'),
+    scope: asString(o.scope, 'domain.scope'),
+  };
+  if (o.cross_domain_dependencies != null) {
+    body.cross_domain_dependencies = asArray(
+      o.cross_domain_dependencies,
+      'domain.cross_domain_dependencies',
+    ).map((item) => {
+      const d = asObj(item, 'domain.cross_domain_dependencies[]');
+      return {
+        domain: asString(d.domain, 'domain.cross_domain_dependencies[].domain'),
+        relationship: asString(d.relationship, 'domain.cross_domain_dependencies[].relationship'),
+      };
+    });
+  }
+  return body;
+}
+
 function normalizeSpecBody(value: unknown): SpecBody {
   const o = asObj(value, 'spec');
   const preconditions = asArray(o.preconditions, 'spec.preconditions').map((item): SpecPrecondition => {
@@ -586,6 +608,9 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
   // ── Type-specific structured bodies ──────────────────────────
   if (fm['principle'] != null) {
     out.principle = normalizePrincipleBody(fm['principle']);
+  }
+  if (fm['domain'] != null) {
+    out.domain = normalizeDomainBody(fm['domain']);
   }
   if (fm['brief'] != null) {
     out.brief = normalizeBriefBody(fm['brief']);

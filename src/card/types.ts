@@ -11,15 +11,19 @@ export type CardStatus = 'draft' | 'active' | 'drifted' | 'retired';
 export const CARD_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted', 'retired'];
 
 /**
- * Card type.
+ * Card type — strict 4-tier hierarchy (principle/domain/brief/spec).
  *
- * - `principle` — Project-wide constraint applying across multiple briefs. No code binding.
- * - `brief` — Designable area: why it exists, scope, constraints, policies. No code binding.
- * - `spec` — Behavioral contract bound to code via codeLinks.
+ * - `principle` — Project-wide invariant (cross-cutting). Root-level only, no children.
+ * - `domain`    — Bounded context / large area overview. Root-level only; children must be brief.
+ * - `brief`     — Design topic within a domain (8 sections enforced). Parent MUST be domain (no brief recursion).
+ * - `spec`      — Code contract with codeLinks. Parent must be brief or spec (sub-spec allowed).
+ *
+ * Each type is an abstraction layer; same-level different aspects belong to sections within a card.
+ * Bloat at one level resolves by adding sibling cards (briefs) or sub-spec (spec recursion only).
  */
-export type CardType = 'principle' | 'brief' | 'spec';
+export type CardType = 'principle' | 'domain' | 'brief' | 'spec';
 
-export const CARD_TYPES: ReadonlyArray<CardType> = ['principle', 'brief', 'spec'];
+export const CARD_TYPES: ReadonlyArray<CardType> = ['principle', 'domain', 'brief', 'spec'];
 
 /**
  * A record linking a card to a source code symbol (gildash integration).
@@ -258,6 +262,30 @@ export interface SpecBody {
   state_transitions?: SpecStateTransition[];
 }
 
+// ── Domain body ─────────────────────────────────────────────
+/**
+ * Lightweight namespace for `domain` cards (bounded-context overview).
+ *
+ * Intentionally smaller than brief: a domain just needs to announce what it
+ * covers and which other domains it depends on. Detailed design lives in
+ * brief children of the domain.
+ */
+export interface DomainCrossDependency {
+  /** Sibling domain key this domain depends on. */
+  domain: string;
+  /** One-line description of how the dependency is used (e.g. "consumes events", "shares schema"). */
+  relationship: string;
+}
+
+export interface DomainBody {
+  /** Plain prose: what this domain is, why it exists. */
+  overview: string;
+  /** Plain prose: scope boundaries, what is in vs out. */
+  scope: string;
+  /** Optional: explicit cross-domain dependencies. */
+  cross_domain_dependencies?: DomainCrossDependency[];
+}
+
 // ── CardFrontmatter ───────────────────────────────────────────
 
 /**
@@ -289,6 +317,8 @@ export interface CardFrontmatter {
   // ── Type-specific structured bodies ──────────────────────────
   /** principle namespace (only when type=principle) */
   principle?: PrincipleBody;
+  /** domain namespace (only when type=domain) */
+  domain?: DomainBody;
   /** brief namespace (only when type=brief) */
   brief?: BriefBody;
   /** spec namespace (only when type=spec) */

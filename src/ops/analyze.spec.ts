@@ -77,7 +77,7 @@ describe('getOnboardingSummary', () => {
     const result = await getOnboardingSummary(ctx);
 
     expect(result.totalCards).toBe(0);
-    expect(result.byType).toEqual({ principle: 0, brief: 0, spec: 0 });
+    expect(result.byType).toEqual({ principle: 0, domain: 0, brief: 0, spec: 0 });
     expect(result.byStatus).toEqual({ draft: 0, active: 0, drifted: 0, retired: 0 });
     expect(result.hierarchy).toEqual([]);
     expect(result.coverageRatio).toBeNull();
@@ -105,7 +105,7 @@ describe('getOnboardingSummary', () => {
     const result = await getOnboardingSummary(ctx);
 
     expect(result.totalCards).toBe(3);
-    expect(result.byType).toEqual({ principle: 0, brief: 1, spec: 2 });
+    expect(result.byType).toEqual({ principle: 0, domain: 0, brief: 1, spec: 2 });
   });
 
   it('counts cards by status correctly', async () => {
@@ -287,7 +287,7 @@ describe('getOnboardingSummary', () => {
     const result = await getOnboardingSummary(ctx);
 
     expect(result.totalCards).toBe(4);
-    expect(result.byType).toEqual({ principle: 0, brief: 2, spec: 2 });
+    expect(result.byType).toEqual({ principle: 0, domain: 0, brief: 2, spec: 2 });
     expect(result.byStatus).toEqual({ draft: 1, active: 2, drifted: 1, retired: 0 });
     expect(result.hierarchy).toHaveLength(2); // arch + standalone are roots
     expect(result.relationCount).toBe(1);

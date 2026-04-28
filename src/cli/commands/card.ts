@@ -145,7 +145,7 @@ export function registerCard(program: Command): void {
   card
     .command('list')
     .description('list cards (filterable). --symbol/--glossary subsume find_cards_by_symbol / find_cards_by_glossary_word')
-    .option('--type <type>', 'filter by type (principle|brief|spec)')
+    .option('--type <type>', 'filter by type (principle|domain|brief|spec)')
     .option('--status <status>', 'filter by status (draft|active|drifted|retired)')
     .option('--parent <key>', 'filter by parent card key')
     .option('--tag <tag>', 'filter by tag')
@@ -233,7 +233,7 @@ export function registerCard(program: Command): void {
   card
     .command('create <key>')
     .description('create a new card')
-    .requiredOption('--type <type>', 'card type (principle|brief|spec)')
+    .requiredOption('--type <type>', 'card type (principle|domain|brief|spec)')
     .option('--summary <s>', 'one-line summary')
     .option('--from <file>', 'read frontmatter+body from YAML/JSON file (- for STDIN)')
     .option('--status <status>', 'initial status (default: draft)')

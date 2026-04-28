@@ -27,6 +27,15 @@ export function buildSearchableText(fm: CardFrontmatter): string {
     }
   }
 
+  if (fm.domain) {
+    parts.push(fm.domain.overview, fm.domain.scope);
+    if (fm.domain.cross_domain_dependencies) {
+      for (const d of fm.domain.cross_domain_dependencies) {
+        parts.push(d.domain, d.relationship);
+      }
+    }
+  }
+
   if (fm.brief) {
     const b = fm.brief;
     parts.push(b.context.problem);

@@ -137,9 +137,10 @@ describe('E2E Scenario 1: Onboarding flow', () => {
     expect(apiSuggestion).toBeDefined();
     expect(apiSuggestion!.type).toBe('brief');
 
-    // Step 2: bulkCreateCards with parent relationship
+    // Step 2: bulkCreateCards with 4-tier parent relationship
+    // platform (domain) → api-layer (brief) → db-layer (spec)
     const bulk = await bulkCreateCards(tc.ctx, [
-      { key: 'platform', summary: 'Platform brief', type: 'brief' },
+      { key: 'platform', summary: 'Platform domain', type: 'domain' },
       {
         key: 'api-layer',
         summary: 'API layer',
@@ -151,7 +152,7 @@ describe('E2E Scenario 1: Onboarding flow', () => {
         key: 'db-layer',
         summary: 'DB layer',
         type: 'spec',
-        parent: 'platform',
+        parent: 'api-layer',
         relations: ['api-layer'],
         codeLinks: [{ kind: 'function', file: 'src/db/query.ts', symbol: 'runQuery' }],
       },

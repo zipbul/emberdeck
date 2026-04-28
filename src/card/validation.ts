@@ -70,7 +70,7 @@ export function validateCardInput(input: ValidationInput): void {
     }
     if (!VALID_TYPES.has(type)) {
       throw new CardValidationError(
-        `Invalid card type "${type}" (expected one of: principle, brief, spec)`,
+        `Invalid card type "${type}" (expected one of: ${[...VALID_TYPES].join(', ')})`,
       );
     }
   }
@@ -232,9 +232,11 @@ export function validateParentExists(ctx: EmberdeckContext, parentKey: string): 
 }
 
 /**
- * Validates parent-type hierarchy rules:
- * - brief: parent must be null or brief
- * - spec: parent must be brief or spec
+ * Validates parent-type hierarchy rules (4-tier: principle/domain/brief/spec).
+ * - principle: must be root (no parent allowed)
+ * - domain: must be root (no parent allowed) — bounded contexts are top-level
+ * - brief: parent MUST be domain (no brief recursion; siblings absorb bloat instead)
+ * - spec: parent must be brief or spec (sub-spec recursion allowed)
  */
 export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
   const parent = ctx.cardRepo.findByKey(parentKey);
@@ -247,10 +249,14 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
     throw new ParentValidationError(
       `principle card cannot have a parent (principle is always root-level)`,
     );
+  } else if (cardType === 'domain') {
+    throw new ParentValidationError(
+      `domain card cannot have a parent (domain is always root-level)`,
+    );
   } else if (cardType === 'brief') {
-    if (parentType !== 'brief') {
+    if (parentType !== 'domain') {
       throw new ParentValidationError(
-        `brief card parent must be brief (got "${parentType}")`,
+        `brief card parent must be domain (got "${parentType}"); brief recursion is not allowed`,
       );
     }
   } else if (cardType === 'spec') {
@@ -293,31 +299,63 @@ export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, 
 /**
  * Validates that changing a card's type won't break children's parent-type hierarchy.
  * Mirrors the rules in validateParentType but applied retroactively to existing children.
+ *
+ * Rules (4-tier):
+ * - principle / domain children should be: nothing for principle, brief for domain.
+ * - brief: only spec children allowed.
+ * - spec: only spec children allowed.
  */
 export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string, newType: CardType): void {
   const children = ctx.cardRepo.findChildren(cardKey);
   if (children.length === 0) return;
 
   if (newType === 'principle') {
-    // principle is always root-level → cannot retain any children
     throw new ParentValidationError(
       `Cannot change to principle: card has ${children.length} child card(s); principle must be root-level`,
     );
   }
-  for (const child of children) {
-    const childType = child.type as CardType;
-    if (newType === 'spec' && childType === 'brief') {
-      throw new ParentValidationError(
-        `Cannot change to spec: child "${child.key}" is brief (brief cannot have spec parent)`,
-      );
+  if (newType === 'domain') {
+    // domain accepts brief children only — fail if any child is not brief
+    for (const child of children) {
+      const t = child.type as CardType;
+      if (t !== 'brief') {
+        throw new ParentValidationError(
+          `Cannot change to domain: child "${child.key}" is ${t} (domain children must be brief)`,
+        );
+      }
     }
-    // brief parent is valid for both brief and spec children — nothing to check
+    return;
+  }
+  if (newType === 'brief') {
+    // brief accepts spec children only — fail if any child is brief or domain etc.
+    for (const child of children) {
+      const t = child.type as CardType;
+      if (t !== 'spec') {
+        throw new ParentValidationError(
+          `Cannot change to brief: child "${child.key}" is ${t} (brief children must be spec)`,
+        );
+      }
+    }
+    return;
+  }
+  if (newType === 'spec') {
+    // spec accepts spec children only
+    for (const child of children) {
+      const t = child.type as CardType;
+      if (t !== 'spec') {
+        throw new ParentValidationError(
+          `Cannot change to spec: child "${child.key}" is ${t} (spec children must be spec)`,
+        );
+      }
+    }
+    return;
   }
 }
 
 /**
  * Activation guard: validates that a card meets the conditions for active status.
  * - principle: requires `principle` namespace + valid applies_to
+ * - domain: requires `domain` namespace with non-empty overview/scope
  * - brief: requires `brief` namespace + cross-ref validation passes
  * - spec: requires `spec` namespace, codeLinks >= 1 and all resolve; if boundary present, at least 1 file must match
  */
@@ -328,6 +366,7 @@ export async function validateActivationGuard(
     codeLinks?: Array<{ file: string; symbol: string }>;
     boundary?: string[];
     principle?: CardFrontmatter['principle'];
+    domain?: CardFrontmatter['domain'];
     brief?: BriefBody;
     spec?: SpecBody;
     key?: string;
@@ -352,6 +391,19 @@ export async function validateActivationGuard(
         'Activation conditions not met',
         [(e as Error).message],
       );
+    }
+    return;
+  }
+  if (card.type === 'domain') {
+    if (!card.domain) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        'domain card must have `domain` namespace in frontmatter to activate',
+      ]);
+    }
+    if (!card.domain.overview?.trim() || !card.domain.scope?.trim()) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        'domain.overview and domain.scope must be non-empty to activate',
+      ]);
     }
     return;
   }

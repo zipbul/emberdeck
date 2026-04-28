@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { BriefBody, CardFile, CodeLink, CardType, CardStatus, PrincipleBody, SpecBody } from '../card/types';
+import type { BriefBody, CardFile, CodeLink, CardType, CardStatus, DomainBody, PrincipleBody, SpecBody } from '../card/types';
 import { buildSearchableText } from '../card/searchable-text';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
@@ -55,6 +55,8 @@ export interface CreateCardInput {
   glossary?: string[];
   /** principle namespace (only when type=principle). */
   principle?: PrincipleBody;
+  /** domain namespace (only when type=domain). */
+  domain?: DomainBody;
   /** brief namespace (only when type=brief). */
   brief?: BriefBody;
   /** spec namespace (only when type=spec). */
@@ -158,6 +160,7 @@ export async function createCard(
           codeLinks: input.codeLinks,
           boundary: input.boundary,
           principle: input.principle,
+          domain: input.domain,
           brief: input.brief,
           spec: input.spec,
           key: fullKey,
@@ -176,6 +179,7 @@ export async function createCard(
         ...(input.codeLinks && input.codeLinks.length > 0 ? { codeLinks: input.codeLinks } : {}),
         ...(input.glossary && input.glossary.length > 0 ? { glossary: input.glossary } : {}),
         ...(input.principle ? { principle: input.principle } : {}),
+        ...(input.domain ? { domain: input.domain } : {}),
         ...(input.brief ? { brief: input.brief } : {}),
         ...(input.spec ? { spec: input.spec } : {}),
       };
@@ -211,6 +215,7 @@ export async function createCard(
               namespacesJson: (() => {
                 const ns: Record<string, unknown> = {};
                 if (frontmatter.principle) ns.principle = frontmatter.principle;
+                if (frontmatter.domain) ns.domain = frontmatter.domain;
                 if (frontmatter.brief) ns.brief = frontmatter.brief;
                 if (frontmatter.spec) ns.spec = frontmatter.spec;
                 return Object.keys(ns).length === 0 ? null : JSON.stringify(ns);

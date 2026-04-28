@@ -6,6 +6,7 @@ import type {
   CardStatus,
   CardType,
   CodeLink,
+  DomainBody,
   PrincipleBody,
   SpecBody,
 } from '../card/types';
@@ -79,6 +80,8 @@ export interface UpdateCardFields {
   glossary?: string[];
   /** principle namespace (only when type=principle). null deletes. */
   principle?: PrincipleBody | null;
+  /** domain namespace (only when type=domain). null deletes. */
+  domain?: DomainBody | null;
   /** brief namespace (only when type=brief). null deletes. */
   brief?: BriefBody | null;
   /** spec namespace (only when type=spec). null deletes. */
@@ -195,6 +198,10 @@ export async function updateCard(
         if (fields.principle === null) delete next.principle;
         else next.principle = fields.principle;
       }
+      if (fields.domain !== undefined) {
+        if (fields.domain === null) delete next.domain;
+        else next.domain = fields.domain;
+      }
       if (fields.brief !== undefined) {
         if (fields.brief === null) delete next.brief;
         else next.brief = fields.brief;
@@ -253,6 +260,7 @@ export async function updateCard(
           codeLinks: next.codeLinks,
           boundary: next.boundary,
           principle: next.principle,
+          domain: next.domain,
           brief: next.brief,
           spec: next.spec,
           key,
@@ -309,6 +317,7 @@ export async function updateCard(
               namespacesJson: (() => {
                 const nsObj: Record<string, unknown> = {};
                 if (next.principle) nsObj.principle = next.principle;
+                if (next.domain) nsObj.domain = next.domain;
                 if (next.brief) nsObj.brief = next.brief;
                 if (next.spec) nsObj.spec = next.spec;
                 return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
@@ -420,6 +429,7 @@ export async function updateCardStatus(
           codeLinks: current.frontmatter.codeLinks,
           boundary: current.frontmatter.boundary,
           principle: current.frontmatter.principle,
+          domain: current.frontmatter.domain,
           brief: current.frontmatter.brief,
           spec: current.frontmatter.spec,
           key,
@@ -457,6 +467,7 @@ export async function updateCardStatus(
                   namespacesJson: (() => {
                     const nsObj: Record<string, unknown> = {};
                     if (current.frontmatter.principle) nsObj.principle = current.frontmatter.principle;
+                    if (current.frontmatter.domain) nsObj.domain = current.frontmatter.domain;
                     if (current.frontmatter.brief) nsObj.brief = current.frontmatter.brief;
                     if (current.frontmatter.spec) nsObj.spec = current.frontmatter.spec;
                     return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
