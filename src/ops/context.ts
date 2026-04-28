@@ -432,7 +432,10 @@ export function checkInteractions(
       const keyA = keys[i]!;
       const keyB = keys[j]!;
 
-      // Find shared symbols
+      // Find shared symbols. Dedup by (file,symbol) — UNIQUE allows the same
+      // pair across multiple kinds on a single card, which would otherwise
+      // emit duplicate SharedSymbol entries.
+      const sharedSymbolKeys = new Set<string>();
       const sharedSymbols: SharedSymbol[] = [];
       const linksA = linkMap.get(keyA) ?? new Map();
       const linksB = linkMap.get(keyB) ?? new Map();
@@ -440,12 +443,13 @@ export function checkInteractions(
       for (const [file, aLinks] of linksA) {
         const bLinks = linksB.get(file);
         if (!bLinks) continue;
+        const bSymbols = new Set(bLinks.map((l: CodeLinkRow) => l.symbol));
         for (const aLink of aLinks) {
-          for (const bLink of bLinks) {
-            if (aLink.symbol === bLink.symbol) {
-              sharedSymbols.push({ file, symbol: aLink.symbol });
-            }
-          }
+          if (!bSymbols.has(aLink.symbol)) continue;
+          const k = `${file}\0${aLink.symbol}`;
+          if (sharedSymbolKeys.has(k)) continue;
+          sharedSymbolKeys.add(k);
+          sharedSymbols.push({ file, symbol: aLink.symbol });
         }
       }
 
