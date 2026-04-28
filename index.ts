@@ -22,6 +22,7 @@ export {
   BoundaryValidationError,
   GildashNotConfiguredError,
   CompensationError,
+  FtsSyntaxError,
 } from './src/card/errors';
 export { SystemLockTimeoutError } from './src/glossary/system-lock';
 

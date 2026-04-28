@@ -14,6 +14,7 @@ import {
   BoundaryValidationError,
   GildashNotConfiguredError,
   CompensationError,
+  FtsSyntaxError,
 } from '../card/errors';
 import { GlossaryParseError, GlossaryValidationError } from '../glossary/io';
 import { SystemLockTimeoutError } from '../glossary/system-lock';
@@ -25,6 +26,9 @@ export { CliUsageError };
 export function toCliError(e: unknown): CliMessage {
   if (e instanceof CliUsageError) {
     return { code: 'CLI_USAGE_ERROR', message: e.message };
+  }
+  if (e instanceof FtsSyntaxError) {
+    return { code: 'FTS_SYNTAX_ERROR', message: e.message };
   }
   if (e instanceof CardNotFoundError) {
     return { code: 'CARD_NOT_FOUND', message: e.message };

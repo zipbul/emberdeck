@@ -160,7 +160,8 @@ export function statusToExitCode(
         code === 'ACTIVATION_GUARD_FAILED' ||
         code === 'GLOSSARY_PARSE_ERROR' ||
         code === 'GLOSSARY_VALIDATION_ERROR' ||
-        code === 'CLI_USAGE_ERROR'
+        code === 'CLI_USAGE_ERROR' ||
+        code === 'FTS_SYNTAX_ERROR'
       ) {
         return EXIT.VALIDATION_FAILURE;
       }

@@ -97,6 +97,18 @@ export class GildashNotConfiguredError extends Error {
  * so both should be logged. This state risks database-filesystem inconsistency and may
  * require manual inspection.
  */
+/**
+ * Thrown when a card_fts MATCH query is malformed (unbalanced quotes, unknown
+ * special syntax, etc.). Distinct from internal errors so the CLI can surface
+ * a clean usage message instead of a generic failure.
+ */
+export class FtsSyntaxError extends Error {
+  constructor(query: string, original: string) {
+    super(`invalid FTS5 search syntax in query "${query}": ${original}`);
+    this.name = 'FtsSyntaxError';
+  }
+}
+
 export class CompensationError extends Error {
   constructor(
     public readonly originalError: unknown,

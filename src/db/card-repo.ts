@@ -2,6 +2,7 @@ import { eq, and, desc, isNull, gte } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
 import type { CardRepository, CardRow, CardListFilter } from './repository';
+import { FtsSyntaxError } from '../card/errors';
 import { card } from './schema';
 
 const MAX_ANCESTOR_DEPTH = 20;
@@ -118,7 +119,9 @@ export class DrizzleCardRepository implements CardRepository {
         )
         .all(query) as CardRow[];
     } catch (e) {
-      // FTS5 syntax errors (malformed queries) → return empty results
+      // FTS5 syntax errors → throw FtsSyntaxError so CLI shows a usage-style
+      // message instead of silently returning [] (which previously masked
+      // user typos like unmatched quotes).
       if (
         e instanceof Error &&
         (e.message.includes('fts5') ||
@@ -126,7 +129,7 @@ export class DrizzleCardRepository implements CardRepository {
           e.message.includes('unknown special query') ||
           e.message.includes('parse error'))
       ) {
-        return [];
+        throw new FtsSyntaxError(query, e.message);
       }
       throw e;
     }
