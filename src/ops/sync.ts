@@ -430,17 +430,20 @@ export async function validateCards(
     }
   }
 
-  // Empty tree: brief card with no child specs (skip draft brief)
+  // Empty tree: brief card with no child specs (skip draft brief).
+  // Pre-build parent → has-children index to avoid full-scan inside the loop
+  // (was O(N×M) — N briefs × M total).
+  const hasChildren = new Set<string>();
   for (const row of dbRows) {
-    if (row.type === 'brief' && row.status !== 'draft') {
-      const children = dbRows.filter((r) => r.parent === row.key);
-      if (children.length === 0) {
-        warnings.push({
-          type: 'empty-tree',
-          cardKey: row.key,
-          message: `Active brief card has no child cards`,
-        });
-      }
+    if (row.parent) hasChildren.add(row.parent);
+  }
+  for (const row of dbRows) {
+    if (row.type === 'brief' && row.status !== 'draft' && !hasChildren.has(row.key)) {
+      warnings.push({
+        type: 'empty-tree',
+        cardKey: row.key,
+        message: `Active brief card has no child cards`,
+      });
     }
   }
 
