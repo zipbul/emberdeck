@@ -32,6 +32,7 @@ import type {
   SpecPrecondition,
   SpecStateTransition,
 } from './types';
+import { CARD_TYPES } from './types';
 import { CardValidationError } from './errors';
 
 function normalizeNewlines(text: string): string {
@@ -97,11 +98,9 @@ function normalizeCodeLinks(value: unknown): CodeLink[] | undefined {
   });
 }
 
-const VALID_CARD_TYPES = ['principle', 'brief', 'spec'];
-
 function normalizeCardType(value: unknown): CardType {
-  if (typeof value !== 'string' || !VALID_CARD_TYPES.includes(value)) {
-    throw new CardValidationError(`Invalid frontmatter field: type (expected one of: ${VALID_CARD_TYPES.join(', ')})`);
+  if (typeof value !== 'string' || !CARD_TYPES.includes(value as CardType)) {
+    throw new CardValidationError(`Invalid frontmatter field: type (expected one of: ${CARD_TYPES.join(', ')})`);
   }
   return value as CardType;
 }

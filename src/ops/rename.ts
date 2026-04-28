@@ -76,19 +76,18 @@ export async function renameCard(
         const referencingCards: Array<{ key: string; filePath: string }> = [];
         const bodyReferencesFound: string[] = [];
 
+        // Bulk-resolve cards that have a forward relation pointing to oldKey
+        // (one query instead of N findByCardKey calls).
+        const forwardRefSrcKeys = new Set<string>();
+        for (const rel of ctx.relationRepo.findAll()) {
+          if (!rel.isReverse && rel.dstCardKey === oldKey && rel.srcCardKey !== oldKey) {
+            forwardRefSrcKeys.add(rel.srcCardKey);
+          }
+        }
+
         for (const row of allCards) {
           if (row.key === oldKey) continue;
-
-          // Check parent
-          if (row.parent === oldKey) {
-            referencingCards.push({ key: row.key, filePath: row.filePath });
-            continue;
-          }
-
-          // Check relations
-          const relations = ctx.relationRepo.findByCardKey(row.key);
-          const hasRelation = relations.some((r) => !r.isReverse && r.dstCardKey === oldKey);
-          if (hasRelation) {
+          if (row.parent === oldKey || forwardRefSrcKeys.has(row.key)) {
             referencingCards.push({ key: row.key, filePath: row.filePath });
           }
         }

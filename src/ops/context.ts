@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { CodeLinkRow } from '../db/repository';
+import type { CodeLinkRow, RelationRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { getRelationGraph } from './query';
 import { readCardFile } from '../fs/reader';
@@ -398,6 +398,13 @@ export function checkInteractions(
     linkMap.set(key, fileMap);
   }
 
+  // Pre-fetch relations once per key — inner pair loop hit findByCardKey
+  // O(N²/2) times for the same key set.
+  const relationsByKey = new Map<string, RelationRow[]>();
+  for (const key of keys) {
+    relationsByKey.set(key, ctx.relationRepo.findByCardKey(key));
+  }
+
   // Build file sets for import dependency detection (codeLink files + boundary files)
   const cardFilesSets = new Map<string, Set<string>>();
   for (const key of keys) {
@@ -442,8 +449,8 @@ export function checkInteractions(
         }
       }
 
-      // Find existing relation between this pair
-      const relationsA = ctx.relationRepo.findByCardKey(keyA);
+      // Find existing relation between this pair (use prefetched map)
+      const relationsA = relationsByKey.get(keyA) ?? [];
       const directRelation = relationsA.find(
         (r) => !r.isReverse && r.dstCardKey === keyB,
       );
