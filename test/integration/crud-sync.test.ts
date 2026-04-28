@@ -651,6 +651,22 @@ describe('validateCards full checks', () => {
     expect(empty).toBeUndefined();
   });
 
+  it('should detect empty tree (active domain with no children)', async () => {
+    tc = await createTestContext();
+    // Activate a standalone domain with no brief children → empty-tree
+    await createCard(tc.ctx, {
+      key: 'empty-dom',
+      summary: 'Empty domain',
+      type: 'domain',
+      status: 'active',
+      domain: { overview: 'over', scope: 'sc' },
+    });
+
+    const result = await validateCards(tc.ctx);
+    const empty = result.warnings.find((w) => w.type === 'empty-tree' && w.cardKey === 'empty-dom');
+    expect(empty).toBeDefined();
+  });
+
   it('should detect boundary overlap between non-parent-child cards', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'bnd-a', summary: 'A', type: 'spec', boundary: ['src/auth/**'] });
