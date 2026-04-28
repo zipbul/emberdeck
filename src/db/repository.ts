@@ -93,6 +93,8 @@ export interface CodeLinkRepository {
   /** Replace all codeLink entries for a card. */
   replaceForCard(cardKey: string, links: import('../card/types').CodeLink[]): void;
   findByCardKey(cardKey: string): CodeLinkRow[];
+  /** Bulk read — every row. Used to defeat N+1 in spec-sync / suggestCardScope. */
+  findAll(): CodeLinkRow[];
   /** Look up by symbol name. If filePath is specified, filter to that file. */
   findBySymbol(symbolName: string, filePath?: string): CodeLinkRow[];
   /** Find all code links referencing a specific file path. */

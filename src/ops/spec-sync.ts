@@ -103,16 +103,13 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
     linkMissing.push({ cardKey, file: ann.filePath, symbol: ann.symbolName });
   }
 
-  // Detect marker-missing: code links that have no @spec annotation
+  // Detect marker-missing: code links that have no @spec annotation.
+  // Single findAll() instead of N findByCardKey() (was N+1 across cards).
   const markerMissing: SpecSyncResult['markerMissing'] = [];
-  const allCards = ctx.cardRepo.list();
-  for (const card of allCards) {
-    const links = ctx.codeLinkRepo.findByCardKey(card.key);
-    for (const link of links) {
-      const annotKey = `${card.key}:${link.file}:${link.symbol}`;
-      if (!annotationKeys.has(annotKey)) {
-        markerMissing.push({ cardKey: card.key, file: link.file, symbol: link.symbol });
-      }
+  for (const link of ctx.codeLinkRepo.findAll()) {
+    const annotKey = `${link.cardKey}:${link.file}:${link.symbol}`;
+    if (!annotationKeys.has(annotKey)) {
+      markerMissing.push({ cardKey: link.cardKey, file: link.file, symbol: link.symbol });
     }
   }
 
@@ -189,12 +186,10 @@ export async function writeSpecAnnotations(
       desiredEntries.push({ cardKey, file: link.file, symbol: link.symbol });
     }
   } else {
-    const allCards = ctx.cardRepo.list();
-    for (const card of allCards) {
-      const links = ctx.codeLinkRepo.findByCardKey(card.key);
-      for (const link of links) {
-        desiredEntries.push({ cardKey: card.key, file: link.file, symbol: link.symbol });
-      }
+    // Single findAll() instead of N findByCardKey() — for projects with many
+    // cards this was the dominant cost in `spec annotate`.
+    for (const link of ctx.codeLinkRepo.findAll()) {
+      desiredEntries.push({ cardKey: link.cardKey, file: link.file, symbol: link.symbol });
     }
   }
 

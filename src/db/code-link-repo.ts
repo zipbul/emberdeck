@@ -45,6 +45,10 @@ export class DrizzleCodeLinkRepository implements CodeLinkRepository {
       .all() as CodeLinkRow[];
   }
 
+  findAll(): CodeLinkRow[] {
+    return this.db.select().from(codeLink).all() as CodeLinkRow[];
+  }
+
   findBySymbol(symbolName: string, filePath?: string): CodeLinkRow[] {
     if (filePath !== undefined) {
       return this.db
