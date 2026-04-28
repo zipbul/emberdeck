@@ -70,6 +70,8 @@ export interface RelationRepository {
   /** Replace all relations for a card. Automatically handles bidirectional isReverse entries. Returns keys of targets that failed (FK violation). */
   replaceForCard(cardKey: string, relations: string[]): string[];
   findByCardKey(cardKey: string): RelationRow[];
+  /** Bulk read — returns every row in the relation table. Used to avoid N+1 in validateCards. */
+  findAll(): RelationRow[];
   deleteByCardKey(cardKey: string): void;
 }
 

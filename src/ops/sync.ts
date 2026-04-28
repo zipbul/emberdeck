@@ -1,7 +1,7 @@
 import { relative } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { CardRow } from '../db/repository';
+import type { CardRow, RelationRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
@@ -347,6 +347,14 @@ export async function validateCards(
     cardByKey.set(row.key, row);
   }
 
+  // Pre-load all relations once to defeat the N+1 findByCardKey loop below.
+  const relationsBySrc = new Map<string, RelationRow[]>();
+  for (const rel of ctx.relationRepo.findAll()) {
+    const list = relationsBySrc.get(rel.srcCardKey) ?? [];
+    list.push(rel);
+    relationsBySrc.set(rel.srcCardKey, list);
+  }
+
   for (const row of dbRows) {
     // Orphan card: parent=null + type is not brief or principle (both can be root-level)
     if (!row.parent && row.type !== 'brief' && row.type !== 'principle') {
@@ -394,7 +402,7 @@ export async function validateCards(
     }
 
     // Broken relation: relation target does not exist
-    const relations = ctx.relationRepo.findByCardKey(row.key);
+    const relations = relationsBySrc.get(row.key) ?? [];
     for (const rel of relations) {
       if (!rel.isReverse && !cardByKey.has(rel.dstCardKey)) {
         warnings.push({

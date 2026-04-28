@@ -59,6 +59,10 @@ export class DrizzleRelationRepository implements RelationRepository {
       .all() as RelationRow[];
   }
 
+  findAll(): RelationRow[] {
+    return this.db.select().from(cardRelation).all() as RelationRow[];
+  }
+
   deleteByCardKey(cardKey: string): void {
     this.db.delete(cardRelation).where(eq(cardRelation.srcCardKey, cardKey)).run();
     this.db.delete(cardRelation).where(eq(cardRelation.dstCardKey, cardKey)).run();
