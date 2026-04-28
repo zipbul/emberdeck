@@ -130,12 +130,13 @@ describe('E2E Scenario 1: Onboarding flow', () => {
       ],
     });
 
-    // Step 1: suggestCardScope → brief/spec suggestions
+    // Step 1: suggestCardScope → 4-tier domain/brief/spec suggestions
+    // Fresh project (no existing cards) → multi-file directory suggested as domain.
     const suggestions = await suggestCardScope(tc.ctx);
     expect(suggestions.length).toBeGreaterThanOrEqual(1);
     const apiSuggestion = suggestions.find((s) => s.suggestedKey === 'src/api');
     expect(apiSuggestion).toBeDefined();
-    expect(apiSuggestion!.type).toBe('brief');
+    expect(apiSuggestion!.type).toBe('domain');
 
     // Step 2: bulkCreateCards with 4-tier parent relationship
     // platform (domain) → api-layer (brief) → db-layer (spec)

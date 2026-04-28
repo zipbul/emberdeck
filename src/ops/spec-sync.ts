@@ -1,5 +1,5 @@
 import type { EmberdeckContext } from '../config';
-import type { CodeLink } from '../card/types';
+import type { CodeLink, CardType } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
 import { ensureReindexed } from './link';
 import { parseBoundaryJson } from '../card/json-fields';
@@ -900,7 +900,7 @@ export async function getUncoveredSymbols(
 
 export interface CardSuggestion {
   suggestedKey: string;
-  type: 'brief' | 'spec';
+  type: 'domain' | 'brief' | 'spec';
   parent?: string;
   files: string[];
   boundary: string[];
@@ -963,6 +963,9 @@ export async function suggestCardScope(
   // Cache card list (single query)
   const allCards = ctx.cardRepo.list();
   const existingKeys = new Set(allCards.map((c) => c.key));
+  const existingTypeByKey = new Map<string, CardType>(
+    allCards.map((c) => [c.key, c.type as CardType]),
+  );
 
   // Build existing boundary globs for overlap check
   const existingBoundaryGlobs: Bun.Glob[] = [];
@@ -1002,17 +1005,33 @@ export async function suggestCardScope(
     // Collect unique files in this directory
     const files = [...new Set(symbols.map((s) => s.file))];
 
-    // Determine type: directory-level = brief, single-file/module = spec
-    const isBrief = files.length > 1;
-
-    // Find parent suggestion: nearest ancestor directory with a card
+    // Find parent suggestion + its type: nearest ancestor directory with a card
     let parent: string | undefined;
+    let parentType: CardType | undefined;
     for (let i = keyParts.length - 1; i >= 1; i--) {
       const ancestorKey = keyParts.slice(0, i).join('/');
       if (existingKeys.has(ancestorKey)) {
         parent = ancestorKey;
+        parentType = existingTypeByKey.get(ancestorKey);
         break;
       }
+    }
+
+    // Determine type per 4-tier rules:
+    //   - single-file scope                 → spec  (parent must be brief or spec)
+    //   - directory scope, has domain parent → brief (brief.parent = domain)
+    //   - directory scope, no card ancestor  → domain (root-level new bounded context)
+    //   - directory scope, non-domain ancestor → still suggest domain at this dir
+    //     (the existing brief/spec ancestor isn't a valid domain parent)
+    let suggestedType: 'domain' | 'brief' | 'spec';
+    if (files.length === 1) {
+      suggestedType = 'spec';
+    } else if (parentType === 'domain') {
+      suggestedType = 'brief';
+    } else {
+      suggestedType = 'domain';
+      // domain is root-level; clear any non-domain inferred parent
+      parent = undefined;
     }
 
     // Match glossary words against symbol names and file paths in this scope
@@ -1024,14 +1043,17 @@ export async function suggestCardScope(
 
     suggestions.push({
       suggestedKey,
-      type: isBrief ? 'brief' : 'spec',
+      type: suggestedType,
       ...(parent ? { parent } : {}),
       files,
       boundary: [dir + '/**'],
       symbols: symbols.map((s) => ({ file: s.file, symbol: s.symbol, kind: s.kind })),
-      reason: isBrief
-        ? `Directory ${dir} has ${symbols.length} uncovered symbols across ${files.length} files`
-        : `Module ${files[0]} has ${symbols.length} uncovered symbols`,
+      reason:
+        suggestedType === 'spec'
+          ? `Module ${files[0]} has ${symbols.length} uncovered symbols`
+          : suggestedType === 'brief'
+            ? `Directory ${dir} has ${symbols.length} uncovered symbols across ${files.length} files (parent domain: ${parent})`
+            : `Top-level directory ${dir} has ${symbols.length} uncovered symbols across ${files.length} files (suggest as new domain)`,
       ...(matchedGlossary.size > 0 ? { suggestedGlossary: [...matchedGlossary] } : {}),
     });
   }

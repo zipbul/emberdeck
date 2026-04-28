@@ -295,8 +295,30 @@ describe('suggestCardScope', () => {
     expect(suggestions.length).toBeGreaterThanOrEqual(1);
     const apiSuggestion = suggestions.find((s) => s.suggestedKey === 'src/api');
     expect(apiSuggestion).toBeDefined();
-    expect(apiSuggestion!.type).toBe('brief');
+    // 4-tier: with no domain ancestor, multi-file directory becomes a domain suggestion.
+    expect(apiSuggestion!.type).toBe('domain');
     expect(apiSuggestion!.files).toHaveLength(2);
+  });
+
+  it('suggests brief card when domain ancestor exists (4-tier)', async () => {
+    tc = await createTestContext();
+    tc.ctx.projectRoot = '/project';
+    // Create domain at src/api so a child directory under it gets a brief suggestion
+    await createCard(tc.ctx, { key: 'src/api', summary: 'API domain', type: 'domain' });
+    tc.ctx.gildash = createMockGildash({
+      '/project/src/api/v1/routes.ts': [
+        { name: 'getUsers', kind: 'function', isExported: true },
+      ],
+      '/project/src/api/v1/handler.ts': [
+        { name: 'handleRequest', kind: 'function', isExported: true },
+      ],
+    });
+
+    const suggestions = await suggestCardScope(tc.ctx);
+    const v1Suggestion = suggestions.find((s) => s.suggestedKey === 'src/api/v1');
+    expect(v1Suggestion).toBeDefined();
+    expect(v1Suggestion!.type).toBe('brief');
+    expect(v1Suggestion!.parent).toBe('src/api');
   });
 
   it('suggests spec card for single-file directory', async () => {

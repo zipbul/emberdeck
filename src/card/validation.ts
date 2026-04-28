@@ -400,10 +400,25 @@ export async function validateActivationGuard(
         'domain card must have `domain` namespace in frontmatter to activate',
       ]);
     }
-    if (!card.domain.overview?.trim() || !card.domain.scope?.trim()) {
-      throw new ActivationGuardError('Activation conditions not met', [
-        'domain.overview and domain.scope must be non-empty to activate',
-      ]);
+    const unmetD: string[] = [];
+    if (!card.domain.overview?.trim()) unmetD.push('domain.overview must be non-empty to activate');
+    if (!card.domain.scope?.trim()) unmetD.push('domain.scope must be non-empty to activate');
+    // cross_domain_dependencies must reference cards that exist AND are domain type
+    if (card.domain.cross_domain_dependencies) {
+      for (const dep of card.domain.cross_domain_dependencies) {
+        const target = ctx.cardRepo.findByKey(dep.domain);
+        if (!target) {
+          unmetD.push(`cross_domain_dependencies references unknown card "${dep.domain}"`);
+        } else if (target.type !== 'domain') {
+          unmetD.push(`cross_domain_dependencies["${dep.domain}"] target is type "${target.type}", expected "domain"`);
+        }
+        if (dep.domain === card.key) {
+          unmetD.push(`cross_domain_dependencies["${dep.domain}"] is a self-reference`);
+        }
+      }
+    }
+    if (unmetD.length > 0) {
+      throw new ActivationGuardError('Activation conditions not met', unmetD);
     }
     return;
   }

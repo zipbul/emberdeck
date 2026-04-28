@@ -312,6 +312,62 @@ describe('validateActivationGuard', () => {
     }
   });
 
+  it('domain type with no namespace: throws ActivationGuardError', async () => {
+    try {
+      await validateActivationGuard(ctx, { type: 'domain' });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+      expect((e as ActivationGuardError).unmetConditions[0]).toMatch(/domain.*namespace/);
+    }
+  });
+
+  it('domain type with empty overview/scope: throws', async () => {
+    try {
+      await validateActivationGuard(ctx, {
+        type: 'domain',
+        domain: { overview: '', scope: 'something' },
+      });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+    }
+  });
+
+  it('domain type with cross_domain_dependencies pointing at non-domain: throws', async () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'not-a-domain', type: 'spec', filePath: '/n.card.md' }));
+    try {
+      await validateActivationGuard(ctx, {
+        type: 'domain',
+        key: 'd',
+        domain: {
+          overview: 'o',
+          scope: 's',
+          cross_domain_dependencies: [{ domain: 'not-a-domain', relationship: 'r' }],
+        },
+      });
+      expect.unreachable('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ActivationGuardError);
+      expect((e as ActivationGuardError).unmetConditions.some((m) => m.includes('not-a-domain'))).toBe(true);
+    }
+  });
+
+  it('domain type with valid namespace + valid cross-deps: passes', async () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'sibling-dom', type: 'domain', filePath: '/sd.card.md' }));
+    await expect(
+      validateActivationGuard(ctx, {
+        type: 'domain',
+        key: 'self-dom',
+        domain: {
+          overview: 'over',
+          scope: 'sc',
+          cross_domain_dependencies: [{ domain: 'sibling-dom', relationship: 'r' }],
+        },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it('brief type with valid namespace: passes', async () => {
     const { makeTestBrief } = await import('../../test/helpers');
     await expect(

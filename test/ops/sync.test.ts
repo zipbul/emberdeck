@@ -534,6 +534,36 @@ describe('exportCardToFile', () => {
     expect(parsed.body.trim()).toBe(userBody);
   });
 
+  it('round-trips a domain card (namespacesJson preserves overview/scope/cross_domain_dependencies)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'platform-a', summary: 'Domain A', type: 'domain' });
+    await createCard(tc.ctx, {
+      key: 'platform-b',
+      summary: 'Domain B',
+      type: 'domain',
+      domain: {
+        overview: 'B overview',
+        scope: 'B scope',
+        cross_domain_dependencies: [
+          { domain: 'platform-a', relationship: 'consumes events from A' },
+        ],
+      },
+    });
+    const path1 = await exportCardToFile(tc.ctx, 'platform-b');
+    const text1 = await Bun.file(path1).text();
+    await syncCardFromFile(tc.ctx, path1);
+    const path2 = await exportCardToFile(tc.ctx, 'platform-b');
+    const text2 = await Bun.file(path2).text();
+    expect(text2).toBe(text1);
+    const parsed = parseCardMarkdown(text1);
+    expect(parsed.frontmatter.type).toBe('domain');
+    expect(parsed.frontmatter.domain).toBeDefined();
+    expect(parsed.frontmatter.domain!.overview).toBe('B overview');
+    expect(parsed.frontmatter.domain!.scope).toBe('B scope');
+    expect(parsed.frontmatter.domain!.cross_domain_dependencies).toHaveLength(1);
+    expect(parsed.frontmatter.domain!.cross_domain_dependencies![0]!.domain).toBe('platform-a');
+  });
+
   it('should throw CardKeyError when the key format is invalid', async () => {
     tc = await createTestContext();
     expect(() => exportCardToFile(tc.ctx, '!!bad key!!')).toThrow(CardKeyError);
