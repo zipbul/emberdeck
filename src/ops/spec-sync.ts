@@ -50,57 +50,73 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
     }
   }
 
+  // Group annotations by cardKey so we can do a single replaceForCard per card.
+  // Previously N annotations against the same card triggered N replaceForCard
+  // calls, each one doing DELETE + INSERT for ALL links — O(N²) DB ops.
+  const byCard = new Map<string, typeof annotations>();
   for (const ann of annotations) {
     const cardKey = ann.value.trim();
     if (!cardKey) continue;
+    const list = byCard.get(cardKey) ?? [];
+    list.push(ann);
+    byCard.set(cardKey, list);
+  }
 
-    // Check if card exists
+  for (const [cardKey, anns] of byCard) {
     const card = ctx.cardRepo.findByKey(cardKey);
     if (!card) {
-      if (ann.symbolName) {
-        unmatched.push({ cardKey, file: ann.filePath, symbol: ann.symbolName });
+      for (const ann of anns) {
+        if (ann.symbolName) {
+          unmatched.push({ cardKey, file: ann.filePath, symbol: ann.symbolName });
+        }
       }
       continue;
     }
 
-    // Skip if no symbol linked
-    if (!ann.symbolName) continue;
-
-    // Check if link already exists
     const existing = ctx.codeLinkRepo.findByCardKey(cardKey);
-    const alreadyExists = existing.some(
-      (l) => l.file === ann.filePath && l.symbol === ann.symbolName,
-    );
-    if (alreadyExists) {
-      alreadyLinked++;
-      continue;
+    const existingKeys = new Set(existing.map((l) => `${l.file}:${l.symbol}`));
+    const additions: CodeLink[] = [];
+    let cardCreated = 0;
+
+    for (const ann of anns) {
+      if (!ann.symbolName) continue;
+      const annKey = `${ann.filePath}:${ann.symbolName}`;
+      if (existingKeys.has(annKey)) {
+        alreadyLinked++;
+        continue;
+      }
+      // Don't double-add within the same batch (same card, same file/symbol from
+      // duplicate annotations).
+      if (additions.some((a) => a.file === ann.filePath && a.symbol === ann.symbolName)) {
+        continue;
+      }
+
+      let kind = 'unknown';
+      const symbols = ctx.gildash!.searchSymbols({
+        text: ann.symbolName,
+        exact: true,
+        filePath: ann.filePath,
+      });
+      if (Array.isArray(symbols)) {
+        const match = symbols.find(
+          (s) => s.name === ann.symbolName && s.filePath === ann.filePath,
+        );
+        if (match) kind = match.kind;
+      }
+
+      additions.push({ kind, file: ann.filePath, symbol: ann.symbolName });
+      cardCreated++;
+      linkMissing.push({ cardKey, file: ann.filePath, symbol: ann.symbolName });
     }
 
-    // Determine kind from gildash symbol search
-    let kind = 'unknown';
-    const symbols = ctx.gildash!.searchSymbols({
-      text: ann.symbolName,
-      exact: true,
-      filePath: ann.filePath,
-    });
-    if (!Array.isArray(symbols)) {
-      // searchSymbols returned an error Result
-      kind = 'unknown';
-    } else {
-      const match = symbols.find(
-        (s) => s.name === ann.symbolName && s.filePath === ann.filePath,
-      );
-      if (match) kind = match.kind;
+    if (additions.length > 0) {
+      const newLinks: CodeLink[] = [
+        ...existing.map((l) => ({ kind: l.kind, file: l.file, symbol: l.symbol })),
+        ...additions,
+      ];
+      ctx.codeLinkRepo.replaceForCard(cardKey, newLinks);
+      created += cardCreated;
     }
-
-    // Create the code link
-    const newLinks: CodeLink[] = [
-      ...existing.map((l) => ({ kind: l.kind, file: l.file, symbol: l.symbol })),
-      { kind, file: ann.filePath, symbol: ann.symbolName },
-    ];
-    ctx.codeLinkRepo.replaceForCard(cardKey, newLinks);
-    created++;
-    linkMissing.push({ cardKey, file: ann.filePath, symbol: ann.symbolName });
   }
 
   // Detect marker-missing: code links that have no @spec annotation.
