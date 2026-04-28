@@ -17,7 +17,7 @@ import {
   preChangeCheck,
   syncSpecAnnotations,
 } from '../../index';
-import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 // ── Mock Gildash Factory ──
 
@@ -59,10 +59,12 @@ describe('checkDrift — boundary_inactive', () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = tmpDir;
 
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'bnd-inactive',
       summary: 'Boundary inactive',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       boundary: ['src/nonexistent/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
@@ -88,10 +90,12 @@ describe('checkDrift — boundary_inactive', () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = tmpDir;
 
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'bnd-trans',
       summary: 'Boundary transition',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       boundary: ['src/nonexistent/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
@@ -122,10 +126,12 @@ describe('checkDrift — boundary_inactive', () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = tmpDir;
 
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'bnd-active',
       summary: 'Boundary active',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       boundary: ['src/ops/**'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
@@ -158,10 +164,12 @@ describe('checkDrift — symbol_changed', () => {
     tc = await createTestContext();
 
     // Create card with boundary, codeLinks (to pass activation), and set as active
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'sym-changed',
       summary: 'Symbol changed',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],
@@ -201,10 +209,12 @@ describe('checkDrift — symbol_changed', () => {
   it('should NOT detect symbol_changed when changes are before card updatedAt', async () => {
     tc = await createTestContext();
 
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'sym-old',
       summary: 'Old change',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],

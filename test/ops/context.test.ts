@@ -7,7 +7,7 @@ import {
   checkDrift,
   checkInteractions,
 } from '../../index';
-import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 describe('checkDrift', () => {
   let tc: TestContext;
@@ -61,10 +61,12 @@ describe('checkDrift', () => {
 
   it('should count active and drifted cards in health', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'h-active',
       summary: 'Active',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
       spec: makeTestSpec('src/a.ts', 'fn'),
@@ -74,7 +76,8 @@ describe('checkDrift', () => {
 
     const result = await checkDrift(tc.ctx, undefined, { autoTransition: false });
     expect(result.health.active).toBe(1);
-    expect(result.health.draft).toBe(1);
+    // 4-tier: scaffolding adds 2 draft cards (_dom, _br) on top of 'h-draft'.
+    expect(result.health.draft).toBe(3);
   });
 
   it('should skip draft cards from drift analysis', async () => {
@@ -120,10 +123,12 @@ describe('checkDrift with gildash — broken link detection', () => {
 
   it('should detect broken links and set driftType to broken_link', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'drift-broken',
       summary: 'Broken link card',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
@@ -145,10 +150,12 @@ describe('checkDrift with gildash — broken link detection', () => {
 
   it('should report zero broken links when searchSymbols finds the symbol', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'drift-ok',
       summary: 'OK link card',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
       spec: makeTestSpec('src/ok.ts', 'okFn'),
@@ -189,10 +196,12 @@ describe('checkDrift with gildash — broken link detection', () => {
 
   it('should respect autoTransition=false', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'no-trans',
       summary: 'No transition',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
@@ -213,10 +222,12 @@ describe('checkDrift with gildash — broken link detection', () => {
   // D-3: targeted UPDATE preserves concurrent changes
   it('should only update status field when auto-transitioning — not overwrite summary', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'tgt-upd',
       summary: 'Original summary',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
@@ -238,10 +249,12 @@ describe('checkDrift with gildash — broken link detection', () => {
 
   it('should skip file write when DB status was already changed by concurrent op', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'skip-file',
       summary: 'S',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),

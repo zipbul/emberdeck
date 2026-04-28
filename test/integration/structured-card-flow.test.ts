@@ -11,7 +11,7 @@ import { describe, expect, it, afterEach } from 'bun:test';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { createTestContext, makeTestBrief, makeTestSpec, makeTestPrinciple, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, makeTestPrinciple, type TestContext } from '../helpers';
 import { syncCardFromFile, bulkSyncCards } from '../../src/ops/sync';
 import { createCard } from '../../src/ops/create';
 import { updateCardStatus } from '../../src/ops/update';
@@ -52,6 +52,7 @@ describe('Structured card flow E2E', () => {
 
   it('rejects activating a brief without brief namespace', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
 
     // createCard without brief namespace, draft → ok
     await createCard(tc.ctx, {
@@ -59,6 +60,7 @@ describe('Structured card flow E2E', () => {
       summary: 'partial',
       type: 'brief',
       status: 'draft',
+      parent: '_dom',
     });
 
     // Activation should reject
@@ -75,6 +77,7 @@ describe('Structured card flow E2E', () => {
 
   it('activates brief with valid namespace and bad refs are caught', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
 
     const goodBrief = makeTestBrief();
     await createCard(tc.ctx, {
@@ -82,6 +85,7 @@ describe('Structured card flow E2E', () => {
       summary: 'good',
       type: 'brief',
       status: 'active',
+      parent: '_dom',
       brief: goodBrief,
     });
 
@@ -103,13 +107,15 @@ describe('Structured card flow E2E', () => {
 
   it('activates spec with namespace and binds match codeLinks', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
 
-    // Create a parent brief first
+    // Create a parent brief first (requires domain parent)
     await createCard(tc.ctx, {
       key: 'parent',
       summary: 'parent brief',
       type: 'brief',
       status: 'active',
+      parent: '_dom',
       brief: makeTestBrief(),
     });
 
@@ -135,11 +141,13 @@ describe('Structured card flow E2E', () => {
 
   it('rejects spec activation when binds reference symbol not in codeLinks', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, {
       key: 'parent2',
       summary: 'parent',
       type: 'brief',
       status: 'active',
+      parent: '_dom',
       brief: makeTestBrief(),
     });
 

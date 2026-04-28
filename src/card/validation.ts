@@ -378,17 +378,19 @@ export async function validateActivationGuard(
     key?: string;
   },
 ): Promise<void> {
-  // 4-tier hierarchy enforcement at activation time:
-  // We only validate the parent shape WHEN a parent is provided. The "missing
-  // parent on active brief/spec" case is surfaced as an orphan-card warning by
-  // validateCards (post-hoc), not a hard activation block — otherwise too many
-  // realistic flows (draft → activate without explicit domain) break, and
-  // the existing test suite would need parent scaffolding for every active
-  // brief/spec test that targets unrelated concerns.
-  if (card.parent) {
-    if (card.type === 'principle' || card.type === 'domain') {
+  // 4-tier hierarchy enforcement at activation time (strict).
+  // Active brief MUST have parent=domain. Active spec MUST have parent=brief|spec.
+  // principle/domain MUST be root-level (no parent).
+  if (card.type === 'principle' || card.type === 'domain') {
+    if (card.parent) {
       throw new ActivationGuardError('Activation conditions not met', [
         `${card.type} card must be root-level (got parent "${card.parent}")`,
+      ]);
+    }
+  } else if (card.type === 'brief') {
+    if (!card.parent) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        'brief card must have parent=domain to activate (4-tier hierarchy)',
       ]);
     }
     const parent = ctx.cardRepo.findByKey(card.parent);
@@ -397,12 +399,24 @@ export async function validateActivationGuard(
         `parent card "${card.parent}" not found`,
       ]);
     }
-    if (card.type === 'brief' && parent.type !== 'domain') {
+    if (parent.type !== 'domain') {
       throw new ActivationGuardError('Activation conditions not met', [
         `brief.parent must be domain (got "${parent.type}")`,
       ]);
     }
-    if (card.type === 'spec' && parent.type !== 'brief' && parent.type !== 'spec') {
+  } else if (card.type === 'spec') {
+    if (!card.parent) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        'spec card must have parent=brief|spec to activate (4-tier hierarchy)',
+      ]);
+    }
+    const parent = ctx.cardRepo.findByKey(card.parent);
+    if (!parent) {
+      throw new ActivationGuardError('Activation conditions not met', [
+        `parent card "${card.parent}" not found`,
+      ]);
+    }
+    if (parent.type !== 'brief' && parent.type !== 'spec') {
       throw new ActivationGuardError('Activation conditions not met', [
         `spec.parent must be brief or spec (got "${parent.type}")`,
       ]);
@@ -548,9 +562,11 @@ export async function validateTypeChangeActivation(
   card: {
     status: string;
     type: CardType;
+    parent?: string | null;
     codeLinks?: Array<{ file: string; symbol: string }>;
     boundary?: string[];
     principle?: CardFrontmatter['principle'];
+    domain?: CardFrontmatter['domain'];
     brief?: BriefBody;
     spec?: SpecBody;
   },

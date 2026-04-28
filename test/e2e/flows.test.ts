@@ -29,7 +29,7 @@ import {
   syncSpecAnnotations,
   analyze,
 } from '../../index';
-import { createTestContext, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
 
 // ============================================================================
 // Mock gildash factory (same pattern as coverage-analysis tests)
@@ -187,12 +187,14 @@ describe('E2E Scenario 2: Code change flow', () => {
   it('should detect impact, drift after symbol removal, and regression guard failure', async () => {
     tc = await createTestContext();
     tc.ctx.projectRoot = '/project';
+    await ensure4tierScaffold(tc.ctx, true);
 
-    // Create an active card with code links
+    // Create an active card with code links (4-tier: spec under brief under domain)
     await createCard(tc.ctx, {
       key: 'auth-service',
       summary: 'Authentication service',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [
         { kind: 'function', file: 'src/auth.ts', symbol: 'login' },
@@ -247,13 +249,14 @@ describe('E2E Scenario 3: Design change flow', () => {
 
   it('should handle type change, activation guard, rename, and history', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
 
-    // Step 1: Create brief card (no codeLinks) and activate it
-    // Intent cards pass activation guard without codeLinks
+    // Step 1: Create brief card with domain parent and activate it
     await createCard(tc.ctx, {
       key: 'infra-layer',
       summary: 'Infrastructure layer',
       type: 'brief',
+      parent: '_dom',
       body: BRIEF_BODY,
       brief: makeTestBrief(),
     });
@@ -267,8 +270,11 @@ describe('E2E Scenario 3: Design change flow', () => {
     expect(updated.card.frontmatter.type).toBe('spec');
     expect(updated.card.frontmatter.status).toBe('draft');
 
-    // Step 3: Add codeLinks and spec body, then activate → activation guard passes
+    // Step 3: Add codeLinks, spec body, AND repoint parent to a brief
+    // (4-tier: spec.parent must be brief|spec, not domain).
+    // Use the scaffold's _br as the new parent.
     await updateCard(tc.ctx, 'infra-layer', {
+      parent: '_br',
       codeLinks: [{ kind: 'class', file: 'src/infra/base.ts', symbol: 'BaseInfra' }],
       body: SPEC_BODY,
       spec: makeTestSpec('src/infra/base.ts', 'BaseInfra'),

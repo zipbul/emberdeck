@@ -28,7 +28,7 @@ import {
   parseCardMarkdown,
   serializeCardMarkdown,
 } from '../../index';
-import { createTestContext, BRIEF_BODY, makeTestBrief, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, BRIEF_BODY, makeTestBrief, type TestContext } from '../helpers';
 
 describe('Glossary', () => {
   let tc: TestContext;
@@ -388,8 +388,9 @@ describe('Glossary', () => {
   describe('Drift detection', () => {
     it('should detect glossary_broken after word removal', async () => {
       tc = await createTestContext();
+      await ensure4tierScaffold(tc.ctx);
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief(), glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief(), glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: false });
       expect(result.cards.find(c => c.key === 'c')?.driftType).toBe('glossary_broken');
@@ -397,8 +398,9 @@ describe('Glossary', () => {
 
     it('should auto-transition active card to drifted', async () => {
       tc = await createTestContext();
+      await ensure4tierScaffold(tc.ctx);
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief(), glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief(), glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: true });
       expect(result.cards.find(c => c.key === 'c')?.status).toBe('drifted');

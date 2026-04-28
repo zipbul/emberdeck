@@ -228,9 +228,11 @@ export async function updateCard(
           {
             status: next.status,
             type: fields.type,
+            parent: next.parent ?? null,
             codeLinks: next.codeLinks,
             boundary: next.boundary,
             principle: next.principle,
+            domain: next.domain,
             brief: next.brief,
             spec: next.spec,
           },

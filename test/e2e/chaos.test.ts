@@ -37,7 +37,7 @@ import {
   type CreateCardInput,
   type CodeLink,
 } from '../../index';
-import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 // ============================================================================
 // Helpers
@@ -62,12 +62,14 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
   it('should preserve every field through create -> update -> status transitions -> rename -> export -> sync -> context -> drift', async () => {
     tc = await createTestContext();
     const { ctx } = tc;
+    await ensure4tierScaffold(ctx, true);
 
-    // -- Step 1: Create with ALL fields --
+    // -- Step 1: Create with ALL fields (parent=_br for 4-tier) --
     const createInput: CreateCardInput = {
       key: 'auth-token',
       summary: 'JWT token management and validation',
       type: 'spec',
+      parent: '_br',
       body: '# Auth Token\n\nHandles JWT lifecycle including generation, validation, refresh, and revocation.',
       tags: ['auth', 'security'],
       relations: [],
@@ -78,9 +80,9 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
       spec: makeTestSpec('src/auth/token.ts', 'refreshToken'),
     };
 
-    // Create dependency targets first
+    // Create dependency targets first (specs under the brief scaffold)
     await createCard(ctx, { key: 'user-session', summary: 'User session management', type: 'spec' });
-    await createCard(ctx, { key: 'api-gateway', summary: 'API gateway routing', type: 'brief' });
+    await createCard(ctx, { key: 'api-gateway', summary: 'API gateway routing', type: 'brief', parent: '_dom' });
 
     // Now create with relations
     createInput.relations = ['user-session', 'api-gateway'];

@@ -132,6 +132,37 @@ export const SPEC_BODY = `
 | Invalid input | ValidationError thrown |
 `.trim();
 
+/**
+ * 4-tier scaffolding helper: ensure a draft domain (and optionally brief) exists
+ * so that active brief/spec creation passes the activation guard's parent check.
+ *
+ * Usage:
+ *   const { domain } = await ensure4tierScaffold(tc.ctx);             // creates draft domain
+ *   const { domain, brief } = await ensure4tierScaffold(tc.ctx, true); // also creates draft brief
+ *
+ * Returns the keys of created scaffolding so tests can use them as parent= values.
+ */
+export async function ensure4tierScaffold(
+  ctx: import('../src/config').EmberdeckContext,
+  withBrief = false,
+  domainKey = '_dom',
+  briefKey = '_br',
+): Promise<{ domain: string; brief?: string }> {
+  const { createCard } = await import('../src/ops/create');
+  if (!ctx.cardRepo.findByKey(domainKey)) {
+    await createCard(ctx, { key: domainKey, summary: 'scaffold domain', type: 'domain' });
+  }
+  if (withBrief && !ctx.cardRepo.findByKey(briefKey)) {
+    await createCard(ctx, {
+      key: briefKey,
+      summary: 'scaffold brief',
+      type: 'brief',
+      parent: domainKey,
+    });
+  }
+  return withBrief ? { domain: domainKey, brief: briefKey } : { domain: domainKey };
+}
+
 export async function createTestContext(): Promise<TestContext> {
   const tmpDir = await mkdtemp(join(tmpdir(), 'emberdeck_test_'));
   const cardsDir = join(tmpDir, 'cards');

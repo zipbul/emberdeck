@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { createTestContext, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
 import {
   createCard,
   updateCard,
@@ -174,8 +174,8 @@ describe('update', () => {
 
   it('should force draft when type change breaks activation conditions', async () => {
     tc = await createTestContext();
-    // Intent card is active (no activation conditions for brief)
-    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief() });
+    await ensure4tierScaffold(tc.ctx);
+    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
     // Change to spec (requires codeLinks) → should force to draft
     const result = await updateCard(tc.ctx, 'arch-active', { type: 'spec' });
     expect(result.card.frontmatter.status).toBe('draft');
@@ -243,7 +243,8 @@ describe('update', () => {
 describe('updateCardStatus', () => {
   it('should record reason in changelog', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'brief', body: BRIEF_BODY, brief: makeTestBrief() });
+    await ensure4tierScaffold(tc.ctx);
+    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'st-card', 'active', 'passed review');
 
     const result = await getCard(tc.ctx, 'st-card', { includeHistory: true });
@@ -399,8 +400,9 @@ describe('sync', () => {
 
   it('validateCards should detect rework dependency (active → draft)', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'rw-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief(), relations: ['rw-draft'] });
+    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief(), relations: ['rw-draft'] });
 
     const result = await validateCards(tc.ctx);
     const rework = result.warnings.find((w) => w.type === 'rework-dependency' && w.cardKey === 'rw-active');
@@ -632,7 +634,8 @@ describe('validateCards full checks', () => {
 
   it('should detect empty tree (active brief with no children)', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief() });
+    await ensure4tierScaffold(tc.ctx);
+    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
 
     const result = await validateCards(tc.ctx);
     const empty = result.warnings.find((w) => w.type === 'empty-tree' && w.cardKey === 'empty-arch');
@@ -715,8 +718,9 @@ describe('bulk-create activation guard', () => {
 
   it('should allow brief card with active status (no activation conditions)', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
     const result = await bulkCreateCards(tc.ctx, [
-      { key: 'bc-arch-active', summary: 'Active arch', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief() },
+      { key: 'bc-arch-active', summary: 'Active arch', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() },
     ]);
     expect(result.created).toBe(1);
     expect(result.failed).toBe(0);
@@ -741,13 +745,15 @@ describe('brief section enforcement', () => {
 
   it('should allow active brief card with all 8 sections', async () => {
     tc = await createTestContext();
-    const result = await createCard(tc.ctx, { key: 'full-brief', summary: 'Full', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief() });
+    await ensure4tierScaffold(tc.ctx);
+    const result = await createCard(tc.ctx, { key: 'full-brief', summary: 'Full', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
     expect(result.card.frontmatter.status).toBe('active');
   });
 
   it('should reject body update on active brief that removes sections', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'active-brief', summary: 'Active', type: 'brief', status: 'active', body: BRIEF_BODY, brief: makeTestBrief() });
+    await ensure4tierScaffold(tc.ctx);
+    await createCard(tc.ctx, { key: 'active-brief', summary: 'Active', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
     await expect(
       updateCard(tc.ctx, 'active-brief', { body: 'Sections removed' }),
     ).rejects.toThrow('missing required sections');
@@ -763,7 +769,8 @@ describe('brief section enforcement', () => {
 
   it('should allow updateCardStatus to active on brief with sections', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'draft-with-sections', summary: 'Draft', type: 'brief', body: BRIEF_BODY, brief: makeTestBrief() });
+    await ensure4tierScaffold(tc.ctx);
+    await createCard(tc.ctx, { key: 'draft-with-sections', summary: 'Draft', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
     const result = await updateCardStatus(tc.ctx, 'draft-with-sections', 'active');
     expect(result.card.frontmatter.status).toBe('active');
   });
@@ -807,10 +814,12 @@ describe('delete cascade', () => {
 describe('activation guard on active card field changes', () => {
   it('should reject removing codeLinks from an active spec card', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'guard-spec',
       summary: 'Active spec',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
       spec: makeTestSpec('src/a.ts', 'fn'),
@@ -825,10 +834,12 @@ describe('activation guard on active card field changes', () => {
 
   it('should reject removing codeLinks via empty array from an active spec card', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'guard-spec2',
       summary: 'Active spec 2',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fn2' }],
       spec: makeTestSpec('src/b.ts', 'fn2'),
@@ -842,10 +853,12 @@ describe('activation guard on active card field changes', () => {
 
   it('should allow updating non-critical fields on active card without re-validation', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'guard-safe',
       summary: 'Safe update',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'fn3' }],
       spec: makeTestSpec('src/c.ts', 'fn3'),

@@ -6,7 +6,7 @@ import {
   preChangeCheck,
   regressionGuard,
 } from '../../index';
-import { createTestContext, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 describe('preChangeCheck', () => {
   let tc: TestContext;
@@ -247,10 +247,12 @@ describe('regressionGuard', () => {
 
   it('should detect drift via driftType even when autoTransition is false (status stays active)', async () => {
     tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'drift-detect',
       summary: 'Drift via driftType',
       type: 'spec',
+      parent: '_br',
       body: SPEC_BODY,
       codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
