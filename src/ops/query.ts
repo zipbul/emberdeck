@@ -202,15 +202,22 @@ export async function getCards(
   const cards: GetCardResult[] = [];
   const notFound: string[] = [];
 
-  for (const fullKey of fullKeys) {
-    try {
-      const result = await getCard(ctx, fullKey, options);
-      cards.push(result);
-    } catch (err) {
-      if (err instanceof CardNotFoundError) {
-        notFound.push(fullKey);
+  // Parallelize file reads in batches — sequential await per key was the
+  // bottleneck for callers that pass dozens of keys at once.
+  const BATCH = 20;
+  for (let i = 0; i < fullKeys.length; i += BATCH) {
+    const batch = fullKeys.slice(i, i + BATCH);
+    const results = await Promise.allSettled(
+      batch.map((k) => getCard(ctx, k, options)),
+    );
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j]!;
+      if (r.status === 'fulfilled') {
+        cards.push(r.value);
+      } else if (r.reason instanceof CardNotFoundError) {
+        notFound.push(batch[j]!);
       } else {
-        throw err;
+        throw r.reason;
       }
     }
   }

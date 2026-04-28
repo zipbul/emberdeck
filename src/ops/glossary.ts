@@ -9,6 +9,7 @@ import {
 } from '../glossary/io';
 import { validateGlossaryEntry } from '../glossary/validation';
 import { withGlossaryLock } from '../glossary/lock';
+import { deleteCardFile } from '../fs/writer';
 import { DrizzleChangelogRepository } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { readCardFile } from '../fs/reader';
@@ -96,7 +97,9 @@ export function lookupGlossary(
 ): LookupGlossaryResult {
   const entries = readGlossary(ctx);
 
-  if (word !== undefined) {
+  // Treat empty string the same as omitted — CLI's `glossary lookup ''` should
+  // mean 'list all', matching the truthy check used in src/cli/commands/glossary.ts.
+  if (word !== undefined && word !== '') {
     const entry = entries.find((e) => e.word === word);
     return entry
       ? { found: true, entry }
@@ -320,22 +323,28 @@ export async function resetEmberdeck(
   const allCards = ctx.cardRepo.list();
   let cardsDeleted = 0;
 
-  // Delete all card files + DB entries
+  // Delete all card files + DB entries.
+  // File deletes parallelized in batches to amortize fs round-trips.
+  const fileDeletes: Promise<unknown>[] = [];
+  const FILE_BATCH = 20;
   for (const card of allCards) {
     try {
       ctx.cardRepo.deleteByKey(card.key);
-      try { await Bun.file(card.filePath).exists() && await import('node:fs/promises').then(fs => fs.unlink(card.filePath)); } catch { /* best-effort */ }
       cardsDeleted++;
+      fileDeletes.push(deleteCardFile(card.filePath).catch(() => {}));
+      if (fileDeletes.length >= FILE_BATCH) {
+        await Promise.allSettled(fileDeletes.splice(0));
+      }
     } catch { /* skip */ }
   }
+  if (fileDeletes.length > 0) await Promise.allSettled(fileDeletes);
 
   // Prune orphan tags
   ctx.classificationRepo.pruneOrphans();
 
-  // Clear glossary
+  // Clear glossary (writeGlossary is already imported statically at module top)
   let glossaryCleared = false;
   try {
-    const { writeGlossary } = await import('../glossary/io');
     writeGlossary(ctx, []);
     glossaryCleared = true;
   } catch { /* skip */ }
