@@ -690,6 +690,55 @@ describe('validateCards full checks', () => {
     expect(w).toBeDefined();
   });
 
+  it('delete domain refuses when other domain depends on it via cross_domain_dependencies', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'depended',
+      summary: 'Depended',
+      type: 'domain',
+      domain: { overview: 'o', scope: 's' },
+    });
+    await createCard(tc.ctx, {
+      key: 'depender',
+      summary: 'Depender',
+      type: 'domain',
+      domain: {
+        overview: 'o',
+        scope: 's',
+        cross_domain_dependencies: [{ domain: 'depended', relationship: 'consumes events' }],
+      },
+    });
+    await expect(
+      deleteCard(tc.ctx, 'depended'),
+    ).rejects.toThrow(/cross_domain_dependencies/);
+  });
+
+  it('delete domain --force removes cross_domain_dependencies entries from dependents', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'depended2',
+      summary: 'Depended2',
+      type: 'domain',
+      domain: { overview: 'o', scope: 's' },
+    });
+    await createCard(tc.ctx, {
+      key: 'depender2',
+      summary: 'Depender2',
+      type: 'domain',
+      domain: {
+        overview: 'o',
+        scope: 's',
+        cross_domain_dependencies: [{ domain: 'depended2', relationship: 'r' }],
+      },
+    });
+    await deleteCard(tc.ctx, 'depended2', { force: true });
+    const dep = await getCard(tc.ctx, 'depender2');
+    expect(dep.card.frontmatter.domain?.cross_domain_dependencies ?? []).toHaveLength(0);
+    // validateCards: no broken-cross-domain-dep
+    const result = await validateCards(tc.ctx);
+    expect(result.warnings.find((w) => w.type === 'broken-cross-domain-dep')).toBeUndefined();
+  });
+
   it('domain rename auto-updates cross_domain_dependencies in dependent domains', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, {

@@ -68,6 +68,25 @@ export async function deleteCard(
         }
       }
 
+      // Cross-domain dependents (other domain cards whose
+      // cross_domain_dependencies reference the card we're about to delete).
+      const crossDomainDependents: Array<{ key: string; filePath: string }> = [];
+      for (const row of ctx.cardRepo.list()) {
+        if (row.type !== 'domain' || row.key === key || !row.namespacesJson) continue;
+        try {
+          const ns = JSON.parse(row.namespacesJson) as { domain?: { cross_domain_dependencies?: Array<{ domain: string }> } };
+          const deps = ns.domain?.cross_domain_dependencies ?? [];
+          if (deps.some((d) => d.domain === key)) {
+            crossDomainDependents.push({ key: row.key, filePath: row.filePath });
+          }
+        } catch { /* skip malformed */ }
+      }
+      if (crossDomainDependents.length > 0 && !force) {
+        throw new CardValidationError(
+          `Cannot delete card "${key}": ${crossDomainDependents.length} domain card(s) reference it via cross_domain_dependencies (${crossDomainDependents.map((c) => c.key).join(', ')}). Use force=true to remove the entries automatically.`,
+        );
+      }
+
       return safeWriteOperation({
         dbAction: () => {
           ctx.db.transaction((tx) => {
@@ -118,6 +137,33 @@ export async function deleteCard(
               }
             } catch {
               // Best effort — file may not exist
+            }
+          }
+
+          // Best effort: update cross_domain_dependencies in dependent domain cards
+          // (only reachable when force=true — non-force path threw above).
+          for (const dep of crossDomainDependents) {
+            try {
+              const depFile = await readCardFile(dep.filePath);
+              if (depFile.frontmatter.domain?.cross_domain_dependencies) {
+                const filtered = depFile.frontmatter.domain.cross_domain_dependencies.filter(
+                  (d) => d.domain !== key,
+                );
+                const updatedDomain = { ...depFile.frontmatter.domain };
+                if (filtered.length > 0) {
+                  updatedDomain.cross_domain_dependencies = filtered;
+                } else {
+                  delete updatedDomain.cross_domain_dependencies;
+                }
+                await writeCardFile(dep.filePath, {
+                  ...depFile,
+                  frontmatter: { ...depFile.frontmatter, domain: updatedDomain },
+                });
+                // Sync the rewritten file back to DB so namespacesJson refreshes.
+                await syncCardFromFile(ctx, dep.filePath);
+              }
+            } catch {
+              // Best effort — dependent file may have been removed concurrently
             }
           }
         },
