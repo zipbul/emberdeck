@@ -17,7 +17,9 @@ import {
 } from '../card/validation';
 import { readGlossary, GlossaryValidationError } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
-import { validateBriefSections, validateSpecSections } from '../brief/validate';
+// Body section validation (legacy markdown 8/3-section path) has been removed —
+// canonical structure lives in frontmatter.brief / frontmatter.spec namespaces.
+// Body is now free-form prose (examples, narrative context).
 
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
@@ -147,14 +149,8 @@ export async function createCard(
         validateCardGlossaryField(input.glossary, glossaryEntries);
       }
 
-      // Activation guard
+      // Activation guard (namespace-based — body is free-form, no section check)
       if (status === 'active') {
-        // Body section validation: active cards must have required sections
-        if (input.type === 'brief') {
-          validateBriefSections(input.body ?? '');
-        } else if (input.type === 'spec') {
-          validateSpecSections(input.body ?? '');
-        }
         await validateActivationGuard(ctx, {
           type: input.type,
           parent: input.parent ?? null,

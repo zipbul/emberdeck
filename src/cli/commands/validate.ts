@@ -1,5 +1,9 @@
 /**
- * `ed validate` subcommands: aggregate (no args) / cards / links / brief.
+ * `ed validate` subcommands: aggregate (no args) / cards / links.
+ *
+ * Note: `validate brief` was removed when the legacy markdown body 8-section
+ * path was retired. Brief structure now lives in `frontmatter.brief` namespace
+ * and is validated at parse time + activation guard (validateBriefRefs).
  */
 
 import { Command } from 'commander';
@@ -7,7 +11,6 @@ import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { validateCards } from '../../ops/sync';
-import { validateBrief } from '../../brief/validate';
 import { validateCodeLinks } from '../../ops/link';
 import { startSpinner } from '../spinner';
 
@@ -23,7 +26,6 @@ export function registerValidate(program: Command): void {
           const spinner = startSpinner(rt.output, 'validating cards...', { verbose: rt.verbose });
           let cardErrors: CliMessage[];
           let linkErrors: CliMessage[];
-          let briefErrors: CliMessage[];
           let linkDeclared = 0;
           let linkBroken = 0;
           try {
@@ -58,29 +60,14 @@ export function registerValidate(program: Command): void {
               }
             }
 
-            // brief validation: per active brief
-            briefErrors = [];
-            spinner.update('validating briefs...');
-            for (const c of allCards) {
-              if (c.type !== 'brief' || c.status === 'draft') continue;
-              try {
-                const r = validateBrief(rt.ctx, c.key);
-                if (!r.complete) {
-                  for (const m of r.missing) briefErrors.push({ code: 'BRIEF_SECTION_MISSING', message: `[${c.key}] missing: ${m}`, key: c.key });
-                }
-              } catch (e) {
-                briefErrors.push({ code: 'BRIEF_VALIDATION_ERROR', message: String((e as Error).message), key: c.key });
-              }
-            }
           } finally {
             spinner.stop();
           }
 
-          const allErrors = [...cardErrors, ...linkErrors, ...briefErrors];
+          const allErrors = [...cardErrors, ...linkErrors];
           const data = {
             cards: { issues: cardErrors.length },
             links: { declared: linkDeclared, broken: linkBroken },
-            briefs: { issues: briefErrors.length },
             total_issues: allErrors.length,
           };
           return allErrors.length === 0 ? ok(data) : partial(data, allErrors);
@@ -90,8 +77,8 @@ export function registerValidate(program: Command): void {
         {
           partialIsFailure: true,
           humanRenderer: (data) => {
-            const d = data as { cards: { issues: number }; links: { declared: number; broken: number }; briefs: { issues: number }; total_issues: number };
-            return `validate: cards=${d.cards.issues} links=${d.links.broken}/${d.links.declared} briefs=${d.briefs.issues} total=${d.total_issues}`;
+            const d = data as { cards: { issues: number }; links: { declared: number; broken: number }; total_issues: number };
+            return `validate: cards=${d.cards.issues} links=${d.links.broken}/${d.links.declared} total=${d.total_issues}`;
           },
         },
       );
@@ -189,52 +176,8 @@ export function registerValidate(program: Command): void {
       );
     });
 
-  // ── validate brief ──
-  validate
-    .command('brief <key>')
-    .description('validate brief card structure (8 sections + content quality)')
-    .action(async (key: string, _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
-        async (rt: CliRuntime) => {
-          const result = validateBrief(rt.ctx, key);
-          const errors: CliMessage[] = [];
-          for (const missing of result.missing) {
-            errors.push({ code: 'BRIEF_SECTION_MISSING', message: `missing section: ${missing}` });
-          }
-          for (const [name, section] of Object.entries(result.sections)) {
-            if (section.status === 'error') {
-              for (const e of section.errors) {
-                errors.push({ code: 'BRIEF_SECTION_ERROR', message: `[${name}] ${e}`, key: section.cardKey });
-              }
-            }
-          }
-
-          const warnings: CliMessage[] = [];
-          for (const [name, section] of Object.entries(result.sections)) {
-            for (const w of section.warnings) {
-              warnings.push({ code: 'BRIEF_SECTION_WARNING', message: `[${name}] ${w}`, key: section.cardKey });
-            }
-          }
-
-          const data = {
-            complete: result.complete,
-            present: result.present,
-            missing: result.missing,
-            quality_errors: result.qualityErrors,
-            quality_warnings: result.qualityWarnings,
-          };
-          if (errors.length === 0) return ok(data, warnings);
-          return partial(data, errors, warnings);
-        },
-        [],
-        globalFlags,
-        {
-          partialIsFailure: true,
-          humanRenderer: (data) => renderValidateBriefHuman(data),
-        },
-      );
-    });
+  // `validate brief` was removed — namespace structure is validated at parse time
+  // (markdown.ts:normalizeBriefBody) and at activation (validateBriefRefs).
 }
 
 function renderValidateCardsHuman(data: unknown): string {
@@ -249,13 +192,3 @@ function renderValidateCardsHuman(data: unknown): string {
   ].join('\n');
 }
 
-function renderValidateBriefHuman(data: unknown): string {
-  const d = data as { complete: boolean; present: string[]; missing: string[]; quality_errors: number; quality_warnings: number };
-  const lines = [
-    `validate brief: ${d.complete ? 'complete' : 'incomplete'}`,
-    `  present (${d.present.length}): ${d.present.join(', ')}`,
-  ];
-  if (d.missing.length > 0) lines.push(`  missing (${d.missing.length}): ${d.missing.join(', ')}`);
-  lines.push(`  quality:   ${d.quality_errors} error(s), ${d.quality_warnings} warning(s)`);
-  return lines.join('\n');
-}

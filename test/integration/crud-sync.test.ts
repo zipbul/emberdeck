@@ -651,6 +651,78 @@ describe('validateCards full checks', () => {
     expect(empty).toBeUndefined();
   });
 
+  it('flags broken-cross-domain-dep when target domain does not exist', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'src-dom',
+      summary: 'Source',
+      type: 'domain',
+      domain: {
+        overview: 'o',
+        scope: 's',
+        cross_domain_dependencies: [{ domain: 'missing-dom', relationship: 'r' }],
+      },
+    });
+    const result = await validateCards(tc.ctx);
+    const w = result.warnings.find(
+      (x) => x.type === 'broken-cross-domain-dep' && x.cardKey === 'src-dom',
+    );
+    expect(w).toBeDefined();
+  });
+
+  it('flags broken-cross-domain-dep when target is not a domain card', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'wrong-target', summary: 's', type: 'spec' });
+    await createCard(tc.ctx, {
+      key: 'src-dom2',
+      summary: 'Source 2',
+      type: 'domain',
+      domain: {
+        overview: 'o',
+        scope: 's',
+        cross_domain_dependencies: [{ domain: 'wrong-target', relationship: 'r' }],
+      },
+    });
+    const result = await validateCards(tc.ctx);
+    const w = result.warnings.find(
+      (x) => x.type === 'broken-cross-domain-dep' && x.cardKey === 'src-dom2',
+    );
+    expect(w).toBeDefined();
+  });
+
+  it('domain rename auto-updates cross_domain_dependencies in dependent domains', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, {
+      key: 'old-dom',
+      summary: 'Old',
+      type: 'domain',
+      domain: { overview: 'o', scope: 's' },
+    });
+    await createCard(tc.ctx, {
+      key: 'dependent-dom',
+      summary: 'Dependent',
+      type: 'domain',
+      domain: {
+        overview: 'o',
+        scope: 's',
+        cross_domain_dependencies: [{ domain: 'old-dom', relationship: 'depends on old' }],
+      },
+    });
+    const { renameCard } = await import('../../src/ops/rename');
+    await renameCard(tc.ctx, 'old-dom', 'new-dom');
+
+    // dependent-dom file should now point at new-dom
+    const dep = await getCard(tc.ctx, 'dependent-dom');
+    expect(dep.card.frontmatter.domain).toBeDefined();
+    expect(dep.card.frontmatter.domain!.cross_domain_dependencies).toBeDefined();
+    expect(dep.card.frontmatter.domain!.cross_domain_dependencies![0]!.domain).toBe('new-dom');
+
+    // validateCards should report no broken-cross-domain-dep
+    const result = await validateCards(tc.ctx);
+    const broken = result.warnings.find((w) => w.type === 'broken-cross-domain-dep');
+    expect(broken).toBeUndefined();
+  });
+
   it('should detect empty tree (active domain with no children)', async () => {
     tc = await createTestContext();
     // Activate a standalone domain with no brief children → empty-tree
@@ -745,49 +817,64 @@ describe('bulk-create activation guard', () => {
 
 // ── BRIEF SECTION ENFORCEMENT ──
 
-describe('brief section enforcement', () => {
-  it('should reject active brief card without 8 required sections', async () => {
+describe('brief namespace enforcement (canonical structure path)', () => {
+  // Body is free-form prose. Structure is enforced via the brief namespace
+  // at parse time + activation guard (validateBriefRefs).
+
+  it('rejects active brief card without brief namespace', async () => {
     tc = await createTestContext();
-    await expect(
-      createCard(tc.ctx, { key: 'no-sections', summary: 'Missing sections', type: 'brief', status: 'active', body: 'Some text' }),
-    ).rejects.toThrow('missing required sections');
+    await ensure4tierScaffold(tc.ctx);
+    let caught: any = null;
+    try {
+      await createCard(tc.ctx, { key: 'no-ns', summary: 'No namespace', type: 'brief', status: 'active', parent: '_dom', body: 'Some text' });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeDefined();
+    expect(caught.unmetConditions?.some((m: string) => /brief.*namespace/.test(m))).toBe(true);
   });
 
-  it('should allow draft brief card without sections', async () => {
+  it('allows draft brief card without namespace (body and namespace both free until activation)', async () => {
     tc = await createTestContext();
-    const result = await createCard(tc.ctx, { key: 'draft-brief', summary: 'Draft', type: 'brief', body: 'No sections yet' });
+    const result = await createCard(tc.ctx, { key: 'draft-brief', summary: 'Draft', type: 'brief', body: 'Free-form prose, no namespace.' });
     expect(result.fullKey).toBe('draft-brief');
   });
 
-  it('should allow active brief card with all 8 sections', async () => {
+  it('allows active brief card with valid brief namespace (body is free-form)', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    const result = await createCard(tc.ctx, { key: 'full-brief', summary: 'Full', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    const result = await createCard(tc.ctx, { key: 'full-brief', summary: 'Full', type: 'brief', status: 'active', parent: '_dom', body: 'Any prose works.', brief: makeTestBrief() });
     expect(result.card.frontmatter.status).toBe('active');
   });
 
-  it('should reject body update on active brief that removes sections', async () => {
+  it('allows body update that changes prose without breaking activation (body is free-form)', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'active-brief', summary: 'Active', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
-    await expect(
-      updateCard(tc.ctx, 'active-brief', { body: 'Sections removed' }),
-    ).rejects.toThrow('missing required sections');
+    await createCard(tc.ctx, { key: 'active-brief', summary: 'Active', type: 'brief', status: 'active', parent: '_dom', body: 'Old prose.', brief: makeTestBrief() });
+    const result = await updateCard(tc.ctx, 'active-brief', { body: 'New prose.' });
+    expect(result.card.body).toBe('New prose.');
+    expect(result.card.frontmatter.status).toBe('active');
   });
 
-  it('should reject updateCardStatus to active on brief without sections', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'draft-no-sections', summary: 'Draft', type: 'brief', body: 'No sections' });
-    await expect(
-      updateCardStatus(tc.ctx, 'draft-no-sections', 'active'),
-    ).rejects.toThrow('missing required sections');
-  });
-
-  it('should allow updateCardStatus to active on brief with sections', async () => {
+  it('rejects updateCardStatus to active on brief without namespace', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'draft-with-sections', summary: 'Draft', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
-    const result = await updateCardStatus(tc.ctx, 'draft-with-sections', 'active');
+    await createCard(tc.ctx, { key: 'draft-no-ns', summary: 'Draft', type: 'brief', parent: '_dom', body: 'No namespace yet' });
+    let caught: any = null;
+    try {
+      await updateCardStatus(tc.ctx, 'draft-no-ns', 'active');
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeDefined();
+    expect(caught.unmetConditions?.some((m: string) => /brief.*namespace/.test(m))).toBe(true);
+  });
+
+  it('allows updateCardStatus to active on brief with namespace', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
+    await createCard(tc.ctx, { key: 'draft-with-ns', summary: 'Draft', type: 'brief', parent: '_dom', body: 'Prose', brief: makeTestBrief() });
+    const result = await updateCardStatus(tc.ctx, 'draft-with-ns', 'active');
     expect(result.card.frontmatter.status).toBe('active');
   });
 });

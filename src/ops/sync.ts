@@ -407,6 +407,39 @@ export async function validateCards(
       }
     }
 
+    // Broken cross_domain_dependencies (domain-only): every dep target must
+    // exist AND be type=domain. Activation guard catches this on activate, but
+    // we surface it here too so that a dangling dep after rename/delete is
+    // visible without waiting for the next activation.
+    if (row.type === 'domain' && row.namespacesJson) {
+      try {
+        const ns = JSON.parse(row.namespacesJson) as { domain?: { cross_domain_dependencies?: Array<{ domain: string; relationship: string }> } };
+        const deps = ns.domain?.cross_domain_dependencies ?? [];
+        for (const dep of deps) {
+          const target = cardByKey.get(dep.domain);
+          if (!target) {
+            warnings.push({
+              type: 'broken-cross-domain-dep',
+              cardKey: row.key,
+              message: `cross_domain_dependencies references unknown card "${dep.domain}"`,
+            });
+          } else if (target.type !== 'domain') {
+            warnings.push({
+              type: 'broken-cross-domain-dep',
+              cardKey: row.key,
+              message: `cross_domain_dependencies["${dep.domain}"] target is type "${target.type}", expected "domain"`,
+            });
+          } else if (dep.domain === row.key) {
+            warnings.push({
+              type: 'broken-cross-domain-dep',
+              cardKey: row.key,
+              message: `cross_domain_dependencies["${dep.domain}"] is a self-reference`,
+            });
+          }
+        }
+      } catch { /* malformed namespacesJson ignored — caught elsewhere */ }
+    }
+
     // Broken relation: relation target does not exist
     const relations = relationsBySrc.get(row.key) ?? [];
     for (const rel of relations) {

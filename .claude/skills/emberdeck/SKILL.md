@@ -8,7 +8,7 @@ description: Emberdeck `ed` CLI 로 코드베이스의 설계 지식을 관리�
 1. 코드를 수정하기 **전에** 관련 카드를 읽는다. 수정 후에는 반드시 `ed validate links` 실행. 예외 없음.
 </critical>
 2. 카드를 만들기 전 사용자에게 card-analysis 를 보여주고 확인 받는다.
-3. brief 카드는 설계 문서다. `frontmatter.brief` 네임스페이스 아래 8개 섹션(`context`, `scope`, `flow`, `design`, `policy`, `external`, `compatibility`, `limits`, `criteria`, `rationale`) 을 모두 채우고 cross-reference 까지 검증되도록 작성한다. 자식 spec 카드를 만들기 전에 `ed validate brief KEY` 로 검증한다.
+3. brief 카드는 설계 문서다. `frontmatter.brief` 네임스페이스의 10개 필드(`context`, `scope`, `flow`, `design`, `policy`, `external`, `compatibility`, `limits`, `criteria`, `rationale`) 를 모두 채우고 cross-reference 까지 만족하도록 작성한다. 본문은 자유 산문(예시·부연 설명) 으로 사용한다 — 본문 섹션 강제는 없다. 검증은 카드 파싱 시점 + activation guard (`validateBriefRefs`) 가 자동.
    spec 카드는 코드에 묶인 검증 가능한 contract 를 담는다. 카드에는 **코드만 봐서는 알 수 없는 지식**만 넣는다 — 함수 시그니처, 파일 경로, 기술 스택 같은 항목은 카드에 들어가면 에이전트 성능을 떨어뜨린다.
 4. 카드를 만들기 전에 glossary 를 정의한다. `glossary.yaml` 에 항목이 하나라도 있으면 새로 만드는 모든 카드는 비어있지 않은 `glossary` 필드(주요 토픽 나열)가 필요하다. 같은 용어를 여러 카드가 선언하는 것은 정상이다 — 같은 개념을 다른 관점에서 다루는 카드들은 모두 그 용어를 선언할 수 있다.
 5. **4-tier 계층은 strict 하다**: `principle` (프로젝트 전반, 루트) / `domain` (bounded context, 루트) / `brief` (도메인 내부 설계 토픽, parent 는 반드시 domain) / `spec` (코드 contract, parent 는 brief 또는 spec). brief 재귀는 금지 — 비대해지면 같은 domain 아래 sibling brief 로 분리한다. spec 재귀는 허용 (sub-spec).
@@ -124,9 +124,8 @@ CLI 명령 — 시점과 사용법:
 | `ed card context KEY [--depth N]` | relations + parent BFS 순회. | 아니오 |
 | `ed card relations KEY` | 단일 카드의 forward + reverse 직접 관계. | 아니오 |
 | `ed validate cards` | 파일/DB 정합, 계층, broken-chain, orphan-card, type-hierarchy-violation, empty-tree 경고. partial → exit 2. | 아니오 |
-| `ed validate brief KEY` | KEY 기점 brief 트리의 8섹션 + cross-ref 검증. | 아니오 |
 | `ed validate links [KEY]` | 모든 codeLinks 가 gildash 통해 resolve 되는지. 카드 단위 또는 프로젝트 전체. | 아니오 |
-| `ed validate` (인자 없음) | cards + links + briefs 종합. | 아니오 |
+| `ed validate` (인자 없음) | cards + links 종합. | 아니오 |
 | `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | drift 탐지 (broken_link / boundary_inactive / symbol_changed / glossary_broken). 기본 active→drifted 자동 전이. | 예 (기본 status 변경) |
 | `ed check coverage [KEY] [--uncovered\|--suggest]` | 카드별 커버리지 / 프로젝트 미커버 심볼 / 신규 카드 제안. | 아니오 |
 | `ed check impact <files...> [--symbol names...]` | 변경 전 영향 분석 (direct/boundary/transitive). | 아니오 |
@@ -195,6 +194,7 @@ Glossary 리네임 시퀀스:
 | broken-parent | parent 키가 존재하지 않음 | `ed card update KEY --field parent=<존재하는 키>` 또는 빠진 parent 생성 |
 | type-hierarchy-violation | 자식 타입에 잘못된 parent 타입 | 4-tier 에 맞는 타입으로 parent 재지정 |
 | broken-relation | relation 타깃이 존재하지 않음 | `ed card update KEY --patch patch.yaml` 로 dead reference 제거 |
+| broken-cross-domain-dep | domain 의 `cross_domain_dependencies` 가 존재하지 않거나 type≠domain 인 카드를 가리킴 | 타깃 domain 카드 생성 또는 `ed card update KEY --patch patch.yaml` 로 entry 제거 |
 | glossary-broken | 카드가 glossary.yaml 에 없는 단어를 선언함 | `ed glossary define` 로 재추가 또는 `ed card update KEY --glossary <새 목록>` 으로 제거 |
 | broken-chain | spec 카드가 brief 까지 도달하는 relation/parent chain 이 없음 | parent=brief 또는 relations=[brief-key] 추가 |
 | empty-tree | active brief 또는 domain 에 자식이 없음 | 자식 카드 추가 또는 draft 로 강등 |

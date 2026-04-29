@@ -8,6 +8,7 @@ import { CardNotFoundError, CardAlreadyExistsError, CardRenameSamePathError } fr
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { withCardLock, withRetry } from './safe';
+import { syncCardFromFile } from './sync';
 
 /**
  * Result returned on successful `renameCard`.
@@ -85,9 +86,27 @@ export async function renameCard(
           }
         }
 
+        // Domains whose cross_domain_dependencies reference oldKey — must
+        // also be rewritten when renaming a domain card.
+        const crossDomainRefSrcKeys = new Set<string>();
+        for (const row of allCards) {
+          if (row.type !== 'domain' || !row.namespacesJson || row.key === oldKey) continue;
+          try {
+            const ns = JSON.parse(row.namespacesJson) as { domain?: { cross_domain_dependencies?: Array<{ domain: string }> } };
+            const deps = ns.domain?.cross_domain_dependencies ?? [];
+            if (deps.some((d) => d.domain === oldKey)) {
+              crossDomainRefSrcKeys.add(row.key);
+            }
+          } catch { /* malformed; skip */ }
+        }
+
         for (const row of allCards) {
           if (row.key === oldKey) continue;
-          if (row.parent === oldKey || forwardRefSrcKeys.has(row.key)) {
+          if (
+            row.parent === oldKey ||
+            forwardRefSrcKeys.has(row.key) ||
+            crossDomainRefSrcKeys.has(row.key)
+          ) {
             referencingCards.push({ key: row.key, filePath: row.filePath });
           }
         }
@@ -155,8 +174,22 @@ export async function renameCard(
                 }
               }
 
+              // Update domain.cross_domain_dependencies references
+              if (updatedFm.domain?.cross_domain_dependencies) {
+                const newDeps = updatedFm.domain.cross_domain_dependencies.map(
+                  (d) => d.domain === oldKey ? { ...d, domain: newFullKey } : d,
+                );
+                if (newDeps.some((d, i) => d.domain !== updatedFm.domain!.cross_domain_dependencies![i]!.domain)) {
+                  updatedFm.domain = { ...updatedFm.domain, cross_domain_dependencies: newDeps };
+                  changed = true;
+                }
+              }
+
               if (changed) {
                 await writeCardFile(ref.filePath, { ...refFile, frontmatter: updatedFm });
+                // Sync the rewritten file back to DB so validateCards / activation
+                // see the up-to-date namespacesJson (cross_domain_dependencies etc).
+                await syncCardFromFile(ctx, ref.filePath);
               }
             } catch {
               failedReferenceUpdates.push(ref.key);

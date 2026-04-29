@@ -182,7 +182,7 @@ describe('Phase 2: validate / check / spec / bulk / single', () => {
     const parsed = JSON.parse(r.stdout);
     expect(parsed.data.cards).toBeDefined();
     expect(parsed.data.links).toBeDefined();
-    expect(parsed.data.briefs).toBeDefined();
+    // briefs section removed when legacy markdown 8-section path was retired
   });
 
   test('validate links (empty project, no gildash)', async () => {
