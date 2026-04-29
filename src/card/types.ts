@@ -15,7 +15,7 @@ export const CARD_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'dri
  *
  * - `principle` — Project-wide invariant (cross-cutting). Root-level only, no children.
  * - `domain`    — Bounded context / large area overview. Root-level only; children must be brief.
- * - `brief`     — Design topic within a domain (8 sections enforced). Parent MUST be domain (no brief recursion).
+ * - `brief`     — Design topic within a domain. Structure lives in frontmatter.brief namespace (10 fields, cross-refs validated). Parent MUST be domain (no brief recursion).
  * - `spec`      — Code contract with codeLinks. Parent must be brief or spec (sub-spec allowed).
  *
  * Each type is an abstraction layer; same-level different aspects belong to sections within a card.

@@ -84,53 +84,15 @@ export function makeTestSpec(file: string, symbol: string): SpecBody {
 }
 
 /**
- * Minimal valid brief body with all 8 required sections.
- * Use when creating active brief cards in tests.
+ * Filler body strings for tests. Body is free-form prose now (canonical
+ * structure lives in frontmatter.brief / frontmatter.spec namespaces),
+ * so these constants are just non-empty content for round-trip / FTS5
+ * coverage. They no longer encode any required section structure.
+ *
+ * Kept under their original names to avoid churn across ~60 test sites.
  */
-export const BRIEF_BODY = `
-## Motivation
-Test motivation. This section exists for validation.
-
-## Scope
-Test scope. Goals and non-goals defined here.
-
-## Scenario
-Test scenario. User flow is described here.
-
-## Rule
-Test rule. Business policies are defined here.
-
-## Constraint
-Test constraint. External obligations listed here.
-
-## Risk
-Test risk. Failure scenarios documented here.
-
-## Criteria
-Test criteria. Success metrics defined here.
-
-## Decision
-Test decision. Alternatives considered here.
-`.trim();
-
-/**
- * Minimal valid spec body with all 3 required sections.
- * Use when creating active spec cards in tests.
- */
-export const SPEC_BODY = `
-## Contract
-- GIVEN valid input
-  WHEN the function is called
-  THEN the expected output MUST be returned.
-
-## Invariant
-- System state MUST remain consistent after every operation.
-
-## Failure
-| Violation | System behavior |
-|-----------|----------------|
-| Invalid input | ValidationError thrown |
-`.trim();
+export const BRIEF_BODY = '## Notes\n\nTest brief filler body. Structure lives in frontmatter.brief namespace.';
+export const SPEC_BODY = '## Notes\n\nTest spec filler body. Structure lives in frontmatter.spec namespace.';
 
 /**
  * 4-tier scaffolding helper: ensure a draft domain (and optionally brief) exists
