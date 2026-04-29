@@ -1022,4 +1022,65 @@ describe('activation guard on active card field changes', () => {
     expect(result.card.frontmatter.summary).toBe('Updated summary');
     expect(result.card.frontmatter.status).toBe('active');
   });
+
+  it('re-runs activation guard when active spec namespace changes (broken binds)', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, {
+      key: 'guard-spec-ns',
+      summary: 'spec ns guard',
+      type: 'spec',
+      parent: '_br',
+      body: 'prose',
+      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'doX' }],
+      spec: makeTestSpec('src/x.ts', 'doX'),
+    });
+    await updateCardStatus(tc.ctx, 'guard-spec-ns', 'active');
+    // Submit a spec namespace whose binds reference a symbol NOT in codeLinks
+    const broken = makeTestSpec('src/x.ts', 'wrongSymbol');
+    await expect(
+      updateCard(tc.ctx, 'guard-spec-ns', { spec: broken }),
+    ).rejects.toThrow(ActivationGuardError);
+  });
+
+  it('re-runs activation guard when active brief namespace changes (broken cross-ref)', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx);
+    const goodBrief = makeTestBrief();
+    await createCard(tc.ctx, {
+      key: 'guard-brief-ns',
+      summary: 'brief ns guard',
+      type: 'brief',
+      parent: '_dom',
+      body: 'prose',
+      brief: goodBrief,
+      status: 'active',
+    });
+    const broken = makeTestBrief();
+    broken.flow[0]!.covers = ['G-999']; // unknown goal
+    await expect(
+      updateCard(tc.ctx, 'guard-brief-ns', { brief: broken }),
+    ).rejects.toThrow(ActivationGuardError);
+  });
+
+  it('re-runs activation guard when active card parent changes', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, {
+      key: 'guard-parent',
+      summary: 'parent guard',
+      type: 'spec',
+      parent: '_br',
+      body: 'prose',
+      codeLinks: [{ kind: 'function', file: 'src/y.ts', symbol: 'doY' }],
+      spec: makeTestSpec('src/y.ts', 'doY'),
+    });
+    await updateCardStatus(tc.ctx, 'guard-parent', 'active');
+    // Repointing parent to the domain (_dom) — invalid for spec (must be brief|spec).
+    // validateParentType (write-time) catches it before activation guard re-runs;
+    // either layer surfaces the same 4-tier rule.
+    await expect(
+      updateCard(tc.ctx, 'guard-parent', { parent: '_dom' }),
+    ).rejects.toThrow(/spec card parent must be brief or spec|spec\.parent must be brief or spec/);
+  });
 });

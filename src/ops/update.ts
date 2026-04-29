@@ -249,13 +249,25 @@ export async function updateCard(
         next.status = fields.status;
       }
 
-      // Activation guard when status=active
+      // Activation guard when status=active.
       // Re-run guard when: (a) becoming active, (b) explicitly set to active,
-      // or (c) already active and activation-critical fields changed.
+      // or (c) already active and any activation-critical field changed.
+      // Critical fields = anything the guard inspects: type / parent /
+      // codeLinks / boundary / principle / domain / brief / spec namespaces.
+      // (glossary is excluded — glossary breakage surfaces via check drift.)
       const activationFieldsChanged =
         prev.status === 'active' &&
         fields.status === undefined &&
-        (fields.codeLinks !== undefined || fields.boundary !== undefined || fields.type !== undefined);
+        (
+          fields.type !== undefined ||
+          fields.parent !== undefined ||
+          fields.codeLinks !== undefined ||
+          fields.boundary !== undefined ||
+          fields.principle !== undefined ||
+          fields.domain !== undefined ||
+          fields.brief !== undefined ||
+          fields.spec !== undefined
+        );
       if (next.status === 'active' && (fields.status === 'active' || prev.status !== 'active' || activationFieldsChanged)) {
         await validateActivationGuard(ctx, {
           type: next.type,
