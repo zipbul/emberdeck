@@ -114,8 +114,8 @@ CLI 명령 — 시점과 사용법:
 | `ed card create KEY --type {principle\|domain\|brief\|spec} --summary S --parent P [--from f.yaml]` | 카드 생성. frontmatter+body 는 `--from`. | 예 |
 | `ed card update KEY --field name=value [--patch f.yaml] [--body f.md] [--glossary 단어들]` | 카드 수정. 네임스페이스는 `--patch`, 스칼라 (summary/status/parent/type) 는 `--field`. | 예 (자명한 변경 외) |
 | `ed card get KEY [--history]` | 파일에서 카드 읽기 (frontmatter + body, 옵션으로 changelog). | 아니오 |
-| `ed card delete KEY [--force] --yes` | 파괴적. `--force` 는 자식까지 cascade (parent=null). TTY 프롬프트. | 예 |
-| `ed card rename OLD NEW` | 카드 리네임. FK CASCADE + 파일 이동 + 본문 참조 재작성. 일부 참조 재작성 실패 시 status=`partial`. | 예 |
+| `ed card delete KEY [--force] --yes` | 파괴적. `--force` 는 자식까지 cascade (parent=null), 그리고 다른 domain 의 `cross_domain_dependencies` 에서 entry 자동 제거. 의존자 있는데 `--force` 없으면 거절. TTY 프롬프트. | 예 |
+| `ed card rename OLD NEW` | 카드 리네임. FK CASCADE + 파일 이동 + 본문 참조 재작성 + `cross_domain_dependencies` 에서 OLD → NEW 자동 갱신 + DB sync. 일부 참조 재작성 실패 시 status=`partial`. | 예 |
 | `ed card export KEY [--out FILE\|--in-place]` | DB 의 카드 내용을 STDOUT (기본) / 파일 (`--out`) / 원본 위치 (`--in-place`) 로 렌더. | 아니오 (기본 read-only) |
 | `ed card set-status KEY STATUS [--reason TEXT\|--reason-from FILE]` | status 변경 (draft/active/drifted/retired). `active` 시 activation guard 실행. | 예 |
 | `ed card list [--type T] [--status S] [--parent P] [--tag T] [--symbol N] [--file F] [--glossary W] [--limit N --offset N]` | 리스트/필터. `--symbol`/`--glossary` 은 `--tag` 와 상호 배타. | 아니오 |
