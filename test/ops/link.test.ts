@@ -22,8 +22,15 @@ let mockSearchSymbols: ReturnType<typeof mock>;
 beforeEach(async () => {
   tc = await createTestContext();
   mockSearchSymbols = mock(() => [] as SymbolSearchResult[]);
+  // SymbolFileCache uses getSymbolsByFile; route it through the same mock
+  // so existing test cases that configure searchSymbols still drive results.
+  const mockGetSymbolsByFile = (file: string) =>
+    (mockSearchSymbols({ filePath: file, text: '', exact: true }) as SymbolSearchResult[])
+      .filter((s) => s.filePath === file);
   tc.ctx.gildash = {
     searchSymbols: mockSearchSymbols,
+    getSymbolsByFile: mockGetSymbolsByFile,
+    reindex: async () => ({ filesProcessed: 0, symbolsExtracted: 0, relationsExtracted: 0 }),
     close: mock(async () => undefined),
   } as unknown as Gildash;
 });
@@ -76,6 +83,7 @@ function insertInDb(key: string): void {
 const fakeSymbol: SymbolSearchResult = {
   id: 1,
   name: 'myFn',
+  memberName: null,
   filePath: 'src/auth.ts',
   kind: 'function' as any,
   span: { start: { line: 1, column: 0 }, end: { line: 5, column: 1 } },

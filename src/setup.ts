@@ -29,6 +29,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
       const result = await Gildash.open({
         projectRoot: options.projectRoot,
         ignorePatterns: mergedIgnore.length > 0 ? mergedIgnore : undefined,
+        watchMode: false,
       });
       if (isErr(result)) {
         process.stderr.write(`[emberdeck] gildash init error: ${JSON.stringify(result.data)}\n`);

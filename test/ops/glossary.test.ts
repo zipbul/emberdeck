@@ -493,14 +493,14 @@ describe('Glossary', () => {
     it('pre_change_check should include glossary entries (M8)', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      const result = preChangeCheck(tc.ctx, ['src/foo.ts']);
+      const result = await preChangeCheck(tc.ctx, ['src/foo.ts']);
       expect(result.glossary).toBeDefined();
       expect(result.glossary!.some(e => e.word === 'Job')).toBe(true);
     });
 
     it('pre_change_check should omit glossary when empty', async () => {
       tc = await createTestContext();
-      const result = preChangeCheck(tc.ctx, ['src/foo.ts']);
+      const result = await preChangeCheck(tc.ctx, ['src/foo.ts']);
       expect(result.glossary).toBeUndefined();
     });
 

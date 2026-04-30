@@ -81,7 +81,16 @@ function createMockGildash(
     reindex: async () => {},
     close: async () => {},
     listIndexedFiles: () => indexedFiles,
-    getSymbolsByFile: (fp: string) => fileSymbols.get(fp) ?? [],
+    getSymbolsByFile: (fp: string) => {
+      const direct = fileSymbols.get(fp);
+      if (direct) return direct;
+      // Mock symbols are keyed by absolute path; accept relative lookups too
+      // (mirrors real gildash 0.26 which stores project-root-relative paths).
+      for (const [key, syms] of fileSymbols) {
+        if (key === fp || key.endsWith('/' + fp)) return syms;
+      }
+      return [];
+    },
     searchSymbols: (query: { text?: string; exact?: boolean; filePath?: string }) => {
       const results: any[] = [];
       for (const [fp, syms] of fileSymbols) {
@@ -214,7 +223,7 @@ describe('E2E Scenario 2: Code change flow', () => {
     });
 
     // Step 1: preChangeCheck → affected card
-    const impact = preChangeCheck(tc.ctx, ['src/auth.ts']);
+    const impact = await preChangeCheck(tc.ctx, ['src/auth.ts']);
     expect(impact.affectedCards.some((c) => c.key === 'auth-service')).toBe(true);
 
     // Step 2: Remove symbols from mock (simulate code deletion)

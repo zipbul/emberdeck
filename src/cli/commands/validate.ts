@@ -99,6 +99,8 @@ export function registerValidate(program: Command): void {
 
           const targets = key ? [{ key }] : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec').map((c) => ({ key: c.key }));
           const spinner = startSpinner(rt.output, `validating ${targets.length} card(s)...`, { verbose: rt.verbose });
+          let internalCount = 0;
+          const internalDetails: Array<{ key: string; file: string; symbol: string }> = [];
           try {
             let i = 0;
             for (const t of targets) {
@@ -109,12 +111,22 @@ export function registerValidate(program: Command): void {
               resolved += r.valid;
               broken += r.broken.length;
               for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
+              if (r.internalLinks) {
+                internalCount += r.internalLinks.length;
+                for (const il of r.internalLinks) internalDetails.push({ key: t.key, file: il.file, symbol: il.symbol });
+              }
             }
           } finally {
             spinner.stop();
           }
 
-          const data = { declared, resolved, broken, unresolved: errors.length };
+          const data = {
+            declared,
+            resolved,
+            broken,
+            unresolved: errors.length,
+            ...(internalCount > 0 ? { internal_links: internalCount, internal_details: internalDetails } : {}),
+          };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
         [],
@@ -122,8 +134,9 @@ export function registerValidate(program: Command): void {
         {
           partialIsFailure: true,
           humanRenderer: (data) => {
-            const d = data as { declared: number; resolved: number; broken: number };
-            return `validate links: declared=${d.declared} resolved=${d.resolved} broken=${d.broken}`;
+            const d = data as { declared: number; resolved: number; broken: number; internal_links?: number };
+            const base = `validate links: declared=${d.declared} resolved=${d.resolved} broken=${d.broken}`;
+            return d.internal_links ? `${base} internal=${d.internal_links}` : base;
           },
         },
       );

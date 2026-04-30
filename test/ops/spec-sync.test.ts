@@ -26,12 +26,22 @@ function createMockGildash(overrides: {
   searchSymbols?: (...args: unknown[]) => unknown;
   getSymbolChanges?: (...args: unknown[]) => unknown[];
   getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
+  listIndexedFiles?: (...args: unknown[]) => unknown[];
+  reindex?: () => Promise<void>;
 } = {}) {
+  const searchSymbols = overrides.searchSymbols ?? (() => []);
+  const defaultGetSymbolsByFile = (file: string) => {
+    const result = searchSymbols({ filePath: file, exact: false }) as Array<{ filePath?: string }>;
+    if (!Array.isArray(result)) return [];
+    return result.filter((s) => !s.filePath || s.filePath === file);
+  };
   return {
     searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
-    searchSymbols: mock(overrides.searchSymbols ?? (() => [])),
+    searchSymbols: mock(searchSymbols),
     getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
-    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? (() => [])),
+    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? defaultGetSymbolsByFile),
+    listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
+    reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
     close: mock(() => Promise.resolve()),
   } as any;
 }
@@ -510,12 +520,11 @@ describe('getLinkCoverage', () => {
         { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
       ], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
-      searchSymbols: ({ text, filePath }: any) => {
-        if (text === 'fnA') return [{ name: 'fnA', filePath: 'src/a.ts', kind: 'function' }];
-        if (text === 'ClassB') return [{ name: 'ClassB', filePath: 'src/b.ts', kind: 'class' }];
+      getSymbolsByFile: (file: any) => {
+        if (file === 'src/a.ts') return [{ name: 'fnA', memberName: null, filePath: 'src/a.ts', kind: 'function' }];
+        if (file === 'src/b.ts') return [{ name: 'ClassB', memberName: null, filePath: 'src/b.ts', kind: 'class' }];
         return [];
       },
-      getSymbolsByFile: () => [],
     });
 
     const result = await getLinkCoverage(tc.ctx, 'full-cov');
@@ -535,11 +544,10 @@ describe('getLinkCoverage', () => {
         { kind: 'function', file: 'src/b.ts', symbol: 'missing' },
       ], type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
-      searchSymbols: ({ text }: any) => {
-        if (text === 'exists') return [{ name: 'exists', filePath: 'src/a.ts', kind: 'function' }];
+      getSymbolsByFile: (file: any) => {
+        if (file === 'src/a.ts') return [{ name: 'exists', memberName: null, filePath: 'src/a.ts', kind: 'function' }];
         return [];
       },
-      getSymbolsByFile: () => [],
     });
 
     const result = await getLinkCoverage(tc.ctx, 'partial-cov');
@@ -923,9 +931,9 @@ describe('writeSpecAnnotations', () => {
     });
 
     tc.ctx.gildash = createMockGildash({
-      searchSymbols: ({ text, filePath }: any) => {
-        if (text === 'fnA') return [{ name: 'fnA', filePath: relPathA, kind: 'function', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } } }];
-        if (text === 'fnB') return [{ name: 'fnB', filePath: relPathB, kind: 'function', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } } }];
+      getSymbolsByFile: (file: any) => {
+        if (file === relPathA) return [{ name: 'fnA', memberName: null, filePath: relPathA, kind: 'function', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } } }];
+        if (file === relPathB) return [{ name: 'fnB', memberName: null, filePath: relPathB, kind: 'function', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } } }];
         return [];
       },
     });
@@ -1111,10 +1119,12 @@ describe('writeSpecAnnotations', () => {
     });
 
     tc.ctx.gildash = createMockGildash({
-      searchSymbols: ({ text }: any) => {
-        if (text === 'fnX') return [{ name: 'fnX', filePath: relPath, kind: 'function', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } } }];
-        if (text === 'fnY') return [{ name: 'fnY', filePath: relPath, kind: 'function', span: { start: { line: 3, column: 0 }, end: { line: 3, column: 25 } } }];
-        return [];
+      getSymbolsByFile: (file: any) => {
+        if (file !== relPath) return [];
+        return [
+          { name: 'fnX', memberName: null, filePath: relPath, kind: 'function', span: { start: { line: 1, column: 0 }, end: { line: 1, column: 25 } } },
+          { name: 'fnY', memberName: null, filePath: relPath, kind: 'function', span: { start: { line: 3, column: 0 }, end: { line: 3, column: 25 } } },
+        ];
       },
     });
 

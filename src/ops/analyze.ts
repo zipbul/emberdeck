@@ -5,6 +5,10 @@ import { getUncoveredSymbols } from './spec-sync';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { buildCardFromDb } from './sync';
 import { parseBoundaryJson, parseGlossaryJson } from '../card/json-fields';
+import { ensureReindexed } from './link';
+
+/** Days of changelog history to retain when pruning at the end of `analyze`. */
+const CHANGELOG_RETENTION_DAYS = 90;
 
 // ── Types ──
 
@@ -15,7 +19,23 @@ export interface AnalyzeHealth {
   draft: number;
   brokenLinks: number;
   staleBoundary: number;
+  /** Code-side architectural warnings (populated when gildash is available). */
+  codeCycles?: {
+    /** Number of distinct cycles detected in the import graph. */
+    count: number;
+    /** Up to MAX_CYCLE_SAMPLES example cycles, each as a list of files in loop order. */
+    samples: string[][];
+  };
+  /** Code-side aggregate counts (gildash.getStats). */
+  codeStats?: {
+    files: number;
+    symbols: number;
+    relations: number;
+  };
 }
+
+/** Cap on cycle samples surfaced in analyze output (full list available via gildash). */
+const MAX_CYCLE_SAMPLES = 5;
 
 export interface AnalyzeCoverage {
   totalSymbols: number;
@@ -149,9 +169,35 @@ export async function analyze(
     }
   }
 
-  // 3. Stale boundary count: boundary globs that match no files
+  // 3. Stale boundary count: boundary globs that match no indexed files.
+  // Empty index treated as "no information" (consistent with checkDrift's
+  // boundary_inactive guard) so we don't false-positive when gildash isn't
+  // configured or the project happens to have zero indexed sources.
   let staleBoundary = 0;
-  if (ctx.projectRoot) {
+  if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
+    await ensureReindexed(ctx);
+    const indexedFiles = ctx.gildash.listIndexedFiles().map((f) => f.filePath);
+    if (indexedFiles.length > 0) {
+      for (const card of allCards) {
+        const boundary = parseBoundaryJson(card.boundaryJson);
+        if (boundary.length === 0) continue;
+        let anyMatch = false;
+        try {
+          for (const pattern of boundary) {
+            const glob = new Bun.Glob(pattern);
+            for (const file of indexedFiles) {
+              if (glob.match(file)) { anyMatch = true; break; }
+            }
+            if (anyMatch) break;
+          }
+        } catch {
+          // invalid glob — count as stale
+        }
+        if (!anyMatch) staleBoundary++;
+      }
+    }
+  } else if (ctx.projectRoot) {
+    // Fallback when gildash is absent: scan the projectRoot directly.
     for (const card of allCards) {
       const boundary = parseBoundaryJson(card.boundaryJson);
       if (boundary.length === 0) continue;
@@ -204,6 +250,55 @@ export async function analyze(
     .filter((e) => !usedGlossaryWords.has(e.word))
     .map((e) => e.word);
 
+  // Code-side aggregate stats — surface symbol/file/relation counts when gildash exposes them.
+  let codeStats: AnalyzeHealth['codeStats'];
+  if (ctx.gildash && typeof ctx.gildash.getStats === 'function') {
+    try {
+      const stats = ctx.gildash.getStats();
+      // Gildash 0.26: SymbolStats = { symbolCount, fileCount }. Older/forked
+      // versions used totalSymbols/totalFiles/totalRelations — coerce defensively.
+      const s = stats as unknown as Record<string, unknown>;
+      const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+      const files = num(s.fileCount ?? s.totalFiles ?? s.files);
+      const symbols = num(s.symbolCount ?? s.totalSymbols ?? s.symbols);
+      const relations = num(s.totalRelations ?? s.relations ?? 0);
+      codeStats = { files, symbols, relations };
+    } catch {
+      // best-effort
+    }
+  }
+
+  // Code-side architectural debt: surface import cycles when gildash exposes them.
+  let codeCycles: AnalyzeHealth['codeCycles'];
+  if (
+    ctx.gildash &&
+    typeof ctx.gildash.getCyclePaths === 'function' &&
+    typeof ctx.gildash.hasCycle === 'function'
+  ) {
+    try {
+      if (await ctx.gildash.hasCycle()) {
+        const cycles = await ctx.gildash.getCyclePaths(undefined, { maxCycles: MAX_CYCLE_SAMPLES });
+        codeCycles = { count: cycles.length, samples: cycles };
+      } else {
+        codeCycles = { count: 0, samples: [] };
+      }
+    } catch {
+      // best-effort; cycle reporting is informational
+    }
+  }
+
+  // Hygiene: prune old gildash changelog entries on each analyze run.
+  // Bounded retention prevents `.gildash/` from growing unbounded across
+  // long-lived projects; failures are non-fatal (analyze must still return).
+  if (ctx.gildash && typeof ctx.gildash.pruneChangelog === 'function') {
+    try {
+      const cutoff = new Date(Date.now() - CHANGELOG_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+      ctx.gildash.pruneChangelog(cutoff);
+    } catch {
+      // best-effort; do not fail the report
+    }
+  }
+
   return {
     health: {
       total: allCards.length,
@@ -212,6 +307,8 @@ export async function analyze(
       draft,
       brokenLinks: totalBrokenLinks,
       staleBoundary,
+      ...(codeStats ? { codeStats } : {}),
+      ...(codeCycles ? { codeCycles } : {}),
     },
     coverage,
     unlinkedSymbols,

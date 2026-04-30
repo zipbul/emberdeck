@@ -4,6 +4,7 @@ import { getRelationGraph } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { parseBoundaryJson } from '../card/json-fields';
+import { SymbolFileCache, expandAffectedFiles } from './link';
 
 // ── pre_change_check ──
 
@@ -23,6 +24,12 @@ export interface PreChangeResult {
   riskLevel: RiskLevel;
   newUncoveredFiles: string[];
   suggestedActions: string[];
+  /** Highest fan-in across input files (gildash). 0 when gildash unavailable. */
+  maxFanIn?: number;
+  /** Highest fan-out across input files (gildash). */
+  maxFanOut?: number;
+  /** Direct importers of any input file (gildash.getDependents). */
+  directDependents?: string[];
   /** Full project glossary (for agent context). */
   glossary?: GlossaryEntry[];
 }
@@ -36,16 +43,23 @@ export interface PreChangeResult {
  * 4. Identify files not covered by any card.
  * 5. Calculate risk level and suggest actions.
  */
-export function preChangeCheck(
+export async function preChangeCheck(
   ctx: EmberdeckContext,
   files: string[],
   symbols?: string[],
-): PreChangeResult {
+): Promise<PreChangeResult> {
   const directCards = new Map<string, number>();
   const symbolSet = symbols ? new Set(symbols) : null;
 
+  // Expand input through gildash import graph so changes propagate to cards
+  // that link to importers of the changed files (not just direct linkers).
+  const expandedFiles = await expandAffectedFiles(ctx, files);
+
+  // Shared symbol cache reused across all per-card link-status checks below.
+  const sharedCache = ctx.gildash ? new SymbolFileCache(ctx.gildash) : undefined;
+
   // Find directly affected cards by codeLinks
-  for (const file of files) {
+  for (const file of expandedFiles) {
     const links = ctx.codeLinkRepo.findByFile(file);
     for (const link of links) {
       if (symbolSet && !symbolSet.has(link.symbol)) continue;
@@ -85,7 +99,7 @@ export function preChangeCheck(
   for (const [key, count] of directCards) {
     primaryKeys.add(key);
     const row = ctx.cardRepo.findByKey(key);
-    const linkStatus = computeLinkStatus(ctx, key);
+    const linkStatus = computeLinkStatus(ctx, key, sharedCache);
     affectedCards.push({
       key,
       summary: row?.summary ?? '',
@@ -98,7 +112,7 @@ export function preChangeCheck(
   // Add boundary cards
   for (const [key, card] of boundaryCards) {
     primaryKeys.add(key);
-    const linkStatus = computeLinkStatus(ctx, key);
+    const linkStatus = computeLinkStatus(ctx, key, sharedCache);
     affectedCards.push({
       key,
       summary: card.summary,
@@ -163,7 +177,9 @@ export function preChangeCheck(
     }
   }
 
-  // Calculate risk level: card count + drifted ratio
+  // Calculate risk level: card count + drifted ratio + fan-in (gildash hot files).
+  // A change to a high-fan-in file affects more importers, so we elevate the
+  // risk one tier when any input file has fan-in ≥ HOT_FILE_FANIN.
   const driftedCount = affectedCards.filter((c) => {
     const row = ctx.cardRepo.findByKey(c.key);
     return row && row.status === 'drifted';
@@ -171,16 +187,53 @@ export function preChangeCheck(
   const totalAffected = affectedCards.length;
   const driftedRatio = totalAffected > 0 ? driftedCount / totalAffected : 0;
 
-  let riskLevel: RiskLevel;
-  if (totalAffected >= 5 || driftedRatio > 0.5) {
-    riskLevel = 'critical';
-  } else if (totalAffected >= 3 || driftedRatio > 0.25) {
-    riskLevel = 'high';
-  } else if (totalAffected >= 1) {
-    riskLevel = 'medium';
-  } else {
-    riskLevel = 'low';
+  let maxFanIn = 0;
+  let maxFanOut = 0;
+  if (ctx.gildash && typeof ctx.gildash.getFanMetrics === 'function') {
+    for (const file of files) {
+      try {
+        const metrics = await ctx.gildash.getFanMetrics(file);
+        if (metrics && typeof metrics.fanIn === 'number' && metrics.fanIn > maxFanIn) {
+          maxFanIn = metrics.fanIn;
+        }
+        if (metrics && typeof metrics.fanOut === 'number' && metrics.fanOut > maxFanOut) {
+          maxFanOut = metrics.fanOut;
+        }
+      } catch {
+        // best-effort; fan-in is risk-shaping, not authoritative
+      }
+    }
   }
+
+  // Direct importers (gildash.getDependents). Surfacing the actual files lets
+  // callers see WHICH files depend on a changed input — useful for review focus.
+  const directDependentsSet = new Set<string>();
+  if (ctx.gildash && typeof ctx.gildash.getDependents === 'function') {
+    for (const file of files) {
+      try {
+        const deps = ctx.gildash.getDependents(file);
+        if (Array.isArray(deps)) for (const d of deps) directDependentsSet.add(d);
+      } catch {
+        // best-effort
+      }
+    }
+  }
+  const directDependents = [...directDependentsSet];
+
+  const HOT_FILE_FANIN = 10;
+  const baseRisk: RiskLevel =
+    totalAffected >= 5 || driftedRatio > 0.5
+      ? 'critical'
+      : totalAffected >= 3 || driftedRatio > 0.25
+        ? 'high'
+        : totalAffected >= 1
+          ? 'medium'
+          : 'low';
+  // Promote one tier when a hot file is involved (cap at 'critical').
+  const tiers: RiskLevel[] = ['low', 'medium', 'high', 'critical'];
+  const baseIdx = tiers.indexOf(baseRisk);
+  const promoted = maxFanIn >= HOT_FILE_FANIN ? Math.min(baseIdx + 1, tiers.length - 1) : baseIdx;
+  const riskLevel = tiers[promoted]!;
 
   // Generate suggested actions
   const suggestedActions: string[] = [];
@@ -213,6 +266,9 @@ export function preChangeCheck(
     riskLevel,
     newUncoveredFiles,
     suggestedActions,
+    ...(maxFanIn > 0 ? { maxFanIn } : {}),
+    ...(maxFanOut > 0 ? { maxFanOut } : {}),
+    ...(directDependents.length > 0 ? { directDependents } : {}),
     ...(glossaryEntries.length > 0 ? { glossary: glossaryEntries } : {}),
   };
 }
@@ -220,30 +276,29 @@ export function preChangeCheck(
 /**
  * Compute link status (valid/broken) for a card using gildash.
  * Returns undefined if gildash is not available.
+ *
+ * Accepts an optional shared SymbolFileCache so a sweep over many cards
+ * (preChangeCheck) reuses one getSymbolsByFile call per file.
  */
 function computeLinkStatus(
   ctx: EmberdeckContext,
   cardKey: string,
+  cache?: SymbolFileCache,
 ): { valid: number; broken: number } | undefined {
   if (!ctx.gildash) return undefined;
 
   const links = ctx.codeLinkRepo.findByCardKey(cardKey);
   if (links.length === 0) return { valid: 0, broken: 0 };
 
+  const symbolCache = cache ?? new SymbolFileCache(ctx.gildash);
   let valid = 0;
   let broken = 0;
   for (const link of links) {
-    const results = ctx.gildash.searchSymbols({
-      text: link.symbol,
-      exact: true,
-      filePath: link.file,
-    });
-    if (!Array.isArray(results)) {
-      broken++;
-    } else {
-      const found = results.find((s) => s.name === link.symbol && s.filePath === link.file);
-      if (found) valid++;
+    try {
+      if (symbolCache.find(link.file, link.symbol)) valid++;
       else broken++;
+    } catch {
+      broken++;
     }
   }
   return { valid, broken };
@@ -276,7 +331,7 @@ export async function regressionGuard(
   const threshold = ctx.regressionThreshold;
 
   // Find affected cards
-  const impact = preChangeCheck(ctx, changedFiles);
+  const impact = await preChangeCheck(ctx, changedFiles);
   const affected = impact.affectedCards;
 
   if (affected.length === 0) {

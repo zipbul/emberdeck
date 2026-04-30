@@ -1,4 +1,4 @@
-import type { SymbolSearchResult } from '@zipbul/gildash';
+import type { Gildash, SymbolSearchResult } from '@zipbul/gildash';
 
 import type { EmberdeckContext } from '../config';
 import type { CodeLink } from '../card/types';
@@ -8,6 +8,60 @@ import { GildashNotConfiguredError, CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { parseBoundaryJson } from '../card/json-fields';
+
+/**
+ * Resolution-friendly limit for `searchSymbols` / `searchAnnotations`.
+ * Gildash 0.26 default is unbounded; pin to keep memory predictable when an
+ * exact-match query unexpectedly fans out (e.g. overloaded function names).
+ */
+export const GILDASH_SEARCH_LIMIT = 100;
+export const GILDASH_ANNOTATION_LIMIT = 10000;
+
+/**
+ * Match a gildash symbol against a (file, symbolName) pair.
+ *
+ * Gildash 0.26 returns qualified names for class/interface members
+ * (e.g. `"ClassName.methodName"`) with the unqualified piece in `memberName`.
+ * Cards typically store the unqualified form, so we accept either.
+ */
+export function symbolMatches(
+  s: Pick<SymbolSearchResult, 'name' | 'memberName' | 'filePath'>,
+  file: string,
+  symbolName: string,
+): boolean {
+  if (s.filePath !== file) return false;
+  return s.name === symbolName || s.memberName === symbolName;
+}
+
+/**
+ * Per-file symbol cache backed by `getSymbolsByFile`.
+ *
+ * Avoids the per-link `searchSymbols` round-trip when validating many
+ * codeLinks that share files. Cache scope is the cache instance itself —
+ * callers create a fresh one for each operation.
+ */
+export class SymbolFileCache {
+  private readonly cache = new Map<string, SymbolSearchResult[]>();
+  constructor(private readonly gildash: Gildash) {}
+
+  get(file: string): SymbolSearchResult[] {
+    let symbols = this.cache.get(file);
+    if (symbols === undefined) {
+      symbols = this.gildash.getSymbolsByFile(file) ?? [];
+      this.cache.set(file, symbols);
+    }
+    return symbols;
+  }
+
+  find(file: string, symbolName: string): SymbolSearchResult | undefined {
+    // Symbols come from getSymbolsByFile(file), so file is implicit; only
+    // match the (qualified or member) name. Cards typically store the
+    // unqualified form, so we accept either form returned by gildash 0.26.
+    return this.get(file).find(
+      (s) => s.name === symbolName || s.memberName === symbolName,
+    );
+  }
+}
 
 
 // ---- Public Types ----
@@ -32,6 +86,13 @@ export interface ValidateCodeLinksResult {
   broken: BrokenLink[];
   /** Links that could not be resolved on draft cards (expected — code not yet written). */
   planned: BrokenLink[];
+  /**
+   * Resolved links that target non-exported (module-internal) symbols.
+   * Informational — links to internal symbols are allowed but flagged so reviewers
+   * can decide whether the documented contract really needs internal coupling.
+   * Populated only when gildash exposes `getModuleInterface`.
+   */
+  internalLinks?: Array<{ file: string; symbol: string }>;
 }
 
 // ---- Helpers ----
@@ -47,12 +108,19 @@ async function readCard(ctx: EmberdeckContext, fullKey: string) {
 
 /**
  * Ensure gildash symbol index is up-to-date before operations that depend on it.
- * No-op if gildash is not configured or does not support reindex.
+ *
+ * Reindex is performed at most once per EmberdeckContext lifetime — repeated
+ * callers within the same CLI invocation share the first reindex's result.
+ * `watchMode: false` means the index is otherwise frozen at `Gildash.open()`,
+ * so a single reindex is the freshest state we can offer for the invocation.
  */
+const reindexedContexts = new WeakSet<EmberdeckContext>();
+
 export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
-  if (ctx.gildash && typeof ctx.gildash.reindex === 'function') {
-    await ctx.gildash.reindex();
-  }
+  if (!ctx.gildash || typeof ctx.gildash.reindex !== 'function') return;
+  if (reindexedContexts.has(ctx)) return;
+  reindexedContexts.add(ctx);
+  await ctx.gildash.reindex();
 }
 
 // ---- Operations ----
@@ -73,16 +141,11 @@ export async function resolveCardCodeLinks(
   const codeLinks = cardFile.frontmatter.codeLinks ?? [];
   if (codeLinks.length === 0) return [];
 
+  const cache = new SymbolFileCache(ctx.gildash);
   const result: ResolvedCodeLink[] = [];
   for (const link of codeLinks) {
     try {
-      const search = ctx.gildash.searchSymbols({
-        text: link.symbol,
-        exact: true,
-        filePath: link.file,
-      });
-
-      const found = search.find((s) => s.name === link.symbol && s.filePath === link.file) ?? null;
+      const found = cache.find(link.file, link.symbol) ?? null;
       result.push({ link, symbol: found });
     } catch {
       // Gildash unavailable — symbol resolution not possible
@@ -142,7 +205,33 @@ export async function findCardsBySymbol(
 }
 
 /**
- * Given a list of changed files, returns the cards that reference symbols in those files via codeLinks.
+ * Expand a set of changed files to include every file transitively affected
+ * via the import graph (gildash `getAffected`).
+ *
+ * Returns the original list when gildash is not configured or the call fails.
+ * The returned list is deduplicated and contains the original input.
+ */
+export async function expandAffectedFiles(
+  ctx: EmberdeckContext,
+  changedFiles: string[],
+): Promise<string[]> {
+  if (changedFiles.length === 0) return [];
+  if (!ctx.gildash || typeof ctx.gildash.getAffected !== 'function') {
+    return [...new Set(changedFiles)];
+  }
+  await ensureReindexed(ctx);
+  try {
+    const affected = await ctx.gildash.getAffected(changedFiles);
+    return [...new Set([...changedFiles, ...affected])];
+  } catch {
+    return [...new Set(changedFiles)];
+  }
+}
+
+/**
+ * Given a list of changed files, returns the cards that reference symbols in
+ * those files via codeLinks. Expands the input through the import graph so a
+ * change to `foo.ts` also flags cards that link to importers of `foo.ts`.
  * Internal function — not part of the public API. Use preChangeCheck instead.
  */
 export async function findAffectedCards(
@@ -153,8 +242,9 @@ export async function findAffectedCards(
 
   await ensureReindexed(ctx);
 
+  const expanded = await expandAffectedFiles(ctx, changedFiles);
   const seen = new Set<string>();
-  for (const file of changedFiles) {
+  for (const file of expanded) {
     const rows = ctx.codeLinkRepo.findByFile(file);
     for (const row of rows) {
       seen.add(row.cardKey);
@@ -191,18 +281,37 @@ export async function validateCodeLinks(
   const status = cardFile.frontmatter.status;
   const isPlanning = status === 'draft';
 
+  const cache = new SymbolFileCache(ctx.gildash);
   const broken: BrokenLink[] = [];
   const planned: BrokenLink[] = [];
+  const internalLinks: Array<{ file: string; symbol: string }> = [];
+
+  // Cache module interfaces per file so we don't recompute the export set for
+  // every link in the same file.
+  const interfaceCache = new Map<string, Set<string>>();
+  const supportsModuleInterface =
+    typeof ctx.gildash.getModuleInterface === 'function';
+  const getExportNames = (file: string): Set<string> | null => {
+    if (!supportsModuleInterface) return null;
+    let names = interfaceCache.get(file);
+    if (names === undefined) {
+      try {
+        const mod = ctx.gildash!.getModuleInterface(file);
+        names = new Set(mod?.exports?.map((e) => e.name) ?? []);
+      } catch {
+        names = new Set();
+      }
+      interfaceCache.set(file, names);
+    }
+    return names;
+  };
+
   let valid = 0;
   let gildashUnavailable = false;
   for (const link of codeLinks) {
-    let search: SymbolSearchResult[];
+    let found: SymbolSearchResult | undefined;
     try {
-      search = ctx.gildash.searchSymbols({
-        text: link.symbol,
-        exact: true,
-        filePath: link.file,
-      });
+      found = cache.find(link.file, link.symbol);
     } catch {
       // Gildash transient failure — do not count as broken link
       gildashUnavailable = true;
@@ -212,13 +321,17 @@ export async function validateCodeLinks(
       continue;
     }
 
-    const found = search.find((s) => s.name === link.symbol && s.filePath === link.file);
     if (!found) {
       const entry: BrokenLink = { link, reason: 'symbol-not-found' };
       if (isPlanning) planned.push(entry);
       else broken.push(entry);
     } else {
       valid++;
+      // Flag non-exported symbols (informational only — does not affect status).
+      const exports = getExportNames(link.file);
+      if (exports && !exports.has(link.symbol) && !exports.has(found.name)) {
+        internalLinks.push({ file: link.file, symbol: link.symbol });
+      }
     }
   }
 
@@ -251,5 +364,11 @@ export async function validateCodeLinks(
     }
   }
 
-  return { declared: codeLinks.length, valid, broken, planned };
+  return {
+    declared: codeLinks.length,
+    valid,
+    broken,
+    planned,
+    ...(internalLinks.length > 0 ? { internalLinks } : {}),
+  };
 }

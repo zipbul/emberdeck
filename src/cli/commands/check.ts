@@ -18,7 +18,7 @@ export function registerCheck(program: Command): void {
   // ── check drift ──
   check
     .command('drift [key]')
-    .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken)')
+    .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken / heritage_uncovered / pattern_violation)')
     .option('--max-depth <n>', 'BFS depth when key given (default 3)', parsePositiveInt('--max-depth'))
     .option('--no-auto-transition', 'do not auto-mark active→drifted')
     .action(async (key: string | undefined, opts: { maxDepth?: number; autoTransition?: boolean }, cmd) => {
@@ -38,12 +38,27 @@ export function registerCheck(program: Command): void {
         [],
         globalFlags,
         { humanRenderer: (data) => {
-          const d = data as { health: { total: number; active: number; drifted: number; draft: number }; cards: Array<{ key: string; status: string; driftType?: string }> };
+          const d = data as {
+            health: { total: number; active: number; drifted: number; draft: number };
+            cards: Array<{
+              key: string;
+              status: string;
+              driftType?: string;
+              uncoveredSubclasses?: Array<{ file: string; symbol: string }>;
+              patternViolations?: Array<{ id: string; rule: string; matches: number }>;
+            }>;
+          };
           const lines = [
             `drift: total=${d.health.total} active=${d.health.active} drifted=${d.health.drifted} draft=${d.health.draft}`,
           ];
           for (const c of d.cards.filter((c) => c.driftType)) {
             lines.push(`  ${c.key}: ${c.driftType}`);
+            if (c.uncoveredSubclasses?.length) {
+              for (const s of c.uncoveredSubclasses) lines.push(`    └ subclass uncovered: ${s.file}:${s.symbol}`);
+            }
+            if (c.patternViolations?.length) {
+              for (const v of c.patternViolations) lines.push(`    └ ${v.id} (${v.rule}): ${v.matches} match(es)`);
+            }
           }
           return lines.join('\n');
         } },
@@ -113,20 +128,22 @@ export function registerCheck(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const result = preChangeCheck(rt.ctx, files, opts.symbol);
+          const result = await preChangeCheck(rt.ctx, files, opts.symbol);
           return ok({
             risk_level: result.riskLevel,
             affected_count: result.affectedCards.length,
             affected_cards: result.affectedCards,
             new_uncovered_files: result.newUncoveredFiles,
             suggested_actions: result.suggestedActions,
+            ...(result.maxFanIn !== undefined ? { max_fan_in: result.maxFanIn } : {}),
           });
         },
         [],
         globalFlags,
         { humanRenderer: (data) => {
-          const d = data as { risk_level: string; affected_count: number; affected_cards: Array<{ key: string; linkType: string; affectedLinks: number }>; suggested_actions: string[] };
-          const lines = [`impact: risk=${d.risk_level}, ${d.affected_count} card(s) affected`];
+          const d = data as { risk_level: string; affected_count: number; affected_cards: Array<{ key: string; linkType: string; affectedLinks: number }>; suggested_actions: string[]; max_fan_in?: number };
+          const fanInPart = d.max_fan_in ? `, fan-in=${d.max_fan_in}` : '';
+          const lines = [`impact: risk=${d.risk_level}, ${d.affected_count} card(s) affected${fanInPart}`];
           for (const c of d.affected_cards) lines.push(`  ${c.key} (${c.linkType}, ${c.affectedLinks} link(s))`);
           for (const a of d.suggested_actions) lines.push(`  → ${a}`);
           return lines.join('\n');
@@ -181,7 +198,7 @@ export function registerCheck(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const result = checkInteractions(rt.ctx, keys);
+          const result = await checkInteractions(rt.ctx, keys);
           return ok({
             interactions: result.interactions,
             undefined_relations: result.undefinedRelations,

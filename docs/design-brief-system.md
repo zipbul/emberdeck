@@ -1,3 +1,5 @@
+> ⚠️ **Historical document.** Written when emberdeck shipped as an MCP server. emberdeck is now CLI-only (commit `c23851b`); MCP-specific paths and tool registrations in this file no longer apply. Design intent and analysis content remain valid.
+
 # Design: Brief System for Emberdeck
 
 Date: 2026-04-06

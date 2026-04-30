@@ -65,7 +65,14 @@ function createMockGildash(symbols: Record<string, Array<{ name: string; kind: s
     reindex: async () => {},
     close: async () => {},
     listIndexedFiles: () => indexedFiles,
-    getSymbolsByFile: (fp: string) => fileSymbols.get(fp) ?? [],
+    getSymbolsByFile: (fp: string) => {
+      const direct = fileSymbols.get(fp);
+      if (direct) return direct;
+      for (const [key, syms] of fileSymbols) {
+        if (key === fp || key.endsWith('/' + fp)) return syms;
+      }
+      return [];
+    },
     searchSymbols: (query: { text?: string; exact?: boolean; filePath?: string }) => {
       const results: any[] = [];
       for (const [fp, syms] of fileSymbols) {

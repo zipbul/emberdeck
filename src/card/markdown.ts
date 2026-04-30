@@ -32,6 +32,7 @@ import type {
   SpecPostcondition,
   SpecPrecondition,
   SpecStateTransition,
+  SpecCodePattern,
 } from './types';
 import { CARD_TYPES } from './types';
 import { CardValidationError } from './errors';
@@ -560,6 +561,26 @@ function normalizeSpecBody(value: unknown): SpecBody {
         to: asString(t.to, 'spec.state_transitions[].to'),
         binds: normalizeBinds(t.binds, 'spec.state_transitions[].binds'),
       };
+    });
+  }
+  if (o.code_patterns != null) {
+    body.code_patterns = asArray(o.code_patterns, 'spec.code_patterns').map((item): SpecCodePattern => {
+      const p = asObj(item, 'spec.code_patterns[]');
+      const rule = p.rule;
+      if (rule !== 'forbidden' && rule !== 'required') {
+        throw new CardValidationError(
+          `Invalid spec.code_patterns[].rule (expected "forbidden" or "required", got ${JSON.stringify(rule)})`,
+        );
+      }
+      const out: SpecCodePattern = {
+        id: asString(p.id, 'spec.code_patterns[].id'),
+        pattern: asString(p.pattern, 'spec.code_patterns[].pattern'),
+        rule,
+      };
+      if (p.description != null) {
+        out.description = asString(p.description, 'spec.code_patterns[].description');
+      }
+      return out;
     });
   }
   return body;

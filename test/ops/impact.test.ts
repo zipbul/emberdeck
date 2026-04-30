@@ -24,7 +24,7 @@ describe('preChangeCheck', () => {
       codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'login' }],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/auth.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/auth.ts']);
     expect(result.affectedCards).toHaveLength(1);
     expect(result.affectedCards[0]!.key).toBe('direct');
     expect(result.affectedCards[0]!.linkType).toBe('direct');
@@ -42,7 +42,7 @@ describe('preChangeCheck', () => {
       ],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/auth.ts'], ['login']);
+    const result = await preChangeCheck(tc.ctx, ['src/auth.ts'], ['login']);
     expect(result.affectedCards).toHaveLength(1);
     expect(result.affectedCards[0]!.affectedLinks).toBe(1);
   });
@@ -62,7 +62,7 @@ describe('preChangeCheck', () => {
       relations: ['base'],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/base.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/base.ts']);
     expect(result.affectedCards).toHaveLength(2);
     const transitive = result.affectedCards.find((c) => c.linkType === 'transitive');
     expect(transitive).toBeDefined();
@@ -81,7 +81,7 @@ describe('preChangeCheck', () => {
       });
     }
 
-    const result = preChangeCheck(tc.ctx, ['src/shared.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/shared.ts']);
     expect(result.riskLevel).toBe('high');
   });
 
@@ -94,13 +94,13 @@ describe('preChangeCheck', () => {
       codeLinks: [{ kind: 'function', file: 'src/med.ts', symbol: 'fn' }],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/med.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/med.ts']);
     expect(result.riskLevel).toBe('medium');
   });
 
   it('should return empty results for empty files array', async () => {
     tc = await createTestContext();
-    const result = preChangeCheck(tc.ctx, []);
+    const result = await preChangeCheck(tc.ctx, []);
     expect(result.affectedCards).toHaveLength(0);
     expect(result.riskLevel).toBe('low');
   });
@@ -114,7 +114,7 @@ describe('preChangeCheck', () => {
       codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'other' }],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/different.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/different.ts']);
     expect(result.affectedCards).toHaveLength(0);
     expect(result.riskLevel).toBe('low');
   });
@@ -128,7 +128,7 @@ describe('preChangeCheck', () => {
       boundary: ['src/auth/**'],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/auth/login.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/auth/login.ts']);
     const affected = result.affectedCards.find((c) => c.key === 'bnd-card');
     expect(affected).toBeDefined();
     expect(affected!.linkType).toBe('boundary');
@@ -143,7 +143,7 @@ describe('preChangeCheck', () => {
       codeLinks: [{ kind: 'function', file: 'src/covered.ts', symbol: 'fn' }],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/covered.ts', 'src/uncovered.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/covered.ts', 'src/uncovered.ts']);
     expect(result.newUncoveredFiles).toContain('src/uncovered.ts');
     expect(result.newUncoveredFiles).not.toContain('src/covered.ts');
   });

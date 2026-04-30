@@ -29,12 +29,21 @@ function createMockGildash(overrides: {
   getFileInfo?: (...args: unknown[]) => unknown;
   getDependencies?: (...args: unknown[]) => unknown;
   reindex?: () => Promise<void>;
+  listIndexedFiles?: (...args: unknown[]) => unknown[];
 } = {}) {
+  const searchSymbols = overrides.searchSymbols ?? (() => []);
+  // Default getSymbolsByFile derives from searchSymbols so existing tests that
+  // only configure searchSymbols still drive results through the file cache.
+  const defaultGetSymbolsByFile = (file: string) => {
+    const result = searchSymbols({ filePath: file, exact: false }) as Array<{ filePath?: string }>;
+    return Array.isArray(result) ? result.filter((s) => !s.filePath || s.filePath === file) : [];
+  };
   return {
     searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
-    searchSymbols: mock(overrides.searchSymbols ?? (() => [])),
+    searchSymbols: mock(searchSymbols),
     getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
-    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? (() => [])),
+    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? defaultGetSymbolsByFile),
+    listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
     getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
     getDependencies: overrides.getDependencies ? mock(overrides.getDependencies) : undefined,
     reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
@@ -270,13 +279,15 @@ describe('preChangeCheck — linkStatus', () => {
     });
 
     tc.ctx.gildash = createMockGildash({
-      searchSymbols: ({ text }: any) => {
-        if (text === 'login') return [{ name: 'login', filePath: 'src/auth.ts', kind: 'function' }];
-        return []; // logout not found
+      getSymbolsByFile: (file: any) => {
+        if (file === 'src/auth.ts') {
+          return [{ name: 'login', memberName: null, filePath: 'src/auth.ts', kind: 'function' }];
+        }
+        return [];
       },
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/auth.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/auth.ts']);
     const card = result.affectedCards.find((c) => c.key === 'ls-card');
     expect(card).toBeDefined();
     expect(card!.linkStatus).toBeDefined();
@@ -293,7 +304,7 @@ describe('preChangeCheck — linkStatus', () => {
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
     });
 
-    const result = preChangeCheck(tc.ctx, ['src/a.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/a.ts']);
     const card = result.affectedCards.find((c) => c.key === 'no-gildash');
     expect(card).toBeDefined();
     expect(card!.linkStatus).toBeUndefined();
@@ -334,7 +345,7 @@ describe('checkInteractions — importDependencies', () => {
       },
     });
 
-    const result = checkInteractions(tc.ctx, ['dep-a', 'dep-b']);
+    const result = await checkInteractions(tc.ctx, ['dep-a', 'dep-b']);
     expect(result.interactions).toHaveLength(1);
     expect(result.interactions[0]!.importDependencies.length).toBeGreaterThanOrEqual(1);
     const dep = result.interactions[0]!.importDependencies.find((d) => d.from === 'dep-a' && d.to === 'dep-b');
@@ -363,7 +374,7 @@ describe('checkInteractions — importDependencies', () => {
       close: mock(() => Promise.resolve()),
     } as any;
 
-    const result = checkInteractions(tc.ctx, ['no-dep-a', 'no-dep-b']);
+    const result = await checkInteractions(tc.ctx, ['no-dep-a', 'no-dep-b']);
     // No interactions because no shared symbols/files/deps
     expect(result.interactions).toHaveLength(0);
   });
@@ -495,7 +506,7 @@ describe('preChangeCheck — ignorePatterns', () => {
     // Set ignorePatterns patterns
     tc.ctx.ignorePatterns = ['test/**', '*.test.ts'];
 
-    const result = preChangeCheck(tc.ctx, ['src/uncovered.ts', 'test/helper.ts', 'foo.test.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/uncovered.ts', 'test/helper.ts', 'foo.test.ts']);
     // src/uncovered.ts: not covered, not ignored → should appear
     expect(result.newUncoveredFiles).toContain('src/uncovered.ts');
     // test/helper.ts: not covered, but matches ignorePatterns 'test/**' → excluded
@@ -508,7 +519,7 @@ describe('preChangeCheck — ignorePatterns', () => {
     tc = await createTestContext();
     tc.ctx.ignorePatterns = ['vendor/**'];
 
-    const result = preChangeCheck(tc.ctx, ['src/new-feature.ts']);
+    const result = await preChangeCheck(tc.ctx, ['src/new-feature.ts']);
     // src/new-feature.ts doesn't match 'vendor/**' → should appear
     expect(result.newUncoveredFiles).toContain('src/new-feature.ts');
   });

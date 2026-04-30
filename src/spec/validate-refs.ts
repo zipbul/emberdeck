@@ -93,6 +93,26 @@ export function validateSpecRefs(
   // ── binds against codeLinks ───────────────────────────────
   errors.push(...validateBindsAgainstCodeLinks(spec, fm));
 
+  // ── code_patterns: per-entry shape check ──────────────────
+  if (spec.code_patterns) {
+    const seenIds = new Set<string>();
+    for (const cp of spec.code_patterns) {
+      if (!cp.id || !cp.id.trim()) {
+        errors.push('spec.code_patterns[].id must be non-empty');
+      } else if (seenIds.has(cp.id)) {
+        errors.push(`spec.code_patterns[${cp.id}] duplicate id`);
+      } else {
+        seenIds.add(cp.id);
+      }
+      if (!cp.pattern || !cp.pattern.trim()) {
+        errors.push(`spec.code_patterns[${cp.id || '?'}].pattern must be non-empty`);
+      }
+      if (cp.rule !== 'forbidden' && cp.rule !== 'required') {
+        errors.push(`spec.code_patterns[${cp.id || '?'}].rule must be "forbidden" or "required"`);
+      }
+    }
+  }
+
   // ── derives format + (optional) target existence ──────────
   const checkDerives = (id: string, ref: string, section: string) => {
     const parsed = parseDerives(ref);

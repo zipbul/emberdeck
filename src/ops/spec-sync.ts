@@ -1,12 +1,42 @@
 import type { EmberdeckContext } from '../config';
 import type { CodeLink, CardType } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
-import { ensureReindexed } from './link';
+import { ensureReindexed, SymbolFileCache, GILDASH_ANNOTATION_LIMIT } from './link';
 import { parseBoundaryJson } from '../card/json-fields';
 import { atomicWrite } from '../fs/writer';
 import { join, relative, dirname } from 'node:path';
 
-// ── @spec annotation sync ──
+/**
+ * Annotation tags scanned by `syncSpecAnnotations`. Originally only `@spec`
+ * was tracked; expanding to all 4 tiers means any card type can be referenced
+ * from source via the corresponding tag (e.g. `@brief auth/token`). The card
+ * key in the annotation value resolves the target — emberdeck does not enforce
+ * that the tag matches the card's type, so authors can use whichever tag fits
+ * their narrative (a brief annotation linking to a spec card is allowed).
+ */
+const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as const;
+
+/**
+ * Read all tracked annotation tags and dedupe by (filePath, symbolName, value).
+ * Mock implementations sometimes return all annotations regardless of the tag
+ * filter, so dedup keeps results stable in tests and harmless in production.
+ */
+function collectTrackedAnnotations(gildash: NonNullable<EmberdeckContext['gildash']>) {
+  const seen = new Set<string>();
+  const out: Array<ReturnType<typeof gildash.searchAnnotations>[number]> = [];
+  for (const tag of TRACKED_ANNOTATION_TAGS) {
+    const batch = gildash.searchAnnotations({ tag, limit: GILDASH_ANNOTATION_LIMIT });
+    for (const ann of batch) {
+      const key = `${ann.tag}\0${ann.filePath}\0${ann.symbolName ?? ''}\0${ann.value}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(ann);
+    }
+  }
+  return out;
+}
+
+// ── @spec/@brief/@principle/@domain annotation sync ──
 
 export interface SpecSyncResult {
   /** Number of code links auto-created from @spec annotations. */
@@ -36,7 +66,8 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
 
   await ensureReindexed(ctx);
 
-  const annotations = ctx.gildash.searchAnnotations({ tag: 'spec', limit: 10000 });
+  const annotations = collectTrackedAnnotations(ctx.gildash);
+  const symbolCache = new SymbolFileCache(ctx.gildash);
   let created = 0;
   let alreadyLinked = 0;
   const unmatched: SpecSyncResult['unmatched'] = [];
@@ -92,17 +123,8 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
       }
 
       let kind = 'unknown';
-      const symbols = ctx.gildash!.searchSymbols({
-        text: ann.symbolName,
-        exact: true,
-        filePath: ann.filePath,
-      });
-      if (Array.isArray(symbols)) {
-        const match = symbols.find(
-          (s) => s.name === ann.symbolName && s.filePath === ann.filePath,
-        );
-        if (match) kind = match.kind;
-      }
+      const match = symbolCache.find(ann.filePath, ann.symbolName);
+      if (match) kind = match.kind;
 
       additions.push({ kind, file: ann.filePath, symbol: ann.symbolName });
       cardCreated++;
@@ -176,7 +198,7 @@ export async function writeSpecAnnotations(
   interface ActualEntry { cardKey: string; file: string; symbol: string }
   const actualEntries: ActualEntry[] = [];
 
-  const annotations = ctx.gildash.searchAnnotations({ tag: 'spec', limit: 10000 });
+  const annotations = collectTrackedAnnotations(ctx.gildash);
   for (const ann of annotations) {
     const key = ann.value.trim();
     if (!key || !ann.symbolName) continue;
@@ -337,25 +359,19 @@ export async function writeSpecAnnotations(
     addByFile.set(entry.file, list);
   }
 
+  const writeCache = new SymbolFileCache(ctx.gildash);
   for (const [filePath, fileEntries] of addByFile) {
     interface InsertTarget { cardKey: string; line: number }
     const targets: InsertTarget[] = [];
 
     for (const entry of fileEntries) {
-      const results = ctx.gildash!.searchSymbols({
-        text: entry.symbol,
-        exact: true,
-        filePath: entry.file,
-      });
-
-      if (!Array.isArray(results)) {
+      let match;
+      try {
+        match = writeCache.find(entry.file, entry.symbol);
+      } catch {
         symbolNotFound++;
         continue;
       }
-
-      const match = results.find(
-        (s) => s.name === entry.symbol && s.filePath === entry.file,
-      );
       if (!match) {
         symbolNotFound++;
         continue;
@@ -675,22 +691,26 @@ export async function getLinkCoverage(
     return { declared: 0, resolved: 0, broken: 0, coverage: 1, unreferenced: [] };
   }
 
-  // Collect boundary-covered files for this card
+  // Collect boundary-covered files for this card. Boundary expansion is done
+  // against the gildash index (consistent with all other queries here).
+  const indexedFiles =
+    typeof ctx.gildash.listIndexedFiles === 'function'
+      ? ctx.gildash.listIndexedFiles().map((f) => f.filePath)
+      : [];
   const boundaryFiles = new Set<string>();
   const row = ctx.cardRepo.findByKey(fullKey);
-  if (ctx.projectRoot) {
-    for (const pattern of parseBoundaryJson(row?.boundaryJson)) {
-      try {
-        const glob = new Bun.Glob(pattern);
-        for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
-          boundaryFiles.add(file);
-        }
-      } catch {
-        // skip invalid boundary
+  for (const pattern of parseBoundaryJson(row?.boundaryJson)) {
+    try {
+      const glob = new Bun.Glob(pattern);
+      for (const file of indexedFiles) {
+        if (glob.match(file)) boundaryFiles.add(file);
       }
+    } catch {
+      // skip invalid boundary
     }
   }
 
+  const coverageCache = new SymbolFileCache(ctx.gildash);
   let resolved = 0;
   let broken = 0;
   const linkedFiles = new Set<string>();
@@ -700,20 +720,12 @@ export async function getLinkCoverage(
     linkedFiles.add(link.file);
     linkedSymbols.add(`${link.file}:${link.symbol}`);
 
-    const search = ctx.gildash!.searchSymbols({
-      text: link.symbol,
-      exact: true,
-      filePath: link.file,
-    });
-
-    if (!Array.isArray(search)) {
+    try {
+      if (coverageCache.find(link.file, link.symbol)) resolved++;
+      else broken++;
+    } catch {
       broken++;
-      continue;
     }
-
-    const found = search.find((s) => s.name === link.symbol && s.filePath === link.file);
-    if (found) resolved++;
-    else broken++;
   }
 
   // Find unreferenced symbols in linked files
@@ -734,13 +746,15 @@ export async function getLinkCoverage(
     // Symbols in boundary-covered files are considered covered
     if (boundaryFiles.has(file)) continue;
 
-    const fileSymbols = ctx.gildash!.getSymbolsByFile(file);
-    if (!fileSymbols) continue;
+    const fileSymbols = coverageCache.get(file);
     for (const sym of fileSymbols) {
-      const key = `${file}:${sym.name}`;
-      if (!linkedSymbols.has(key)) {
-        unreferenced.push({ file, symbol: sym.name, kind: sym.kind });
-      }
+      // Match by both qualified and unqualified names so class members linked
+      // by their bare method name aren't reported as unreferenced.
+      const qualifiedKey = `${file}:${sym.name}`;
+      const memberKey = sym.memberName ? `${file}:${sym.memberName}` : null;
+      if (linkedSymbols.has(qualifiedKey)) continue;
+      if (memberKey && linkedSymbols.has(memberKey)) continue;
+      unreferenced.push({ file, symbol: sym.name, kind: sym.kind });
     }
   }
 
@@ -808,38 +822,40 @@ export async function getUncoveredSymbols(
   }
   const allCards = ctx.cardRepo.list();
 
-  // 2. Collect boundary-covered files
+  // 2. Indexed files (single source of truth for both boundary expansion and
+  // target-file enumeration). Gildash 0.26 returns project-root-relative paths
+  // in production; normalize anyway so test fixtures using absolute paths still
+  // line up with the relative paths stored in codeLinks/boundary patterns.
+  const toRelative = (p: string): string => {
+    if (ctx.projectRoot && p.startsWith(ctx.projectRoot + '/')) {
+      return p.slice(ctx.projectRoot.length + 1);
+    }
+    return p;
+  };
+  const indexedFilePaths =
+    typeof ctx.gildash.listIndexedFiles === 'function'
+      ? ctx.gildash.listIndexedFiles().map((f) => toRelative(f.filePath))
+      : [];
+
+  // 3. Collect boundary-covered files (matched against the gildash index).
   const boundaryFiles = new Set<string>();
-  if (ctx.projectRoot) {
-    for (const card of allCards) {
-      for (const pattern of parseBoundaryJson(card.boundaryJson)) {
-        try {
-          const glob = new Bun.Glob(pattern);
-          for (const file of glob.scanSync({ cwd: ctx.projectRoot })) {
-            boundaryFiles.add(file);
-          }
-        } catch {
-          // skip invalid boundary
+  for (const card of allCards) {
+    for (const pattern of parseBoundaryJson(card.boundaryJson)) {
+      try {
+        const glob = new Bun.Glob(pattern);
+        for (const file of indexedFilePaths) {
+          if (glob.match(file)) boundaryFiles.add(file);
         }
+      } catch {
+        // skip invalid boundary
       }
     }
   }
 
-  // 3. Determine target files
-  let targetFiles: string[];
-  if (files) {
-    targetFiles = files;
-  } else {
-    const indexed = ctx.gildash.listIndexedFiles();
-    targetFiles = indexed.map((f) => {
-      if (ctx.projectRoot && f.filePath.startsWith(ctx.projectRoot)) {
-        return relative(ctx.projectRoot, f.filePath);
-      }
-      return f.filePath;
-    });
-  }
+  // 4. Determine target files (caller-provided or all indexed)
+  let targetFiles: string[] = files ?? indexedFilePaths;
 
-  // 4. Filter out ignored files
+  // 5. Filter out ignored files
   targetFiles = targetFiles.filter((file) => {
     for (const pattern of ignorePatterns) {
       const glob = new Bun.Glob(pattern);
@@ -848,12 +864,13 @@ export async function getUncoveredSymbols(
     return true;
   });
 
-  // 5. Collect uncovered symbols
+  // 6. Collect uncovered symbols
   let totalSymbols = 0;
   const uncovered: UncoveredSymbol[] = [];
 
   for (const file of targetFiles) {
-    // Try relative path first (gildash stores by relative path), fall back to absolute
+    // Mock fixtures key by absolute path; production stores relative. Try
+    // relative first, then fall through to the absolute form so both work.
     let symbols = ctx.gildash.getSymbolsByFile(file);
     if ((!symbols || symbols.length === 0) && ctx.projectRoot) {
       symbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
@@ -868,12 +885,11 @@ export async function getUncoveredSymbols(
 
       totalSymbols++;
 
-      const symFile = ctx.projectRoot && sym.filePath.startsWith(ctx.projectRoot)
-        ? relative(ctx.projectRoot, sym.filePath)
-        : sym.filePath;
+      const symFile = toRelative(sym.filePath);
 
-      // Check if covered by codeLink
+      // Check if covered by codeLink (qualified or unqualified name).
       if (coveredKeys.has(`${symFile}:${sym.name}`)) continue;
+      if (sym.memberName && coveredKeys.has(`${symFile}:${sym.memberName}`)) continue;
       // Check if covered by boundary
       if (boundaryFiles.has(symFile)) continue;
 

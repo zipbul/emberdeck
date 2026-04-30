@@ -103,13 +103,24 @@ function createMockGildash(overrides: {
   getSymbolChanges?: (...args: unknown[]) => unknown[];
   getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
   getFileInfo?: (...args: unknown[]) => unknown;
+  getDependencies?: (...args: unknown[]) => unknown;
+  listIndexedFiles?: (...args: unknown[]) => unknown[];
+  reindex?: () => Promise<void>;
 } = {}) {
+  const searchSymbols = overrides.searchSymbols ?? (() => []);
+  const defaultGetSymbolsByFile = (file: string) => {
+    const result = searchSymbols({ filePath: file, exact: false }) as Array<{ filePath?: string }>;
+    return Array.isArray(result) ? result.filter((s) => !s.filePath || s.filePath === file) : [];
+  };
   return {
     searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
-    searchSymbols: mock(overrides.searchSymbols ?? (() => [])),
+    searchSymbols: mock(searchSymbols),
     getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
-    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? (() => [])),
+    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? defaultGetSymbolsByFile),
+    listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
     getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
+    getDependencies: overrides.getDependencies ? mock(overrides.getDependencies) : undefined,
+    reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
     close: mock(() => Promise.resolve()),
   } as any;
 }
@@ -300,7 +311,7 @@ describe('checkInteractions', () => {
       codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' }],
     });
 
-    const result = checkInteractions(tc.ctx, ['ia', 'ib']);
+    const result = await checkInteractions(tc.ctx, ['ia', 'ib']);
     expect(result.interactions).toHaveLength(1);
     expect(result.interactions[0]!.sharedSymbols).toHaveLength(1);
     expect(result.interactions[0]!.sharedSymbols[0]!.symbol).toBe('sharedFunc');
@@ -321,7 +332,7 @@ describe('checkInteractions', () => {
       codeLinks: [{ kind: 'class', file: 'src/x.ts', symbol: 'X' }],
     });
 
-    const result = checkInteractions(tc.ctx, ['ua', 'ub']);
+    const result = await checkInteractions(tc.ctx, ['ua', 'ub']);
     expect(result.undefinedRelations).toHaveLength(1);
     expect(result.undefinedRelations[0]!.suggestion).toBe('related');
   });
@@ -336,7 +347,7 @@ describe('checkInteractions', () => {
       relations: ['ra'],
     });
 
-    const result = checkInteractions(tc.ctx, ['ra', 'rb']);
+    const result = await checkInteractions(tc.ctx, ['ra', 'rb']);
     const interaction = result.interactions.find(
       (i) => i.pair.includes('ra') && i.pair.includes('rb'),
     );
@@ -360,14 +371,14 @@ describe('checkInteractions', () => {
       codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'funcB' }],
     });
 
-    const result = checkInteractions(tc.ctx, ['na', 'nb']);
+    const result = await checkInteractions(tc.ctx, ['na', 'nb']);
     expect(result.interactions).toHaveLength(0);
     expect(result.undefinedRelations).toHaveLength(0);
   });
 
   it('should handle empty card list', async () => {
     tc = await createTestContext();
-    const result = checkInteractions(tc.ctx, []);
+    const result = await checkInteractions(tc.ctx, []);
     expect(result.interactions).toEqual([]);
     expect(result.undefinedRelations).toEqual([]);
   });
@@ -387,7 +398,7 @@ describe('checkInteractions', () => {
       codeLinks: [{ kind: 'function', file: 'src/common.ts', symbol: 'funcB' }],
     });
 
-    const result = checkInteractions(tc.ctx, ['fa', 'fb']);
+    const result = await checkInteractions(tc.ctx, ['fa', 'fb']);
     expect(result.interactions).toHaveLength(1);
     expect(result.interactions[0]!.potentialConflicts.length).toBeGreaterThan(0);
   });
@@ -407,7 +418,7 @@ describe('checkInteractions', () => {
       codeLinks: [{ kind: 'class', file: 'src/shared.ts', symbol: 'ClassB' }],
     });
 
-    const result = checkInteractions(tc.ctx, ['sf-a', 'sf-b']);
+    const result = await checkInteractions(tc.ctx, ['sf-a', 'sf-b']);
     expect(result.interactions).toHaveLength(1);
     expect(result.interactions[0]!.sharedFiles).toEqual(['src/shared.ts']);
     expect(result.interactions[0]!.sharedSymbols).toHaveLength(0);
@@ -428,7 +439,7 @@ describe('checkInteractions', () => {
       codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'funcB' }],
     });
 
-    const result = checkInteractions(tc.ctx, ['id-a', 'id-b']);
+    const result = await checkInteractions(tc.ctx, ['id-a', 'id-b']);
     // No gildash, so no interactions found
     expect(result.interactions).toHaveLength(0);
   });

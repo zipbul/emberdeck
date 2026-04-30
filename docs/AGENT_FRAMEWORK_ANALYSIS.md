@@ -1,3 +1,5 @@
+> ⚠️ **Historical document.** Written when emberdeck shipped as an MCP server. emberdeck is now CLI-only (commit `c23851b`); MCP-specific paths and tool registrations in this file no longer apply. Design intent and analysis content remain valid.
+
 # AI 에이전트 프레임워크 & 오케스트레이션 도구 심층 분석
 
 > 2026-03-19 기준 | Zipbul 생태계 설계 참고용

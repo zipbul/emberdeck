@@ -254,12 +254,34 @@ export interface SpecStateTransition {
   binds: SpecBindRef[];
 }
 
+/**
+ * AST pattern (ast-grep syntax) executed by gildash.findPattern during drift
+ * detection. `forbidden` patterns must NOT match anywhere in the card's scope;
+ * `required` patterns must match at least once.
+ */
+export interface SpecCodePattern {
+  /** ID format: PAT-001 */
+  id: string;
+  /** ast-grep pattern string (e.g. `'console.log($$$)'`) */
+  pattern: string;
+  /** Whether the pattern must be absent (`forbidden`) or present (`required`). */
+  rule: 'forbidden' | 'required';
+  /** Optional human-readable explanation of why the pattern is enforced. */
+  description?: string;
+}
+
 export interface SpecBody {
   preconditions: SpecPrecondition[];
   postconditions: SpecPostcondition[];
   invariants: SpecInvariant[];
   failures: SpecFailure[];
   state_transitions?: SpecStateTransition[];
+  /**
+   * Optional ast-grep patterns checked at drift time. When omitted, the spec
+   * is verified by codeLink resolution alone — patterns add executable
+   * structural constraints on top of the symbol-level contract.
+   */
+  code_patterns?: SpecCodePattern[];
 }
 
 // ── Domain body ─────────────────────────────────────────────

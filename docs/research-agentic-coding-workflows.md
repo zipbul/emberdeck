@@ -1,3 +1,5 @@
+> ⚠️ **Historical document.** Written when emberdeck shipped as an MCP server. emberdeck is now CLI-only (commit `c23851b`); MCP-specific paths and tool registrations in this file no longer apply. Design intent and analysis content remain valid.
+
 # Research: Agentic Coding Workflows
 ## How AI Coding Agents Work, Where They Fail, and Where Structured Context Matters Most
 

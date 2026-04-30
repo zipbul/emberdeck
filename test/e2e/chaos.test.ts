@@ -309,7 +309,7 @@ describe('Scenario 4: Impact Analysis -- preChangeCheck + regressionGuard', () =
     });
 
     // Pre-change check: changing src/base.ts
-    const impact = preChangeCheck(ctx, ['src/base.ts']);
+    const impact = await preChangeCheck(ctx, ['src/base.ts']);
     expect(impact.affectedCards.some((c) => c.key === 'impact/base' && c.linkType === 'direct')).toBe(true);
     expect(impact.affectedCards.some((c) => c.key === 'impact/middle' && c.linkType === 'transitive')).toBe(true);
     expect(impact.riskLevel).not.toBe('low');
@@ -320,7 +320,7 @@ describe('Scenario 4: Impact Analysis -- preChangeCheck + regressionGuard', () =
     expect(guard.affectedCards.length).toBeGreaterThanOrEqual(2);
 
     // Check interactions
-    const interactions = checkInteractions(ctx, ['impact/base', 'impact/middle']);
+    const interactions = await checkInteractions(ctx, ['impact/base', 'impact/middle']);
     // They have a relation, so hasRelation should be detected
     const pair = interactions.interactions.find(
       (i) => i.pair.includes('impact/base') && i.pair.includes('impact/middle'),

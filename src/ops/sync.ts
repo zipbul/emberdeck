@@ -97,7 +97,8 @@ export interface CardValidationResult {
 
 /**
  * Syncs an externally modified card file to the DB.
- * Called by the CLI when a watcher event (create/change) is received.
+ * Invoked by CLI sync commands (`ed sync`) and as the compensation step
+ * for failed file writes in create/update operations.
  */
 export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string): Promise<void> {
   const cardFile = await readCardFile(filePath);
@@ -698,7 +699,7 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
 
 /**
  * Removes a card from the DB when its file has been externally deleted.
- * Called by the CLI when a watcher event (delete) is received.
+ * Invoked by CLI sync commands when a tracked card file is missing.
  */
 export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void {
   const existing = ctx.cardRepo.findByFilePath(filePath);

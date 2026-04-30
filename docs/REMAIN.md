@@ -1,3 +1,5 @@
+> ⚠️ **Historical document.** Written when emberdeck shipped as an MCP server. emberdeck is now CLI-only (commit `c23851b`); MCP-specific paths and tool registrations in this file no longer apply. Design intent and analysis content remain valid.
+
 # Remaining Work — Enterprise-Grade Readiness
 
 현재 상태: 33개 MCP 도구 구현, 894 테스트 통과, 커버리지 96%+.
