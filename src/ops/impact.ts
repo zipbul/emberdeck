@@ -4,7 +4,7 @@ import { getRelationGraph } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { parseBoundaryJson } from '../card/json-fields';
-import { SymbolFileCache, expandAffectedFiles } from './link';
+import { SymbolFileCache, expandAffectedFiles, makeSymbolFileCache, gildashProjectNames } from './link';
 
 // ── pre_change_check ──
 
@@ -56,7 +56,7 @@ export async function preChangeCheck(
   const expandedFiles = await expandAffectedFiles(ctx, files);
 
   // Shared symbol cache reused across all per-card link-status checks below.
-  const sharedCache = ctx.gildash ? new SymbolFileCache(ctx.gildash) : undefined;
+  const sharedCache = ctx.gildash ? makeSymbolFileCache(ctx)! : undefined;
 
   // Find directly affected cards by codeLinks
   for (const file of expandedFiles) {
@@ -187,34 +187,37 @@ export async function preChangeCheck(
   const totalAffected = affectedCards.length;
   const driftedRatio = totalAffected > 0 ? driftedCount / totalAffected : 0;
 
+  // Aggregate fan metrics + dependents across all gildash projects (monorepo).
   let maxFanIn = 0;
   let maxFanOut = 0;
+  const projectNames = ctx.gildash ? gildashProjectNames(ctx) : [undefined];
   if (ctx.gildash && typeof ctx.gildash.getFanMetrics === 'function') {
     for (const file of files) {
-      try {
-        const metrics = await ctx.gildash.getFanMetrics(file);
-        if (metrics && typeof metrics.fanIn === 'number' && metrics.fanIn > maxFanIn) {
-          maxFanIn = metrics.fanIn;
+      for (const project of projectNames) {
+        try {
+          const metrics = project
+            ? await ctx.gildash.getFanMetrics(file, project)
+            : await ctx.gildash.getFanMetrics(file);
+          if (metrics && typeof metrics.fanIn === 'number' && metrics.fanIn > maxFanIn) maxFanIn = metrics.fanIn;
+          if (metrics && typeof metrics.fanOut === 'number' && metrics.fanOut > maxFanOut) maxFanOut = metrics.fanOut;
+        } catch {
+          // best-effort
         }
-        if (metrics && typeof metrics.fanOut === 'number' && metrics.fanOut > maxFanOut) {
-          maxFanOut = metrics.fanOut;
-        }
-      } catch {
-        // best-effort; fan-in is risk-shaping, not authoritative
       }
     }
   }
 
-  // Direct importers (gildash.getDependents). Surfacing the actual files lets
-  // callers see WHICH files depend on a changed input — useful for review focus.
+  // Direct importers (gildash.getDependents) aggregated across projects.
   const directDependentsSet = new Set<string>();
   if (ctx.gildash && typeof ctx.gildash.getDependents === 'function') {
     for (const file of files) {
-      try {
-        const deps = ctx.gildash.getDependents(file);
-        if (Array.isArray(deps)) for (const d of deps) directDependentsSet.add(d);
-      } catch {
-        // best-effort
+      for (const project of projectNames) {
+        try {
+          const deps = project ? ctx.gildash.getDependents(file, project) : ctx.gildash.getDependents(file);
+          if (Array.isArray(deps)) for (const d of deps) directDependentsSet.add(d);
+        } catch {
+          // best-effort
+        }
       }
     }
   }
@@ -290,7 +293,7 @@ function computeLinkStatus(
   const links = ctx.codeLinkRepo.findByCardKey(cardKey);
   if (links.length === 0) return { valid: 0, broken: 0 };
 
-  const symbolCache = cache ?? new SymbolFileCache(ctx.gildash);
+  const symbolCache = cache ?? makeSymbolFileCache(ctx)!;
   let valid = 0;
   let broken = 0;
   for (const link of links) {

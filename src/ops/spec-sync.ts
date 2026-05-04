@@ -1,7 +1,7 @@
 import type { EmberdeckContext } from '../config';
 import type { CodeLink, CardType } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
-import { ensureReindexed, SymbolFileCache, GILDASH_ANNOTATION_LIMIT, gildashProjectNames } from './link';
+import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSymbolFileCache } from './link';
 import { parseBoundaryJson } from '../card/json-fields';
 import { atomicWrite } from '../fs/writer';
 import { join, relative, dirname } from 'node:path';
@@ -32,16 +32,21 @@ function listAllIndexedFilesWithProject(
 ): Array<{ filePath: string; project: string | undefined }> {
   const gildash = ctx.gildash;
   if (!gildash || typeof gildash.listIndexedFiles !== 'function') return [];
-  const all: Array<{ filePath: string; project: string | undefined }> = [];
+  // Dedupe by filePath — gildash project boundaries can overlap (nestjs: same
+  // file appears in multiple sub-projects). Without dedup, callers iterate
+  // and double-count symbols. Keep the first project that lists a given file.
+  const seen = new Map<string, string | undefined>();
   for (const project of gildashProjectNames(ctx)) {
     try {
       const files = project ? gildash.listIndexedFiles(project) : gildash.listIndexedFiles();
-      for (const f of files) all.push({ filePath: f.filePath, project });
+      for (const f of files) {
+        if (!seen.has(f.filePath)) seen.set(f.filePath, project);
+      }
     } catch {
       // skip project on failure
     }
   }
-  return all;
+  return [...seen.entries()].map(([filePath, project]) => ({ filePath, project }));
 }
 
 /**
@@ -49,16 +54,27 @@ function listAllIndexedFilesWithProject(
  * Mock implementations sometimes return all annotations regardless of the tag
  * filter, so dedup keeps results stable in tests and harmless in production.
  */
-function collectTrackedAnnotations(gildash: NonNullable<EmberdeckContext['gildash']>) {
+function collectTrackedAnnotations(ctx: EmberdeckContext) {
+  const gildash = ctx.gildash!;
   const seen = new Set<string>();
   const out: Array<ReturnType<typeof gildash.searchAnnotations>[number]> = [];
-  for (const tag of TRACKED_ANNOTATION_TAGS) {
-    const batch = gildash.searchAnnotations({ tag, limit: GILDASH_ANNOTATION_LIMIT });
-    for (const ann of batch) {
-      const key = `${ann.tag}\0${ann.filePath}\0${ann.symbolName ?? ''}\0${ann.value}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(ann);
+  for (const project of gildashProjectNames(ctx)) {
+    for (const tag of TRACKED_ANNOTATION_TAGS) {
+      try {
+        const batch = gildash.searchAnnotations(
+          project
+            ? { tag, project, limit: GILDASH_ANNOTATION_LIMIT }
+            : { tag, limit: GILDASH_ANNOTATION_LIMIT },
+        );
+        for (const ann of batch) {
+          const key = `${ann.tag}\0${ann.filePath}\0${ann.symbolName ?? ''}\0${ann.value}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(ann);
+        }
+      } catch {
+        // skip project on failure
+      }
     }
   }
   return out;
@@ -94,8 +110,8 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
 
   await ensureReindexed(ctx);
 
-  const annotations = collectTrackedAnnotations(ctx.gildash);
-  const symbolCache = new SymbolFileCache(ctx.gildash);
+  const annotations = collectTrackedAnnotations(ctx);
+  const symbolCache = makeSymbolFileCache(ctx)!;
   let created = 0;
   let alreadyLinked = 0;
   const unmatched: SpecSyncResult['unmatched'] = [];
@@ -226,7 +242,7 @@ export async function writeSpecAnnotations(
   interface ActualEntry { cardKey: string; file: string; symbol: string }
   const actualEntries: ActualEntry[] = [];
 
-  const annotations = collectTrackedAnnotations(ctx.gildash);
+  const annotations = collectTrackedAnnotations(ctx);
   for (const ann of annotations) {
     const key = ann.value.trim();
     if (!key || !ann.symbolName) continue;
@@ -387,7 +403,7 @@ export async function writeSpecAnnotations(
     addByFile.set(entry.file, list);
   }
 
-  const writeCache = new SymbolFileCache(ctx.gildash);
+  const writeCache = makeSymbolFileCache(ctx)!;
   for (const [filePath, fileEntries] of addByFile) {
     interface InsertTarget { cardKey: string; line: number }
     const targets: InsertTarget[] = [];
@@ -735,7 +751,7 @@ export async function getLinkCoverage(
     }
   }
 
-  const coverageCache = new SymbolFileCache(ctx.gildash);
+  const coverageCache = makeSymbolFileCache(ctx)!;
   let resolved = 0;
   let broken = 0;
   const linkedFiles = new Set<string>();

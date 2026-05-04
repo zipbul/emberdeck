@@ -5,7 +5,7 @@ import { getRelationGraph } from './query';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { readGlossary } from '../glossary/io';
-import { SymbolFileCache, ensureReindexed, gildashProjectNames } from './link';
+import { ensureReindexed, gildashProjectNames, makeSymbolFileCache } from './link';
 
 
 // ── check_drift ──
@@ -149,7 +149,7 @@ export async function checkDrift(
   };
 
   // Shared per-file symbol cache for broken_link detection.
-  const symbolCache = ctx.gildash ? new SymbolFileCache(ctx.gildash) : null;
+  const symbolCache = ctx.gildash ? makeSymbolFileCache(ctx)! : null;
 
   // Build a set of (file:symbol) covered by *any* card's codeLinks. Used by
   // heritage_uncovered detection — a subclass of a linked class is "covered"
@@ -296,10 +296,20 @@ export async function checkDrift(
         const sym = symbolCache.find(link.file, link.symbol);
         if (!sym || sym.kind !== 'class') continue;
         try {
-          const relations = ctx.gildash.searchRelations({
-            type: 'extends',
-            dstFilePath: link.file,
-          });
+          // Aggregate extends relations across all projects (monorepo support).
+          const relations = [];
+          for (const project of gildashProjectNames(ctx)) {
+            try {
+              const r = ctx.gildash.searchRelations(
+                project
+                  ? { type: 'extends', dstFilePath: link.file, project }
+                  : { type: 'extends', dstFilePath: link.file },
+              );
+              relations.push(...r);
+            } catch {
+              // skip project on failure
+            }
+          }
           for (const rel of relations) {
             if (!rel.srcSymbolName || !rel.srcFilePath) continue;
             if (rel.dstSymbolName !== link.symbol && rel.dstSymbolName !== sym.name) continue;
@@ -335,8 +345,19 @@ export async function checkDrift(
         const collected: NonNullable<DriftCard['patternViolations']> = [];
         for (const p of patterns) {
           try {
-            const matches = await ctx.gildash.findPattern(p.pattern);
-            const count = matches.length;
+            // findPattern aggregates across all projects (monorepo support).
+            let count = 0;
+            for (const project of gildashProjectNames(ctx)) {
+              try {
+                const matches = await ctx.gildash.findPattern(
+                  p.pattern,
+                  project ? { project } : undefined,
+                );
+                count += matches.length;
+              } catch {
+                // skip project on failure
+              }
+            }
             const violated =
               (p.rule === 'forbidden' && count > 0) ||
               (p.rule === 'required' && count === 0);
@@ -482,9 +503,19 @@ async function collectSymbolChanges(
   if (!oldestUpdatedAt) return null;
 
   try {
-    const changes = ctx.gildash.getSymbolChanges(oldestUpdatedAt, {
-      changeTypes: ['added', 'modified', 'removed', 'renamed', 'moved'],
-    });
+    // Aggregate symbol changes across all projects (monorepo support).
+    const changes = [];
+    for (const project of gildashProjectNames(ctx)) {
+      try {
+        const c = ctx.gildash.getSymbolChanges(oldestUpdatedAt, {
+          changeTypes: ['added', 'modified', 'removed', 'renamed', 'moved'],
+          ...(project ? { project } : {}),
+        });
+        changes.push(...c);
+      } catch {
+        // skip project on failure
+      }
+    }
     const map = new Map<string, SymbolChangeInfo[]>();
     for (const change of changes) {
       const file = change.filePath;
@@ -711,6 +742,7 @@ function detectImportDependencies(
   }
 
   const gildash = ctx.gildash;
+  const projects = gildashProjectNames(ctx);
   const deps: ImportDependency[] = [];
 
   const collect = (
@@ -720,17 +752,23 @@ function detectImportDependencies(
     toKey: string,
   ) => {
     for (const src of sources) {
-      try {
-        const fileDeps = gildash.getDependencies(src);
-        if (!Array.isArray(fileDeps)) continue;
-        for (const dep of fileDeps) {
-          if (typeof dep === 'string' && targets.has(dep)) {
-            deps.push({ from: fromKey, to: toKey, file: src });
-            break;
+      // Try each project — first project that returns deps wins.
+      for (const project of projects) {
+        try {
+          const fileDeps = project ? gildash.getDependencies(src, project) : gildash.getDependencies(src);
+          if (!Array.isArray(fileDeps) || fileDeps.length === 0) continue;
+          let matched = false;
+          for (const dep of fileDeps) {
+            if (typeof dep === 'string' && targets.has(dep)) {
+              deps.push({ from: fromKey, to: toKey, file: src });
+              matched = true;
+              break;
+            }
           }
+          if (matched || fileDeps.length > 0) break;
+        } catch {
+          // graceful degradation
         }
-      } catch {
-        // graceful degradation
       }
     }
   };

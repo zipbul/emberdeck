@@ -30,7 +30,6 @@ export interface AnalyzeHealth {
   codeStats?: {
     files: number;
     symbols: number;
-    relations: number;
   };
 }
 
@@ -265,26 +264,38 @@ export async function analyze(
     .filter((e) => !usedGlossaryWords.has(e.word))
     .map((e) => e.word);
 
-  // Code-side aggregate stats — sum across ALL gildash projects (monorepo).
-  // Calling getStats() with no arg returns only the default project's counts;
-  // for monorepos like nestjs (51 projects) that's < 1% of the actual code.
+  // Code-side aggregate stats — UNIQUE files + symbols across all gildash
+  // projects. Project boundaries can overlap (nestjs: same file in multiple
+  // sub-projects); dedupe by file path AND by (file, symbol-name) pair so a
+  // symbol shared across projects counts once.
   let codeStats: AnalyzeHealth['codeStats'];
-  if (ctx.gildash && typeof ctx.gildash.getStats === 'function') {
+  if (
+    ctx.gildash &&
+    typeof ctx.gildash.listIndexedFiles === 'function' &&
+    typeof ctx.gildash.getSymbolsByFile === 'function'
+  ) {
     try {
-      const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-      let files = 0, symbols = 0, relations = 0;
+      const uniqueFiles = new Map<string, string | undefined>();
       for (const project of gildashProjectNames(ctx)) {
         try {
-          const stats = project ? ctx.gildash.getStats(project) : ctx.gildash.getStats();
-          const s = stats as unknown as Record<string, unknown>;
-          files += num(s.fileCount ?? s.totalFiles ?? s.files);
-          symbols += num(s.symbolCount ?? s.totalSymbols ?? s.symbols);
-          relations += num(s.totalRelations ?? s.relations ?? 0);
+          const files = project ? ctx.gildash.listIndexedFiles(project) : ctx.gildash.listIndexedFiles();
+          for (const f of files) {
+            if (!uniqueFiles.has(f.filePath)) uniqueFiles.set(f.filePath, project);
+          }
         } catch {
-          // skip project on failure
+          // skip project
         }
       }
-      codeStats = { files, symbols, relations };
+      const uniqueSymbols = new Set<string>();
+      for (const [file, project] of uniqueFiles) {
+        try {
+          const syms = project ? ctx.gildash.getSymbolsByFile(file, project) : ctx.gildash.getSymbolsByFile(file);
+          if (Array.isArray(syms)) for (const s of syms) uniqueSymbols.add(`${file}\0${s.name}`);
+        } catch {
+          // skip file
+        }
+      }
+      codeStats = { files: uniqueFiles.size, symbols: uniqueSymbols.size };
     } catch {
       // best-effort
     }

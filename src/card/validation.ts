@@ -1,5 +1,5 @@
 import { CardValidationError, ParentValidationError, ActivationGuardError } from './errors';
-import { SymbolFileCache, ensureReindexed } from '../ops/link';
+import { ensureReindexed, makeSymbolFileCache } from '../ops/link';
 import type { EmberdeckContext } from '../config';
 import type { BriefBody, CardFrontmatter, CardType, SpecBody } from './types';
 import { validateBriefRefs } from '../brief/validate-refs';
@@ -511,7 +511,7 @@ export async function validateActivationGuard(
     unmet.push('spec card must have at least 1 codeLink');
   } else if (ctx.gildash) {
     await ensureReindexed(ctx);
-    const cache = new SymbolFileCache(ctx.gildash);
+    const cache = makeSymbolFileCache(ctx)!;
     for (const link of links) {
       try {
         if (!cache.find(link.file, link.symbol)) {

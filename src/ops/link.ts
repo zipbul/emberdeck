@@ -34,23 +34,52 @@ export function symbolMatches(
 }
 
 /**
- * Per-file symbol cache backed by `getSymbolsByFile`.
+ * Per-file symbol cache backed by `getSymbolsByFile`. Project-aware: in a
+ * monorepo (gildash discovered multiple projects), `getSymbolsByFile(file)`
+ * with no `project` arg defaults to the primary project — files from other
+ * projects return `[]` and every codeLink referencing them looks broken.
  *
- * Avoids the per-link `searchSymbols` round-trip when validating many
- * codeLinks that share files. Cache scope is the cache instance itself —
- * callers create a fresh one for each operation.
+ * The cache iterates `gildash.projects` on first lookup, finds which project
+ * owns the file, and routes the call. Subsequent lookups hit the cache.
+ *
+ * Callers create a fresh instance per operation.
  */
 export class SymbolFileCache {
   private readonly cache = new Map<string, SymbolSearchResult[]>();
-  constructor(private readonly gildash: Gildash) {}
+  private readonly projectNames: Array<string | undefined>;
+
+  constructor(
+    private readonly gildash: Gildash,
+    projectNames?: Array<string | undefined>,
+  ) {
+    this.projectNames = projectNames && projectNames.length > 0 ? projectNames : [undefined];
+  }
 
   get(file: string): SymbolSearchResult[] {
     let symbols = this.cache.get(file);
-    if (symbols === undefined) {
-      symbols = this.gildash.getSymbolsByFile(file) ?? [];
-      this.cache.set(file, symbols);
+    if (symbols !== undefined) return symbols;
+    // Try each project in turn — first non-empty result wins. If EVERY
+    // project query throws (gildash truly unavailable), propagate so callers
+    // can distinguish "gildash-unavailable" from "symbol-not-found".
+    let lastError: unknown;
+    let anySucceeded = false;
+    for (const project of this.projectNames) {
+      try {
+        const result = project
+          ? this.gildash.getSymbolsByFile(file, project)
+          : this.gildash.getSymbolsByFile(file);
+        anySucceeded = true;
+        if (result && result.length > 0) {
+          this.cache.set(file, result);
+          return result;
+        }
+      } catch (e) {
+        lastError = e;
+      }
     }
-    return symbols;
+    if (!anySucceeded && lastError) throw lastError;
+    this.cache.set(file, []);
+    return [];
   }
 
   find(file: string, symbolName: string): SymbolSearchResult | undefined {
@@ -61,6 +90,15 @@ export class SymbolFileCache {
       (s) => s.name === symbolName || s.memberName === symbolName,
     );
   }
+}
+
+/**
+ * Build a `SymbolFileCache` configured with all gildash project names.
+ * Use at every site that constructs the cache so monorepos work transparently.
+ */
+export function makeSymbolFileCache(ctx: EmberdeckContext): SymbolFileCache | null {
+  if (!ctx.gildash) return null;
+  return new SymbolFileCache(ctx.gildash, gildashProjectNames(ctx));
 }
 
 
@@ -157,7 +195,7 @@ export async function resolveCardCodeLinks(
   const codeLinks = cardFile.frontmatter.codeLinks ?? [];
   if (codeLinks.length === 0) return [];
 
-  const cache = new SymbolFileCache(ctx.gildash);
+  const cache = makeSymbolFileCache(ctx)!;
   const result: ResolvedCodeLink[] = [];
   for (const link of codeLinks) {
     try {
@@ -236,12 +274,19 @@ export async function expandAffectedFiles(
     return [...new Set(changedFiles)];
   }
   await ensureReindexed(ctx);
-  try {
-    const affected = await ctx.gildash.getAffected(changedFiles);
-    return [...new Set([...changedFiles, ...affected])];
-  } catch {
-    return [...new Set(changedFiles)];
+  // Aggregate across all projects (monorepo support).
+  const out = new Set<string>(changedFiles);
+  for (const project of gildashProjectNames(ctx)) {
+    try {
+      const affected = project
+        ? await ctx.gildash.getAffected(changedFiles, project)
+        : await ctx.gildash.getAffected(changedFiles);
+      for (const f of affected) out.add(f);
+    } catch {
+      // skip project
+    }
   }
+  return [...out];
 }
 
 /**
@@ -297,7 +342,7 @@ export async function validateCodeLinks(
   const status = cardFile.frontmatter.status;
   const isPlanning = status === 'draft';
 
-  const cache = new SymbolFileCache(ctx.gildash);
+  const cache = makeSymbolFileCache(ctx)!;
   const broken: BrokenLink[] = [];
   const planned: BrokenLink[] = [];
   const internalLinks: Array<{ file: string; symbol: string }> = [];
