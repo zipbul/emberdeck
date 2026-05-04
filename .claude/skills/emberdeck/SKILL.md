@@ -126,7 +126,7 @@ CLI 명령 — 시점과 사용법:
 | `ed validate cards` | 파일/DB 정합, 계층, broken-chain, orphan-card, type-hierarchy-violation, empty-tree 경고. partial → exit 2. | 아니오 |
 | `ed validate links [KEY]` | 모든 codeLinks 가 gildash 통해 resolve 되는지. 카드 단위 또는 프로젝트 전체. | 아니오 |
 | `ed validate` (인자 없음) | cards + links 종합. | 아니오 |
-| `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | drift 탐지 (broken_link / boundary_inactive / symbol_changed / glossary_broken). 기본 active→drifted 자동 전이. | 예 (기본 status 변경) |
+| `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | drift 탐지 6종: `broken_link` / `boundary_inactive` / `symbol_changed` / `heritage_uncovered` / `pattern_violation` / `glossary_broken`. **다중 검출** — 한 카드가 여러 drift 동시 가능: `driftType` (primary, 첫 매치) + `driftTypes[]` (전체) 둘 다 응답. 기본 active→drifted 자동 전이; CI/pre-commit 에선 `--no-auto-transition`. | 예 (기본 status 변경) |
 | `ed check coverage [KEY] [--uncovered\|--suggest]` | 카드별 커버리지 / 프로젝트 미커버 심볼 / 신규 카드 제안. | 아니오 |
 | `ed check impact <files...> [--symbol names...]` | 변경 전 영향 분석 (direct/boundary/transitive). | 아니오 |
 | `ed check regression <files...>` | 영향 받는 카드의 drifted 비율 vs threshold. fail 시 exit 2. | 아니오 |
@@ -476,6 +476,101 @@ spec:
 - ✗ 본문에 구현 메커니즘 (WeakMap, FK CASCADE 등) — 행동 보장으로 다시 쓸 것
 - ✗ Task list 또는 verification command
 - ✗ `parent` 가 domain (반드시 brief 또는 spec)
+
+### `code_patterns` — 코드 패턴 규칙 (선택)
+
+`spec.code_patterns` 는 ast-grep 패턴으로 코드 형태 강제. drift 검출 시 `findPattern` 으로 매칭.
+
+```yaml
+spec:
+  code_patterns:
+    - id: PAT-001
+      pattern: "console.log($$$)"
+      rule: forbidden       # 매치 발견 시 pattern_violation
+      description: "use logger.info"
+    - id: PAT-002
+      pattern: "logger.info($$$)"
+      rule: required        # 매치 0개면 pattern_violation
+```
+
+- `forbidden`: 매치가 있으면 위반
+- `required`: 매치가 0개면 위반
+- 활성 카드에서 위반 → driftType `pattern_violation` (다중 검출 시 `driftTypes[]` 에 함께 포함)
+- **mass-flip 주의**: 카드 N개에 같은 패턴을 추가하면 drift 검출 시 N개 일괄 자동 전이됨. CI 에서는 `--no-auto-transition`.
+
+---
+
+## CLI 응답 필드 (에이전트 참조용)
+
+### `ed check drift` 응답
+```json
+{
+  "data": {
+    "health": { "total": N, "active": N, "drifted": N, "draft": N },
+    "cards": [{
+      "key": "...",
+      "driftType": "broken_link",         // primary (첫 매치, 호환)
+      "driftTypes": ["broken_link", "pattern_violation"],  // 전체
+      "brokenLinks": 1, "totalLinks": 2,
+      "patternViolations": [{"id":"PAT-001","rule":"forbidden","matches":34}],
+      "uncoveredSubclasses": [{"file":"...","symbol":"..."}],
+      "symbolChanges": [...]
+    }]
+  }
+}
+```
+
+### `ed check impact` 응답
+```json
+{
+  "data": {
+    "risk_level": "low|medium|high|critical",   // fanIn≥10 시 한 단계 승급
+    "max_fan_in": 14,                            // 입력 파일 중 최대 fan-in
+    "affected_cards": [{"key":"...","linkType":"direct|boundary|transitive","linkStatus":{"valid":N,"broken":N}}],
+    "new_uncovered_files": [...],
+    "suggested_actions": [...]
+  }
+}
+```
+
+### `ed validate links` 응답
+```json
+{
+  "data": {
+    "declared": N, "resolved": N, "broken": N, "unresolved": N,
+    "internal_links": N,                         // 비-export 심볼 링크 (정보)
+    "internal_details": [{"key":"...","file":"...","symbol":"..."}]
+  }
+}
+```
+
+### `ed analyze` 응답
+```json
+{
+  "data": {
+    "health": {
+      "total": N, "active": N, "drifted": N, "draft": N,
+      "brokenLinks": N, "staleBoundary": N,
+      "codeStats": {"files":N, "symbols":N, "relations":N},
+      "codeCycles": {"count":N, "samples":[["a.ts","b.ts"]]}  // import 순환
+    },
+    "coverage": {"totalSymbols":N, "covered":N, "ratio":0~1},
+    "drifted": {"cards":[...], "total":N},
+    "glossary": {"totalWords":N, "unusedWords":[...], "entries":[...]},
+    "unlinked_symbols": [{"file":"...","symbol":"...","kind":"..."}]
+  }
+}
+```
+
+---
+
+## 모노레포 / 다중 프로젝트
+
+emberdeck 은 gildash 가 발견한 **모든 프로젝트를 자동 집계**한다 (nestjs 51개 sub-project, 10k+ 파일 검증). `--project-root` 는 모노레포 루트로 지정.
+
+- `analyze.health.codeStats` / `codeCycles` — 전체 프로젝트 합산
+- `getUncoveredSymbols` / `boundary_inactive` — 전체 인덱스 대상
+- 카드의 codeLinks `file` 필드는 **모노레포 루트 기준 상대 경로** (예: `packages/common/...`)
 
 ---
 

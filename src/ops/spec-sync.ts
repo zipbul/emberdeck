@@ -1,7 +1,7 @@
 import type { EmberdeckContext } from '../config';
 import type { CodeLink, CardType } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
-import { ensureReindexed, SymbolFileCache, GILDASH_ANNOTATION_LIMIT } from './link';
+import { ensureReindexed, SymbolFileCache, GILDASH_ANNOTATION_LIMIT, gildashProjectNames } from './link';
 import { parseBoundaryJson } from '../card/json-fields';
 import { atomicWrite } from '../fs/writer';
 import { join, relative, dirname } from 'node:path';
@@ -15,6 +15,34 @@ import { join, relative, dirname } from 'node:path';
  * their narrative (a brief annotation linking to a spec card is allowed).
  */
 const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as const;
+
+/**
+ * Aggregate `listIndexedFiles` across all gildash projects with project
+ * attribution. Default-arg `listIndexedFiles()` only sees the alphabetically-
+ * first project — for monorepos like nestjs (51 projects, 10k+ files) that
+ * misses 99% of the code. Returning project names lets callers route
+ * subsequent per-file queries (`getSymbolsByFile`) to the right project.
+ */
+function listAllIndexedFiles(ctx: EmberdeckContext): string[] {
+  return listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
+}
+
+function listAllIndexedFilesWithProject(
+  ctx: EmberdeckContext,
+): Array<{ filePath: string; project: string | undefined }> {
+  const gildash = ctx.gildash;
+  if (!gildash || typeof gildash.listIndexedFiles !== 'function') return [];
+  const all: Array<{ filePath: string; project: string | undefined }> = [];
+  for (const project of gildashProjectNames(ctx)) {
+    try {
+      const files = project ? gildash.listIndexedFiles(project) : gildash.listIndexedFiles();
+      for (const f of files) all.push({ filePath: f.filePath, project });
+    } catch {
+      // skip project on failure
+    }
+  }
+  return all;
+}
 
 /**
  * Read all tracked annotation tags and dedupe by (filePath, symbolName, value).
@@ -692,11 +720,8 @@ export async function getLinkCoverage(
   }
 
   // Collect boundary-covered files for this card. Boundary expansion is done
-  // against the gildash index (consistent with all other queries here).
-  const indexedFiles =
-    typeof ctx.gildash.listIndexedFiles === 'function'
-      ? ctx.gildash.listIndexedFiles().map((f) => f.filePath)
-      : [];
+  // against the gildash index aggregated across ALL projects (monorepo support).
+  const indexedFiles = listAllIndexedFiles(ctx);
   const boundaryFiles = new Set<string>();
   const row = ctx.cardRepo.findByKey(fullKey);
   for (const pattern of parseBoundaryJson(row?.boundaryJson)) {
@@ -822,20 +847,23 @@ export async function getUncoveredSymbols(
   }
   const allCards = ctx.cardRepo.list();
 
-  // 2. Indexed files (single source of truth for both boundary expansion and
-  // target-file enumeration). Gildash 0.26 returns project-root-relative paths
-  // in production; normalize anyway so test fixtures using absolute paths still
-  // line up with the relative paths stored in codeLinks/boundary patterns.
+  // 2. Indexed files aggregated across all gildash projects (monorepo support).
+  // Carry project attribution so per-file getSymbolsByFile queries below route
+  // to the correct project (gildash defaults to primary, missing 99% in monorepos).
   const toRelative = (p: string): string => {
     if (ctx.projectRoot && p.startsWith(ctx.projectRoot + '/')) {
       return p.slice(ctx.projectRoot.length + 1);
     }
     return p;
   };
-  const indexedFilePaths =
-    typeof ctx.gildash.listIndexedFiles === 'function'
-      ? ctx.gildash.listIndexedFiles().map((f) => toRelative(f.filePath))
-      : [];
+  const indexedWithProject = listAllIndexedFilesWithProject(ctx).map((f) => ({
+    filePath: toRelative(f.filePath),
+    project: f.project,
+  }));
+  const indexedFilePaths = indexedWithProject.map((f) => f.filePath);
+  // file → project lookup for routed getSymbolsByFile calls
+  const fileToProject = new Map<string, string | undefined>();
+  for (const f of indexedWithProject) fileToProject.set(f.filePath, f.project);
 
   // 3. Collect boundary-covered files (matched against the gildash index).
   const boundaryFiles = new Set<string>();
@@ -869,9 +897,12 @@ export async function getUncoveredSymbols(
   const uncovered: UncoveredSymbol[] = [];
 
   for (const file of targetFiles) {
-    // Mock fixtures key by absolute path; production stores relative. Try
-    // relative first, then fall through to the absolute form so both work.
-    let symbols = ctx.gildash.getSymbolsByFile(file);
+    // Route to the correct project (monorepo support); default-arg call only
+    // sees primary project. Fallback to absolute path for mock fixtures.
+    const project = fileToProject.get(file);
+    let symbols = project
+      ? ctx.gildash.getSymbolsByFile(file, project)
+      : ctx.gildash.getSymbolsByFile(file);
     if ((!symbols || symbols.length === 0) && ctx.projectRoot) {
       symbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
     }

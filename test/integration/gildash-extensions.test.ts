@@ -455,6 +455,93 @@ describe('checkDrift — pattern_violation', () => {
   });
 });
 
+// ── multi-detection (driftTypes[]) ───────────────────────────────────
+
+describe('checkDrift — multi-detection', () => {
+  let tc: TestContext;
+  afterEach(async () => { await tc?.cleanup(); });
+
+  it('reports both broken_link and pattern_violation simultaneously', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    const spec = makeTestSpec('src/m.ts', 'gone');
+    spec.code_patterns = [{ id: 'PAT-1', pattern: 'console.log($$$)', rule: 'forbidden' }];
+    await createCard(tc.ctx, {
+      key: 'multi-d',
+      summary: 'Multi drift',
+      type: 'spec',
+      parent: '_br',
+      body: SPEC_BODY,
+      codeLinks: [{ kind: 'function', file: 'src/m.ts', symbol: 'gone' }],
+      spec,
+    });
+    await updateCardStatus(tc.ctx, 'multi-d', 'active');
+
+    tc.ctx.gildash = makeGildash({
+      // gone is NOT in symbol list → broken_link
+      getSymbolsByFile: () => [{ name: 'other', memberName: null, filePath: 'src/m.ts', kind: 'function' }],
+      listIndexedFiles: () => [{ filePath: 'src/m.ts', project: 'p', mtimeMs: 0, size: 0, contentHash: '', updatedAt: '', lineCount: 0 }],
+      // pattern matches → pattern_violation
+      findPattern: async () => [{ filePath: 'src/m.ts', line: 1, column: 0, matched: 'console.log(x)' }],
+    });
+
+    const result = await checkDrift(tc.ctx, 'multi-d', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'multi-d');
+    expect(card?.driftType).toBe('broken_link');
+    expect(card?.driftTypes).toEqual(['broken_link', 'pattern_violation']);
+    expect(card?.brokenLinks).toBe(1);
+    expect(card?.patternViolations).toEqual([{ id: 'PAT-1', rule: 'forbidden', matches: 1 }]);
+  });
+
+  it('driftTypes empty when no drift detected', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, {
+      key: 'clean',
+      summary: 'Clean',
+      type: 'spec',
+      parent: '_br',
+      body: SPEC_BODY,
+      codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'ok' }],
+      spec: makeTestSpec('src/c.ts', 'ok'),
+    });
+    await updateCardStatus(tc.ctx, 'clean', 'active');
+    tc.ctx.gildash = makeGildash({
+      getSymbolsByFile: () => [{ name: 'ok', memberName: null, filePath: 'src/c.ts', kind: 'function' }],
+      listIndexedFiles: () => [{ filePath: 'src/c.ts', project: 'p', mtimeMs: 0, size: 0, contentHash: '', updatedAt: '', lineCount: 0 }],
+    });
+    const result = await checkDrift(tc.ctx, 'clean', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'clean');
+    expect(card?.driftType).toBeUndefined();
+    expect(card?.driftTypes).toBeUndefined();
+  });
+
+  it('priority order: broken_link before boundary_inactive', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, {
+      key: 'prio',
+      summary: 'Priority test',
+      type: 'spec',
+      parent: '_br',
+      body: SPEC_BODY,
+      boundary: ['src/nowhere/**'],
+      codeLinks: [{ kind: 'function', file: 'src/p.ts', symbol: 'missing' }],
+      spec: makeTestSpec('src/p.ts', 'missing'),
+    });
+    await updateCardStatus(tc.ctx, 'prio', 'active');
+    tc.ctx.gildash = makeGildash({
+      getSymbolsByFile: () => [],
+      listIndexedFiles: () => [{ filePath: 'src/p.ts', project: 'p', mtimeMs: 0, size: 0, contentHash: '', updatedAt: '', lineCount: 0 }],
+    });
+    const result = await checkDrift(tc.ctx, 'prio', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'prio');
+    expect(card?.driftType).toBe('broken_link');
+    expect(card?.driftTypes?.[0]).toBe('broken_link');
+    expect(card?.driftTypes).toContain('boundary_inactive');
+  });
+});
+
 // ── auto-transition for new drift types ──────────────────────────────
 
 describe('checkDrift — auto-transition for new drift types', () => {

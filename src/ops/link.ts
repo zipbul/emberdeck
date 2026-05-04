@@ -123,6 +123,22 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
   await ctx.gildash.reindex();
 }
 
+/**
+ * List every project name gildash discovered under the configured projectRoot.
+ * Falls back to `[undefined]` (default project) when gildash exposes no
+ * `projects` accessor, so callers can iterate uniformly.
+ *
+ * In monorepos (e.g. nestjs has 51 sub-projects), gildash's default-project
+ * accessors (`listIndexedFiles()`, `getStats()`, `getCyclePaths()` without
+ * `project` arg) only see one project's data — usually the alphabetically-first
+ * sample app. Iterating all projects is the only way to cover the whole repo.
+ */
+export function gildashProjectNames(ctx: EmberdeckContext): Array<string | undefined> {
+  if (!ctx.gildash || !Array.isArray(ctx.gildash.projects)) return [undefined];
+  const names = ctx.gildash.projects.map((p) => p.project).filter(Boolean);
+  return names.length > 0 ? names : [undefined];
+}
+
 // ---- Operations ----
 
 /**

@@ -5,7 +5,7 @@ import { getUncoveredSymbols } from './spec-sync';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { buildCardFromDb } from './sync';
 import { parseBoundaryJson, parseGlossaryJson } from '../card/json-fields';
-import { ensureReindexed } from './link';
+import { ensureReindexed, gildashProjectNames } from './link';
 
 /** Days of changelog history to retain when pruning at the end of `analyze`. */
 const CHANGELOG_RETENTION_DAYS = 90;
@@ -182,7 +182,16 @@ export async function analyze(
   let staleBoundary = 0;
   if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
     await ensureReindexed(ctx);
-    const indexedFiles = ctx.gildash.listIndexedFiles().map((f) => f.filePath);
+    // Aggregate across all gildash projects (monorepo support).
+    const indexedFiles: string[] = [];
+    for (const project of gildashProjectNames(ctx)) {
+      try {
+        const list = project ? ctx.gildash.listIndexedFiles(project) : ctx.gildash.listIndexedFiles();
+        for (const f of list) indexedFiles.push(f.filePath);
+      } catch {
+        // skip
+      }
+    }
     if (indexedFiles.length > 0) {
       for (const card of allCards) {
         const boundary = parseBoundaryJson(card.boundaryJson);
@@ -256,25 +265,32 @@ export async function analyze(
     .filter((e) => !usedGlossaryWords.has(e.word))
     .map((e) => e.word);
 
-  // Code-side aggregate stats — surface symbol/file/relation counts when gildash exposes them.
+  // Code-side aggregate stats — sum across ALL gildash projects (monorepo).
+  // Calling getStats() with no arg returns only the default project's counts;
+  // for monorepos like nestjs (51 projects) that's < 1% of the actual code.
   let codeStats: AnalyzeHealth['codeStats'];
   if (ctx.gildash && typeof ctx.gildash.getStats === 'function') {
     try {
-      const stats = ctx.gildash.getStats();
-      // Gildash 0.26: SymbolStats = { symbolCount, fileCount }. Older/forked
-      // versions used totalSymbols/totalFiles/totalRelations — coerce defensively.
-      const s = stats as unknown as Record<string, unknown>;
       const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-      const files = num(s.fileCount ?? s.totalFiles ?? s.files);
-      const symbols = num(s.symbolCount ?? s.totalSymbols ?? s.symbols);
-      const relations = num(s.totalRelations ?? s.relations ?? 0);
+      let files = 0, symbols = 0, relations = 0;
+      for (const project of gildashProjectNames(ctx)) {
+        try {
+          const stats = project ? ctx.gildash.getStats(project) : ctx.gildash.getStats();
+          const s = stats as unknown as Record<string, unknown>;
+          files += num(s.fileCount ?? s.totalFiles ?? s.files);
+          symbols += num(s.symbolCount ?? s.totalSymbols ?? s.symbols);
+          relations += num(s.totalRelations ?? s.relations ?? 0);
+        } catch {
+          // skip project on failure
+        }
+      }
       codeStats = { files, symbols, relations };
     } catch {
       // best-effort
     }
   }
 
-  // Code-side architectural debt: surface import cycles when gildash exposes them.
+  // Code-side architectural debt: aggregate cycles across ALL projects.
   let codeCycles: AnalyzeHealth['codeCycles'];
   if (
     ctx.gildash &&
@@ -282,12 +298,24 @@ export async function analyze(
     typeof ctx.gildash.hasCycle === 'function'
   ) {
     try {
-      if (await ctx.gildash.hasCycle()) {
-        const cycles = await ctx.gildash.getCyclePaths(undefined, { maxCycles: MAX_CYCLES_FETCH });
-        codeCycles = { count: cycles.length, samples: cycles.slice(0, MAX_CYCLE_SAMPLES) };
-      } else {
-        codeCycles = { count: 0, samples: [] };
+      const allCycles: string[][] = [];
+      for (const project of gildashProjectNames(ctx)) {
+        try {
+          const has = project ? await ctx.gildash.hasCycle(project) : await ctx.gildash.hasCycle();
+          if (!has) continue;
+          const cycles = project
+            ? await ctx.gildash.getCyclePaths(project, { maxCycles: MAX_CYCLES_FETCH })
+            : await ctx.gildash.getCyclePaths(undefined, { maxCycles: MAX_CYCLES_FETCH });
+          allCycles.push(...cycles);
+          if (allCycles.length >= MAX_CYCLES_FETCH) break;
+        } catch {
+          // skip project on failure
+        }
       }
+      codeCycles = {
+        count: allCycles.length,
+        samples: allCycles.slice(0, MAX_CYCLE_SAMPLES),
+      };
     } catch {
       // best-effort; cycle reporting is informational
     }
