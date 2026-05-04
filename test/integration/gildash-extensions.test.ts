@@ -618,6 +618,222 @@ describe('checkDrift — auto-transition for new drift types', () => {
   });
 });
 
+// ── monorepo: per-project routing for all 7 gildash APIs ─────────────
+
+describe('monorepo — gildash API routing across projects', () => {
+  let tc: TestContext;
+  afterEach(async () => { await tc?.cleanup(); });
+
+  // Helper: build a multi-project mock where each project hosts disjoint
+  // file/symbol/relation/pattern data. Verifies emberdeck iterates projects.
+  function makeMultiProjectGildash(spec: {
+    projects: string[];
+    filesByProject: Record<string, string[]>;
+    symbolsByProjectFile?: Record<string, Record<string, Array<{ name: string; kind: string }>>>;
+    annotationsByProjectTag?: Record<string, Record<string, Array<{ value: string; filePath: string; symbolName: string }>>>;
+    extendsByProjectFile?: Record<string, Record<string, Array<{ src: string; srcSym: string; dstSym: string }>>>;
+    patternMatchesByProject?: Record<string, number>;
+    fanByProjectFile?: Record<string, Record<string, { fanIn: number; fanOut: number }>>;
+    dependentsByProjectFile?: Record<string, Record<string, string[]>>;
+    affectedByProject?: Record<string, string[]>;
+    symbolChangesByProject?: Record<string, Array<{ filePath: string; symbolName: string; changedAt: string }>>;
+  }) {
+    return {
+      projects: spec.projects.map((p) => ({ project: p, dir: `dir-${p}` })),
+      reindex: async () => ({}),
+      close: async () => undefined,
+      listIndexedFiles: (project?: string) => {
+        const p = (project ?? spec.projects[0]) as string;
+        const files = (spec.filesByProject[p] ?? []) as string[];
+        return files.map((f: string) => ({ filePath: f, project: p, mtimeMs: 0, size: 0, contentHash: '', updatedAt: '', lineCount: 0 }));
+      },
+      getSymbolsByFile: (file: string, project?: string) => {
+        const p = (project ?? spec.projects[0]) as string;
+        const syms = (spec.symbolsByProjectFile?.[p]?.[file] ?? []) as Array<{ name: string; kind: string }>;
+        return syms.map((s, i: number) => ({ ...s, id: i + 1, memberName: null, filePath: file, span: { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }, isExported: true, signature: null, fingerprint: null, detail: {} }));
+      },
+      searchAnnotations: ({ tag, project }: { tag: string; project?: string }) => {
+        const p = (project ?? spec.projects[0]) as string;
+        return ((spec.annotationsByProjectTag?.[p]?.[tag] ?? []) as Array<{ value: string; filePath: string; symbolName: string }>).map((a) => ({ ...a, tag, source: 'line' as const, lineNumber: 1, columnNumber: 0 }));
+      },
+      searchRelations: ({ type, dstFilePath, project }: { type: string; dstFilePath?: string; project?: string }) => {
+        const p = (project ?? spec.projects[0]) as string;
+        const fileMap = (spec.extendsByProjectFile?.[p] ?? {}) as Record<string, Array<{ src: string; srcSym: string; dstSym: string }>>;
+        const out: any[] = [];
+        for (const [dst, rels] of Object.entries(fileMap)) {
+          if (dstFilePath && dst !== dstFilePath) continue;
+          for (const r of rels) out.push({ type, srcFilePath: r.src, srcSymbolName: r.srcSym, dstFilePath: dst, dstSymbolName: r.dstSym, dstProject: p, isExternal: false, specifier: null });
+        }
+        return out;
+      },
+      findPattern: async (_pattern: string, opts?: { project?: string }) => {
+        const p = (opts?.project ?? spec.projects[0]) as string;
+        const n = spec.patternMatchesByProject?.[p] ?? 0;
+        return Array.from({ length: n }, (_, i) => ({ filePath: `m-${i}.ts`, line: 1, column: 0, matched: '' }));
+      },
+      getFanMetrics: async (file: string, project?: string) => {
+        const p = (project ?? spec.projects[0]) as string;
+        return spec.fanByProjectFile?.[p]?.[file] ?? { fanIn: 0, fanOut: 0 };
+      },
+      getDependents: (file: string, project?: string) => {
+        const p = (project ?? spec.projects[0]) as string;
+        return spec.dependentsByProjectFile?.[p]?.[file] ?? [];
+      },
+      getDependencies: (_file: string, _project?: string) => [],
+      getAffected: async (changedFiles: string[], project?: string) => {
+        const p = (project ?? spec.projects[0]) as string;
+        return [...changedFiles, ...(spec.affectedByProject?.[p] ?? [])];
+      },
+      getSymbolChanges: (_since: any, opts?: { project?: string }) => {
+        const p = (opts?.project ?? spec.projects[0]) as string;
+        return (spec.symbolChangesByProject?.[p] ?? []).map((c) => ({ ...c, changeType: 'modified' as const, symbolKind: 'function', oldName: null, oldFilePath: null, fingerprint: null, isFullIndex: false, indexRunId: 'r1' }));
+      },
+      getStats: () => ({ symbolCount: 0, fileCount: 0 }),
+      hasCycle: async () => false,
+      getCyclePaths: async () => [],
+    } as any;
+  }
+
+  it('SymbolFileCache unions symbols from each project', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, {
+      key: 'union-card',
+      summary: 'union',
+      type: 'spec',
+      parent: '_br',
+      body: SPEC_BODY,
+      codeLinks: [{ kind: 'function', file: 'src/u.ts', symbol: 'fnFromB' }],
+      spec: makeTestSpec('src/u.ts', 'fnFromB'),
+    });
+    await updateCardStatus(tc.ctx, 'union-card', 'active');
+    tc.ctx.gildash = makeMultiProjectGildash({
+      projects: ['projA', 'projB'],
+      filesByProject: { projA: ['src/u.ts'], projB: ['src/u.ts'] },
+      symbolsByProjectFile: {
+        projA: { 'src/u.ts': [{ name: 'fnFromA', kind: 'function' }] },
+        projB: { 'src/u.ts': [{ name: 'fnFromB', kind: 'function' }] },
+      },
+    });
+    const result = await checkDrift(tc.ctx, 'union-card', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'union-card');
+    // fnFromB exists in projB → broken_link should NOT fire (cache union).
+    expect(card?.brokenLinks).toBe(0);
+  });
+
+  it('searchAnnotations iterates projects (4-tier × N-project)', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, { key: 'multi-spec', summary: 's', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/x.ts', 'fn') });
+    tc.ctx.gildash = makeMultiProjectGildash({
+      projects: ['projA', 'projB'],
+      filesByProject: { projA: [], projB: [] },
+      symbolsByProjectFile: { projA: { 'src/x.ts': [{ name: 'fn', kind: 'function' }] }, projB: { 'src/x.ts': [{ name: 'fn', kind: 'function' }] } },
+      annotationsByProjectTag: {
+        projA: { spec: [{ value: 'multi-spec', filePath: 'src/x.ts', symbolName: 'fn' }] },
+        projB: {},
+      },
+    });
+    const result = await syncSpecAnnotations(tc.ctx);
+    expect(result.alreadyLinked + result.created).toBeGreaterThanOrEqual(1);
+  });
+
+  it('findPattern sums matches across projects (pattern_violation)', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    const spec = makeTestSpec('src/p.ts', 'fn');
+    spec.code_patterns = [{ id: 'PAT-A', pattern: 'console.log($$$)', rule: 'forbidden' }];
+    await createCard(tc.ctx, { key: 'pat-multi', summary: 'p', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'function', file: 'src/p.ts', symbol: 'fn' }], spec });
+    await updateCardStatus(tc.ctx, 'pat-multi', 'active');
+    tc.ctx.gildash = makeMultiProjectGildash({
+      projects: ['projA', 'projB'],
+      filesByProject: { projA: ['src/p.ts'], projB: ['src/p.ts'] },
+      symbolsByProjectFile: { projA: { 'src/p.ts': [{ name: 'fn', kind: 'function' }] }, projB: { 'src/p.ts': [{ name: 'fn', kind: 'function' }] } },
+      patternMatchesByProject: { projA: 3, projB: 4 },
+    });
+    const result = await checkDrift(tc.ctx, 'pat-multi', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'pat-multi');
+    expect(card?.driftType).toBe('pattern_violation');
+    expect(card?.patternViolations?.[0]?.matches).toBe(7); // 3 + 4 across projects
+  });
+
+  it('searchRelations heritage_uncovered iterates projects', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, { key: 'her-multi', summary: 'h', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'class', file: 'src/c.ts', symbol: 'Base' }], spec: makeTestSpec('src/c.ts', 'Base') });
+    await updateCardStatus(tc.ctx, 'her-multi', 'active');
+    tc.ctx.gildash = makeMultiProjectGildash({
+      projects: ['projA', 'projB'],
+      filesByProject: { projA: ['src/c.ts'], projB: ['src/c.ts'] },
+      symbolsByProjectFile: { projA: { 'src/c.ts': [{ name: 'Base', kind: 'class' }] }, projB: { 'src/c.ts': [{ name: 'Base', kind: 'class' }] } },
+      // Subclass only declared in projB
+      extendsByProjectFile: { projA: {}, projB: { 'src/c.ts': [{ src: 'src/d.ts', srcSym: 'Derived', dstSym: 'Base' }] } },
+    });
+    const result = await checkDrift(tc.ctx, 'her-multi', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'her-multi');
+    expect(card?.uncoveredSubclasses).toEqual([{ file: 'src/d.ts', symbol: 'Derived' }]);
+  });
+
+  it('preChangeCheck max fan-in picks max across projects', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'fan-multi', summary: 'f', type: 'spec', codeLinks: [{ kind: 'function', file: 'src/h.ts', symbol: 'h' }] });
+    tc.ctx.gildash = makeMultiProjectGildash({
+      projects: ['projA', 'projB'],
+      filesByProject: { projA: ['src/h.ts'], projB: ['src/h.ts'] },
+      symbolsByProjectFile: { projA: { 'src/h.ts': [{ name: 'h', kind: 'function' }] }, projB: { 'src/h.ts': [{ name: 'h', kind: 'function' }] } },
+      fanByProjectFile: {
+        projA: { 'src/h.ts': { fanIn: 5, fanOut: 1 } },
+        projB: { 'src/h.ts': { fanIn: 25, fanOut: 3 } },
+      },
+    });
+    const result = await preChangeCheck(tc.ctx, ['src/h.ts']);
+    expect(result.maxFanIn).toBe(25); // max across projects
+    expect(result.maxFanOut).toBe(3);
+    // 1 affected card (medium) + fanIn≥10 → high
+    expect(result.riskLevel).toBe('high');
+  });
+
+  it('expandAffectedFiles unions across projects', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'imp-card', summary: 'i', type: 'spec', codeLinks: [{ kind: 'function', file: 'src/imp.ts', symbol: 'imp' }] });
+    tc.ctx.gildash = makeMultiProjectGildash({
+      projects: ['projA', 'projB'],
+      filesByProject: { projA: [], projB: [] },
+      affectedByProject: {
+        projA: ['src/imp.ts', 'src/from-A.ts'],
+        projB: ['src/from-B.ts'],
+      },
+    });
+    const result = await preChangeCheck(tc.ctx, ['src/imp.ts']);
+    // The expanded file set should include from-A and from-B; the imp-card
+    // links to src/imp.ts which is in the expanded set, so it's affected.
+    expect(result.affectedCards.some((c) => c.key === 'imp-card')).toBe(true);
+  });
+
+  it('getSymbolChanges unions across projects (symbol_changed drift)', async () => {
+    tc = await createTestContext();
+    await ensure4tierScaffold(tc.ctx, true);
+    await createCard(tc.ctx, { key: 'sym-multi', summary: 'sm', type: 'spec', parent: '_br', body: SPEC_BODY, boundary: ['src/changed/**'], codeLinks: [{ kind: 'function', file: 'src/changed/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/changed/x.ts', 'fn') });
+    await updateCardStatus(tc.ctx, 'sym-multi', 'active');
+    // Backdate updatedAt
+    const row = tc.ctx.cardRepo.findByKey('sym-multi')!;
+    tc.ctx.cardRepo.upsert({ ...row, updatedAt: '2020-01-01T00:00:00.000Z' });
+    tc.ctx.gildash = makeMultiProjectGildash({
+      projects: ['projA', 'projB'],
+      filesByProject: { projA: ['src/changed/x.ts'], projB: ['src/changed/x.ts'] },
+      symbolsByProjectFile: { projA: { 'src/changed/x.ts': [{ name: 'fn', kind: 'function' }] }, projB: { 'src/changed/x.ts': [{ name: 'fn', kind: 'function' }] } },
+      // Change reported only by projB
+      symbolChangesByProject: {
+        projA: [],
+        projB: [{ filePath: 'src/changed/x.ts', symbolName: 'fn', changedAt: '2025-01-01T00:00:00.000Z' }],
+      },
+    });
+    const result = await checkDrift(tc.ctx, 'sym-multi', { autoTransition: false });
+    const card = result.cards.find((c) => c.key === 'sym-multi');
+    expect(card?.driftType).toBe('symbol_changed');
+  });
+});
+
 // ── code_patterns round-trip ─────────────────────────────────────────
 
 describe('SpecBody.code_patterns — round-trip', () => {

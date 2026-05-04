@@ -271,7 +271,8 @@ describe('getUncoveredSymbols', () => {
 
     const result = await getUncoveredSymbols(tc.ctx);
     expect(result.totalSymbols).toBe(0);
-    expect(result.coverageRatio).toBe(1);
+    // null distinguishes "no symbols indexed" from "0% covered".
+    expect(result.coverageRatio).toBeNull();
   });
 });
 

@@ -821,7 +821,8 @@ export interface UncoveredResult {
   totalSymbols: number;
   coveredSymbols: number;
   uncovered: UncoveredSymbol[];
-  coverageRatio: number;
+  /** `null` when there are no indexed symbols (no information). */
+  coverageRatio: number | null;
 }
 
 export interface GetUncoveredSymbolsOptions {
@@ -955,7 +956,9 @@ export async function getUncoveredSymbols(
     totalSymbols,
     coveredSymbols,
     uncovered,
-    coverageRatio: totalSymbols > 0 ? coveredSymbols / totalSymbols : 1,
+    // `null` distinguishes "no symbols yet" from "0% covered". Callers (analyze)
+    // surface this so agents don't conflate "set up cards first" with "drift everywhere".
+    coverageRatio: totalSymbols > 0 ? coveredSymbols / totalSymbols : null,
   };
 }
 

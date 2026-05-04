@@ -45,7 +45,12 @@ const MAX_CYCLES_FETCH = 200;
 export interface AnalyzeCoverage {
   totalSymbols: number;
   covered: number;
-  ratio: number;
+  /**
+   * `covered / totalSymbols`, or `null` when there are no cards yet (or no
+   * indexed symbols). Distinguishes "no information available" from
+   * "0% covered" — agents should treat `null` as "set up cards first".
+   */
+  ratio: number | null;
 }
 
 export interface UnlinkedSymbol {
@@ -286,16 +291,20 @@ export async function analyze(
           // skip project
         }
       }
-      const uniqueSymbols = new Set<string>();
+      // Count symbols by total length (NOT (file,name) dedup) — overloaded
+      // functions with the same name in the same file ARE distinct symbols
+      // in gildash. Matches `coverage.totalSymbols` counting semantics so
+      // both fields produce the same number for the same data set.
+      let symbolTotal = 0;
       for (const [file, project] of uniqueFiles) {
         try {
           const syms = project ? ctx.gildash.getSymbolsByFile(file, project) : ctx.gildash.getSymbolsByFile(file);
-          if (Array.isArray(syms)) for (const s of syms) uniqueSymbols.add(`${file}\0${s.name}`);
+          if (Array.isArray(syms)) symbolTotal += syms.length;
         } catch {
           // skip file
         }
       }
-      codeStats = { files: uniqueFiles.size, symbols: uniqueSymbols.size };
+      codeStats = { files: uniqueFiles.size, symbols: symbolTotal };
     } catch {
       // best-effort
     }

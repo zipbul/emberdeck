@@ -237,9 +237,10 @@ function renderCoverageHuman(data: unknown): string {
     return lines.join('\n');
   }
   if ('total_symbols' in d) {
-    const u = d as { total_symbols: number; covered_symbols: number; coverage_ratio: number; uncovered: Array<{ file: string; symbol: string; kind: string }>; uncovered_total: number };
+    const u = d as { total_symbols: number; covered_symbols: number; coverage_ratio: number | null; uncovered: Array<{ file: string; symbol: string; kind: string }>; uncovered_total: number };
+    const ratioStr = u.coverage_ratio === null ? 'n/a (no symbols indexed)' : `${(u.coverage_ratio * 100).toFixed(1)}%`;
     const lines = [
-      `coverage (project): ${(u.coverage_ratio * 100).toFixed(1)}% (${u.covered_symbols}/${u.total_symbols})`,
+      `coverage (project): ${ratioStr} (${u.covered_symbols}/${u.total_symbols})`,
       `uncovered: ${u.uncovered_total} symbol(s)`,
     ];
     for (const x of u.uncovered.slice(0, 20)) {

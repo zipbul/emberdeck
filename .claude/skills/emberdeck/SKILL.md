@@ -568,9 +568,20 @@ spec:
 
 emberdeck 은 gildash 가 발견한 **모든 프로젝트를 자동 집계**한다 (nestjs 51개 sub-project, 10k+ 파일 검증). `--project-root` 는 모노레포 루트로 지정.
 
-- `analyze.health.codeStats` / `codeCycles` — 전체 프로젝트 합산
-- `getUncoveredSymbols` / `boundary_inactive` — 전체 인덱스 대상
-- 카드의 codeLinks `file` 필드는 **모노레포 루트 기준 상대 경로** (예: `packages/common/...`)
+**프로젝트 라우팅 적용 API (전체)**:
+- `getSymbolsByFile` — `SymbolFileCache` 가 모든 프로젝트 순회 후 union (dedup by name+span)
+- `searchAnnotations` — 4-tier 태그 × N-project, dedup by (tag, file, symbol, value)
+- `getSymbolChanges` — 프로젝트별 변경 합산 (symbol_changed drift)
+- `getDependencies` — 소스 파일별 모든 프로젝트 union (detectImportDependencies)
+- `getDependents` + `getFanMetrics` — 파일 × 프로젝트, max 집계 (impact)
+- `getAffected` — 프로젝트별 전이 영향 union (expandAffectedFiles)
+- `findPattern` — 프로젝트별 매치 합산 (pattern_violation)
+- `searchRelations` — 프로젝트별 extends 합산 (heritage_uncovered)
+- `listIndexedFiles` / `getStats` / `getCyclePaths` / `hasCycle` — analyze 집계
+
+**파일 dedup 정책**: 같은 파일이 여러 프로젝트 boundary 에 동시 등록될 수 있다 (nestjs: 10038 file-project memberships → 1663 unique paths). emberdeck 은 파일 path 로 dedup 하여 unique 카운트만 노출.
+
+**카드 작성 시 주의**: codeLinks `file` 필드는 **모노레포 루트 기준 상대 경로** (예: `packages/common/...`).
 
 ---
 

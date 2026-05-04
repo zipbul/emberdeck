@@ -58,9 +58,15 @@ export class SymbolFileCache {
   get(file: string): SymbolSearchResult[] {
     let symbols = this.cache.get(file);
     if (symbols !== undefined) return symbols;
-    // Try each project in turn — first non-empty result wins. If EVERY
-    // project query throws (gildash truly unavailable), propagate so callers
-    // can distinguish "gildash-unavailable" from "symbol-not-found".
+    // Union across all projects, dedup by symbol identity within the file.
+    // For a single file, two symbols with the same (name, memberName, span.start)
+    // tuple are the same symbol regardless of project (project boundaries can
+    // overlap, gildash returns the same row twice). Distinct overloads/members
+    // differ in span.start.line so they remain separate entries.
+    // If EVERY project query throws, propagate so callers can distinguish
+    // "gildash-unavailable" from "symbol-not-found".
+    const seen = new Set<string>();
+    const merged: SymbolSearchResult[] = [];
     let lastError: unknown;
     let anySucceeded = false;
     for (const project of this.projectNames) {
@@ -69,17 +75,20 @@ export class SymbolFileCache {
           ? this.gildash.getSymbolsByFile(file, project)
           : this.gildash.getSymbolsByFile(file);
         anySucceeded = true;
-        if (result && result.length > 0) {
-          this.cache.set(file, result);
-          return result;
+        if (!Array.isArray(result)) continue;
+        for (const s of result) {
+          const key = `${s.name}\0${s.memberName ?? ''}\0${s.span?.start?.line ?? 0}\0${s.span?.start?.column ?? 0}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          merged.push(s);
         }
       } catch (e) {
         lastError = e;
       }
     }
     if (!anySucceeded && lastError) throw lastError;
-    this.cache.set(file, []);
-    return [];
+    this.cache.set(file, merged);
+    return merged;
   }
 
   find(file: string, symbolName: string): SymbolSearchResult | undefined {

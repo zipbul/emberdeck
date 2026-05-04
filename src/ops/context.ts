@@ -752,22 +752,22 @@ function detectImportDependencies(
     toKey: string,
   ) => {
     for (const src of sources) {
-      // Try each project — first project that returns deps wins.
+      // Union deps across all projects (a file may appear in multiple project
+      // boundaries with different import lists). One emit per (src, dst) match.
+      const allDeps = new Set<string>();
       for (const project of projects) {
         try {
           const fileDeps = project ? gildash.getDependencies(src, project) : gildash.getDependencies(src);
-          if (!Array.isArray(fileDeps) || fileDeps.length === 0) continue;
-          let matched = false;
-          for (const dep of fileDeps) {
-            if (typeof dep === 'string' && targets.has(dep)) {
-              deps.push({ from: fromKey, to: toKey, file: src });
-              matched = true;
-              break;
-            }
-          }
-          if (matched || fileDeps.length > 0) break;
+          if (!Array.isArray(fileDeps)) continue;
+          for (const dep of fileDeps) if (typeof dep === 'string') allDeps.add(dep);
         } catch {
           // graceful degradation
+        }
+      }
+      for (const dep of allDeps) {
+        if (targets.has(dep)) {
+          deps.push({ from: fromKey, to: toKey, file: src });
+          break;
         }
       }
     }
