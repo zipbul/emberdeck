@@ -50,11 +50,12 @@ export function registerSingle(program: Command): void {
         [],
         globalFlags,
         { humanRenderer: (data) => {
-          const d = data as { health: { total: number; active: number; drifted: number; draft: number; brokenLinks: number }; coverage: { totalSymbols: number; covered: number; ratio: number }; drifted: { total: number }; glossary: { totalWords: number } };
+          const d = data as { health: { total: number; active: number; drifted: number; draft: number; brokenLinks: number }; coverage: { totalSymbols: number; covered: number; ratio: number | null }; drifted: { total: number }; glossary: { totalWords: number } };
+          const cov = d.coverage.ratio === null ? 'n/a (no symbols indexed)' : `${(d.coverage.ratio * 100).toFixed(1)}%`;
           return [
             `analyze:`,
             `  cards:    total=${d.health.total} active=${d.health.active} drifted=${d.health.drifted} draft=${d.health.draft}`,
-            `  coverage: ${(d.coverage.ratio * 100).toFixed(1)}% (${d.coverage.covered}/${d.coverage.totalSymbols})`,
+            `  coverage: ${cov} (${d.coverage.covered}/${d.coverage.totalSymbols})`,
             `  drifted:  ${d.drifted.total} cards`,
             `  glossary: ${d.glossary.totalWords} words`,
             `  broken links: ${d.health.brokenLinks}`,

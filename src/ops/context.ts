@@ -342,6 +342,23 @@ export async function checkDrift(
     ) {
       const patterns = parseSpecCodePatterns(row.namespacesJson);
       if (patterns.length > 0) {
+        // Scope pattern search to this card's boundary when set — a card's
+        // patterns are its own contract, not a project-wide rule. A spec for
+        // `src/auth/**` shouldn't flag `console.log` in `src/ui/`.
+        const boundary = parseBoundary(row.boundaryJson);
+        let scopedFiles: string[] | undefined;
+        if (boundary.length > 0) {
+          const indexedFiles = getIndexedFilePaths();
+          if (indexedFiles.size > 0) {
+            scopedFiles = [];
+            for (const pattern of boundary) {
+              try {
+                const glob = new Bun.Glob(pattern);
+                for (const f of indexedFiles) if (glob.match(f)) scopedFiles.push(f);
+              } catch { /* skip invalid */ }
+            }
+          }
+        }
         const collected: NonNullable<DriftCard['patternViolations']> = [];
         for (const p of patterns) {
           try {
@@ -349,10 +366,10 @@ export async function checkDrift(
             let count = 0;
             for (const project of gildashProjectNames(ctx)) {
               try {
-                const matches = await ctx.gildash.findPattern(
-                  p.pattern,
-                  project ? { project } : undefined,
-                );
+                const opts: { project?: string; filePaths?: string[] } = {};
+                if (project) opts.project = project;
+                if (scopedFiles) opts.filePaths = scopedFiles;
+                const matches = await ctx.gildash.findPattern(p.pattern, opts);
                 count += matches.length;
               } catch {
                 // skip project on failure
