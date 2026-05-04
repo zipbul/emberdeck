@@ -28,19 +28,30 @@ export interface DriftCard {
   key: string;
   summary: string;
   status: 'active' | 'drifted';
+  /**
+   * Primary drift type (first match in detection priority order). Kept as a
+   * single field for backward compatibility with consumers that read one type.
+   */
   driftType?: DriftType;
+  /**
+   * All drift types detected for this card (verified empirically with typeorm:
+   * a single card can simultaneously have broken_link AND pattern_violation
+   * etc.). Includes `driftType` as the first entry. New consumers should
+   * iterate this; legacy consumers can keep reading `driftType`.
+   */
+  driftTypes?: DriftType[];
   brokenLinks: number;
   totalLinks: number;
-  /** Symbol changes detected in boundary files (only when driftType=symbol_changed). */
+  /** Symbol changes detected in boundary files (only when symbol_changed in driftTypes). */
   symbolChanges?: SymbolChangeDetail[];
   /**
    * Subclasses of a linked class that are not covered by any spec card.
-   * Populated only when driftType=heritage_uncovered.
+   * Populated only when heritage_uncovered in driftTypes.
    */
   uncoveredSubclasses?: Array<{ file: string; symbol: string }>;
   /**
    * Pattern violations detected via spec.code_patterns + gildash.findPattern.
-   * Populated only when driftType=pattern_violation.
+   * Populated only when pattern_violation in driftTypes.
    */
   patternViolations?: Array<{
     id: string;
@@ -175,11 +186,15 @@ export async function checkDrift(
       }
     }
 
-    // Determine drift type (first match wins: broken_link > boundary_inactive > symbol_changed)
-    let driftType: DriftType | undefined;
+    // Collect ALL applicable drift types (multi-detection). Empirically a
+    // single card can have broken_link AND pattern_violation simultaneously;
+    // first-match-wins forces a fix-and-recheck cycle. Iteration order here
+    // becomes the priority order surfaced via `driftType` (primary).
+    const driftTypesDetected: DriftType[] = [];
+    const addDrift = (t: DriftType) => { if (!driftTypesDetected.includes(t)) driftTypesDetected.push(t); };
 
     if (brokenLinks > 0) {
-      driftType = 'broken_link';
+      addDrift('broken_link');
     }
 
     // boundary_inactive: boundary globs match no files.
@@ -187,7 +202,7 @@ export async function checkDrift(
     // ignorePatterns); fall back to scanning projectRoot when gildash is absent.
     // An empty index is treated as "no information" rather than "no matches"
     // — boundary_inactive only fires when we have a populated source of truth.
-    if (!driftType && row.status === 'active' && (ctx.gildash || ctx.projectRoot)) {
+    if (row.status === 'active' && (ctx.gildash || ctx.projectRoot)) {
       const boundary = parseBoundary(row.boundaryJson);
       if (boundary.length > 0) {
         let anyMatch = false;
@@ -206,25 +221,30 @@ export async function checkDrift(
           }
         }
         if (!canDecide && ctx.projectRoot) {
-          canDecide = true;
-          for (const pattern of boundary) {
-            const glob = new Bun.Glob(pattern);
-            for (const _ of glob.scanSync({ cwd: ctx.projectRoot })) {
-              anyMatch = true;
-              break;
+          try {
+            for (const pattern of boundary) {
+              const glob = new Bun.Glob(pattern);
+              for (const _ of glob.scanSync({ cwd: ctx.projectRoot })) {
+                anyMatch = true;
+                break;
+              }
+              if (anyMatch) break;
             }
-            if (anyMatch) break;
+            canDecide = true;
+          } catch {
+            // projectRoot inaccessible (test mocks, missing dir) — treat as
+            // "no information" rather than asserting boundary_inactive.
           }
         }
         if (canDecide && !anyMatch) {
-          driftType = 'boundary_inactive';
+          addDrift('boundary_inactive');
         }
       }
     }
 
     // symbol_changed: symbols in boundary files changed after card's updatedAt
     let detectedSymbolChanges: SymbolChangeDetail[] | undefined;
-    if (!driftType && row.status === 'active' && symbolChangesByFile) {
+    if (row.status === 'active' && symbolChangesByFile) {
       const boundary = parseBoundary(row.boundaryJson);
       if (boundary.length > 0) {
         const cardUpdatedAt = row.updatedAt;
@@ -246,7 +266,7 @@ export async function checkDrift(
           }
         }
         if (collected.length > 0) {
-          driftType = 'symbol_changed';
+          addDrift('symbol_changed');
           detectedSymbolChanges = collected;
         }
       }
@@ -258,7 +278,6 @@ export async function checkDrift(
     // query the `extends` relation graph and filter by dst = our linked class.
     let uncoveredSubclasses: Array<{ file: string; symbol: string }> | undefined;
     if (
-      !driftType &&
       row.status === 'active' &&
       symbolCache &&
       ctx.gildash &&
@@ -289,7 +308,7 @@ export async function checkDrift(
         }
       }
       if (collected.length > 0) {
-        driftType = 'heritage_uncovered';
+        addDrift('heritage_uncovered');
         uncoveredSubclasses = collected;
       }
     }
@@ -299,7 +318,6 @@ export async function checkDrift(
     // when zero matches. Boundary files limit the search scope when present.
     let patternViolations: DriftCard['patternViolations'];
     if (
-      !driftType &&
       row.status === 'active' &&
       ctx.gildash &&
       typeof ctx.gildash.findPattern === 'function' &&
@@ -321,26 +339,28 @@ export async function checkDrift(
           }
         }
         if (collected.length > 0) {
-          driftType = 'pattern_violation';
+          addDrift('pattern_violation');
           patternViolations = collected;
         }
       }
     }
 
     // glossary_broken: card declares glossary words not in glossary.yaml
-    if (!driftType) {
+    {
       const cardGlossary = parseGlossaryJsonField(row);
       if (cardGlossary.length > 0) {
         const glossaryEntries = readGlossary(ctx);
         const glossaryWords = new Set(glossaryEntries.map((e) => e.word));
         for (const word of cardGlossary) {
           if (!glossaryWords.has(word)) {
-            driftType = 'glossary_broken';
+            addDrift('glossary_broken');
             break;
           }
         }
       }
     }
+
+    const driftType: DriftType | undefined = driftTypesDetected[0];
 
     const currentStatus = row.status as 'active' | 'drifted';
     // Skip auto-transition if gildash was unavailable — broken links may be false positives
@@ -381,6 +401,7 @@ export async function checkDrift(
       summary: row.summary,
       status: finalStatus,
       ...(driftType ? { driftType } : {}),
+      ...(driftTypesDetected.length > 0 ? { driftTypes: driftTypesDetected } : {}),
       brokenLinks,
       totalLinks,
       ...(detectedSymbolChanges ? { symbolChanges: detectedSymbolChanges } : {}),

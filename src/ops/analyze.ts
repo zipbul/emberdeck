@@ -34,8 +34,14 @@ export interface AnalyzeHealth {
   };
 }
 
-/** Cap on cycle samples surfaced in analyze output (full list available via gildash). */
+/** Cap on cycle samples surfaced in analyze output (display layer only). */
 const MAX_CYCLE_SAMPLES = 5;
+/**
+ * Safety cap on `getCyclePaths` calls — large enough to cover real codebases
+ * (typeorm has ~500+ cycles in 314 files; cost is <200ms even at this cap),
+ * small enough to bound runtime if a pathological project has thousands.
+ */
+const MAX_CYCLES_FETCH = 200;
 
 export interface AnalyzeCoverage {
   totalSymbols: number;
@@ -277,8 +283,8 @@ export async function analyze(
   ) {
     try {
       if (await ctx.gildash.hasCycle()) {
-        const cycles = await ctx.gildash.getCyclePaths(undefined, { maxCycles: MAX_CYCLE_SAMPLES });
-        codeCycles = { count: cycles.length, samples: cycles };
+        const cycles = await ctx.gildash.getCyclePaths(undefined, { maxCycles: MAX_CYCLES_FETCH });
+        codeCycles = { count: cycles.length, samples: cycles.slice(0, MAX_CYCLE_SAMPLES) };
       } else {
         codeCycles = { count: 0, samples: [] };
       }

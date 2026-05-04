@@ -52,7 +52,8 @@ export function registerCheck(program: Command): void {
             `drift: total=${d.health.total} active=${d.health.active} drifted=${d.health.drifted} draft=${d.health.draft}`,
           ];
           for (const c of d.cards.filter((c) => c.driftType)) {
-            lines.push(`  ${c.key}: ${c.driftType}`);
+            const types = (c as { driftTypes?: string[] }).driftTypes ?? [c.driftType!];
+            lines.push(`  ${c.key}: ${types.join(' + ')}`);
             if (c.uncoveredSubclasses?.length) {
               for (const s of c.uncoveredSubclasses) lines.push(`    └ subclass uncovered: ${s.file}:${s.symbol}`);
             }
