@@ -59,6 +59,12 @@ export interface DriftCard {
     /** Number of matches found ('forbidden': >0 ⇒ violation; 'required': 0 ⇒ violation). */
     matches: number;
   }>;
+  /**
+   * Patterns that failed to execute (gildash threw — typically malformed
+   * ast-grep syntax). Listed separately so authors know to fix the pattern,
+   * not the code. NOT counted as drift.
+   */
+  patternErrors?: Array<{ id: string; message: string }>;
 }
 
 export interface DriftHealth {
@@ -334,6 +340,7 @@ export async function checkDrift(
     // 'forbidden' patterns fail when matches exist; 'required' patterns fail
     // when zero matches. Boundary files limit the search scope when present.
     let patternViolations: DriftCard['patternViolations'];
+    let patternErrors: DriftCard['patternErrors'];
     if (
       row.status === 'active' &&
       ctx.gildash &&
@@ -360,32 +367,45 @@ export async function checkDrift(
           }
         }
         const collected: NonNullable<DriftCard['patternViolations']> = [];
+        const patternErrCollected: NonNullable<DriftCard['patternErrors']> = [];
         for (const p of patterns) {
-          try {
-            // findPattern aggregates across all projects (monorepo support).
-            let count = 0;
-            for (const project of gildashProjectNames(ctx)) {
-              try {
-                const opts: { project?: string; filePaths?: string[] } = {};
-                if (project) opts.project = project;
-                if (scopedFiles) opts.filePaths = scopedFiles;
-                const matches = await ctx.gildash.findPattern(p.pattern, opts);
-                count += matches.length;
-              } catch {
-                // skip project on failure
-              }
+          // findPattern aggregates across all projects (monorepo support).
+          // Track whether ANY project succeeded — if all threw, it's a
+          // pattern engine error (typically malformed ast-grep syntax),
+          // distinct from "code doesn't match the pattern".
+          let count = 0;
+          let anySucceeded = false;
+          let lastError: unknown;
+          for (const project of gildashProjectNames(ctx)) {
+            try {
+              const opts: { project?: string; filePaths?: string[] } = {};
+              if (project) opts.project = project;
+              if (scopedFiles) opts.filePaths = scopedFiles;
+              const matches = await ctx.gildash.findPattern(p.pattern, opts);
+              count += matches.length;
+              anySucceeded = true;
+            } catch (e) {
+              lastError = e;
             }
-            const violated =
-              (p.rule === 'forbidden' && count > 0) ||
-              (p.rule === 'required' && count === 0);
-            if (violated) collected.push({ id: p.id, rule: p.rule, matches: count });
-          } catch {
-            // best-effort; pattern engine errors don't flip the card
           }
+          if (!anySucceeded) {
+            patternErrCollected.push({
+              id: p.id,
+              message: lastError instanceof Error ? lastError.message : String(lastError ?? 'pattern engine error'),
+            });
+            continue;
+          }
+          const violated =
+            (p.rule === 'forbidden' && count > 0) ||
+            (p.rule === 'required' && count === 0);
+          if (violated) collected.push({ id: p.id, rule: p.rule, matches: count });
         }
         if (collected.length > 0) {
           addDrift('pattern_violation');
           patternViolations = collected;
+        }
+        if (patternErrCollected.length > 0) {
+          patternErrors = patternErrCollected;
         }
       }
     }
@@ -452,6 +472,7 @@ export async function checkDrift(
       ...(detectedSymbolChanges ? { symbolChanges: detectedSymbolChanges } : {}),
       ...(uncoveredSubclasses ? { uncoveredSubclasses } : {}),
       ...(patternViolations ? { patternViolations } : {}),
+      ...(patternErrors ? { patternErrors } : {}),
     });
   }
 
