@@ -129,5 +129,3 @@ export function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
     verbose: opts.verbose as boolean | undefined,
   };
 }
-
-export { EXIT };

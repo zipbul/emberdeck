@@ -570,5 +570,3 @@ export function registerCard(program: Command): void {
       );
     });
 }
-
-export { partial as _partial };
