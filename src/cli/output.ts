@@ -32,17 +32,6 @@ export interface CliResult<T = unknown> {
 
 export interface OutputContext {
   mode: OutputMode;
-  color: boolean;
-}
-
-/**
- * Resolve color enable per the no-color.org standard.
- * Single source of truth for buildRuntime + the runner's catch-path fallback.
- */
-export function resolveColor(noColorFlag: boolean): boolean {
-  const noColorEnv = process.env.NO_COLOR && process.env.NO_COLOR.length > 0;
-  const forceColor = process.env.CLICOLOR_FORCE && process.env.CLICOLOR_FORCE.length > 0;
-  return !noColorFlag && !noColorEnv && (forceColor ? true : !!process.stdout.isTTY);
 }
 
 export function resolveOutputMode(opts: { quiet?: boolean }): OutputMode {

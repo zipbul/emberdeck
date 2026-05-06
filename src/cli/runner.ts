@@ -4,7 +4,7 @@
  */
 
 import { buildRuntime, type GlobalFlags, type CliRuntime } from './context';
-import { render, statusToExitCode, resolveColor, type CliResult } from './output';
+import { render, statusToExitCode, type CliResult } from './output';
 import { toCliError } from './errors';
 import { EXIT } from './exit-codes';
 
@@ -15,7 +15,7 @@ export type CommandFn = (rt: CliRuntime, args: unknown[]) => Promise<CliResult>;
  */
 function buildFallbackOutputContext(flags: GlobalFlags): import('./output').OutputContext {
   const mode = flags.quiet ? 'quiet' as const : 'json' as const;
-  return { mode, color: resolveColor(false) };
+  return { mode };
 }
 
 /**
