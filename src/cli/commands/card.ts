@@ -144,7 +144,7 @@ export function registerCard(program: Command): void {
 
   card
     .command('list')
-    .description('list cards (filterable). --symbol/--glossary subsume find_cards_by_symbol / find_cards_by_glossary_word')
+    .description('list cards. --symbol filters cards linking that symbol; --glossary filters cards declaring that term')
     .option('--type <type>', 'filter by type (principle|domain|brief|spec)')
     .option('--status <status>', 'filter by status (draft|active|drifted|retired)')
     .option('--parent <key>', 'filter by parent card key')
@@ -351,8 +351,8 @@ export function registerCard(program: Command): void {
 
   card
     .command('delete <key>')
-    .description('delete a card (DB + file)')
-    .option('--force', 'delete even when children exist (cascade)')
+    .description('delete a card and its file')
+    .option('--force', 'delete even when children exist (children are detached, not deleted)')
     .option('--yes', 'skip confirmation prompt (required for non-TTY invocation)')
     .action(async (key: string, opts: { force?: boolean; yes?: boolean }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
@@ -361,7 +361,7 @@ export function registerCard(program: Command): void {
           await confirmDestructive({
             yes: !!opts.yes,
             opName: 'card delete',
-            prompt: `card delete will REMOVE card '${key}' (DB row + file)${opts.force ? ' and CASCADE to children' : ''}. Type "yes" to proceed: `,
+            prompt: `card delete will REMOVE card '${key}' (file + index entry)${opts.force ? ' and detach all children' : ''}. Type "yes" to proceed: `,
           });
           const result = await deleteCard(rt.ctx, key, { force: opts.force });
           return ok({ key, filePath: result.filePath });
@@ -374,7 +374,7 @@ export function registerCard(program: Command): void {
 
   card
     .command('rename <oldKey> <newKey>')
-    .description('rename a card key (FK CASCADE through DB + file move)')
+    .description('rename a card key (moves the file and updates every other card referencing it)')
     .action(async (oldKey: string, newKey: string, _opts, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
@@ -407,7 +407,7 @@ export function registerCard(program: Command): void {
 
   card
     .command('search <query>')
-    .description('FTS5 search')
+    .description('full-text search over card key, summary, body, and namespace fields')
     .option('--type <type>', 'filter by card type')
     .option('--status <status>', 'filter by status')
     .option('--limit <n>', 'page size (default 50)', parsePositiveInt('--limit'))
@@ -446,7 +446,7 @@ export function registerCard(program: Command): void {
 
   card
     .command('export <key>')
-    .description('render card content from DB row. Default: STDOUT (no file side-effects). --out FILE writes to file. --in-place rewrites original.')
+    .description('render the canonical card content. Default prints to STDOUT (no file side-effects). --out FILE writes to a file. --in-place rewrites the card file.')
     .option('--out <file>', 'write to FILE (use - for STDOUT, default)')
     .option('--in-place', 'rewrite the card\'s original file (DB → file overwrite)')
     .action(async (key: string, opts: { out?: string; inPlace?: boolean }, cmd) => {
@@ -526,8 +526,8 @@ export function registerCard(program: Command): void {
 
   card
     .command('context <key>')
-    .description('related cards via parent/relations BFS. Use `card relations` for direction-filtered direct relations.')
-    .option('--depth <n>', 'BFS depth (default 1)', parsePositiveInt('--depth'))
+    .description('show related cards (parent chain + declared relations, depth-bounded). Use `card relations` for one-hop only.')
+    .option('--depth <n>', 'how many relation hops to traverse (default 1 = direct only)', parsePositiveInt('--depth'))
     .action(async (key: string, opts: { depth?: number }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(

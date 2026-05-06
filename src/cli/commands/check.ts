@@ -13,13 +13,13 @@ import { parsePositiveInt } from '../parsers';
 import { CliUsageError } from '../errors';
 
 export function registerCheck(program: Command): void {
-  const check = program.command('check').description('state reports (descriptive)');
+  const check = program.command('check').description('inspect drift, coverage, impact, regressions, and card interactions');
 
   // ── check drift ──
   check
     .command('drift [key]')
     .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken / heritage_uncovered / pattern_violation)')
-    .option('--max-depth <n>', 'BFS depth when key given (default 3)', parsePositiveInt('--max-depth'))
+    .option('--max-depth <n>', 'how many relation hops to traverse from KEY (default 3)', parsePositiveInt('--max-depth'))
     .option('--no-auto-transition', 'do not auto-mark active→drifted')
     .action(async (key: string | undefined, opts: { maxDepth?: number; autoTransition?: boolean }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());

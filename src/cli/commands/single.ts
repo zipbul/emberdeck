@@ -67,7 +67,7 @@ export function registerSingle(program: Command): void {
   // ── reset ──
   program
     .command('reset')
-    .description('delete ALL cards (DB + files), clear glossary. DESTRUCTIVE.')
+    .description('delete every card and clear the glossary. DESTRUCTIVE.')
     .option('--yes', 'skip confirmation prompt (required for non-TTY)')
     .action(async (opts: { yes?: boolean }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());

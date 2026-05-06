@@ -35,8 +35,8 @@ export function registerValidate(program: Command): void {
               message: w.message,
               ...(w.cardKey ? { key: w.cardKey } : {}),
             }));
-            for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `DB row has no file: ${stale.filePath}`, key: stale.key });
-            for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no DB row: ${orphan}` });
+            for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key });
+            for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no indexed card: ${orphan}` });
             for (const km of cardsResult.keyMismatches) {
               cardErrors.push({
                 code: 'KEY_MISMATCH',
@@ -87,7 +87,7 @@ export function registerValidate(program: Command): void {
   // ── validate links ──
   validate
     .command('links [key]')
-    .description('validate code links resolve via gildash (one card or all)')
+    .description('check that every codeLink points to a real source symbol (one card or all)')
     .action(async (key: string | undefined, _opts, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
@@ -145,7 +145,7 @@ export function registerValidate(program: Command): void {
   // ── validate cards ──
   validate
     .command('cards')
-    .description('validate card collection (file/DB consistency, glossary, chains)')
+    .description('check card integrity: file consistency, hierarchy, glossary references, brief→spec chains')
     .action(async (_opts, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
@@ -157,10 +157,10 @@ export function registerValidate(program: Command): void {
             ...(w.cardKey ? { key: w.cardKey } : {}),
           }));
           for (const stale of result.staleDbRows) {
-            errors.push({ code: 'STALE_DB_ROW', message: `DB row has no file: ${stale.filePath}`, key: stale.key });
+            errors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key });
           }
           for (const orphan of result.orphanFiles) {
-            errors.push({ code: 'ORPHAN_FILE', message: `file has no DB row: ${orphan}` });
+            errors.push({ code: 'ORPHAN_FILE', message: `file has no indexed card: ${orphan}` });
           }
           for (const km of result.keyMismatches) {
             errors.push({

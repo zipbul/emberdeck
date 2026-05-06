@@ -31,8 +31,8 @@ export function buildProgram(): Command {
     // global flags
     .option('--config <path>', 'config file (.emberdeck.jsonc/.json)')
     .option('--dir <path>', 'cards directory (overrides config)')
-    .option('--db-path <path>', 'SQLite DB file (overrides config)')
-    .option('--project-root <path>', 'project root for gildash (overrides config)')
+    .option('--db-path <path>', 'card index database file (overrides config)')
+    .option('--project-root <path>', 'project root for source code analysis (overrides config)')
     .option('--output <mode>', 'output mode: human | json | quiet (default auto: TTY=human, pipe=json)')
     .option('--json', 'shortcut for --output=json')
     .option('--quiet, -q', 'shortcut for --output=quiet')

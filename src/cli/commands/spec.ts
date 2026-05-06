@@ -77,7 +77,7 @@ export function registerSpec(program: Command): void {
   // ── spec sync-symbols ──
   spec
     .command('sync-symbols')
-    .description('apply renamed/moved symbols from gildash to codeLinks. Default --since: last sync timestamp from DB (or 24h ago if first run)')
+    .description('update card code links when source symbols are renamed or moved. --since defaults to the last sync time (or 24h ago on first run)')
     .option('--since <ts>', 'ISO 8601 or epoch ms (overrides stored last_symbol_sync_at)')
     .action(async (opts: { since?: string }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
