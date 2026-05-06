@@ -1,20 +1,15 @@
 /**
  * Unified CLI output formatter.
  *
- * Per CLI_PLAN §3 (JSON schema) and §8 (output formats):
- * - status enum: ok | partial | error | unknown
- * - schemaVersion: { major: 1, minor: 0 }
- * - field-presence matrix consistent across all status values
+ * Single output shape: JSON envelope on STDOUT.
+ *   { schemaVersion, status: ok|partial|error|unknown, data, warnings, errors, error? }
  *
- * Output mode resolution:
- * - explicit `--output={human,json,quiet}` wins
- * - else: TTY → human, pipe → json
+ * `--quiet` opts into a key-only STDOUT (diagnostics on STDERR) for shell pipelines.
  */
 
 import { EXIT, type ExitCode } from './exit-codes';
-import { CliUsageError } from './usage-error';
 
-export type OutputMode = 'human' | 'json' | 'quiet';
+export type OutputMode = 'json' | 'quiet';
 export type Status = 'ok' | 'partial' | 'error' | 'unknown';
 
 export const SCHEMA_VERSION = { major: 1, minor: 0 } as const;
@@ -40,8 +35,6 @@ export interface OutputContext {
   color: boolean;
 }
 
-const VALID_OUTPUT_MODES: ReadonlyArray<OutputMode> = ['human', 'json', 'quiet'];
-
 /**
  * Resolve color enable per the no-color.org standard.
  * Single source of truth for buildRuntime + the runner's catch-path fallback.
@@ -52,22 +45,8 @@ export function resolveColor(noColorFlag: boolean): boolean {
   return !noColorFlag && !noColorEnv && (forceColor ? true : !!process.stdout.isTTY);
 }
 
-/**
- * Resolve output mode based on flags + TTY detection.
- * Throws on invalid --output value.
- */
-export function resolveOutputMode(opts: {
-  output?: string;
-  json?: boolean;
-  quiet?: boolean;
-}): OutputMode {
-  if (opts.output !== undefined && !VALID_OUTPUT_MODES.includes(opts.output as OutputMode)) {
-    throw new CliUsageError(`invalid --output '${opts.output}'. Allowed: ${VALID_OUTPUT_MODES.join('|')}`);
-  }
-  if (opts.output === 'json' || opts.json) return 'json';
-  if (opts.output === 'quiet' || opts.quiet) return 'quiet';
-  if (opts.output === 'human') return 'human';
-  return process.stdout.isTTY ? 'human' : 'json';
+export function resolveOutputMode(opts: { quiet?: boolean }): OutputMode {
+  return opts.quiet ? 'quiet' : 'json';
 }
 
 /**
@@ -171,17 +150,11 @@ export function statusToExitCode(
 }
 
 /**
- * Render a CliResult to STDOUT according to the output mode.
- * Writes warnings/errors to STDERR (human/quiet modes).
+ * Render a CliResult. JSON envelope on STDOUT; quiet mode prints
+ * just the key(s) on STDOUT and routes diagnostics to STDERR.
  */
-export function render(result: CliResult, ctx: OutputContext, humanRenderer?: (data: unknown) => string): void {
-  if (ctx.mode === 'json') {
-    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-    return;
-  }
-
+export function render(result: CliResult, ctx: OutputContext): void {
   if (ctx.mode === 'quiet') {
-    // STDOUT: minimal (often nothing)
     if (result.status === 'ok' || result.status === 'partial') {
       const data = result.data;
       if (data && typeof data === 'object' && 'key' in data && typeof data.key === 'string') {
@@ -193,7 +166,6 @@ export function render(result: CliResult, ctx: OutputContext, humanRenderer?: (d
         }
       }
     }
-    // STDERR: 1-line summary for diagnostics
     if (result.errors.length > 0 || result.warnings.length > 0) {
       const parts: string[] = [];
       if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
@@ -205,35 +177,5 @@ export function render(result: CliResult, ctx: OutputContext, humanRenderer?: (d
     }
     return;
   }
-
-  // human mode
-  const RED = ctx.color ? Bun.color('red', 'ansi-256') ?? '' : '';
-  const YELLOW = ctx.color ? Bun.color('yellow', 'ansi-256') ?? '' : '';
-  const RESET = ctx.color ? '\x1b[0m' : '';
-
-  if (result.error) {
-    process.stderr.write(`${RED}error${RESET}: ${result.error.message}\n`);
-    if (result.error.details) {
-      for (const [k, v] of Object.entries(result.error.details)) {
-        process.stderr.write(`  ${k}: ${JSON.stringify(v)}\n`);
-      }
-    }
-    return;
-  }
-
-  if (humanRenderer && result.data != null) {
-    process.stdout.write(humanRenderer(result.data));
-    if (!process.stdout.isTTY) process.stdout.write('\n');
-  } else if (result.data != null) {
-    // fallback: pretty JSON
-    process.stdout.write(JSON.stringify(result.data, null, 2) + '\n');
-  }
-
-  // warnings/errors to STDERR
-  for (const w of result.warnings) {
-    process.stderr.write(`${YELLOW}warning${RESET}: ${w.message}\n`);
-  }
-  for (const e of result.errors) {
-    process.stderr.write(`${RED}error${RESET}: ${e.message}${e.key ? ` (key: ${e.key})` : ''}\n`);
-  }
+  process.stdout.write(JSON.stringify(result, null, 2) + '\n');
 }

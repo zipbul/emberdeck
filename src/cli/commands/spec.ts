@@ -36,10 +36,7 @@ export function registerSpec(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { annotated: number; already_present: number; symbol_not_found: number; removed: number };
-          return `spec annotate: +${d.annotated} new, ${d.already_present} already present, -${d.removed} orphans removed${d.symbol_not_found > 0 ? `, ${d.symbol_not_found} symbol(s) not found` : ''}`;
-        } },
+        {  },
       );
     });
 
@@ -67,10 +64,7 @@ export function registerSpec(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { created: number; already_linked: number; unmatched: number; marker_missing: number; link_missing: number };
-          return `spec sync: +${d.created} new, ${d.already_linked} already linked, ${d.unmatched} unmatched, ${d.marker_missing} markers missing in source`;
-        } },
+        {  },
       );
     });
 
@@ -139,10 +133,7 @@ export function registerSpec(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { updated: number; broken: number; since: string; since_source: string };
-          return `spec sync-symbols (since ${d.since} [${d.since_source}]): ${d.updated} updated, ${d.broken} broken`;
-        } },
+        {  },
       );
     });
 }

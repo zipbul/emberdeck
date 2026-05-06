@@ -73,10 +73,7 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { total: number; created: number; updated: number };
-          return `glossary: ${d.created} created, ${d.updated} updated (${d.total} total)`;
-        } },
+        {  },
       );
     });
 
@@ -99,15 +96,7 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { entries?: Array<{ word: string; definition: string }>; entry?: { word: string; definition: string } | null; found?: boolean };
-          if (d.entries) {
-            if (d.entries.length === 0) return '(empty glossary)\n';
-            return d.entries.map((e) => `${e.word}: ${e.definition}`).join('\n');
-          }
-          if (!d.found || !d.entry) return '(not found)\n';
-          return `${d.entry.word}: ${d.entry.definition}`;
-        } },
+        {  },
       );
     });
 
@@ -130,14 +119,7 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { removed: string; affected_card_keys: string[] };
-          const lines = [`removed glossary word '${d.removed}'`];
-          if (d.affected_card_keys.length > 0) {
-            lines.push(`  ${d.affected_card_keys.length} card(s) affected: ${d.affected_card_keys.join(', ')}`);
-          }
-          return lines.join('\n');
-        } },
+        {  },
       );
     });
 
@@ -170,14 +152,7 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { renamed_from: string; renamed_to: string; cards_updated: number; file_write_failures: string[] };
-          const lines = [`glossary '${d.renamed_from}' → '${d.renamed_to}' (${d.cards_updated} card(s) updated)`];
-          if (d.file_write_failures.length > 0) {
-            lines.push(`  file write failures: ${d.file_write_failures.join(', ')}`);
-          }
-          return lines.join('\n');
-        } },
+        {  },
       );
     });
 }

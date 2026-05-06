@@ -33,10 +33,7 @@ export function buildProgram(): Command {
     .option('--dir <path>', 'cards directory (overrides config)')
     .option('--db-path <path>', 'card index database file (overrides config)')
     .option('--project-root <path>', 'project root for source code analysis (overrides config)')
-    .option('--output <mode>', 'output mode: human | json | quiet (default: json)')
-    .option('--json', 'shortcut for --output=json')
-    .option('--quiet, -q', 'shortcut for --output=quiet')
-    .option('--no-color', 'disable color output')
+    .option('--quiet, -q', 'suppress JSON envelope on stdout — print only result key(s)')
     .option('--verbose', 'verbose stderr logging')
     // for help: showHelpAfterError so users see usage on bad invocation
     .showHelpAfterError('(run `ed --help` for full usage)');

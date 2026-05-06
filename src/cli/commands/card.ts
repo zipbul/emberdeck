@@ -138,7 +138,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderCardHuman },
+        { },
       );
     });
 
@@ -226,7 +226,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderListHuman },
+        { },
       );
     });
 
@@ -288,7 +288,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderCreatedHuman },
+        { },
       );
     });
 
@@ -345,7 +345,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderUpdatedHuman },
+        { },
       );
     });
 
@@ -368,7 +368,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => `deleted card '${(data as { key: string }).key}'\n  → ${(data as { filePath: string }).filePath}` },
+        { },
       );
     });
 
@@ -401,7 +401,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderRenameHuman },
+        { },
       );
     });
 
@@ -440,7 +440,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderListHuman },
+        { },
       );
     });
 
@@ -463,19 +463,12 @@ export function registerCard(program: Command): void {
             await atomicWrite(opts.out, content);
             return ok({ key, filePath: opts.out, mode: 'file' });
           }
-          // STDOUT (default).
-          // - JSON mode: content goes into data.content (single JSON envelope, jq-friendly)
-          // - Human mode: humanRenderer writes raw markdown to stdout
-          // - Quiet mode: render() suppresses by default; we still include `key` in data
+          // STDOUT (default): content goes into data.content (jq-friendly).
           return ok({ key, mode: 'stdout', bytes: content.length, content });
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { key: string; mode: string; filePath?: string; content?: string };
-          if (d.mode === 'stdout') return d.content ?? ''; // raw markdown in human mode
-          return `exported '${d.key}' (${d.mode}) → ${d.filePath}`;
-        } },
+        {  },
       );
     });
 
@@ -500,10 +493,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { key: string; status: string };
-          return `card '${d.key}' status → ${d.status}`;
-        } },
+        {  },
       );
     });
 
@@ -520,7 +510,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderTreeHuman },
+        { },
       );
     });
 
@@ -554,7 +544,7 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderContextHuman },
+        { },
       );
     });
 
@@ -575,94 +565,9 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderRelationsHuman },
+        { },
       );
     });
-}
-
-// ── human renderers ──
-
-function renderCardHuman(data: unknown): string {
-  const card = data as { key: string; type: string; status: string; summary: string; body?: string };
-  const lines = [
-    `key:     ${card.key}`,
-    `type:    ${card.type}`,
-    `status:  ${card.status}`,
-    `summary: ${card.summary}`,
-    '',
-  ];
-  if (card.body && card.body.trim().length > 0) {
-    lines.push('--- body ---');
-    lines.push(card.body);
-  }
-  return lines.join('\n');
-}
-
-function renderListHuman(data: unknown): string {
-  const d = data as { items: Array<{ key: string; type: string; status: string; summary: string }>; total: number; page: { limit: number; offset: number; has_more: boolean } };
-  if (d.items.length === 0) return '(no cards)\n';
-  const lines: string[] = [];
-  const keyW = Math.max(3, ...d.items.map((c) => c.key.length));
-  const typeW = Math.max(4, ...d.items.map((c) => c.type.length));
-  const statusW = Math.max(6, ...d.items.map((c) => c.status.length));
-  for (const c of d.items) {
-    lines.push(`${c.key.padEnd(keyW)}  ${c.type.padEnd(typeW)}  ${c.status.padEnd(statusW)}  ${c.summary}`);
-  }
-  lines.push('');
-  lines.push(`(${d.items.length} of ${d.total}, offset ${d.page.offset}, limit ${d.page.limit}${d.page.has_more ? ', --more available' : ''})`);
-  return lines.join('\n');
-}
-
-function renderCreatedHuman(data: unknown): string {
-  const d = data as { key: string; filePath: string; type: string; status: string };
-  return `created ${d.type} card '${d.key}' (${d.status})\n  → ${d.filePath}`;
-}
-
-function renderUpdatedHuman(data: unknown): string {
-  const d = data as { key: string; filePath: string; status: string };
-  return `updated card '${d.key}' (${d.status})\n  → ${d.filePath}`;
-}
-
-function renderRenameHuman(data: unknown): string {
-  const d = data as { old_key: string; new_key: string; new_path: string; body_references: string[]; failed_reference_updates: string[] };
-  const lines = [`renamed '${d.old_key}' → '${d.new_key}'`, `  → ${d.new_path}`];
-  if (d.body_references.length > 0) lines.push(`  body references found in: ${d.body_references.join(', ')}`);
-  if (d.failed_reference_updates.length > 0) lines.push(`  failed reference updates: ${d.failed_reference_updates.join(', ')}`);
-  return lines.join('\n');
-}
-
-function renderTreeHuman(data: unknown): string {
-  const lines: string[] = [];
-  const walk = (node: { key: string; type: string; status: string; children: unknown[]; truncated?: boolean }, indent: string): void => {
-    lines.push(`${indent}${node.key} (${node.type}, ${node.status})${node.truncated ? ' [truncated]' : ''}`);
-    for (const child of node.children) {
-      walk(child as Parameters<typeof walk>[0], indent + '  ');
-    }
-  };
-  walk(data as Parameters<typeof walk>[0], '');
-  return lines.join('\n');
-}
-
-function renderContextHuman(data: unknown): string {
-  const d = data as { key: string; upstream: Array<{ key: string }>; downstream: Array<{ key: string }>; related: Array<{ key: string; depth: number; direction: string }>; code_links_resolved: number; code_links_total: number };
-  const lines = [`context of '${d.key}':`];
-  if (d.upstream.length > 0) lines.push(`  upstream (${d.upstream.length}): ${d.upstream.map((u) => u.key).join(', ')}`);
-  if (d.downstream.length > 0) lines.push(`  downstream (${d.downstream.length}): ${d.downstream.map((u) => u.key).join(', ')}`);
-  if (d.related.length > 0) {
-    lines.push(`  related (${d.related.length}):`);
-    for (const r of d.related) lines.push(`    ${r.key} (depth=${r.depth}, ${r.direction})`);
-  }
-  lines.push(`  codeLinks: ${d.code_links_resolved}/${d.code_links_total} resolved`);
-  return lines.join('\n');
-}
-
-function renderRelationsHuman(data: unknown): string {
-  const d = data as { key: string; forward: string[]; reverse: string[] };
-  const lines = [`relations of '${d.key}':`];
-  if (d.forward.length > 0) lines.push(`  forward (${d.forward.length}): ${d.forward.join(', ')}`);
-  if (d.reverse.length > 0) lines.push(`  reverse (${d.reverse.length}): ${d.reverse.join(', ')}`);
-  if (d.forward.length === 0 && d.reverse.length === 0) lines.push('  (none)');
-  return lines.join('\n');
 }
 
 export { partial as _partial };

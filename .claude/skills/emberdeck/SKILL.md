@@ -26,7 +26,7 @@ description: Emberdeck `ed` CLI 로 카드 기반 설계 지식 관리. emberdec
 
 <workflow name="onboarding">
 1. `ed analyze` → 현 상태. `ed spec annotate` → reconcile (멱등).
-2. 소스 우선순위 순 읽기: 진입점 → 코어 도메인 → 인프라 → 테스트. 모노레포에서 sample/example/fixture 후순위. 컨텍스트 한도까지. `ed analyze --json`의 `unlinked_symbols` 가 우선순위 신호. 각 파일 single-file 테스트 적용. cross-module 만 카드화 후보로 수집.
+2. 소스 우선순위 순 읽기: 진입점 → 코어 도메인 → 인프라 → 테스트. 모노레포에서 sample/example/fixture 후순위. 컨텍스트 한도까지. `ed analyze` 의 `unlinked_symbols` 가 우선순위 신호. 각 파일 single-file 테스트 적용. cross-module 만 카드화 후보로 수집.
 3. cross-module 발견을 사용자에게 audit 으로 보여줌. 각 발견의 도메인 분류.
 4. domain outline 사용자 확인 (key, summary, scope IN/OUT).
 5. 각 domain 아래 brief outline (key, parent, summary, 주요 토픽).
@@ -112,8 +112,7 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed bulk sync [PATH]` | 카드 파일 → DB. partial → exit 2 | X |
 | `ed analyze` | health/coverage/drift/glossary 종합 | X |
 
-출력 (기본 JSON, agent-first): `--output={human,json,quiet}`. `--json`=`--output=json`, `--quiet`=`--output=quiet`. 사람용 출력은 `--output=human` 명시.
-JSON 봉투 `{schemaVersion, status, data, warnings, errors, error?}`.
+출력은 항상 JSON 봉투 `{schemaVersion, status, data, warnings, errors, error?}`. `--quiet` 만 stdout 을 결과 key 로 축약 (diagnostics → stderr).
 exit: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permission/IO, 6=config_missing, 7=transient, 130=SIGINT.
 
 </commands>

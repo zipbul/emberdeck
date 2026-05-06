@@ -11,22 +11,12 @@ import {
 import { EXIT } from './exit-codes';
 
 describe('output: resolveOutputMode', () => {
-  test('explicit --output=json wins', () => {
-    expect(resolveOutputMode({ output: 'json' })).toBe('json');
-    expect(resolveOutputMode({ output: 'json', json: false })).toBe('json');
+  test('default is json', () => {
+    expect(resolveOutputMode({})).toBe('json');
   });
 
-  test('explicit --output=human wins over TTY default', () => {
-    expect(resolveOutputMode({ output: 'human' })).toBe('human');
-  });
-
-  test('--quiet shortcut', () => {
+  test('--quiet → quiet', () => {
     expect(resolveOutputMode({ quiet: true })).toBe('quiet');
-    expect(resolveOutputMode({ output: 'quiet' })).toBe('quiet');
-  });
-
-  test('--json shortcut', () => {
-    expect(resolveOutputMode({ json: true })).toBe('json');
   });
 });
 

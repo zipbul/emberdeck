@@ -15,10 +15,7 @@ export interface GlobalFlags {
   dir?: string;
   dbPath?: string;
   projectRoot?: string;
-  output?: string;
-  json?: boolean;
   quiet?: boolean;
-  noColor?: boolean;
   verbose?: boolean;
 }
 
@@ -48,15 +45,8 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     projectRoot: flags.projectRoot,
   });
 
-  // Resolve cheap/throwable settings BEFORE opening DB resources, so that
-  // `--output=invalid` etc. fail fast without leaking an open DB connection.
-  const mode = resolveOutputMode({
-    output: flags.output,
-    json: flags.json,
-    quiet: flags.quiet,
-  });
-
-  const color = resolveColor(!!flags.noColor);
+  const mode = resolveOutputMode({ quiet: flags.quiet });
+  const color = resolveColor(false);
 
   const ctx = await setupEmberdeck({
     cardsDir: merged.cardsDir,

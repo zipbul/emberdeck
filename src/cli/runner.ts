@@ -12,16 +12,10 @@ export type CommandFn = (rt: CliRuntime, args: unknown[]) => Promise<CliResult>;
 
 /**
  * Build an OutputContext for the catch path when buildRuntime() failed.
- * Honors --no-color, NO_COLOR, CLICOLOR_FORCE, --json/--quiet/--output identically to buildRuntime.
  */
 function buildFallbackOutputContext(flags: GlobalFlags): import('./output').OutputContext {
-  const mode = (() => {
-    if (flags.output === 'json' || flags.json) return 'json' as const;
-    if (flags.output === 'quiet' || flags.quiet) return 'quiet' as const;
-    if (flags.output === 'human') return 'human' as const;
-    return process.stdout.isTTY ? ('human' as const) : ('json' as const);
-  })();
-  return { mode, color: resolveColor(!!flags.noColor) };
+  const mode = flags.quiet ? 'quiet' as const : 'json' as const;
+  return { mode, color: resolveColor(false) };
 }
 
 /**
@@ -50,7 +44,7 @@ export async function run(
   fn: CommandFn,
   args: unknown[],
   globalFlags: GlobalFlags,
-  options: { humanRenderer?: (data: unknown) => string; partialIsFailure?: boolean } = {},
+  options: { partialIsFailure?: boolean } = {},
 ): Promise<void> {
   let rt: CliRuntime | undefined;
   let result: CliResult;
@@ -117,7 +111,7 @@ export async function run(
   }
   process.off('SIGINT', onSigint);
   process.off('SIGTERM', onSigterm);
-  render(result, rt.output, options.humanRenderer);
+  render(result, rt.output);
   process.exit(statusToExitCode(result, options));
 }
 
@@ -131,10 +125,7 @@ export function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
     dir: opts.dir as string | undefined,
     dbPath: opts.dbPath as string | undefined,
     projectRoot: opts.projectRoot as string | undefined,
-    output: opts.output as string | undefined,
-    json: opts.json as boolean | undefined,
     quiet: opts.quiet as boolean | undefined,
-    noColor: opts.color === false,
     verbose: opts.verbose as boolean | undefined,
   };
 }

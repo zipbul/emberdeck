@@ -34,32 +34,7 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as {
-            health: { total: number; active: number; drifted: number; draft: number };
-            cards: Array<{
-              key: string;
-              status: string;
-              driftType?: string;
-              uncoveredSubclasses?: Array<{ file: string; symbol: string }>;
-              patternViolations?: Array<{ id: string; rule: string; matches: number }>;
-            }>;
-          };
-          const lines = [
-            `drift: total=${d.health.total} active=${d.health.active} drifted=${d.health.drifted} draft=${d.health.draft}`,
-          ];
-          for (const c of d.cards.filter((c) => c.driftType)) {
-            const types = (c as { driftTypes?: string[] }).driftTypes ?? [c.driftType!];
-            lines.push(`  ${c.key}: ${types.join(' + ')}`);
-            if (c.uncoveredSubclasses?.length) {
-              for (const s of c.uncoveredSubclasses) lines.push(`    └ subclass uncovered: ${s.file}:${s.symbol}`);
-            }
-            if (c.patternViolations?.length) {
-              for (const v of c.patternViolations) lines.push(`    └ ${v.id} (${v.rule}): ${v.matches} match(es)`);
-            }
-          }
-          return lines.join('\n');
-        } },
+        {  },
       );
     });
 
@@ -113,7 +88,7 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: renderCoverageHuman },
+        { },
       );
     });
 
@@ -138,14 +113,7 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { risk_level: string; affected_count: number; affected_cards: Array<{ key: string; linkType: string; affectedLinks: number }>; suggested_actions: string[]; max_fan_in?: number };
-          const fanInPart = d.max_fan_in ? `, fan-in=${d.max_fan_in}` : '';
-          const lines = [`impact: risk=${d.risk_level}, ${d.affected_count} card(s) affected${fanInPart}`];
-          for (const c of d.affected_cards) lines.push(`  ${c.key} (${c.linkType}, ${c.affectedLinks} link(s))`);
-          for (const a of d.suggested_actions) lines.push(`  → ${a}`);
-          return lines.join('\n');
-        } },
+        {  },
       );
     });
 
@@ -180,10 +148,7 @@ export function registerCheck(program: Command): void {
         globalFlags,
         {
           partialIsFailure: true,
-          humanRenderer: (data) => {
-            const d = data as { pass_or_fail: string; drifted_ratio: number; threshold: number };
-            return `regression: ${d.pass_or_fail} (drifted_ratio=${d.drifted_ratio.toFixed(2)}, threshold=${d.threshold})`;
-          },
+          
         },
       );
     });
@@ -204,58 +169,9 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { interactions: Array<{ pair: string[]; sharedSymbols: unknown[]; sharedFiles: string[]; hasRelation: boolean; potentialConflicts: string[] }>; undefined_relations: Array<{ pair: string[] }> };
-          if (d.interactions.length === 0) return '(no interactions)\n';
-          const lines: string[] = [];
-          for (const i of d.interactions) {
-            lines.push(`${i.pair[0]} ↔ ${i.pair[1]}: shared symbols=${i.sharedSymbols.length}, shared files=${i.sharedFiles.length}, relation=${i.hasRelation ? 'yes' : 'no'}`);
-            for (const c of i.potentialConflicts) lines.push(`  ⚠ ${c}`);
-          }
-          if (d.undefined_relations.length > 0) lines.push(`\n${d.undefined_relations.length} undefined relation(s):`);
-          for (const u of d.undefined_relations) lines.push(`  ${u.pair[0]} ↔ ${u.pair[1]}`);
-          return lines.join('\n');
-        } },
+        {  },
       );
     });
 
 }
 
-function renderCoverageHuman(data: unknown): string {
-  const d = data as Record<string, unknown>;
-  if ('suggestions' in d) {
-    const sg = d as { suggestions: Array<{ key: string; type: string; parent?: string; reason: string }>; total: number };
-    if (sg.suggestions.length === 0) return 'no card suggestions (full coverage)\n';
-    const lines = [`${sg.total} suggestion(s):`];
-    for (const s of sg.suggestions) {
-      lines.push(`  ${s.key} (${s.type}${s.parent ? `, parent=${s.parent}` : ''})`);
-      lines.push(`    ${s.reason}`);
-    }
-    return lines.join('\n');
-  }
-  if ('total_symbols' in d) {
-    const u = d as { total_symbols: number; covered_symbols: number; coverage_ratio: number | null; uncovered: Array<{ file: string; symbol: string; kind: string }>; uncovered_total: number };
-    const ratioStr = u.coverage_ratio === null ? 'n/a (no symbols indexed)' : `${(u.coverage_ratio * 100).toFixed(1)}%`;
-    const lines = [
-      `coverage (project): ${ratioStr} (${u.covered_symbols}/${u.total_symbols})`,
-      `uncovered: ${u.uncovered_total} symbol(s)`,
-    ];
-    for (const x of u.uncovered.slice(0, 20)) {
-      lines.push(`  ${x.file}:${x.symbol} (${x.kind})`);
-    }
-    if (u.uncovered_total > 20) lines.push(`  ... and ${u.uncovered_total - 20} more`);
-    return lines.join('\n');
-  }
-  const c = d as { declared: number; resolved: number; broken: number; coverage_ratio: number; unreferenced_symbols: Array<{ file: string; symbol: string; kind: string }>; unreferenced_total: number };
-  const lines = [
-    `coverage (card): declared=${c.declared} resolved=${c.resolved} broken=${c.broken} ratio=${(c.coverage_ratio * 100).toFixed(1)}%`,
-  ];
-  if (c.unreferenced_total > 0) {
-    lines.push(`unreferenced symbols in same files: ${c.unreferenced_total}`);
-    for (const u of c.unreferenced_symbols.slice(0, 20)) {
-      lines.push(`  ${u.file}:${u.symbol} (${u.kind})`);
-    }
-    if (c.unreferenced_total > 20) lines.push(`  ... and ${c.unreferenced_total - 20} more`);
-  }
-  return lines.join('\n');
-}

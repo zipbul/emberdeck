@@ -107,10 +107,7 @@ export function registerBulk(program: Command): void {
         {
           // bulk create with any failure → exit 2 (CI gate signal). Pure success → exit 0.
           partialIsFailure: true,
-          humanRenderer: (data) => {
-            const d = data as { created: number; failed: number; total: number };
-            return `bulk create: ${d.created}/${d.total} created, ${d.failed} failed`;
-          },
+          
         },
       );
     });
@@ -159,10 +156,7 @@ export function registerBulk(program: Command): void {
         globalFlags,
         {
           partialIsFailure: true,
-          humanRenderer: (data) => {
-            const d = data as { synced: number; errors?: number; mode: string; path: string };
-            return `bulk sync (${d.mode}): ${d.synced} synced${d.errors ? `, ${d.errors} errors` : ''} from ${d.path}`;
-          },
+          
         },
       );
     });

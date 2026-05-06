@@ -122,21 +122,7 @@ export function registerSingle(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { created: string[]; skipped: string[]; gitignore_updated: boolean };
-          const lines: string[] = [];
-          if (d.created.length > 0) {
-            lines.push('created:');
-            for (const p of d.created) lines.push(`  + ${p}`);
-          }
-          if (d.skipped.length > 0) {
-            lines.push('skipped (already exist):');
-            for (const p of d.skipped) lines.push(`  · ${p}`);
-          }
-          if (d.gitignore_updated) lines.push('updated .gitignore with emberdeck entries');
-          if (lines.length === 0) lines.push('init: nothing to do (everything already exists; pass --force to overwrite)');
-          return lines.join('\n');
-        } },
+        {  },
       );
     });
 
@@ -175,18 +161,7 @@ export function registerSingle(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { health: { total: number; active: number; drifted: number; draft: number; brokenLinks: number }; coverage: { totalSymbols: number; covered: number; ratio: number | null }; drifted: { total: number }; glossary: { totalWords: number } };
-          const cov = d.coverage.ratio === null ? 'n/a (no symbols indexed)' : `${(d.coverage.ratio * 100).toFixed(1)}%`;
-          return [
-            `analyze:`,
-            `  cards:    total=${d.health.total} active=${d.health.active} drifted=${d.health.drifted} draft=${d.health.draft}`,
-            `  coverage: ${cov} (${d.coverage.covered}/${d.coverage.totalSymbols})`,
-            `  drifted:  ${d.drifted.total} cards`,
-            `  glossary: ${d.glossary.totalWords} words`,
-            `  broken links: ${d.health.brokenLinks}`,
-          ].join('\n');
-        } },
+        {  },
       );
     });
 
@@ -213,10 +188,7 @@ export function registerSingle(program: Command): void {
         },
         [],
         globalFlags,
-        { humanRenderer: (data) => {
-          const d = data as { cards_deleted: number; glossary_cleared: boolean };
-          return `reset: ${d.cards_deleted} cards deleted, glossary cleared=${d.glossary_cleared}`;
-        } },
+        {  },
       );
     });
 }

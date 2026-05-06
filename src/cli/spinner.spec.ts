@@ -22,7 +22,7 @@ describe('spinner', () => {
 
   test('NOOP when stderr is not a TTY (default in test env)', () => {
     // bun test runs with stderr possibly piped → not TTY
-    const ctx: OutputContext = { mode: 'human', color: false };
+    const ctx: OutputContext = { mode: 'json', color: false };
     const sp = startSpinner(ctx, 'x');
     sp.update('y');
     sp.stop();
@@ -43,7 +43,7 @@ describe('spinner', () => {
   });
 
   test('NOOP when --verbose to avoid stderr interleaving', () => {
-    const ctx: OutputContext = { mode: 'human', color: false };
+    const ctx: OutputContext = { mode: 'json', color: false };
     const sp = startSpinner(ctx, 'x', { verbose: true });
     sp.update('y');
     sp.stop('done'); // would not write final label in NOOP — verifies NOOP path

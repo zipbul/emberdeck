@@ -76,10 +76,7 @@ export function registerValidate(program: Command): void {
         globalFlags,
         {
           partialIsFailure: true,
-          humanRenderer: (data) => {
-            const d = data as { cards: { issues: number }; links: { declared: number; broken: number }; total_issues: number };
-            return `validate: cards=${d.cards.issues} links=${d.links.broken}/${d.links.declared} total=${d.total_issues}`;
-          },
+          
         },
       );
     });
@@ -133,11 +130,7 @@ export function registerValidate(program: Command): void {
         globalFlags,
         {
           partialIsFailure: true,
-          humanRenderer: (data) => {
-            const d = data as { declared: number; resolved: number; broken: number; internal_links?: number };
-            const base = `validate links: declared=${d.declared} resolved=${d.resolved} broken=${d.broken}`;
-            return d.internal_links ? `${base} internal=${d.internal_links}` : base;
-          },
+          
         },
       );
     });
@@ -184,24 +177,12 @@ export function registerValidate(program: Command): void {
         globalFlags,
         {
           partialIsFailure: true,
-          humanRenderer: (data) => renderValidateCardsHuman(data),
+          
         },
       );
     });
 
   // `validate brief` was removed — namespace structure is validated at parse time
   // (markdown.ts:normalizeBriefBody) and at activation (validateBriefRefs).
-}
-
-function renderValidateCardsHuman(data: unknown): string {
-  const d = data as { total_issues: number; warnings: number; stale_db_rows: number; orphan_files: number; key_mismatches: number };
-  if (d.total_issues === 0) return 'validate cards: ok (0 issues)\n';
-  return [
-    `validate cards: ${d.total_issues} issue(s)`,
-    `  warnings:        ${d.warnings}`,
-    `  stale db rows:   ${d.stale_db_rows}`,
-    `  orphan files:    ${d.orphan_files}`,
-    `  key mismatches:  ${d.key_mismatches}`,
-  ].join('\n');
 }
 
