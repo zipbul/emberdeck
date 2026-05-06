@@ -1,3 +1,4 @@
+import { errorMessage } from '../../util/error';
 /**
  * `ed bulk` subcommands per CLI_PLAN §4.6.
  */
@@ -70,7 +71,7 @@ export function registerBulk(program: Command): void {
               parsed = Bun.YAML.parse(text);
             }
           } catch (e) {
-            throw new CliUsageError(`failed to parse --from input as JSON or YAML: ${e instanceof Error ? e.message : String(e)}`);
+            throw new CliUsageError(`failed to parse --from input as JSON or YAML: ${errorMessage(e)}`);
           }
           if (!Array.isArray(parsed)) {
             throw new CliUsageError('--from FILE must be an array of card inputs');
@@ -128,7 +129,7 @@ export function registerBulk(program: Command): void {
           const result = await bulkSyncCards(rt.ctx, path);
           const errors: CliMessage[] = result.errors.map((e) => ({
             code: 'SYNC_FAILED',
-            message: e.error instanceof Error ? e.error.message : String(e.error),
+            message: errorMessage(e.error),
             details: { file_path: e.filePath },
           }));
           const data = {

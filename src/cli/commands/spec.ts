@@ -1,3 +1,4 @@
+import { errorMessage } from '../../util/error';
 /**
  * `ed spec` subcommands per CLI_PLAN §4.5.
  */
@@ -116,7 +117,7 @@ export function registerSpec(program: Command): void {
               )
               .run(META_KEY, now, now);
           } catch (e) {
-            upsertWarning = `failed to record next_sync_marker: ${e instanceof Error ? e.message : String(e)}. Next --since=auto run may re-process changes.`;
+            upsertWarning = `failed to record next_sync_marker: ${errorMessage(e)}. Next --since=auto run may re-process changes.`;
           }
 
           const data = {

@@ -1,3 +1,4 @@
+import { errorMessage } from '../util/error';
 import type { EmberdeckContext } from '../config';
 import type { CodeLinkRow, RelationRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
@@ -391,7 +392,7 @@ export async function checkDrift(
           if (!anySucceeded) {
             patternErrCollected.push({
               id: p.id,
-              message: lastError instanceof Error ? lastError.message : String(lastError ?? 'pattern engine error'),
+              message: lastError ? errorMessage(lastError) : 'pattern engine error',
             });
             continue;
           }
@@ -796,8 +797,7 @@ function detectImportDependencies(
       for (const project of projects) {
         try {
           const fileDeps = project ? gildash.getDependencies(src, project) : gildash.getDependencies(src);
-          if (!Array.isArray(fileDeps)) continue;
-          for (const dep of fileDeps) if (typeof dep === 'string') allDeps.add(dep);
+          for (const dep of fileDeps) allDeps.add(dep);
         } catch {
           // graceful degradation
         }

@@ -920,10 +920,10 @@ export async function getUncoveredSymbols(
     let symbols = project
       ? ctx.gildash.getSymbolsByFile(file, project)
       : ctx.gildash.getSymbolsByFile(file);
-    if ((!symbols || symbols.length === 0) && ctx.projectRoot) {
+    if (symbols.length === 0 && ctx.projectRoot) {
       symbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
     }
-    if (!symbols || !Array.isArray(symbols)) continue;
+    if (symbols.length === 0) continue;
 
     for (const sym of symbols) {
       // Apply kind filter

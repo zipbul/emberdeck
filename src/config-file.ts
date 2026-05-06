@@ -1,3 +1,4 @@
+import { errorMessage } from './util/error';
 /**
  * Emberdeck configuration file loader.
  *
@@ -210,7 +211,7 @@ export async function loadConfigFromPath(
   } catch (e) {
     return err({
       code: 'PARSE_ERROR',
-      message: `Failed to read config file: ${e instanceof Error ? e.message : String(e)}`,
+      message: `Failed to read config file: ${errorMessage(e)}`,
       filePath: absPath,
     });
   }
@@ -221,7 +222,7 @@ export async function loadConfigFromPath(
   } catch (e) {
     return err({
       code: 'PARSE_ERROR',
-      message: `JSONC parsing failed: ${e instanceof Error ? e.message : String(e)}`,
+      message: `JSONC parsing failed: ${errorMessage(e)}`,
       filePath: absPath,
     });
   }

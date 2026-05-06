@@ -1,3 +1,4 @@
+import { errorMessage } from '../util/error';
 import type { EmberdeckContext } from '../config';
 import type { CreateCardInput } from './create';
 import { createCard } from './create';
@@ -94,7 +95,7 @@ export async function bulkCreateCards(
     } catch (err) {
       errors.push({
         key: input.key,
-        message: err instanceof Error ? err.message : String(err),
+        message: errorMessage(err),
       });
     }
   }
@@ -109,7 +110,7 @@ export async function bulkCreateCards(
       } catch (err) {
         errors.push({
           key,
-          message: `relation update failed: ${err instanceof Error ? err.message : String(err)}`,
+          message: `relation update failed: ${errorMessage(err)}`,
         });
         const idx = keys.indexOf(key);
         if (idx !== -1) keys.splice(idx, 1);

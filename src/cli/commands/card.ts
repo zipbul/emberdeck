@@ -1,3 +1,4 @@
+import { errorMessage } from '../../util/error';
 /**
  * `ed card` subcommands per CLI_PLAN §4.1 (12 commands, migrate excluded per user decision).
  */
@@ -108,7 +109,7 @@ async function parseInputFile(text: string): Promise<unknown> {
   try {
     return Bun.YAML.parse(text);
   } catch (e) {
-    throw new CliUsageError(`failed to parse --from/--patch input as JSON or YAML: ${e instanceof Error ? e.message : String(e)}`);
+    throw new CliUsageError(`failed to parse --from/--patch input as JSON or YAML: ${errorMessage(e)}`);
   }
 }
 

@@ -1,3 +1,4 @@
+import { errorMessage } from '../util/error';
 import type {
   BriefAssumption,
   BriefBody,
@@ -671,7 +672,7 @@ export function parseCardMarkdown(markdown: string): CardFile {
     doc = Bun.YAML.parse(yamlText);
   } catch (err) {
     throw new CardValidationError(
-      `YAML parse error: ${err instanceof Error ? err.message : String(err)}`,
+      `YAML parse error: ${errorMessage(err)}`,
     );
   }
 

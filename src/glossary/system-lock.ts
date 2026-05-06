@@ -1,3 +1,4 @@
+import { errorMessage } from '../util/error';
 /**
  * Cross-process advisory lock backed by SQLite system_lock table.
  *
@@ -115,7 +116,7 @@ function tryInsert(ctx: EmberdeckContext, name: string, pid: number, st: number)
       .run(name, pid, st, new Date().toISOString());
     return true;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     if (msg.includes('UNIQUE') || msg.includes('PRIMARY KEY')) return false;
     throw e;
   }

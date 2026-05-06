@@ -75,7 +75,6 @@ export class SymbolFileCache {
           ? this.gildash.getSymbolsByFile(file, project)
           : this.gildash.getSymbolsByFile(file);
         anySucceeded = true;
-        if (!Array.isArray(result)) continue;
         for (const s of result) {
           const key = `${s.name}\0${s.memberName ?? ''}\0${s.span?.start?.line ?? 0}\0${s.span?.start?.column ?? 0}`;
           if (seen.has(key)) continue;

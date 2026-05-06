@@ -1,3 +1,4 @@
+import { errorMessage } from '../util/error';
 import { and, eq } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
@@ -43,7 +44,7 @@ export class DrizzleRelationRepository implements RelationRepository {
           })
           .run();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errorMessage(e);
         if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
         failedTargets.push(target);
       }

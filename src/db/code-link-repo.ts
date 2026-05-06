@@ -1,3 +1,4 @@
+import { errorMessage } from '../util/error';
 import { eq, and } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
@@ -30,7 +31,7 @@ export class DrizzleCodeLinkRepository implements CodeLinkRepository {
           .values({ cardKey, kind: link.kind, file: link.file, symbol: link.symbol })
           .run();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errorMessage(e);
         if (!msg.includes('FOREIGN KEY constraint failed')) throw e;
         // FK violation: card does not exist → skip
       }

@@ -1,3 +1,4 @@
+import { errorMessage } from './util/error';
 import { Gildash } from '@zipbul/gildash';
 import { isErr } from '@zipbul/result';
 import { createEmberdeckDb, closeDb } from './db/connection';
@@ -38,7 +39,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
         gildash = result;
       }
     } catch (e) {
-      process.stderr.write(`[emberdeck] gildash init exception: ${e instanceof Error ? e.message : String(e)}\n`);
+      process.stderr.write(`[emberdeck] gildash init exception: ${errorMessage(e)}\n`);
       gildash = undefined;
     }
   }

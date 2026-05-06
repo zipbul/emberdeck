@@ -1,3 +1,4 @@
+import { errorMessage } from '../util/error';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
@@ -70,7 +71,7 @@ export function readGlossary(ctx: EmberdeckContext): GlossaryEntry[] {
     parsed = Bun.YAML.parse(content);
   } catch (err) {
     throw new GlossaryParseError(
-      `Failed to parse glossary.yaml: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to parse glossary.yaml: ${errorMessage(err)}`,
     );
   }
 

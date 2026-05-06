@@ -1,3 +1,4 @@
+import { errorMessage } from '../../util/error';
 /**
  * `ed glossary` subcommands per CLI_PLAN §4.2.
  */
@@ -32,7 +33,7 @@ async function loadEntriesFromFile(value: string): Promise<Array<{ word: string;
   try {
     parsed = Bun.YAML.parse(text);
   } catch (e) {
-    throw new CliUsageError(`failed to parse --from as YAML: ${e instanceof Error ? e.message : String(e)}`);
+    throw new CliUsageError(`failed to parse --from as YAML: ${errorMessage(e)}`);
   }
   if (!Array.isArray(parsed)) {
     throw new CliUsageError('--from FILE must be a YAML array of {word, definition} objects');

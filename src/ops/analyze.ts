@@ -299,7 +299,7 @@ export async function analyze(
       for (const [file, project] of uniqueFiles) {
         try {
           const syms = project ? ctx.gildash.getSymbolsByFile(file, project) : ctx.gildash.getSymbolsByFile(file);
-          if (Array.isArray(syms)) symbolTotal += syms.length;
+          symbolTotal += syms.length;
         } catch {
           // skip file
         }

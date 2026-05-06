@@ -198,8 +198,8 @@ export async function preChangeCheck(
           const metrics = project
             ? await ctx.gildash.getFanMetrics(file, project)
             : await ctx.gildash.getFanMetrics(file);
-          if (metrics && typeof metrics.fanIn === 'number' && metrics.fanIn > maxFanIn) maxFanIn = metrics.fanIn;
-          if (metrics && typeof metrics.fanOut === 'number' && metrics.fanOut > maxFanOut) maxFanOut = metrics.fanOut;
+          if (metrics.fanIn > maxFanIn) maxFanIn = metrics.fanIn;
+          if (metrics.fanOut > maxFanOut) maxFanOut = metrics.fanOut;
         } catch {
           // best-effort
         }
@@ -214,7 +214,7 @@ export async function preChangeCheck(
       for (const project of projectNames) {
         try {
           const deps = project ? ctx.gildash.getDependents(file, project) : ctx.gildash.getDependents(file);
-          if (Array.isArray(deps)) for (const d of deps) directDependentsSet.add(d);
+          for (const d of deps) directDependentsSet.add(d);
         } catch {
           // best-effort
         }
