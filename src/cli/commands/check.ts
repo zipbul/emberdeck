@@ -9,7 +9,6 @@ import type { CliRuntime } from '../context';
 import { getLinkCoverage, getUncoveredSymbols, suggestCardScope } from '../../ops/spec-sync';
 import { checkDrift, checkInteractions } from '../../ops/context';
 import { preChangeCheck, regressionGuard } from '../../ops/impact';
-import { parsePositiveInt } from '../parsers';
 import { CliUsageError } from '../errors';
 
 export function registerCheck(program: Command): void {
@@ -19,14 +18,12 @@ export function registerCheck(program: Command): void {
   check
     .command('drift [key]')
     .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken / heritage_uncovered / pattern_violation)')
-    .option('--max-depth <n>', 'how many relation hops to traverse from KEY (default 3)', parsePositiveInt('--max-depth'))
     .option('--no-auto-transition', 'do not auto-mark active→drifted')
-    .action(async (key: string | undefined, opts: { maxDepth?: number; autoTransition?: boolean }, cmd) => {
+    .action(async (key: string | undefined, opts: { autoTransition?: boolean }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
           const result = await checkDrift(rt.ctx, key, {
-            maxDepth: opts.maxDepth,
             autoTransition: opts.autoTransition !== false,
           });
           return ok({
