@@ -62,7 +62,7 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     cardsDir: merged.cardsDir,
     dbPath: merged.dbPath,
     projectRoot: merged.projectRoot,
-    gildashIgnore: merged.gildashIgnore,
+    analysisIgnore: merged.analysisIgnore,
     ignorePatterns: merged.ignorePatterns,
     regressionThreshold: merged.regressionThreshold,
   });

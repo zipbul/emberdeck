@@ -47,25 +47,25 @@ describe('validateRawConfig', () => {
     expect(config.dbPath).toBe(resolve(tmpDir, DEFAULT_DB_PATH));
   });
 
-  // B-3: gildashIgnore empty array should pass validation
-  it('gildashIgnore empty array -> no validation error', () => {
-    const raw = { gildashIgnore: [] };
+  // B-3: analysisIgnore empty array should pass validation
+  it('analysisIgnore empty array -> no validation error', () => {
+    const raw = { analysisIgnore: [] };
     const filePath = join(tmpDir, '.emberdeck.jsonc');
     const result = validateRawConfig(raw, filePath);
     expect(isErr(result)).toBe(false);
   });
 
-  it('gildashIgnore empty array -> preserved as empty array in config', () => {
-    const raw = { gildashIgnore: [] };
+  it('analysisIgnore empty array -> preserved as empty array in config', () => {
+    const raw = { analysisIgnore: [] };
     const filePath = join(tmpDir, '.emberdeck.jsonc');
     const result = validateRawConfig(raw, filePath);
     expect(isErr(result)).toBe(false);
     const config = result as EmberdeckFileConfig;
-    expect(config.gildashIgnore).toEqual([]);
+    expect(config.analysisIgnore).toEqual([]);
   });
 
   it('ignorePatterns empty array -> no validation error (both allow empty)', () => {
-    const raw = { ignorePatterns: [], gildashIgnore: [] };
+    const raw = { ignorePatterns: [], analysisIgnore: [] };
     const filePath = join(tmpDir, '.emberdeck.jsonc');
     const result = validateRawConfig(raw, filePath);
     expect(isErr(result)).toBe(false);
@@ -76,7 +76,7 @@ describe('validateRawConfig', () => {
       cardsDir: './my-cards',
       dbPath: './my.db',
       projectRoot: './proj',
-      gildashIgnore: ['node_modules', 'dist'],
+      analysisIgnore: ['node_modules', 'dist'],
     };
     const filePath = join(tmpDir, '.emberdeck.jsonc');
     const result = validateRawConfig(raw, filePath);
@@ -85,7 +85,7 @@ describe('validateRawConfig', () => {
     expect(config.cardsDir).toBe(resolve(tmpDir, './my-cards'));
     expect(config.dbPath).toBe(resolve(tmpDir, './my.db'));
     expect(config.projectRoot).toBe(resolve(tmpDir, './proj'));
-    expect(config.gildashIgnore).toEqual(['node_modules', 'dist']);
+    expect(config.analysisIgnore).toEqual(['node_modules', 'dist']);
   });
 
   // ── invalid: top-level type ──
@@ -250,8 +250,8 @@ describe('buildDefaultConfig', () => {
     expect(config.cardsDir).toBe(resolve('/base', DEFAULT_CARDS_DIR));
     expect(config.dbPath).toBe(resolve('/base', DEFAULT_DB_PATH));
     expect(config.projectRoot).toBeUndefined();
-    expect(config.gildashIgnore).toBeUndefined();
+    expect(config.analysisIgnore).toBeUndefined();
     expect(config.projectRoot).toBeUndefined();
-    expect(config.gildashIgnore).toBeUndefined();
+    expect(config.analysisIgnore).toBeUndefined();
   });
 });

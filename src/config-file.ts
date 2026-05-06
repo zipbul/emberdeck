@@ -18,7 +18,7 @@ export interface EmberdeckFileConfig {
   cardsDir: string;
   dbPath: string;
   projectRoot?: string;
-  gildashIgnore?: string[];
+  analysisIgnore?: string[];
   ignorePatterns: string[];
   regressionThreshold: number;
 }
@@ -94,7 +94,7 @@ const KNOWN_TOP_KEYS = new Set([
   'cardsDir',
   'dbPath',
   'projectRoot',
-  'gildashIgnore',
+  'analysisIgnore',
   'ignorePatterns',
   'regressionThreshold',
 ]);
@@ -133,7 +133,7 @@ export function validateRawConfig(
   assertString(obj, 'projectRoot', errors);
 
   // ── String array fields ──
-  assertStringArray(obj, 'gildashIgnore', errors, true);
+  assertStringArray(obj, 'analysisIgnore', errors, true);
   assertStringArray(obj, 'ignorePatterns', errors, true);
 
   // ── Number fields ──
@@ -165,8 +165,8 @@ export function validateRawConfig(
       ? resolve(resolvedDir, obj['projectRoot'])
       : undefined;
 
-  const gildashIgnore = Array.isArray(obj['gildashIgnore'])
-    ? (obj['gildashIgnore'] as string[])
+  const analysisIgnore = Array.isArray(obj['analysisIgnore'])
+    ? (obj['analysisIgnore'] as string[])
     : undefined;
 
   const ignorePatterns = Array.isArray(obj['ignorePatterns'])
@@ -181,7 +181,7 @@ export function validateRawConfig(
     cardsDir,
     dbPath,
     projectRoot,
-    gildashIgnore,
+    analysisIgnore,
     ignorePatterns,
     regressionThreshold,
   };
@@ -278,7 +278,7 @@ export function buildDefaultConfig(baseDir: string): EmberdeckFileConfig {
     cardsDir: resolve(baseDir, DEFAULT_CARDS_DIR),
     dbPath: resolve(baseDir, DEFAULT_DB_PATH),
     projectRoot: undefined,
-    gildashIgnore: undefined,
+    analysisIgnore: undefined,
     ignorePatterns: [],
     regressionThreshold: 0,
   };

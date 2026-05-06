@@ -13,7 +13,7 @@ export interface EmberdeckOptions {
   /** Absolute path to the project root for enabling gildash. Code link feature is disabled when not specified */
   projectRoot?: string;
   /** Additional gildash-specific ignore patterns (on top of ignorePatterns) */
-  gildashIgnore?: string[];
+  analysisIgnore?: string[];
   /** Glob patterns for files to exclude from coverage and gildash indexing */
   ignorePatterns?: string[];
   /** Regression guard threshold (0-1). 0 = any drifted card fails. Default: 0 */

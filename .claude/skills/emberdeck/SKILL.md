@@ -112,7 +112,8 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed bulk sync [PATH]` | 카드 파일 → DB. partial → exit 2 | X |
 | `ed analyze` | health/coverage/drift/glossary 종합 | X |
 
-출력: `--json` / `--quiet` / `--output={human,json,quiet}`. TTY 자동: TTY→human, pipe→json. JSON 봉투 `{schemaVersion, status, data, warnings, errors, error?}`.
+출력 (기본 JSON, agent-first): `--output={human,json,quiet}`. `--json`=`--output=json`, `--quiet`=`--output=quiet`. 사람용 출력은 `--output=human` 명시.
+JSON 봉투 `{schemaVersion, status, data, warnings, errors, error?}`.
 exit: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permission/IO, 6=config_missing, 7=transient, 130=SIGINT.
 
 </commands>

@@ -23,7 +23,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
   if (options.projectRoot) {
     try {
       const mergedIgnore = [
-        ...(options.gildashIgnore ?? []),
+        ...(options.analysisIgnore ?? []),
         ...(options.ignorePatterns ?? []),
       ];
       const result = await Gildash.open({

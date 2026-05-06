@@ -104,14 +104,14 @@ describe('setupEmberdeck + teardownEmberdeck', () => {
     expect(closeMock).toHaveBeenCalledTimes(1);
   });
 
-  // 9. [HP] projectRoot + gildashIgnore specified → values passed to Gildash.open
-  it('should pass projectRoot and gildashIgnore to Gildash.open when provided', async () => {
+  // 9. [HP] projectRoot + analysisIgnore specified → values passed to Gildash.open
+  it('should pass projectRoot and analysisIgnore to Gildash.open when provided', async () => {
     // Arrange
     const { gildash } = makeFakeGildash();
     mockGildashOpen.mockImplementation(async () => gildash);
     const ignorePatterns = ['node_modules', 'dist'];
     // Act
-    const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '/proj', gildashIgnore: ignorePatterns });
+    const ctx = await setupEmberdeck({ ...BASE_OPTS, projectRoot: '/proj', analysisIgnore: ignorePatterns });
     // Assert
     expect(mockGildashOpen).toHaveBeenCalledTimes(1);
     const calledWith = mockGildashOpen.mock.calls[0]![0] as Record<string, unknown>;
