@@ -11,7 +11,6 @@ import { ok } from '../output';
 import type { CliRuntime } from '../context';
 import { analyze } from '../../ops/analyze';
 import { resetEmberdeck } from '../../ops/glossary';
-import { startSpinner } from '../spinner';
 import { parsePositiveInt } from '../parsers';
 import { confirmDestructive } from '../confirm';
 
@@ -137,17 +136,11 @@ export function registerSingle(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const spinner = startSpinner(rt.output, 'analyzing project...', { verbose: rt.verbose });
-          let result;
-          try {
-            result = await analyze(rt.ctx, {
-              includeBody: opts.includeBody,
-              limit: opts.driftedLimit,
-              offset: opts.driftedOffset,
-            });
-          } finally {
-            spinner.stop();
-          }
+          const result = await analyze(rt.ctx, {
+            includeBody: opts.includeBody,
+            limit: opts.driftedLimit,
+            offset: opts.driftedOffset,
+          });
           return ok({
             health: result.health,
             coverage: result.coverage,

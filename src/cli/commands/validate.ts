@@ -12,7 +12,6 @@ import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { validateCards } from '../../ops/sync';
 import { validateCodeLinks } from '../../ops/link';
-import { startSpinner } from '../spinner';
 
 export function registerValidate(program: Command): void {
   const validate = program.command('validate').description('integrity gates');
@@ -23,45 +22,33 @@ export function registerValidate(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const spinner = startSpinner(rt.output, 'validating cards...', { verbose: rt.verbose });
-          let cardErrors: CliMessage[];
-          let linkErrors: CliMessage[];
+          const cardsResult = await validateCards(rt.ctx);
+          const cardErrors: CliMessage[] = cardsResult.warnings.map((w) => ({
+            code: w.type.toUpperCase().replace(/-/g, '_'),
+            message: w.message,
+            ...(w.cardKey ? { key: w.cardKey } : {}),
+          }));
+          for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key });
+          for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no indexed card: ${orphan}` });
+          for (const km of cardsResult.keyMismatches) {
+            cardErrors.push({
+              code: 'KEY_MISMATCH',
+              message: `card key '${km.row.key}' does not match path-derived '${km.expectedKey}'`,
+              key: km.row.key,
+            });
+          }
+
+          const allCards = rt.ctx.cardRepo.list();
+          const linkErrors: CliMessage[] = [];
           let linkDeclared = 0;
           let linkBroken = 0;
-          try {
-            const cardsResult = await validateCards(rt.ctx);
-            cardErrors = cardsResult.warnings.map((w) => ({
-              code: w.type.toUpperCase().replace(/-/g, '_'),
-              message: w.message,
-              ...(w.cardKey ? { key: w.cardKey } : {}),
-            }));
-            for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key });
-            for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no indexed card: ${orphan}` });
-            for (const km of cardsResult.keyMismatches) {
-              cardErrors.push({
-                code: 'KEY_MISMATCH',
-                message: `card key '${km.row.key}' does not match path-derived '${km.expectedKey}'`,
-                key: km.row.key,
-              });
+          if (rt.ctx.gildash) {
+            for (const c of allCards) {
+              const r = await validateCodeLinks(rt.ctx, c.key);
+              linkDeclared += r.declared;
+              linkBroken += r.broken.length;
+              for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
             }
-
-            // links validation: per-card iteration
-            const allCards = rt.ctx.cardRepo.list();
-            linkErrors = [];
-            if (rt.ctx.gildash) {
-              let i = 0;
-              for (const c of allCards) {
-                i++;
-                spinner.update(`validating links: ${i}/${allCards.length} (${c.key})`);
-                const r = await validateCodeLinks(rt.ctx, c.key);
-                linkDeclared += r.declared;
-                linkBroken += r.broken.length;
-                for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
-              }
-            }
-
-          } finally {
-            spinner.stop();
           }
 
           const allErrors = [...cardErrors, ...linkErrors];
@@ -95,26 +82,18 @@ export function registerValidate(program: Command): void {
           let broken = 0;
 
           const targets = key ? [{ key }] : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec').map((c) => ({ key: c.key }));
-          const spinner = startSpinner(rt.output, `validating ${targets.length} card(s)...`, { verbose: rt.verbose });
           let internalCount = 0;
           const internalDetails: Array<{ key: string; file: string; symbol: string }> = [];
-          try {
-            let i = 0;
-            for (const t of targets) {
-              i++;
-              spinner.update(`validating links: ${i}/${targets.length} (${t.key})`);
-              const r = await validateCodeLinks(rt.ctx, t.key);
-              declared += r.declared;
-              resolved += r.valid;
-              broken += r.broken.length;
-              for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
-              if (r.internalLinks) {
-                internalCount += r.internalLinks.length;
-                for (const il of r.internalLinks) internalDetails.push({ key: t.key, file: il.file, symbol: il.symbol });
-              }
+          for (const t of targets) {
+            const r = await validateCodeLinks(rt.ctx, t.key);
+            declared += r.declared;
+            resolved += r.valid;
+            broken += r.broken.length;
+            for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
+            if (r.internalLinks) {
+              internalCount += r.internalLinks.length;
+              for (const il of r.internalLinks) internalDetails.push({ key: t.key, file: il.file, symbol: il.symbol });
             }
-          } finally {
-            spinner.stop();
           }
 
           const data = {

@@ -12,7 +12,6 @@ import { bulkCreateCards } from '../../ops/bulk-create';
 import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
 import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
-import { startSpinner } from '../spinner';
 import { CliUsageError } from '../errors';
 
 function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
@@ -81,13 +80,7 @@ export function registerBulk(program: Command): void {
           }
           // CLI-layer enum validation BEFORE write, mirrors `card create` behavior.
           const validated = validateBulkInput(parsed);
-          const spinner = startSpinner(rt.output, `creating ${validated.ok.length} cards...`, { verbose: rt.verbose });
-          let result;
-          try {
-            result = await bulkCreateCards(rt.ctx, validated.ok);
-          } finally {
-            spinner.stop();
-          }
+          const result = await bulkCreateCards(rt.ctx, validated.ok);
           const errors: CliMessage[] = [
             ...validated.errors.map((e) => ({ code: 'BULK_VALIDATION_FAILED', message: e.message, key: e.key })),
             ...result.errors.map((e) => ({ code: 'BULK_CREATE_FAILED', message: e.message, key: e.key })),
@@ -132,13 +125,7 @@ export function registerBulk(program: Command): void {
               return ok({ synced: 1, path, mode: 'file' });
             }
           }
-          const spinner = startSpinner(rt.output, `syncing cards from ${path ?? rt.ctx.cardsDir}...`, { verbose: rt.verbose });
-          let result;
-          try {
-            result = await bulkSyncCards(rt.ctx, path);
-          } finally {
-            spinner.stop();
-          }
+          const result = await bulkSyncCards(rt.ctx, path);
           const errors: CliMessage[] = result.errors.map((e) => ({
             code: 'SYNC_FAILED',
             message: e.error instanceof Error ? e.error.message : String(e.error),
