@@ -4,9 +4,7 @@ description: Emberdeck `ed` CLI 로 코드베이스의 설계 지식을 관리�
 ---
 
 <rules>
-<critical>
-1. 코드를 수정하기 **전에** 관련 카드를 읽는다. 수정 후에는 반드시 `ed validate links` 실행. 예외 없음.
-</critical>
+1. 코드를 수정하기 **전에** 관련 카드를 읽는다. 수정 후에는 반드시 `ed validate links` 실행. 예외 없음. (말미 `<critical>` 도 동일.)
 2. 카드를 만들기 전 사용자에게 card-analysis 를 보여주고 확인 받는다.
 3. brief 카드는 설계 문서다. `frontmatter.brief` 네임스페이스의 10개 필드(`context`, `scope`, `flow`, `design`, `policy`, `external`, `compatibility`, `limits`, `criteria`, `rationale`) 를 모두 채우고 cross-reference 까지 만족하도록 작성한다. 본문은 자유 산문(예시·부연 설명) 으로 사용한다 — 본문 섹션 강제는 없다. 검증은 카드 파싱 시점 + activation guard (`validateBriefRefs`) 가 자동.
    spec 카드는 코드에 묶인 검증 가능한 contract 를 담는다. 카드에는 **코드만 봐서는 알 수 없는 지식**만 넣는다 — 함수 시그니처, 파일 경로, 기술 스택 같은 항목은 카드에 들어가면 에이전트 성능을 떨어뜨린다.
@@ -47,7 +45,7 @@ description: Emberdeck `ed` CLI 로 코드베이스의 설계 지식을 관리�
 
 <workflow name="onboarding">
 1. `ed analyze` — 현재 상태 파악. 그다음 `ed spec annotate` 로 reconcile (이전 세션의 orphan @spec 제거, 빠진 것 추가). 멱등.
-2. **`src/` 아래 모든 소스 파일을 읽는다.** 샘플링 금지 — 전부. 각 파일에 대해 single-file 테스트 적용: "이 지식을 이 파일 하나만 읽고 발견할 수 있는가?" 만약 NO (여러 파일에 걸치거나 cross-module contract 를 인코딩) → 반드시 카드화한다. 수집할 항목:
+2. **소스 파일을 읽는다 — 컨텍스트가 허용하는 한 전부, 불가능하면 우선순위 순으로**: 진입점/라우터/컨트롤러 → 코어 도메인 모듈 → 인프라/유틸 → 테스트 (테스트는 마지막). 모노레포에서 sample/example/fixture 디렉토리는 후순위. `ed analyze --json` 의 `unlinked_symbols` 와 `codeStats` 가 우선 후보를 알려준다. 각 파일에 single-file 테스트 적용: "이 지식을 이 파일 하나만 읽고 발견할 수 있는가?" 만약 NO (여러 파일에 걸치거나 cross-module contract 를 인코딩) → 반드시 카드화한다. 수집할 항목:
    - Cross-module contract (2+ 파일에 걸쳐 강제되는 invariant)
    - 실패 처리 정책 (X 컴포넌트 실패 시 어떻게 — caller + callee 양쪽 관여)
    - 아키텍처 제약 (왜 이 접근이고 다른 게 아닌지 — 코드만 봐서는 안 보임)
@@ -60,7 +58,7 @@ description: Emberdeck `ed` CLI 로 코드베이스의 설계 지식을 관리�
 6. glossary 를 사용자에게 제안 (glossary-proposal 템플릿 — Evidence 컬럼 포함). 제안에는 반드시 (a) 5단계 brief 주요 토픽에서 도출한 용어, (b) 2단계에서 표면화된 cross-cutting 개념이 포함돼야 한다. 확인 받고 `ed glossary define WORD=정의 ...` (또는 `--from file.yaml`).
 7. domain 카드 생성 (`type: domain`, `domain.overview` / `domain.scope` 채움). card-analysis 템플릿을 보여주고 `<self_review>` 통과.
 8. brief 카드 생성 (`type: brief`, `parent: <도메인-키>`, 전체 brief namespace). `<self_review>` 통과.
-9. spec 카드 생성 (`type: spec`, `parent: <brief-또는-spec-키>`, `spec` namespace, `codeLinks`, `relations`). `<self_review>` 통과.
+9. spec 카드 생성 (`type: spec`, `parent: <brief-또는-spec-키>`, `spec` namespace, `codeLinks`, `relations`). spec 의 invariant 가 코드 패턴(예: "절대 console.log 금지" 또는 "반드시 logger 호출")으로 표현 가능하면 `spec.code_patterns` 추가 (ast-grep 문법, `forbidden`/`required` 룰). `<self_review>` 통과.
 10. **COLLECTION REVIEW** — 모든 카드 생성 후, 게이트 전:
     (a) **도메인 분해**: 각 도메인은 ≥1 brief 자식을 가져야 한다. brief 0개인 도메인은 sibling 으로 합쳐야 할 가능성.
     (b) **brief 분해**: 각 brief 의 Scope "Covers" 목록에 무관한 항목 3+ → sibling brief 로 분리 (같은 domain 아래). brief 재귀는 **금지**.
@@ -70,7 +68,7 @@ description: Emberdeck `ed` CLI 로 코드베이스의 설계 지식을 관리�
         - Reverse: 각 brief 의 주요 토픽이 glossary 용어로 존재하는지 검증. 없으면 → 용어 정의 추가 또는 brief 스코프 재고.
     문제 발견 시 게이트 전에 수정.
 11. GATE: `ed validate cards` — `glossary-broken`, `broken-chain`, `orphan-card` 경고 0개 통과. (orphan-card 는 root-level brief/spec 을 잡는다 → 올바른 parent 추가로 해결.)
-12. GATE: `ed check coverage --uncovered` — `src/` 의 모든 파일이 어떤 spec 카드의 codeLinks 또는 boundary 에 ≥1 참조돼야 한다. 미커버 파일 있으면 spec 카드 추가.
+12. GATE: `ed check coverage --uncovered` — production 소스 파일은 어떤 spec 카드의 codeLinks 또는 boundary 에 ≥1 참조돼야 한다. 정당한 예외(test fixture, sample app, 자동 생성 코드, 외부 vendored)는 `ignorePatterns` 로 제외하거나 명시적으로 미커버 유지하고 사용자 확인 받음.
 13. `ed spec annotate` — 모든 codeLinks 에 대해 `@spec card-key` JSDoc 태그를 소스에 주입.
 </workflow>
 
@@ -89,7 +87,7 @@ description: Emberdeck `ed` CLI 로 코드베이스의 설계 지식을 관리�
    - medium/low risk: 진행.
 2. 영향 받는 각 카드를 `ed card get KEY` 로 읽는다 — 이게 제약 조건.
    - 직접 영향 카드: 본문 전체 읽기. transitive 카드: summary 만.
-3. 해당 영역에 카드가 없으면: 어느 기존 도메인에 속하는지 식별하거나 새 도메인 제안. 그다음 도메인 아래 brief 생성 (card-analysis, glossary 포함), 그다음 spec. 각 카드 생성 전 `<self_review>`.
+3. 해당 영역에 카드가 없으면: 어느 기존 도메인에 속하는지 식별하거나 새 도메인 제안. 그다음 도메인 아래 brief 생성 (card-analysis, glossary 포함), 그다음 spec (필요 시 `spec.code_patterns` 로 코드 형태 강제). 각 카드 생성 전 `<self_review>`.
 4. 카드 제약 안에서 코드 작성.
 5. 새 도메인 개념이 등장하면: glossary 사용자에게 제안 → `ed glossary define WORD=DEF` → 영향 받는 카드들의 glossary 필드 갱신 (`ed card update KEY --glossary <단어들>`).
 6. 기존 spec 의 스코프를 확장하는 변경이면: spec 카드 본문과 glossary 필드 업데이트. 갱신 카드에 `<self_review>` 적용.
@@ -206,6 +204,19 @@ Glossary 리네임 시퀀스:
 1. 심볼이 리네임됐는지 확인 → `ed spec sync-symbols`.
 2. 심볼이 다른 파일로 이동했는지 → 같은 명령으로 처리.
 3. 심볼이 의도적으로 제거됐다면 → 카드를 갱신하거나 삭제.
+
+`ed check drift` 가 drift 를 보고할 때 (driftType 별):
+
+| driftType | 원인 | 해결 |
+|-----------|------|------|
+| broken_link | codeLink 가 가리키는 심볼이 사라짐/리네임/이동 | `ed spec sync-symbols` (rename/move) 또는 `ed card update KEY --patch` 로 codeLink 갱신/제거 |
+| boundary_inactive | 카드의 `boundary` glob 이 인덱스의 어떤 파일과도 매치 X | boundary 패턴 수정 또는 의도적이면 카드 retired 로 강등 |
+| symbol_changed | `boundary` 안의 심볼이 카드 `updatedAt` 이후 변경됨 (`symbolChanges[]` 참조) | 변경 검토 후 (a) 카드 본문/codeLinks 갱신 (b) 의도된 변경이면 `ed card set-status KEY active` 로 재활성화하여 updatedAt 갱신 |
+| heritage_uncovered | 카드가 링크한 클래스의 서브클래스가 spec 카드 미커버 (`uncoveredSubclasses[]` 참조) | 서브클래스용 spec 카드 생성 또는 부모 카드 codeLinks 에 추가 |
+| pattern_violation | `spec.code_patterns` 룰 위반 (`patternViolations[]` 참조; rule=forbidden 매치 발생, 또는 rule=required 매치 0) | 코드 수정 또는 패턴이 잘못됐으면 `ed card update KEY --patch` 로 패턴 조정 |
+| glossary_broken | 카드가 glossary.yaml 에 없는 단어 선언 | `ed glossary define` 로 재추가 또는 `ed card update KEY --glossary <새 목록>` |
+
+drift 응답에 `patternErrors[]` 가 있으면: ast-grep 패턴 자체가 잘못 작성됨. `pattern_violation` 과 별개이며 카드 status 는 변경 X. 패턴 문법 수정 후 재실행.
 
 </error_recovery>
 
