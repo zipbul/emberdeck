@@ -1,3 +1,5 @@
+> ⚠️ **Historical workflow design.** Pre-CLI v2 agent-routing prototype using `ed-analyst` etc. Current emberdeck is single-binary CLI; agent should follow `.claude/skills/emberdeck/SKILL.md` instead. Kept for design intent reference.
+
 # Step 3: Spec
 
 ## Purpose

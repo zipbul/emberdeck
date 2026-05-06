@@ -1,3 +1,5 @@
+> ⚠️ **Historical document.** SKILL.md design plan written when emberdeck shipped as MCP server (`mcp__emberdeck__*` tool names throughout). emberdeck is now CLI-only; the current SKILL.md lives at `.claude/skills/emberdeck/SKILL.md`. Kept for design history.
+
 # SKILL.md Rewrite Plan
 
 > Emberdeck SKILL.md를 프롬프트/컨텍스트/하네스 엔지니어링 기법으로 재작성하는 계획.
