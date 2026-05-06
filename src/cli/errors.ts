@@ -21,7 +21,6 @@ import { SystemLockTimeoutError } from '../glossary/system-lock';
 import type { CliMessage } from './output';
 import { CliUsageError } from './usage-error';
 
-export { CliUsageError };
 
 export function toCliError(e: unknown): CliMessage {
   if (e instanceof CliUsageError) {

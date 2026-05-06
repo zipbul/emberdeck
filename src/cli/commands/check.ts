@@ -9,7 +9,7 @@ import type { CliRuntime } from '../context';
 import { getLinkCoverage, getUncoveredSymbols, suggestCardScope } from '../../ops/spec-sync';
 import { checkDrift, checkInteractions } from '../../ops/context';
 import { preChangeCheck, regressionGuard } from '../../ops/impact';
-import { CliUsageError } from '../errors';
+import { CliUsageError } from '../usage-error';
 
 export function registerCheck(program: Command): void {
   const check = program.command('check').description('inspect drift, coverage, impact, regressions, and card interactions');

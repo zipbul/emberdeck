@@ -13,7 +13,7 @@ import { bulkCreateCards } from '../../ops/bulk-create';
 import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
 import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
-import { CliUsageError } from '../errors';
+import { CliUsageError } from '../usage-error';
 
 function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
   const ok: CreateCardInput[] = [];

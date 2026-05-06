@@ -31,7 +31,7 @@ import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
 import { parsePositiveInt } from '../parsers';
 import { confirmDestructive } from '../confirm';
-import { CliUsageError } from '../errors';
+import { CliUsageError } from '../usage-error';
 import { atomicWrite } from '../../fs/writer';
 
 // ── helpers ──

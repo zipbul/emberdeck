@@ -8,7 +8,7 @@ import { run, extractGlobalFlags } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { writeSpecAnnotations, syncSpecAnnotations, syncSymbolChanges } from '../../ops/spec-sync';
-import { CliUsageError } from '../errors';
+import { CliUsageError } from '../usage-error';
 
 export function registerSpec(program: Command): void {
   const spec = program.command('spec').description('source code ↔ card binding sync');

@@ -217,7 +217,7 @@ export async function checkDrift(
     // An empty index is treated as "no information" rather than "no matches"
     // — boundary_inactive only fires when we have a populated source of truth.
     if (row.status === 'active' && (ctx.gildash || ctx.projectRoot)) {
-      const boundary = parseBoundary(row.boundaryJson);
+      const boundary = parseStringArrayJson(row.boundaryJson);
       if (boundary.length > 0) {
         let anyMatch = false;
         let canDecide = false;
@@ -259,7 +259,7 @@ export async function checkDrift(
     // symbol_changed: symbols in boundary files changed after card's updatedAt
     let detectedSymbolChanges: SymbolChangeDetail[] | undefined;
     if (row.status === 'active' && symbolChangesByFile) {
-      const boundary = parseBoundary(row.boundaryJson);
+      const boundary = parseStringArrayJson(row.boundaryJson);
       if (boundary.length > 0) {
         const cardUpdatedAt = row.updatedAt;
         const collected: SymbolChangeDetail[] = [];
@@ -353,7 +353,7 @@ export async function checkDrift(
         // Scope pattern search to this card's boundary when set — a card's
         // patterns are its own contract, not a project-wide rule. A spec for
         // `src/auth/**` shouldn't flag `console.log` in `src/ui/`.
-        const boundary = parseBoundary(row.boundaryJson);
+        const boundary = parseStringArrayJson(row.boundaryJson);
         let scopedFiles: string[] | undefined;
         if (boundary.length > 0) {
           const indexedFiles = getIndexedFilePaths();
@@ -413,7 +413,7 @@ export async function checkDrift(
 
     // glossary_broken: card declares glossary words not in glossary.yaml
     {
-      const cardGlossary = parseGlossaryJsonField(row);
+      const cardGlossary = parseStringArrayJson(row.glossaryJson);
       if (cardGlossary.length > 0) {
         const glossaryEntries = readGlossary(ctx);
         const glossaryWords = new Set(glossaryEntries.map((e) => e.word));
@@ -490,15 +490,9 @@ export async function checkDrift(
 
 // ── check_drift helpers ──
 
-import { parseBoundaryJson, parseGlossaryJson } from '../card/json-fields';
+import { parseStringArrayJson } from '../card/json-fields';
 
-function parseGlossaryJsonField(card: { glossaryJson?: string }): string[] {
-  return parseGlossaryJson(card.glossaryJson);
-}
 
-function parseBoundary(boundaryJson: string | null): string[] {
-  return parseBoundaryJson(boundaryJson);
-}
 
 interface SpecCodePatternRow {
   id: string;
@@ -532,7 +526,7 @@ async function collectSymbolChanges(
   for (const key of targetKeys) {
     const row = ctx.cardRepo.findByKey(key);
     if (!row || row.status !== 'active') continue;
-    const boundary = parseBoundary(row.boundaryJson);
+    const boundary = parseStringArrayJson(row.boundaryJson);
     if (boundary.length === 0) continue;
     if (!oldestUpdatedAt || row.updatedAt < oldestUpdatedAt) {
       oldestUpdatedAt = row.updatedAt;
@@ -661,7 +655,7 @@ export async function checkInteractions(
     const files = new Set((linkMap.get(key) ?? new Map()).keys());
     if (indexedFiles.length > 0) {
       const row = ctx.cardRepo.findByKey(key);
-      for (const pattern of parseBoundaryJson(row?.boundaryJson)) {
+      for (const pattern of parseStringArrayJson(row?.boundaryJson)) {
         try {
           const glob = new Bun.Glob(pattern);
           for (const file of indexedFiles) {

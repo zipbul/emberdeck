@@ -2,7 +2,7 @@ import type { EmberdeckContext } from '../config';
 import type { CodeLink, CardType } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
 import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSymbolFileCache } from './link';
-import { parseBoundaryJson } from '../card/json-fields';
+import { parseStringArrayJson } from '../card/json-fields';
 import { atomicWrite } from '../fs/writer';
 import { join, relative, dirname } from 'node:path';
 
@@ -740,7 +740,7 @@ export async function getLinkCoverage(
   const indexedFiles = listAllIndexedFiles(ctx);
   const boundaryFiles = new Set<string>();
   const row = ctx.cardRepo.findByKey(fullKey);
-  for (const pattern of parseBoundaryJson(row?.boundaryJson)) {
+  for (const pattern of parseStringArrayJson(row?.boundaryJson)) {
     try {
       const glob = new Bun.Glob(pattern);
       for (const file of indexedFiles) {
@@ -885,7 +885,7 @@ export async function getUncoveredSymbols(
   // 3. Collect boundary-covered files (matched against the gildash index).
   const boundaryFiles = new Set<string>();
   for (const card of allCards) {
-    for (const pattern of parseBoundaryJson(card.boundaryJson)) {
+    for (const pattern of parseStringArrayJson(card.boundaryJson)) {
       try {
         const glob = new Bun.Glob(pattern);
         for (const file of indexedFilePaths) {
@@ -917,12 +917,12 @@ export async function getUncoveredSymbols(
     // Route to the correct project (monorepo support); default-arg call only
     // sees primary project. Fallback to absolute path for mock fixtures.
     const project = fileToProject.get(file);
-    let symbols = project
+    const primary = project
       ? ctx.gildash.getSymbolsByFile(file, project)
       : ctx.gildash.getSymbolsByFile(file);
-    if (symbols.length === 0 && ctx.projectRoot) {
-      symbols = ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file));
-    }
+    const symbols = primary.length === 0 && ctx.projectRoot
+      ? ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file))
+      : primary;
     if (symbols.length === 0) continue;
 
     for (const sym of symbols) {
@@ -1039,7 +1039,7 @@ export async function suggestCardScope(
   // Build existing boundary globs for overlap check
   const existingBoundaryGlobs: Bun.Glob[] = [];
   for (const card of allCards) {
-    for (const pattern of parseBoundaryJson(card.boundaryJson)) {
+    for (const pattern of parseStringArrayJson(card.boundaryJson)) {
       existingBoundaryGlobs.push(new Bun.Glob(pattern));
     }
   }

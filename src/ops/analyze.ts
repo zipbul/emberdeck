@@ -4,7 +4,7 @@ import { checkDrift, type DriftType } from './context';
 import { getUncoveredSymbols } from './spec-sync';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { buildCardFromDb } from './sync';
-import { parseBoundaryJson, parseGlossaryJson } from '../card/json-fields';
+import { parseStringArrayJson } from '../card/json-fields';
 import { ensureReindexed, gildashProjectNames } from './link';
 
 /** Days of changelog history to retain when pruning at the end of `analyze`. */
@@ -198,7 +198,7 @@ export async function analyze(
     }
     if (indexedFiles.length > 0) {
       for (const card of allCards) {
-        const boundary = parseBoundaryJson(card.boundaryJson);
+        const boundary = parseStringArrayJson(card.boundaryJson);
         if (boundary.length === 0) continue;
         let anyMatch = false;
         try {
@@ -218,7 +218,7 @@ export async function analyze(
   } else if (ctx.projectRoot) {
     // Fallback when gildash is absent: scan the projectRoot directly.
     for (const card of allCards) {
-      const boundary = parseBoundaryJson(card.boundaryJson);
+      const boundary = parseStringArrayJson(card.boundaryJson);
       if (boundary.length === 0) continue;
       let anyMatch = false;
       try {
@@ -263,7 +263,7 @@ export async function analyze(
   const glossaryEntries = readGlossary(ctx);
   const usedGlossaryWords = new Set<string>();
   for (const card of allCards) {
-    for (const w of parseGlossaryJson(card.glossaryJson)) usedGlossaryWords.add(w);
+    for (const w of parseStringArrayJson(card.glossaryJson)) usedGlossaryWords.add(w);
   }
   const unusedWords = glossaryEntries
     .filter((e) => !usedGlossaryWords.has(e.word))

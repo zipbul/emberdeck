@@ -1,10 +1,9 @@
 /**
- * Shared safe parsers for JSON-typed columns on the card row.
- * Returns [] on null/empty/parse-failure — these columns come from
- * user-authored .card.md files which can be malformed.
+ * Safe parser for JSON-typed string-array columns on the card row
+ * (boundaryJson, glossaryJson). Returns [] on null/empty/parse-failure —
+ * these columns come from user-authored .card.md files.
  */
-
-function parseStringArray(json: string | null | undefined): string[] {
+export function parseStringArrayJson(json: string | null | undefined): string[] {
   if (!json) return [];
   try {
     const parsed = JSON.parse(json);
@@ -13,6 +12,3 @@ function parseStringArray(json: string | null | undefined): string[] {
     return [];
   }
 }
-
-export const parseBoundaryJson = parseStringArray;
-export const parseGlossaryJson = parseStringArray;

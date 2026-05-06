@@ -1,3 +1,4 @@
+import { parseStringArrayJson } from '../card/json-fields';
 import type { EmberdeckContext } from '../config';
 import type { GlossaryEntry } from '../glossary/io';
 import type { CardRow } from '../db/repository';
@@ -142,7 +143,7 @@ export async function removeGlossary(
     const allCards = ctx.cardRepo.list();
     const affectedCardKeys: string[] = [];
     for (const card of allCards) {
-      const glossaryJson = parseGlossaryJson(card);
+      const glossaryJson = parseStringArrayJson(card.glossaryJson);
       if (glossaryJson.includes(word)) {
         affectedCardKeys.push(card.key);
       }
@@ -208,7 +209,7 @@ export async function renameGlossary(
     const allCards = ctx.cardRepo.list();
     const affectedCards: CardRow[] = [];
     for (const card of allCards) {
-      const glossaryJson = parseGlossaryJson(card);
+      const glossaryJson = parseStringArrayJson(card.glossaryJson);
       if (glossaryJson.includes(oldWord)) {
         affectedCards.push(card);
       }
@@ -235,7 +236,7 @@ export async function renameGlossary(
           );
 
           for (const card of affectedCards) {
-            const glossary = parseGlossaryJson(card);
+            const glossary = parseStringArrayJson(card.glossaryJson);
             const updated = glossary.map((w: string) => (w === oldWord ? newWord : w));
             updateStmt.run(JSON.stringify(updated), now, card.key);
 
@@ -299,7 +300,7 @@ export function findCardsByGlossaryWord(
   const allCards = ctx.cardRepo.list();
   const matches: GlossaryCardMatch[] = [];
   for (const card of allCards) {
-    const glossary = parseGlossaryJson(card);
+    const glossary = parseStringArrayJson(card.glossaryJson);
     if (glossary.includes(word)) {
       matches.push({ key: card.key, summary: card.summary });
     }
@@ -356,13 +357,3 @@ export async function resetEmberdeck(
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function parseGlossaryJson(card: CardRow): string[] {
-  const raw = card.glossaryJson;
-  if (!raw || raw === '[]') return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}

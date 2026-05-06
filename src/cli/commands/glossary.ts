@@ -10,7 +10,7 @@ import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { defineGlossary, lookupGlossary, removeGlossary, renameGlossary } from '../../ops/glossary';
 import { confirmDestructive } from '../confirm';
-import { CliUsageError } from '../errors';
+import { CliUsageError } from '../usage-error';
 
 interface YamlGlossaryItem {
   word?: string;

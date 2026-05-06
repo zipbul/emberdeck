@@ -3,7 +3,7 @@ import type { CardRow } from '../db/repository';
 import { getRelationGraph } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
-import { parseBoundaryJson } from '../card/json-fields';
+import { parseStringArrayJson } from '../card/json-fields';
 import { SymbolFileCache, expandAffectedFiles, makeSymbolFileCache, gildashProjectNames } from './link';
 
 // ── pre_change_check ──
@@ -73,7 +73,7 @@ export async function preChangeCheck(
   const allCards = ctx.cardRepo.list();
   for (const card of allCards) {
     if (directCards.has(card.key)) continue; // Already a direct match
-    const boundary = parseBoundaryJson(card.boundaryJson);
+    const boundary = parseStringArrayJson(card.boundaryJson);
     if (boundary.length === 0) continue;
 
     for (const file of files) {
@@ -148,7 +148,7 @@ export async function preChangeCheck(
     coveredFiles.add(link.file);
   }
   for (const card of allCards) {
-    const boundary = parseBoundaryJson(card.boundaryJson);
+    const boundary = parseStringArrayJson(card.boundaryJson);
     if (boundary.length === 0) continue;
     for (const file of files) {
       for (const pattern of boundary) {
