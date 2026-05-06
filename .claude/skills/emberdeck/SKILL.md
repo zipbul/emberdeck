@@ -154,7 +154,7 @@ Glossary 리네임 시퀀스:
 - `glossary`: 이 카드가 다루는 주요 도메인 개념 (glossary.yaml 에 항목 있을 때 필수)
 - `parent`: brief 는 도메인 카드, spec 은 brief 또는 spec 카드. principle 과 domain 은 root 전용 (parent 금지).
 - `codeLinks`: spec 카드 필수 (≥1, active 면 모두 gildash 로 resolve 되어야 함)
-- `relations`: spec 은 ≥1 brief 카드와 관계
+- `relations`: 선택. spec 의 brief 연결은 `parent` 만으로도 충분 (parent=brief 면 chain 자동 충족). brief 가 직접 parent 가 아닐 때만 `relations` 로 brief 가리키기 필요.
 - `boundary`: 이 카드가 책임지는 파일 glob 패턴 (spec 권장)
 
 </tool_protocol>
@@ -503,18 +503,20 @@ spec:
 ## CLI 응답 필드 (에이전트 참조용)
 
 ### `ed check drift` 응답
+**조건부 필드 다수**. 카드에 drift 없으면 `driftType` / `driftTypes` 자체 부재.
 ```json
 {
   "data": {
     "health": { "total": N, "active": N, "drifted": N, "draft": N },
     "cards": [{
       "key": "...",
-      "driftType": "broken_link",         // primary (첫 매치, 호환)
-      "driftTypes": ["broken_link", "pattern_violation"],  // 전체
-      "brokenLinks": 1, "totalLinks": 2,
-      "patternViolations": [{"id":"PAT-001","rule":"forbidden","matches":34}],
-      "uncoveredSubclasses": [{"file":"...","symbol":"..."}],
-      "symbolChanges": [...]
+      "driftType": "broken_link",         // 조건부: drift 있을 때만, primary (첫 매치)
+      "driftTypes": ["broken_link", "pattern_violation"],  // 조건부: 전체
+      "brokenLinks": 1, "totalLinks": 2,                   // 항상 (0일 수 있음)
+      "patternViolations": [{"id":"PAT-001","rule":"forbidden","matches":34}],  // pattern_violation 시
+      "patternErrors": [{"id":"PAT-X","message":"..."}],   // pattern engine 오류 시 (drift 아님)
+      "uncoveredSubclasses": [{"file":"...","symbol":"..."}],  // heritage_uncovered 시
+      "symbolChanges": [...]                               // symbol_changed 시
     }]
   }
 }
@@ -525,10 +527,16 @@ spec:
 {
   "data": {
     "risk_level": "low|medium|high|critical",   // fanIn≥10 시 한 단계 승급
-    "max_fan_in": 14,                            // 입력 파일 중 최대 fan-in
-    "affected_cards": [{"key":"...","linkType":"direct|boundary|transitive","linkStatus":{"valid":N,"broken":N}}],
+    "affected_count": N,
+    "affected_cards": [{
+      "key":"...",
+      "linkType":"direct|boundary|transitive",
+      "affectedLinks": N,
+      "linkStatus": {"valid":N, "broken":N}     // 조건부: gildash 활성 시
+    }],
     "new_uncovered_files": [...],
-    "suggested_actions": [...]
+    "suggested_actions": [...],
+    "max_fan_in": 14                             // 조건부: gildash 활성 + > 0 일 때
   }
 }
 ```
@@ -538,8 +546,8 @@ spec:
 {
   "data": {
     "declared": N, "resolved": N, "broken": N, "unresolved": N,
-    "internal_links": N,                         // 비-export 심볼 링크 (정보)
-    "internal_details": [{"key":"...","file":"...","symbol":"..."}]
+    "internal_links": N,                         // 조건부: > 0 일 때만 (비-export 심볼 링크, 정보)
+    "internal_details": [{"key":"...","file":"...","symbol":"..."}]  // 조건부
   }
 }
 ```
@@ -551,10 +559,11 @@ spec:
     "health": {
       "total": N, "active": N, "drifted": N, "draft": N,
       "brokenLinks": N, "staleBoundary": N,
-      "codeStats": {"files":N, "symbols":N, "relations":N},
-      "codeCycles": {"count":N, "samples":[["a.ts","b.ts"]]}  // import 순환
+      "codeStats": {"files":N, "symbols":N},          // 조건부: gildash 활성 시
+      "codeCycles": {"count":N, "samples":[["a.ts","b.ts"]]}  // 조건부: 동상
     },
-    "coverage": {"totalSymbols":N, "covered":N, "ratio":0~1},
+    "coverage": {"totalSymbols":N, "covered":N, "ratio": 0~1 | null},
+    // ratio=null 의미: totalSymbols=0 (인덱싱된 심볼 없음). "0% 커버리지" 와 구별.
     "drifted": {"cards":[...], "total":N},
     "glossary": {"totalWords":N, "unusedWords":[...], "entries":[...]},
     "unlinked_symbols": [{"file":"...","symbol":"...","kind":"..."}]
