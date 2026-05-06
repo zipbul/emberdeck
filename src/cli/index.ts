@@ -8,6 +8,7 @@
  *   ed check    {drift, coverage, impact, regression, interactions}
  *   ed spec     {annotate, sync, sync-symbols}
  *   ed bulk     {create, sync}
+ *   ed init
  *   ed analyze
  *   ed reset
  */

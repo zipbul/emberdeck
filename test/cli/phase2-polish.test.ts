@@ -416,7 +416,7 @@ describe('Phase 2 polish: spinner stays out of stdout AND no stderr leaks in JSO
   beforeEach(() => { tmp = setupProject(); });
   afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
 
-  test('analyze --json: stdout is pure JSON, no spinner artifacts', async () => {
+  test('analyze: stdout is pure JSON, no spinner artifacts', async () => {
     const r = await runCli(['analyze'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
@@ -425,21 +425,21 @@ describe('Phase 2 polish: spinner stays out of stdout AND no stderr leaks in JSO
     expect(r.stdout).not.toContain('⠋');
   });
 
-  test('analyze --json: stderr also clean (no spinner leak)', async () => {
+  test('analyze: stderr also clean (no spinner leak)', async () => {
     const r = await runCli(['analyze'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).not.toContain('⠋');
     expect(r.stderr).not.toContain('analyzing');
   });
 
-  test('bulk sync --json: stderr clean of spinner', async () => {
+  test('bulk sync: stderr clean of spinner', async () => {
     const r = await runCli(['bulk', 'sync'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).not.toContain('⠋');
     expect(r.stderr).not.toContain('syncing');
   });
 
-  test('validate links --json: stderr clean', async () => {
+  test('validate links: stderr clean', async () => {
     const r = await runCli(['validate', 'links'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).not.toContain('⠋');
