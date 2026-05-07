@@ -3,6 +3,7 @@ import type { CodeLink, CardType } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
 import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSymbolFileCache } from './link';
 import { parseStringArrayJson } from '../card/json-fields';
+import { matchesAnyGlob } from '../util/glob';
 import { atomicWrite } from '../fs/writer';
 import { join, relative, dirname } from 'node:path';
 
@@ -769,16 +770,7 @@ export async function getLinkCoverage(
   // Symbols in boundary-matched files are considered covered (excluded from unreferenced)
   const unreferenced: LinkCoverageResult['unreferenced'] = [];
   for (const file of linkedFiles) {
-    // Skip files matching ignorePatterns patterns
-    let ignored = false;
-    for (const pattern of ctx.ignorePatterns) {
-      const glob = new Bun.Glob(pattern);
-      if (glob.match(file)) {
-        ignored = true;
-        break;
-      }
-    }
-    if (ignored) continue;
+    if (matchesAnyGlob(file, ctx.ignorePatterns)) continue;
 
     // Symbols in boundary-covered files are considered covered
     if (boundaryFiles.has(file)) continue;
@@ -897,13 +889,7 @@ export async function getUncoveredSymbols(
   let targetFiles: string[] = files ?? indexedFilePaths;
 
   // 5. Filter out ignored files
-  targetFiles = targetFiles.filter((file) => {
-    for (const pattern of ignorePatterns) {
-      const glob = new Bun.Glob(pattern);
-      if (glob.match(file)) return false;
-    }
-    return true;
-  });
+  targetFiles = targetFiles.filter((file) => !matchesAnyGlob(file, ignorePatterns));
 
   // 6. Collect uncovered symbols
   let totalSymbols = 0;
