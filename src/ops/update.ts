@@ -40,6 +40,36 @@ import { syncCardFromFile } from './sync';
 import { buildSearchableText } from '../card/searchable-text';
 
 /**
+ * Throw a CardValidationError if `value` is not a fully-formed namespace body.
+ * Used so that partial-patch updates fail with a clear error rather than
+ * crashing later inside buildSearchableText / FTS indexer.
+ *
+ * The check is structural (matches the production normalizer's required-field
+ * shape via a temporary parse round-trip), not deep — sub-array contents are
+ * validated downstream by validateBriefRefs / validateSpecRefs at activation.
+ */
+function assertCompleteNamespace(field: 'principle' | 'domain' | 'brief' | 'spec', value: unknown): void {
+  if (value === null || value === undefined) return;
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new CardValidationError(`invalid ${field} namespace: must be an object`);
+  }
+  // Required top-level fields per card/types.ts namespaces.
+  const required: Record<typeof field, string[]> = {
+    principle: ['statement', 'rationale', 'applies_to', 'enforcement'],
+    domain: ['overview', 'scope'],
+    brief: ['context', 'scope', 'flow', 'design', 'policy', 'external', 'compatibility', 'limits', 'criteria', 'rationale'],
+    spec: ['preconditions', 'postconditions', 'invariants', 'failures'],
+  };
+  const obj = value as Record<string, unknown>;
+  const missing = required[field].filter((k) => obj[k] === undefined);
+  if (missing.length > 0) {
+    throw new CardValidationError(
+      `${field} namespace is incomplete; --patch replaces the entire namespace and cannot omit required fields. Missing: ${missing.join(', ')}`,
+    );
+  }
+}
+
+/**
  * Partial update fields passed to `updateCard`.
  * Fields set to `undefined` are left unchanged. `null` deletes the field.
  */
@@ -189,19 +219,19 @@ export async function updateCard(
       }
       if (fields.principle !== undefined) {
         if (fields.principle === null) delete next.principle;
-        else next.principle = fields.principle;
+        else { assertCompleteNamespace('principle', fields.principle); next.principle = fields.principle; }
       }
       if (fields.domain !== undefined) {
         if (fields.domain === null) delete next.domain;
-        else next.domain = fields.domain;
+        else { assertCompleteNamespace('domain', fields.domain); next.domain = fields.domain; }
       }
       if (fields.brief !== undefined) {
         if (fields.brief === null) delete next.brief;
-        else next.brief = fields.brief;
+        else { assertCompleteNamespace('brief', fields.brief); next.brief = fields.brief; }
       }
       if (fields.spec !== undefined) {
         if (fields.spec === null) delete next.spec;
-        else next.spec = fields.spec;
+        else { assertCompleteNamespace('spec', fields.spec); next.spec = fields.spec; }
       }
       // Glossary validation (M2, M3) — only when explicitly provided
       const glossaryEntries = readGlossary(ctx);

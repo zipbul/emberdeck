@@ -1199,7 +1199,7 @@ describe('writeSpecAnnotations', () => {
       searchSymbols: () => [],
     });
 
-    const result = await writeSpecAnnotations(tc.ctx);
+    const result = await writeSpecAnnotations(tc.ctx, undefined, { prune: true });
     expect(result.removed).toBe(1);
     expect(result.annotated).toBe(0);
 
@@ -1231,7 +1231,7 @@ describe('writeSpecAnnotations', () => {
       searchSymbols: () => [],
     });
 
-    const result = await writeSpecAnnotations(tc.ctx);
+    const result = await writeSpecAnnotations(tc.ctx, undefined, { prune: true });
     expect(result.removed).toBe(1);
 
     const content = await readSourceFile(projectRoot, relPath);
@@ -1262,7 +1262,7 @@ describe('writeSpecAnnotations', () => {
       searchSymbols: () => [],
     });
 
-    const result = await writeSpecAnnotations(tc.ctx);
+    const result = await writeSpecAnnotations(tc.ctx, undefined, { prune: true });
     expect(result.removed).toBe(1);
 
     const content = await readSourceFile(projectRoot, relPath);
@@ -1297,7 +1297,7 @@ describe('writeSpecAnnotations', () => {
       ],
     });
 
-    const result = await writeSpecAnnotations(tc.ctx);
+    const result = await writeSpecAnnotations(tc.ctx, undefined, { prune: true });
     expect(result.removed).toBe(1);
     expect(result.annotated).toBe(1);
 
@@ -1323,7 +1323,7 @@ describe('writeSpecAnnotations', () => {
       searchSymbols: () => [],
     });
 
-    const result = await writeSpecAnnotations(tc.ctx);
+    const result = await writeSpecAnnotations(tc.ctx, undefined, { prune: true });
     expect(result.removed).toBe(2);
     expect(result.annotated).toBe(0);
 

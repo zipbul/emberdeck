@@ -191,6 +191,7 @@ export interface WriteSpecResult {
 export async function writeSpecAnnotations(
   ctx: EmberdeckContext,
   cardKey?: string,
+  options?: { prune?: boolean },
 ): Promise<WriteSpecResult> {
   if (!ctx.gildash) throw new GildashNotConfiguredError();
   if (!ctx.projectRoot) throw new GildashNotConfiguredError();
@@ -243,12 +244,20 @@ export async function writeSpecAnnotations(
   const desiredSet = new Set(desiredEntries.map((e) => `${e.cardKey}:${e.file}:${e.symbol}`));
 
   // ── STEP 3: REMOVE — delete orphan @spec from source ──
+  //
+  // Default (prune=false): NEVER remove. Only add missing annotations for
+  // cards in DB. Author-written `@spec foo` hints for cards that don't exist
+  // yet (fresh-project onboarding) stay intact.
+  //
+  // prune=true (explicit opt-in via `ed spec annotate --prune`): remove
+  // annotations whose (cardKey, file, symbol) is not in the desired set.
+  // Use after `ed card delete` / `ed reset` to clean up source.
 
-  // Group orphans by file for batched removal
   const orphansByFile = new Map<string, Array<{ cardKey: string; symbol: string }>>();
-  for (const actual of actualEntries) {
-    const key = `${actual.cardKey}:${actual.file}:${actual.symbol}`;
-    if (!desiredSet.has(key)) {
+  if (options?.prune) {
+    for (const actual of actualEntries) {
+      const key = `${actual.cardKey}:${actual.file}:${actual.symbol}`;
+      if (desiredSet.has(key)) continue;
       const list = orphansByFile.get(actual.file) ?? [];
       list.push({ cardKey: actual.cardKey, symbol: actual.symbol });
       orphansByFile.set(actual.file, list);

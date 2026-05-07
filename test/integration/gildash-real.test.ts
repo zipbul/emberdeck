@@ -260,3 +260,43 @@ describe('integration: real Gildash + fixture project', () => {
     expect(annotations.map((a) => a.value.trim())).toContain('domain/types');
   });
 });
+
+// ── Separate suite: writeSpecAnnotations against a FRESH project must NOT
+//    delete author-written @spec/@brief annotations whose target cards don't
+//    exist yet. Regression for a destructive bug found via fresh-agent test.
+describe('integration: spec annotate is non-destructive on fresh project', () => {
+  let ctx: EmberdeckContext;
+  let cleanup: () => Promise<void>;
+  let projectRoot: string;
+
+  beforeAll(async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'ed-fresh-annot-'));
+    const cardsDir = join(tmp, 'cards');
+    projectRoot = join(tmp, 'project');
+    await mkdir(cardsDir, { recursive: true });
+    await cp(FIXTURE_SRC, projectRoot, { recursive: true });
+    ctx = await setupEmberdeck({ cardsDir, dbPath: ':memory:', projectRoot });
+    cleanup = async () => {
+      await teardownEmberdeck(ctx);
+      await rm(tmp, { recursive: true, force: true });
+    };
+    if (!ctx.gildash) throw new Error('Gildash failed to initialize');
+  });
+
+  afterAll(async () => { await cleanup(); });
+
+  it('writeSpecAnnotations on fresh project (no cards) preserves @spec annotations in source', async () => {
+    const { writeSpecAnnotations } = await import('../../src/ops/spec-sync');
+    // No cards have been created yet. Annotations exist in fixture sources.
+    const result = await writeSpecAnnotations(ctx);
+    // Must NOT remove any annotation — every @spec value points to a card
+    // that doesn't exist in DB yet, which means the author wrote them as
+    // intent hints, not as managed markers.
+    expect(result.removed).toBe(0);
+    // Verify by re-reading source: the @spec line is still there.
+    const jwtSrc = await Bun.file(join(projectRoot, 'src/auth/jwt.ts')).text();
+    expect(jwtSrc).toContain('@spec auth/jwt-token');
+    const sessionSrc = await Bun.file(join(projectRoot, 'src/auth/session.ts')).text();
+    expect(sessionSrc).toContain('@spec auth/session');
+  });
+});

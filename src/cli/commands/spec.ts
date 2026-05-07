@@ -16,11 +16,12 @@ export function registerSpec(program: Command): void {
   // ── spec annotate ──
   spec
     .command('annotate [key]')
-    .description('write @spec card-key JSDoc tags into source code (idempotent)')
-    .action(async (key: string | undefined, _opts, cmd) => {
+    .description('add @spec card-key JSDoc tags into source code (additive only by default; use --prune to also remove orphans)')
+    .option('--prune', 'remove @spec annotations whose card no longer has a matching code link (DESTRUCTIVE — use after card delete or reset)')
+    .action(async (key: string | undefined, opts: { prune?: boolean }, cmd) => {
             await run(
         async (rt: CliRuntime) => {
-          const result = await writeSpecAnnotations(rt.ctx, key);
+          const result = await writeSpecAnnotations(rt.ctx, key, { prune: !!opts.prune });
           const data = {
             annotated: result.annotated,
             already_present: result.alreadyPresent,

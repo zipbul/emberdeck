@@ -9,7 +9,9 @@ description: Emberdeck `ed` CLI 로 카드 기반 설계 지식 관리. emberdec
 3. 모든 카드 생성/갱신 전 `<self_review>` 통과.
 4. `glossary.yaml` 에 항목 ≥1 시 신규 카드의 `glossary` 필드 필수 (주요 토픽만).
 5. 4-tier strict: `principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용.
-6. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드.
+6. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 12 의 ignorePatterns 에 명시 추가 (rule 6 우선).
+7. `--patch` 는 namespace 전체 교체 (merge X). 누락 필수 필드 시 `VALIDATION_ERROR`. 부분 업데이트가 필요하면 카드 파일 직접 편집 후 `ed bulk sync`.
+8. `ed spec annotate` 는 기본 additive (DB 카드의 codeLink 대로 source 에 `@spec` 추가). orphan 제거는 `--prune` 플래그 명시 시에만 (card delete / reset 후 정리용).
 </rules>
 
 <route>
@@ -101,11 +103,11 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed validate links [KEY]` | codeLinks resolve 검증 | X |
 | `ed validate` | cards + links 종합 | X |
 | `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | 6종 drift 다중 검출. 기본 active→drifted 자동 전이. CI 는 `--no-auto-transition`. | 예 (status 변경) |
-| `ed check coverage [KEY] [--uncovered\|--suggest]` | 카드별/프로젝트 커버리지/제안 | X |
+| `ed check coverage <KEY>` 또는 `ed check coverage --uncovered\|--suggest` | KEY 위치인자 또는 모드 플래그 둘 중 하나 필수. 둘 다 없으면 `CLI_USAGE_ERROR` | X |
 | `ed check impact <files...> [--symbol N]` | 변경 전 영향 분석 | X |
 | `ed check regression <files...>` | drifted 비율 vs threshold. fail 시 exit 2 | X |
 | `ed check interactions <keys...>` | shared symbol/file/import + 충돌 | X |
-| `ed spec annotate [KEY]` | 소스 `@spec` JSDoc 재구성 (멱등) | 예 |
+| `ed spec annotate [KEY] [--prune]` | 기본 additive — DB codeLink → source `@spec` JSDoc 추가만. `--prune` 명시 시 orphan(매칭 codeLink 사라진 어노테이션) 제거 | 예 (`--prune` 시) |
 | `ed spec sync` | 소스 `@spec` → DB codeLinks 재구성 | X |
 | `ed spec sync-symbols [--since TS]` | renamed/moved 심볼 적용 | X |
 | `ed bulk create --from FILE` | YAML/JSON 배열 일괄 생성. partial → exit 2 | 예 |
@@ -153,13 +155,13 @@ exit: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permission
 | `brief.scope.non_goals` | ✓ | `[{id: NG-001, statement}]` |
 | `brief.scope.assumptions` | ✓ | `[{id: A-001, statement, verification?, reevaluate_when?}]` |
 | `brief.flow` | ✓ | `[{id: S-H-01\|S-F-01, kind: happy\|failure, given, when, then, covers: [G-id]}]`, ≥1 happy + ≥1 failure |
-| `brief.design` | ✓ | `{overview, components[], data_flow[], invariants: [{id: DI-001, statement}]}` |
+| `brief.design` | ✓ | `{overview, components: [{name, responsibility, interacts_with: []}], data_flow: [{from, to, payload, trigger}], invariants: [{id: DI-001, statement}]}`. `interacts_with`/`data_flow` 는 빈 배열 OK |
 | `brief.policy` | ✓ | `[{id: R-001, subject, keyword: MUST\|SHALL\|.., predicate, governs: [S-id]}]` |
 | `brief.external` | ✓ | `[{id: C-001, statement, reference: {title, locator}}]` |
-| `brief.compatibility` | ✓ | `{guarantees[], migration_path?}` |
+| `brief.compatibility` | ✓ | `{guarantees: [{subject, version_range, breaks_if}], migration_path?}`. `guarantees` 빈 배열 OK |
 | `brief.limits` | ✓ | `[{id: KL-001, statement}]` |
-| `brief.criteria` | ✓ | `[{id: SC-001, type: numeric\|binary\|verification, measure, verifies: [S-id]}]`, 모두 flow 가 verifies |
-| `brief.rationale` | ✓ | `{alternatives: [≥2개 {option, pros, cons}], chosen: {option, reasoning}, trade_off?, addresses: [external/limits id]}` |
+| `brief.criteria` | ✓ | `[{id: SC-001, type, measure, verifies: [S-id]}]`. `measure` 는 type 별 다른 객체: `numeric` → `{predicate, value, comparator, unit, reference?}`, `binary` → `{predicate, method?, reference?}`, `verification` → `{method, reference, predicate?, unit?}`. 모두 flow 가 verifies |
+| `brief.rationale` | ✓ | `{alternatives: [≥2개 {option, pros: [], cons: []}], chosen: {option, reasoning}, trade_off?, addresses: []}`. `addresses` 빈 배열이라도 키는 필수 |
 
 cross-ref 자동 검증: `flow.covers→goals`, `policy.governs→flow`, `criteria.verifies→flow`, `rationale.addresses→external\|limits`. 모든 goal 은 flow 가 cover, 모든 flow 는 policy/criteria 양쪽에 매핑.
 
@@ -334,6 +336,31 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
   "declared":N,"resolved":N,"broken":N,"unresolved":N,
   "internal_links":N,      // 조건부: > 0 (비-export 심볼 링크)
   "internal_details":[{"key":"...","file":"...","symbol":"..."}]
+}}
+```
+
+`ed card list`:
+```json
+{"data":{
+  "items":[{"key":"...","type":"...","status":"...","summary":"...","parent":"..."|null}],
+  "total":N,
+  "page":{"limit":N,"offset":N,"has_more":bool}
+}}
+```
+
+`ed check coverage <key>`:
+```json
+{"data":{
+  "key":"...","total_symbols":N,"covered_symbols":N,"coverage_ratio":0~1|null,
+  "uncovered":[{"file":"...","symbol":"...","kind":"..."}]
+}}
+```
+
+`ed check coverage --suggest`:
+```json
+{"data":{
+  "suggestions":[{"key":"...","type":"domain|spec","files":N,"symbols":N,"reason":"...","suggested_glossary":[]}],
+  "total":N
 }}
 ```
 
