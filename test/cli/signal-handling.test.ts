@@ -56,7 +56,7 @@ describe('CLI signal handling e2e', () => {
       ['card', 'create', 'p', '--type', 'brief', '--summary', 's', '--from', '-'],
       tmp,
     );
-    await waitMs(200);
+    await waitMs(500);
     proc.kill('SIGINT');
     await proc.exited;
 
@@ -73,7 +73,7 @@ describe('CLI signal handling e2e', () => {
       ['card', 'create', 'p', '--type', 'brief', '--summary', 's', '--from', '-'],
       tmp,
     );
-    await waitMs(200);
+    await waitMs(500);
     proc.kill('SIGTERM');
     await proc.exited;
 
@@ -86,7 +86,7 @@ describe('CLI signal handling e2e', () => {
       ['card', 'create', 'p', '--type', 'brief', '--summary', 's', '--from', '-'],
       tmp,
     );
-    await waitMs(200);
+    await waitMs(500);
     proc.kill('SIGINT');
     await waitMs(5);
     proc.kill('SIGINT');

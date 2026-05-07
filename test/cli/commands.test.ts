@@ -4,30 +4,14 @@
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { runEd } from './helpers';
 
+// Some tests still need real subprocess: STDIN piping, ANSI/env var verification.
+// These import the CLI entry path directly.
 const CLI = join(import.meta.dir, '../../cli.ts');
-
-interface RunResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-async function runCli(args: string[], cwd: string, env: Record<string, string> = {}): Promise<RunResult> {
-  const proc = Bun.spawn(['bun', CLI, ...args], {
-    cwd,
-    env: { ...process.env, ...env, NO_COLOR: '1' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  await proc.exited;
-  return { exitCode: proc.exitCode ?? -1, stdout, stderr };
-}
 
 describe('CLI: basic invocation', () => {
   let tmp: string;
@@ -52,7 +36,7 @@ describe('CLI: basic invocation', () => {
   });
 
   test('--help exits 0 and prints usage', async () => {
-    const r = await runCli(['--help'], tmp);
+    const r = await runEd(['--help'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('Usage: ed');
     expect(r.stdout).toContain('Commands:');
@@ -62,13 +46,13 @@ describe('CLI: basic invocation', () => {
   });
 
   test('--version exits 0 and prints version', async () => {
-    const r = await runCli(['--version'], tmp);
+    const r = await runEd(['--version'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   test('card --help shows subcommands', async () => {
-    const r = await runCli(['card', '--help'], tmp);
+    const r = await runEd(['card', '--help'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toContain('get');
     expect(r.stdout).toContain('list');
@@ -95,7 +79,7 @@ describe('CLI: card list (empty project)', () => {
   });
 
   test('JSON output has unified schema', async () => {
-    const r = await runCli(['card', 'list'], tmp);
+    const r = await runEd(['card', 'list'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.schemaVersion).toEqual({ major: 1, minor: 0 });
@@ -108,7 +92,7 @@ describe('CLI: card list (empty project)', () => {
   });
 
   test('quiet output is empty for empty list', async () => {
-    const r = await runCli(['--quiet', 'card', 'list'], tmp);
+    const r = await runEd(['--quiet', 'card', 'list'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stdout).toBe('');
   });
@@ -132,7 +116,7 @@ describe('CLI: card create + get (lifecycle)', () => {
   });
 
   test('create then get a brief card', async () => {
-    const create = await runCli(
+    const create = await runEd(
       ['card', 'create', 'test-brief', '--type', 'brief', '--summary', 'A test brief'],
       tmp,
     );
@@ -141,7 +125,7 @@ describe('CLI: card create + get (lifecycle)', () => {
     expect(created.status).toBe('ok');
     expect(created.data.key).toBe('test-brief');
 
-    const get = await runCli(['card', 'get', 'test-brief'], tmp);
+    const get = await runEd(['card', 'get', 'test-brief'], tmp);
     expect(get.exitCode).toBe(0);
     const fetched = JSON.parse(get.stdout);
     expect(fetched.status).toBe('ok');
@@ -151,7 +135,7 @@ describe('CLI: card create + get (lifecycle)', () => {
   });
 
   test('get nonexistent card → exit 3 + status=error', async () => {
-    const r = await runCli(['card', 'get', 'nonexistent'], tmp);
+    const r = await runEd(['card', 'get', 'nonexistent'], tmp);
     expect(r.exitCode).toBe(3);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('error');
@@ -159,8 +143,8 @@ describe('CLI: card create + get (lifecycle)', () => {
   });
 
   test('create duplicate → exit 4 + status=error', async () => {
-    await runCli(['card', 'create', 'dup', '--type', 'brief', '--summary', 'first'], tmp);
-    const second = await runCli(
+    await runEd(['card', 'create', 'dup', '--type', 'brief', '--summary', 'first'], tmp);
+    const second = await runEd(
       ['card', 'create', 'dup', '--type', 'brief', '--summary', 'second'],
       tmp,
     );
@@ -182,9 +166,9 @@ describe('CLI: card list filters', () => {
       JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
     );
     mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
-    await runCli(['card', 'create', 'b1', '--type', 'brief', '--summary', 'first'], tmp);
-    await runCli(['card', 'create', 'b2', '--type', 'brief', '--summary', 'second'], tmp);
-    await runCli(['card', 'create', 's1', '--type', 'spec', '--summary', 'spec one'], tmp);
+    await runEd(['card', 'create', 'b1', '--type', 'brief', '--summary', 'first'], tmp);
+    await runEd(['card', 'create', 'b2', '--type', 'brief', '--summary', 'second'], tmp);
+    await runEd(['card', 'create', 's1', '--type', 'spec', '--summary', 'spec one'], tmp);
   });
 
   afterEach(() => {
@@ -192,7 +176,7 @@ describe('CLI: card list filters', () => {
   });
 
   test('--type filter narrows results', async () => {
-    const r = await runCli(['card', 'list', '--type', 'brief'], tmp);
+    const r = await runEd(['card', 'list', '--type', 'brief'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.data.total).toBe(2);
@@ -200,7 +184,7 @@ describe('CLI: card list filters', () => {
   });
 
   test('--limit + --offset paginates', async () => {
-    const r = await runCli(['card', 'list', '--limit', '2', '--offset', '0'], tmp);
+    const r = await runEd(['card', 'list', '--limit', '2', '--offset', '0'], tmp);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.data.items).toHaveLength(2);
     expect(parsed.data.total).toBe(3);
@@ -208,14 +192,14 @@ describe('CLI: card list filters', () => {
   });
 
   test('--file without --symbol → error', async () => {
-    const r = await runCli(['card', 'list', '--file', 'foo.ts'], tmp);
+    const r = await runEd(['card', 'list', '--file', 'foo.ts'], tmp);
     expect(r.exitCode).not.toBe(0);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.error.message).toContain('--symbol');
   });
 
   test('--symbol with no matches returns empty list', async () => {
-    const r = await runCli(['card', 'list', '--symbol', 'nonExistentSymbol'], tmp);
+    const r = await runEd(['card', 'list', '--symbol', 'nonExistentSymbol'], tmp);
     // gildash not configured here so symbol search returns empty
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
@@ -223,7 +207,7 @@ describe('CLI: card list filters', () => {
   });
 
   test('--glossary with no glossary defined returns empty', async () => {
-    const r = await runCli(['card', 'list', '--glossary', 'undefined-word'], tmp);
+    const r = await runEd(['card', 'list', '--glossary', 'undefined-word'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.data.items).toEqual([]);
@@ -241,7 +225,7 @@ describe('CLI: card update', () => {
       JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
     );
     mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
-    await runCli(['card', 'create', 'foo', '--type', 'brief', '--summary', 'orig'], tmp);
+    await runEd(['card', 'create', 'foo', '--type', 'brief', '--summary', 'orig'], tmp);
   });
 
   afterEach(() => {
@@ -249,17 +233,17 @@ describe('CLI: card update', () => {
   });
 
   test('update via --field summary=...', async () => {
-    const r = await runCli(['card', 'update', 'foo', '--field', 'summary=updated'], tmp);
+    const r = await runEd(['card', 'update', 'foo', '--field', 'summary=updated'], tmp);
     expect(r.exitCode).toBe(0);
-    const get = await runCli(['card', 'get', 'foo'], tmp);
+    const get = await runEd(['card', 'get', 'foo'], tmp);
     const fetched = JSON.parse(get.stdout);
     expect(fetched.data.summary).toBe('updated');
   });
 
   test('update via --summary shortcut', async () => {
-    const r = await runCli(['card', 'update', 'foo', '--summary', 'shortcut'], tmp);
+    const r = await runEd(['card', 'update', 'foo', '--summary', 'shortcut'], tmp);
     expect(r.exitCode).toBe(0);
-    const get = await runCli(['card', 'get', 'foo'], tmp);
+    const get = await runEd(['card', 'get', 'foo'], tmp);
     const fetched = JSON.parse(get.stdout);
     expect(fetched.data.summary).toBe('shortcut');
   });
@@ -283,7 +267,7 @@ describe('CLI: validate cards', () => {
   });
 
   test('empty project validates as ok', async () => {
-    const r = await runCli(['validate', 'cards'], tmp);
+    const r = await runEd(['validate', 'cards'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('ok');
@@ -326,7 +310,7 @@ describe('CLI: STDIN input', () => {
     expect(parsed.status).toBe('ok');
     expect(parsed.data.key).toBe('from-stdin');
 
-    const get = await runCli(['card', 'get', 'from-stdin'], tmp);
+    const get = await runEd(['card', 'get', 'from-stdin'], tmp);
     const fetched = JSON.parse(get.stdout);
     expect(fetched.data.summary).toBe('from stdin');
   });
@@ -350,7 +334,7 @@ describe('CLI: STDIN input', () => {
   });
 
   test('card update --body - large STDIN (10KB)', async () => {
-    await runCli(['card', 'create', 'big-body', '--type', 'brief', '--summary', 'orig'], tmp);
+    await runEd(['card', 'create', 'big-body', '--type', 'brief', '--summary', 'orig'], tmp);
     const big = 'x'.repeat(10_000);
     const proc = Bun.spawn(['bun', CLI, 'card', 'update', 'big-body', '--body', '-'], {
       cwd: tmp,
@@ -365,13 +349,13 @@ describe('CLI: STDIN input', () => {
     await proc.exited;
     expect(proc.exitCode).toBe(0);
 
-    const get = await runCli(['card', 'get', 'big-body'], tmp);
+    const get = await runEd(['card', 'get', 'big-body'], tmp);
     const fetched = JSON.parse(get.stdout);
     expect(fetched.data.body.length).toBeGreaterThanOrEqual(10_000);
   });
 
   test('card update --body - reads body from STDIN', async () => {
-    await runCli(['card', 'create', 'with-body', '--type', 'brief', '--summary', 'orig'], tmp);
+    await runEd(['card', 'create', 'with-body', '--type', 'brief', '--summary', 'orig'], tmp);
     const newBody = 'fresh body content\n';
     const proc = Bun.spawn(['bun', CLI, 'card', 'update', 'with-body', '--body', '-'], {
       cwd: tmp,
@@ -386,7 +370,7 @@ describe('CLI: STDIN input', () => {
     await proc.exited;
     expect(proc.exitCode).toBe(0);
 
-    const get = await runCli(['card', 'get', 'with-body'], tmp);
+    const get = await runEd(['card', 'get', 'with-body'], tmp);
     const fetched = JSON.parse(get.stdout);
     expect(fetched.data.body).toContain('fresh body content');
   });
@@ -411,7 +395,7 @@ describe('CLI: gildash-required commands without projectRoot', () => {
   });
 
   test('check coverage --uncovered without gildash → exit 6', async () => {
-    const r = await runCli(['check', 'coverage', '--uncovered'], tmp);
+    const r = await runEd(['check', 'coverage', '--uncovered'], tmp);
     expect(r.exitCode).toBe(6);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('error');
@@ -419,7 +403,7 @@ describe('CLI: gildash-required commands without projectRoot', () => {
   });
 
   test('check coverage --suggest without gildash → exit 6', async () => {
-    const r = await runCli(['check', 'coverage', '--suggest'], tmp);
+    const r = await runEd(['check', 'coverage', '--suggest'], tmp);
     expect(r.exitCode).toBe(6);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.error.code).toBe('GILDASH_NOT_CONFIGURED');
@@ -477,7 +461,7 @@ describe('CLI: --verbose', () => {
   });
 
   test('--verbose emits [verbose] lines to stderr', async () => {
-    const r = await runCli(['--verbose', 'card', 'list'], tmp);
+    const r = await runEd(['--verbose', 'card', 'list'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).toContain('[verbose]');
     expect(r.stderr).toContain('buildRuntime');
@@ -486,7 +470,7 @@ describe('CLI: --verbose', () => {
 
   test('--verbose does NOT leak error message contents (only class name)', async () => {
     // Trigger CardNotFoundError; key contains a token-like marker.
-    const proc = await runCli(
+    const proc = await runEd(
       ['--verbose', 'card', 'get', 'token-MY-SECRET-abc'],
       tmp,
     );
@@ -504,7 +488,7 @@ describe('CLI: --verbose', () => {
   });
 
   test('without --verbose stderr stays clean for ok command', async () => {
-    const r = await runCli(['card', 'list'], tmp);
+    const r = await runEd(['card', 'list'], tmp);
     expect(r.exitCode).toBe(0);
     expect(r.stderr).not.toContain('[verbose]');
   });
@@ -528,13 +512,13 @@ describe('CLI: invalid invocation', () => {
   });
 
   test('unknown subcommand → non-zero exit, error to stderr', async () => {
-    const r = await runCli(['nonexistent-command'], tmp);
+    const r = await runEd(['nonexistent-command'], tmp);
     expect(r.exitCode).not.toBe(0);
     expect(r.stderr).toMatch(/error|unknown command/i);
   });
 
   test('missing required arg → non-zero exit', async () => {
-    const r = await runCli(['card', 'get'], tmp);
+    const r = await runEd(['card', 'get'], tmp);
     expect(r.exitCode).not.toBe(0);
     expect(r.stderr).toMatch(/missing required argument/i);
   });
