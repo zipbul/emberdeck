@@ -4,8 +4,8 @@ import type { EmberdeckContext } from '../config';
 import type { CodeLink } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
-import { GildashNotConfiguredError, CardNotFoundError } from '../card/errors';
-import { readCardFile } from '../fs/reader';
+import { GildashNotConfiguredError } from '../card/errors';
+import { readCardFileOrThrow } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { parseStringArrayJson } from '../card/json-fields';
 import { matchesAnyGlob } from '../util/glob';
@@ -129,10 +129,7 @@ export interface ValidateCodeLinksResult {
 async function readCard(ctx: EmberdeckContext, fullKey: string) {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
-  if (!(await Bun.file(filePath).exists())) {
-    throw new CardNotFoundError(key);
-  }
-  return readCardFile(filePath);
+  return readCardFileOrThrow(filePath, key);
 }
 
 /**

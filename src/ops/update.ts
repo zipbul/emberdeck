@@ -12,7 +12,7 @@ import type {
 } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
-import { CardNotFoundError, CardValidationError } from '../card/errors';
+import { CardValidationError } from '../card/errors';
 import {
   validateCardInput,
   validateParentExists,
@@ -27,7 +27,7 @@ import { readGlossary } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
 // Body section validation removed — namespace is canonical, body is free-form.
 
-import { readCardFile } from '../fs/reader';
+import { readCardFileOrThrow } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
@@ -101,17 +101,6 @@ export interface UpdateCardResult {
 }
 
 /**
- * Read a card file at the given path, asserting it exists and its frontmatter
- * key matches `expectedKey`. Throws CardNotFoundError on either failure.
- */
-async function readCardAtPath(filePath: string, expectedKey: string) {
-  if (!(await Bun.file(filePath).exists())) throw new CardNotFoundError(expectedKey);
-  const current = await readCardFile(filePath);
-  if (current.frontmatter.key !== expectedKey) throw new CardNotFoundError(expectedKey);
-  return current;
-}
-
-/**
  * Partially updates an existing card.
  *
  * - `fields` entries set to `undefined` are left unchanged.
@@ -156,7 +145,7 @@ export async function updateCard(
 
   return withCardLock(ctx, key, () =>
     withRetry(async () => {
-      const current = await readCardAtPath(filePath, key);
+      const current = await readCardFileOrThrow(filePath, key, { checkKey: true });
 
       const prev = current.frontmatter;
       const next: CardFrontmatter = { ...prev };
@@ -421,7 +410,7 @@ export async function updateCardStatus(
 
   return withCardLock(ctx, key, () =>
     withRetry(async () => {
-      const current = await readCardAtPath(filePath, key);
+      const current = await readCardFileOrThrow(filePath, key, { checkKey: true });
 
       // Activation guard for active status
       if (status === 'active') {

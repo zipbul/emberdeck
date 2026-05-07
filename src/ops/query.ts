@@ -3,7 +3,7 @@ import type { CardFile, CardStatus, CardType } from '../card/types';
 import type { CardRow, CardListFilter, RelationRow, ChangelogRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
-import { readCardFile } from '../fs/reader';
+import { readCardFileOrThrow } from '../fs/reader';
 import { resolveCardCodeLinks, type ResolvedCodeLink } from './link';
 
 /**
@@ -94,8 +94,7 @@ export async function getCardContext(
 ): Promise<CardContext> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
-  if (!(await Bun.file(filePath).exists())) throw new CardNotFoundError(key);
-  const card = await readCardFile(filePath);
+  const card = await readCardFileOrThrow(filePath, key);
 
   let codeLinks: ResolvedCodeLink[] = [];
   if (ctx.gildash) {
@@ -167,8 +166,7 @@ export async function getCard(
 ): Promise<GetCardResult> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
-  if (!(await Bun.file(filePath).exists())) throw new CardNotFoundError(key);
-  const card = await readCardFile(filePath);
+  const card = await readCardFileOrThrow(filePath, key);
 
   const result: GetCardResult = { card };
   if (options?.includeHistory) {
