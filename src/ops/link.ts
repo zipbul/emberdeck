@@ -10,28 +10,10 @@ import { writeCardFile } from '../fs/writer';
 import { parseStringArrayJson } from '../card/json-fields';
 
 /**
- * Resolution-friendly limit for `searchSymbols` / `searchAnnotations`.
- * Gildash 0.26 default is unbounded; pin to keep memory predictable when an
- * exact-match query unexpectedly fans out (e.g. overloaded function names).
+ * `searchAnnotations` page-size cap. Gildash default is unbounded; pin to
+ * keep memory predictable when an annotation tag has many call sites.
  */
-export const GILDASH_SEARCH_LIMIT = 100;
 export const GILDASH_ANNOTATION_LIMIT = 10000;
-
-/**
- * Match a gildash symbol against a (file, symbolName) pair.
- *
- * Gildash 0.26 returns qualified names for class/interface members
- * (e.g. `"ClassName.methodName"`) with the unqualified piece in `memberName`.
- * Cards typically store the unqualified form, so we accept either.
- */
-export function symbolMatches(
-  s: Pick<SymbolSearchResult, 'name' | 'memberName' | 'filePath'>,
-  file: string,
-  symbolName: string,
-): boolean {
-  if (s.filePath !== file) return false;
-  return s.name === symbolName || s.memberName === symbolName;
-}
 
 /**
  * Per-file symbol cache backed by `getSymbolsByFile`. Project-aware: in a
