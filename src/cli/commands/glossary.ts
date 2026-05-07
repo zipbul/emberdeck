@@ -69,7 +69,6 @@ export function registerGlossary(program: Command): void {
             updated: result.results.filter((r) => r.action === 'updated').length,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -91,7 +90,6 @@ export function registerGlossary(program: Command): void {
             total: (result.entries ?? []).length,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -113,7 +111,6 @@ export function registerGlossary(program: Command): void {
           const result = await removeGlossary(rt.ctx, word);
           return ok({ removed: result.removed, affected_card_keys: result.affectedCardKeys });
         },
-        [],
         globalFlags,
       );
     });
@@ -145,7 +142,6 @@ export function registerGlossary(program: Command): void {
           }
           return ok(data);
         },
-        [],
         globalFlags,
       );
     });

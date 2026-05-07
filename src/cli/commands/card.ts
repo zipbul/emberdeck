@@ -121,7 +121,6 @@ export function registerCard(program: Command): void {
             ...(result.history ? { history: result.history } : {}),
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -208,7 +207,6 @@ export function registerCard(program: Command): void {
             page: { limit, offset, has_more: offset + items.length < total },
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -269,7 +267,6 @@ export function registerCard(program: Command): void {
             status: result.card.frontmatter.status,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -325,7 +322,6 @@ export function registerCard(program: Command): void {
             warnings,
           );
         },
-        [],
         globalFlags,
       );
     });
@@ -347,7 +343,6 @@ export function registerCard(program: Command): void {
           const result = await deleteCard(rt.ctx, key, { force: opts.force });
           return ok({ key, filePath: result.filePath });
         },
-        [],
         globalFlags,
       );
     });
@@ -379,7 +374,6 @@ export function registerCard(program: Command): void {
           }
           return ok(data);
         },
-        [],
         globalFlags,
       );
     });
@@ -417,7 +411,6 @@ export function registerCard(program: Command): void {
             page: { limit, offset, has_more: offset + items.length < total },
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -444,7 +437,6 @@ export function registerCard(program: Command): void {
           // STDOUT (default): content goes into data.content (jq-friendly).
           return ok({ key, mode: 'stdout', bytes: content.length, content });
         },
-        [],
         globalFlags,
       );
     });
@@ -468,7 +460,6 @@ export function registerCard(program: Command): void {
             filePath: result.filePath,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -484,7 +475,6 @@ export function registerCard(program: Command): void {
           const tree = getCardTree(rt.ctx, key, opts.depth);
           return ok(tree);
         },
-        [],
         globalFlags,
       );
     });
@@ -517,7 +507,6 @@ export function registerCard(program: Command): void {
             code_links_total: ctx.codeLinks.length,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -537,7 +526,6 @@ export function registerCard(program: Command): void {
             total: relations.length,
           });
         },
-        [],
         globalFlags,
       );
     });

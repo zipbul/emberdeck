@@ -59,7 +59,6 @@ export function registerValidate(program: Command): void {
           };
           return allErrors.length === 0 ? ok(data) : partial(data, allErrors);
         },
-        [],
         globalFlags,
         {
           partialIsFailure: true,
@@ -105,7 +104,6 @@ export function registerValidate(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        [],
         globalFlags,
         {
           partialIsFailure: true,
@@ -152,7 +150,6 @@ export function registerValidate(program: Command): void {
           if (errors.length === 0) return ok(data);
           return partial(data, errors);
         },
-        [],
         globalFlags,
         {
           partialIsFailure: true,

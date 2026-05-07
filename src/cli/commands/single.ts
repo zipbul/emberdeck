@@ -119,7 +119,6 @@ export function registerSingle(program: Command): void {
             gitignore_updated: gitignoreUpdated,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -151,7 +150,6 @@ export function registerSingle(program: Command): void {
             unlinked_symbols: result.unlinkedSymbols,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -177,7 +175,6 @@ export function registerSingle(program: Command): void {
             db_reset: result.dbReset,
           });
         },
-        [],
         globalFlags,
       );
     });

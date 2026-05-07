@@ -83,7 +83,6 @@ export function registerBulk(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        [],
         globalFlags,
         {
           // bulk create with any failure → exit 2 (CI gate signal). Pure success → exit 0.
@@ -127,7 +126,6 @@ export function registerBulk(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        [],
         globalFlags,
         {
           partialIsFailure: true,

@@ -8,7 +8,7 @@ import { render, statusToExitCode, type CliResult } from './output';
 import { toCliError } from './errors';
 import { EXIT } from './exit-codes';
 
-export type CommandFn = (rt: CliRuntime, args: unknown[]) => Promise<CliResult>;
+export type CommandFn = (rt: CliRuntime) => Promise<CliResult>;
 
 /**
  * Build an OutputContext for the catch path when buildRuntime() failed.
@@ -36,13 +36,11 @@ export function classifyErrorStatus(code: string): 'unknown' | 'error' {
  * Execute a command with full lifecycle: build runtime, run, render, exit.
  *
  * @param fn - Command implementation
- * @param args - Positional + option args from Commander
  * @param globalFlags - Global flags (already extracted)
  * @param options - render/exit overrides
  */
 export async function run(
   fn: CommandFn,
-  args: unknown[],
   globalFlags: GlobalFlags,
   options: { partialIsFailure?: boolean } = {},
 ): Promise<void> {
@@ -80,7 +78,7 @@ export async function run(
     verboseLog(`buildRuntime: config=${globalFlags.config ?? '(auto)'} dir=${globalFlags.dir ?? '(default)'}`);
     rt = await buildRuntime(globalFlags);
     verboseLog(`runtime ready: cardsDir=${rt.ctx.cardsDir} gildash=${rt.ctx.gildash ? 'on' : 'off'}`);
-    result = await fn(rt, args);
+    result = await fn(rt);
     verboseLog(`command done: status=${result.status} warnings=${result.warnings.length} errors=${result.errors.length}`);
   } catch (e) {
     // Verbose only emits the error class name; full message goes to user via render(),

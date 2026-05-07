@@ -35,7 +35,6 @@ export function registerSpec(program: Command): void {
           }
           return ok(data);
         },
-        [],
         globalFlags,
       );
     });
@@ -62,7 +61,6 @@ export function registerSpec(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        [],
         globalFlags,
       );
     });
@@ -130,7 +128,6 @@ export function registerSpec(program: Command): void {
             ? ok(data, [{ code: 'METADATA_WRITE_FAILED', message: upsertWarning }])
             : ok(data);
         },
-        [],
         globalFlags,
       );
     });

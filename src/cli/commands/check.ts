@@ -32,7 +32,6 @@ export function registerCheck(program: Command): void {
             total_drifted: result.health.drifted,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -85,7 +84,6 @@ export function registerCheck(program: Command): void {
             unreferenced_total: cov.unreferenced.length,
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -109,7 +107,6 @@ export function registerCheck(program: Command): void {
             ...(result.maxFanIn !== undefined ? { max_fan_in: result.maxFanIn } : {}),
           });
         },
-        [],
         globalFlags,
       );
     });
@@ -141,7 +138,6 @@ export function registerCheck(program: Command): void {
             affected: result.affectedCards,
           });
         },
-        [],
         globalFlags,
         {
           partialIsFailure: true,
@@ -164,7 +160,6 @@ export function registerCheck(program: Command): void {
             undefined_relations: result.undefinedRelations,
           });
         },
-        [],
         globalFlags,
       );
     });
