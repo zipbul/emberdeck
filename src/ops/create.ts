@@ -140,12 +140,10 @@ export async function createCard(
       // Glossary validation (M1, M2, M3)
       // Progressive enforcement: required only when glossary.yaml has entries
       const glossaryEntries = readGlossary(ctx);
-      if (glossaryEntries.length > 0) {
-        if (!input.glossary || input.glossary.length === 0) {
-          throw new GlossaryValidationError('glossary field is required when project glossary exists');
-        }
-        validateCardGlossaryField(input.glossary, glossaryEntries);
-      } else if (input.glossary && input.glossary.length > 0) {
+      if (glossaryEntries.length > 0 && (!input.glossary || input.glossary.length === 0)) {
+        throw new GlossaryValidationError('glossary field is required when project glossary exists');
+      }
+      if (input.glossary && input.glossary.length > 0) {
         validateCardGlossaryField(input.glossary, glossaryEntries);
       }
 
