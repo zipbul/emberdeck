@@ -313,9 +313,7 @@ export async function analyze(
         try {
           const has = await ctx.gildash.hasCycle(project);
           if (!has) continue;
-          const cycles = project
-            ? await ctx.gildash.getCyclePaths(project, { maxCycles: MAX_CYCLES_FETCH })
-            : await ctx.gildash.getCyclePaths(undefined, { maxCycles: MAX_CYCLES_FETCH });
+          const cycles = await ctx.gildash.getCyclePaths(project, { maxCycles: MAX_CYCLES_FETCH });
           allCycles.push(...cycles);
           if (allCycles.length >= MAX_CYCLES_FETCH) break;
         } catch {
