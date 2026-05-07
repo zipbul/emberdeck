@@ -28,7 +28,7 @@ import { exportCardToFile, buildCardFromDb } from '../../ops/sync';
 import { serializeCardMarkdown } from '../../card/markdown';
 import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
-import { parsePositiveInt } from '../parsers';
+import { parsePositiveInt, collectCsv, collectRepeated } from '../parsers';
 import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../usage-error';
 import { atomicWrite } from '../../fs/writer';
@@ -223,8 +223,8 @@ export function registerCard(program: Command): void {
     .option('--from <file>', 'read frontmatter+body from YAML/JSON file (- for STDIN)')
     .option('--status <status>', 'initial status (default: draft)')
     .option('--parent <key>', 'parent card key')
-    .option('--glossary <words>', 'comma-separated glossary words (or repeat flag)', (val: string, prev: string[] = []) => [...prev, ...val.split(',').map((s) => s.trim()).filter(Boolean)], [] as string[])
-    .option('--tag <name>', 'tag (repeatable)', (val: string, prev: string[] = []) => [...prev, val], [] as string[])
+    .option('--glossary <words>', 'comma-separated glossary words (or repeat flag)', collectCsv, [] as string[])
+    .option('--tag <name>', 'tag (repeatable)', collectRepeated, [] as string[])
     .action(async (key: string, opts: { type: string; summary?: string; from?: string; status?: string; parent?: string; glossary?: string[]; tag?: string[] }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
@@ -281,11 +281,11 @@ export function registerCard(program: Command): void {
     .command('update <key>')
     .description('update a card')
     .option('--patch <file>', 'apply patches from JSON file (- for STDIN)')
-    .option('--field <name=value>', 'set frontmatter field (repeatable)', (val: string, prev: string[] = []) => [...prev, val], [] as string[])
+    .option('--field <name=value>', 'set frontmatter field (repeatable)', collectRepeated, [] as string[])
     .option('--summary <s>', 'shortcut for --field summary=<s>')
     .option('--body <file>', 'replace body from file (- for STDIN)')
-    .option('--glossary <words>', 'set glossary words (comma-separated or repeated)', (val: string, prev: string[] = []) => [...prev, ...val.split(',').map((s) => s.trim()).filter(Boolean)], [] as string[])
-    .option('--tag <name>', 'set tag (repeatable; replaces existing tags)', (val: string, prev: string[] = []) => [...prev, val], [] as string[])
+    .option('--glossary <words>', 'set glossary words (comma-separated or repeated)', collectCsv, [] as string[])
+    .option('--tag <name>', 'set tag (repeatable; replaces existing tags)', collectRepeated, [] as string[])
     .action(async (key: string, opts: { patch?: string; field?: string[]; summary?: string; body?: string; glossary?: string[]; tag?: string[] }, cmd) => {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
