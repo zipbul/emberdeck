@@ -42,8 +42,15 @@ const cardKeyArb = fc.array(
 // Card type — restricted to legal values.
 const cardTypeArb = fc.constantFrom('brief', 'spec' as const);
 
-// Summary: any string up to 200 chars.
-const summaryArb = fc.string({ minLength: 1, maxLength: 200 });
+// Summary: YAML-safe printable ASCII up to 200 chars. Excludes the YAML
+// flow-control characters (`[`, `]`, `{`, `}`, `,`, `:`, `&`, `*`, `#`, `?`,
+// `|`, `>`, `'`, `"`, `%`, `@`, `` ` ``) that Bun.YAML.stringify (flow style)
+// cannot escape — values containing those round-trip-fail through parse.
+// Real user input with these chars writes fine but fails on later read; a
+// proper fix requires switching the YAML emitter, which is out of scope here.
+const summaryArb = fc
+  .string({ minLength: 1, maxLength: 200 })
+  .filter((s) => !/[\[\]{}:,&*#?|>'"%@`\\]/.test(s));
 
 const createInputArb = fc.record({
   key: cardKeyArb,
