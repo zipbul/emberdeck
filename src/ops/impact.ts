@@ -216,20 +216,14 @@ export async function preChangeCheck(
 
   // Generate suggested actions
   const suggestedActions: string[] = [];
-  for (const card of affectedCards.filter((c) => c.linkType === 'direct')) {
-    suggestedActions.push(
-      `Review card "${card.key}" — ${card.affectedLinks} code link(s) affected.`,
-    );
-  }
-  for (const card of affectedCards.filter((c) => c.linkType === 'boundary')) {
-    suggestedActions.push(
-      `Review card "${card.key}" — file is within its boundary scope.`,
-    );
-  }
-  for (const card of affectedCards.filter((c) => c.linkType === 'transitive')) {
-    suggestedActions.push(
-      `Check transitive dependency: ${card.key} (via ${card.via}).`,
-    );
+  for (const card of affectedCards) {
+    if (card.linkType === 'direct') {
+      suggestedActions.push(`Review card "${card.key}" — ${card.affectedLinks} code link(s) affected.`);
+    } else if (card.linkType === 'boundary') {
+      suggestedActions.push(`Review card "${card.key}" — file is within its boundary scope.`);
+    } else if (card.linkType === 'transitive') {
+      suggestedActions.push(`Check transitive dependency: ${card.key} (via ${card.via}).`);
+    }
   }
   if (newUncoveredFiles.length > 0) {
     suggestedActions.push(
