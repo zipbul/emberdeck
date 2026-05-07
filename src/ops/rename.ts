@@ -106,14 +106,7 @@ export async function renameCard(
           ) {
             referencingCards.push({ key: row.key, filePath: row.filePath });
           }
-        }
-
-        // Check body text for references to old key
-        for (const row of allCards) {
-          if (row.key === oldKey) continue;
-          if (row.body && row.body.includes(oldKey)) {
-            bodyReferencesFound.push(row.key);
-          }
+          if (row.body?.includes(oldKey)) bodyReferencesFound.push(row.key);
         }
 
         await mkdir(dirname(newFilePath), { recursive: true });
