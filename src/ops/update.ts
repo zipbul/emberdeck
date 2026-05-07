@@ -101,6 +101,17 @@ export interface UpdateCardResult {
 }
 
 /**
+ * Read a card file at the given path, asserting it exists and its frontmatter
+ * key matches `expectedKey`. Throws CardNotFoundError on either failure.
+ */
+async function readCardAtPath(filePath: string, expectedKey: string) {
+  if (!(await Bun.file(filePath).exists())) throw new CardNotFoundError(expectedKey);
+  const current = await readCardFile(filePath);
+  if (current.frontmatter.key !== expectedKey) throw new CardNotFoundError(expectedKey);
+  return current;
+}
+
+/**
  * Partially updates an existing card.
  *
  * - `fields` entries set to `undefined` are left unchanged.
@@ -145,14 +156,7 @@ export async function updateCard(
 
   return withCardLock(ctx, key, () =>
     withRetry(async () => {
-      if (!(await Bun.file(filePath).exists())) {
-        throw new CardNotFoundError(key);
-      }
-
-      const current = await readCardFile(filePath);
-      if (current.frontmatter.key !== key) {
-        throw new CardNotFoundError(key);
-      }
+      const current = await readCardAtPath(filePath, key);
 
       const prev = current.frontmatter;
       const next: CardFrontmatter = { ...prev };
@@ -417,14 +421,7 @@ export async function updateCardStatus(
 
   return withCardLock(ctx, key, () =>
     withRetry(async () => {
-      if (!(await Bun.file(filePath).exists())) {
-        throw new CardNotFoundError(key);
-      }
-
-      const current = await readCardFile(filePath);
-      if (current.frontmatter.key !== key) {
-        throw new CardNotFoundError(key);
-      }
+      const current = await readCardAtPath(filePath, key);
 
       // Activation guard for active status
       if (status === 'active') {
