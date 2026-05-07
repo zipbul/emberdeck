@@ -12,3 +12,22 @@ export function parseStringArrayJson(json: string | null | undefined): string[] 
     return [];
   }
 }
+
+export interface CrossDomainDependency {
+  domain: string;
+  relationship?: string;
+}
+
+/**
+ * Read `domain.cross_domain_dependencies` from a card's namespacesJson.
+ * Returns [] for non-domain cards / null input / malformed JSON.
+ */
+export function parseCrossDomainDependencies(namespacesJson: string | null | undefined): CrossDomainDependency[] {
+  if (!namespacesJson) return [];
+  try {
+    const ns = JSON.parse(namespacesJson) as { domain?: { cross_domain_dependencies?: CrossDomainDependency[] } };
+    return ns.domain?.cross_domain_dependencies ?? [];
+  } catch {
+    return [];
+  }
+}

@@ -1,3 +1,4 @@
+import { parseCrossDomainDependencies } from '../card/json-fields';
 import { mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -90,14 +91,10 @@ export async function renameCard(
         // also be rewritten when renaming a domain card.
         const crossDomainRefSrcKeys = new Set<string>();
         for (const row of allCards) {
-          if (row.type !== 'domain' || !row.namespacesJson || row.key === oldKey) continue;
-          try {
-            const ns = JSON.parse(row.namespacesJson) as { domain?: { cross_domain_dependencies?: Array<{ domain: string }> } };
-            const deps = ns.domain?.cross_domain_dependencies ?? [];
-            if (deps.some((d) => d.domain === oldKey)) {
-              crossDomainRefSrcKeys.add(row.key);
-            }
-          } catch { /* malformed; skip */ }
+          if (row.type !== 'domain' || row.key === oldKey) continue;
+          if (parseCrossDomainDependencies(row.namespacesJson).some((d) => d.domain === oldKey)) {
+            crossDomainRefSrcKeys.add(row.key);
+          }
         }
 
         for (const row of allCards) {

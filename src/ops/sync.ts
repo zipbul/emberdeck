@@ -57,7 +57,7 @@ import { txDb } from '../db/connection';
 import { readGlossary } from '../glossary/io';
 
 
-import { parseStringArrayJson } from '../card/json-fields';
+import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json-fields';
 
 export interface BulkSyncResult {
   synced: number;
@@ -394,10 +394,9 @@ export async function validateCards(
     // exist AND be type=domain. Activation guard catches this on activate, but
     // we surface it here too so that a dangling dep after rename/delete is
     // visible without waiting for the next activation.
-    if (row.type === 'domain' && row.namespacesJson) {
-      try {
-        const ns = JSON.parse(row.namespacesJson) as { domain?: { cross_domain_dependencies?: Array<{ domain: string; relationship: string }> } };
-        const deps = ns.domain?.cross_domain_dependencies ?? [];
+    if (row.type === 'domain') {
+      const deps = parseCrossDomainDependencies(row.namespacesJson);
+      if (deps.length > 0) {
         for (const dep of deps) {
           const target = cardByKey.get(dep.domain);
           if (!target) {
@@ -420,7 +419,7 @@ export async function validateCards(
             });
           }
         }
-      } catch { /* malformed namespacesJson ignored — caught elsewhere */ }
+      }
     }
 
     // Broken relation: relation target does not exist

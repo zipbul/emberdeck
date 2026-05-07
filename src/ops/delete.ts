@@ -1,3 +1,4 @@
+import { parseCrossDomainDependencies } from '../card/json-fields';
 import type { EmberdeckContext } from '../config';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError, CardValidationError } from '../card/errors';
@@ -72,14 +73,10 @@ export async function deleteCard(
       // cross_domain_dependencies reference the card we're about to delete).
       const crossDomainDependents: Array<{ key: string; filePath: string }> = [];
       for (const row of ctx.cardRepo.list()) {
-        if (row.type !== 'domain' || row.key === key || !row.namespacesJson) continue;
-        try {
-          const ns = JSON.parse(row.namespacesJson) as { domain?: { cross_domain_dependencies?: Array<{ domain: string }> } };
-          const deps = ns.domain?.cross_domain_dependencies ?? [];
-          if (deps.some((d) => d.domain === key)) {
-            crossDomainDependents.push({ key: row.key, filePath: row.filePath });
-          }
-        } catch { /* skip malformed */ }
+        if (row.type !== 'domain' || row.key === key) continue;
+        if (parseCrossDomainDependencies(row.namespacesJson).some((d) => d.domain === key)) {
+          crossDomainDependents.push({ key: row.key, filePath: row.filePath });
+        }
       }
       if (crossDomainDependents.length > 0 && !force) {
         throw new CardValidationError(
