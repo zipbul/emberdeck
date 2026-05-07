@@ -23,10 +23,6 @@ const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as cons
  * misses 99% of the code. Returning project names lets callers route
  * subsequent per-file queries (`getSymbolsByFile`) to the right project.
  */
-function listAllIndexedFiles(ctx: EmberdeckContext): string[] {
-  return listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
-}
-
 function listAllIndexedFilesWithProject(
   ctx: EmberdeckContext,
 ): Array<{ filePath: string; project: string | undefined }> {
@@ -737,7 +733,7 @@ export async function getLinkCoverage(
 
   // Collect boundary-covered files for this card. Boundary expansion is done
   // against the gildash index aggregated across ALL projects (monorepo support).
-  const indexedFiles = listAllIndexedFiles(ctx);
+  const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
   const boundaryFiles = new Set<string>();
   const row = ctx.cardRepo.findByKey(fullKey);
   for (const pattern of parseStringArrayJson(row?.boundaryJson)) {
