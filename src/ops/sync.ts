@@ -47,6 +47,23 @@ function serializeNamespaces(fm: CardFrontmatter): string | null {
   return Object.keys(ns).length === 0 ? null : JSON.stringify(ns);
 }
 
+/**
+ * Type hierarchy rule (4-tier): principle/domain are root-only;
+ * brief.parent must be domain; spec.parent must be brief or spec.
+ * Returns null when the row is valid.
+ */
+function typeHierarchyViolationMessage(
+  rowType: CardType,
+  parentKey: string,
+  parentType: CardType,
+): string | null {
+  if (rowType === 'principle') return `Principle card must be root-level, but has parent "${parentKey}"`;
+  if (rowType === 'domain') return `Domain card must be root-level, but has parent "${parentKey}"`;
+  if (rowType === 'brief' && parentType !== 'domain') return `Brief card parent must be domain, got "${parentKey}" (type: ${parentType})`;
+  if (rowType === 'spec' && parentType !== 'brief' && parentType !== 'spec') return `Spec card parent must be brief or spec, got "${parentKey}" (type: ${parentType})`;
+  return null;
+}
+
 function parseNamespaces(json: string | null): { principle?: unknown; domain?: unknown; brief?: unknown; spec?: unknown } {
   if (!json) return {};
   try {
@@ -360,30 +377,9 @@ export async function validateCards(
     // 4-tier: principle/domain root, brief.parent=domain, spec.parent=brief|spec.
     if (row.parent && cardByKey.has(row.parent)) {
       const parent = cardByKey.get(row.parent)!;
-      if (row.type === 'principle') {
-        warnings.push({
-          type: 'type-hierarchy-violation',
-          cardKey: row.key,
-          message: `Principle card must be root-level, but has parent "${row.parent}"`,
-        });
-      } else if (row.type === 'domain') {
-        warnings.push({
-          type: 'type-hierarchy-violation',
-          cardKey: row.key,
-          message: `Domain card must be root-level, but has parent "${row.parent}"`,
-        });
-      } else if (row.type === 'brief' && parent.type !== 'domain') {
-        warnings.push({
-          type: 'type-hierarchy-violation',
-          cardKey: row.key,
-          message: `Brief card parent must be domain, got "${row.parent}" (type: ${parent.type})`,
-        });
-      } else if (row.type === 'spec' && parent.type !== 'brief' && parent.type !== 'spec') {
-        warnings.push({
-          type: 'type-hierarchy-violation',
-          cardKey: row.key,
-          message: `Spec card parent must be brief or spec, got "${row.parent}" (type: ${parent.type})`,
-        });
+      const violation = typeHierarchyViolationMessage(row.type as CardType, row.parent, parent.type as CardType);
+      if (violation) {
+        warnings.push({ type: 'type-hierarchy-violation', cardKey: row.key, message: violation });
       }
     }
 
