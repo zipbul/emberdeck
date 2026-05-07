@@ -111,32 +111,33 @@ export function statusToExitCode(
       return options.partialIsFailure ? EXIT.VALIDATION_FAILURE : EXIT.OK;
     case 'unknown':
       return EXIT.TRANSIENT;
-    case 'error': {
-      const code = result.error?.code;
-      if (code === 'CARD_NOT_FOUND' || code === 'NOT_FOUND') return EXIT.NOT_FOUND;
-      if (code === 'CARD_ALREADY_EXISTS' || code === 'CONFLICT' || code === 'RENAME_SAME_PATH') return EXIT.CONFLICT;
-      if (code === 'CONFIG_MISSING' || code === 'GILDASH_NOT_CONFIGURED') return EXIT.CONFIG_MISSING;
-      if (code === 'PERMISSION' || code === 'IO_ERROR') return EXIT.PERMISSION_OR_IO;
-      // All validation-class codes → exit 2 (CI-friendly).
-      // CLI_USAGE_ERROR is also exit 2 per bash convention for misuse.
-      if (
-        code === 'VALIDATION_ERROR' ||
-        code === 'VALIDATION_FAILURE' ||
-        code === 'INVALID_CARD_KEY' ||
-        code === 'PARENT_VALIDATION_ERROR' ||
-        code === 'BOUNDARY_VALIDATION_ERROR' ||
-        code === 'ACTIVATION_GUARD_FAILED' ||
-        code === 'GLOSSARY_PARSE_ERROR' ||
-        code === 'GLOSSARY_VALIDATION_ERROR' ||
-        code === 'CLI_USAGE_ERROR' ||
-        code === 'FTS_SYNTAX_ERROR'
-      ) {
-        return EXIT.VALIDATION_FAILURE;
-      }
-      return EXIT.GENERIC_ERROR;
-    }
+    case 'error':
+      return ERROR_CODE_TO_EXIT[result.error?.code ?? ''] ?? EXIT.GENERIC_ERROR;
   }
 }
+
+// CLI_USAGE_ERROR maps to exit 2 per bash convention for misuse.
+const ERROR_CODE_TO_EXIT: Record<string, ExitCode> = {
+  CARD_NOT_FOUND: EXIT.NOT_FOUND,
+  NOT_FOUND: EXIT.NOT_FOUND,
+  CARD_ALREADY_EXISTS: EXIT.CONFLICT,
+  CONFLICT: EXIT.CONFLICT,
+  RENAME_SAME_PATH: EXIT.CONFLICT,
+  CONFIG_MISSING: EXIT.CONFIG_MISSING,
+  GILDASH_NOT_CONFIGURED: EXIT.CONFIG_MISSING,
+  PERMISSION: EXIT.PERMISSION_OR_IO,
+  IO_ERROR: EXIT.PERMISSION_OR_IO,
+  VALIDATION_ERROR: EXIT.VALIDATION_FAILURE,
+  VALIDATION_FAILURE: EXIT.VALIDATION_FAILURE,
+  INVALID_CARD_KEY: EXIT.VALIDATION_FAILURE,
+  PARENT_VALIDATION_ERROR: EXIT.VALIDATION_FAILURE,
+  BOUNDARY_VALIDATION_ERROR: EXIT.VALIDATION_FAILURE,
+  ACTIVATION_GUARD_FAILED: EXIT.VALIDATION_FAILURE,
+  GLOSSARY_PARSE_ERROR: EXIT.VALIDATION_FAILURE,
+  GLOSSARY_VALIDATION_ERROR: EXIT.VALIDATION_FAILURE,
+  CLI_USAGE_ERROR: EXIT.VALIDATION_FAILURE,
+  FTS_SYNTAX_ERROR: EXIT.VALIDATION_FAILURE,
+};
 
 /**
  * Render a CliResult. JSON envelope on STDOUT; quiet mode prints
