@@ -7,6 +7,7 @@ import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { readGlossary } from '../glossary/io';
 import { ensureReindexed, gildashProjectNames, makeSymbolFileCache } from './link';
+import { parseStringArrayJson } from '../card/json-fields';
 
 
 // ── check_drift ──
@@ -489,8 +490,6 @@ export async function checkDrift(
 }
 
 // ── check_drift helpers ──
-
-import { parseStringArrayJson } from '../card/json-fields';
 
 
 
