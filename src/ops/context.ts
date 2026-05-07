@@ -8,6 +8,7 @@ import { writeCardFile } from '../fs/writer';
 import { readGlossary } from '../glossary/io';
 import { ensureReindexed, gildashProjectNames, makeSymbolFileCache } from './link';
 import { parseStringArrayJson } from '../card/json-fields';
+import { matchesAnyGlob } from '../util/glob';
 
 
 // ── check_drift ──
@@ -226,12 +227,8 @@ export async function checkDrift(
           const indexedFiles = getIndexedFilePaths();
           if (indexedFiles.size > 0) {
             canDecide = true;
-            for (const pattern of boundary) {
-              const glob = new Bun.Glob(pattern);
-              for (const filePath of indexedFiles) {
-                if (glob.match(filePath)) { anyMatch = true; break; }
-              }
-              if (anyMatch) break;
+            for (const filePath of indexedFiles) {
+              if (matchesAnyGlob(filePath, boundary)) { anyMatch = true; break; }
             }
           }
         }
@@ -265,17 +262,14 @@ export async function checkDrift(
         const cardUpdatedAt = row.updatedAt;
         const collected: SymbolChangeDetail[] = [];
         for (const [filePath, changes] of symbolChangesByFile) {
-          for (const pattern of boundary) {
-            const glob = new Bun.Glob(pattern);
-            if (glob.match(filePath)) {
-              for (const change of changes) {
-                if (change.changedAt > cardUpdatedAt) {
-                  collected.push({
-                    changeType: change.changeType,
-                    symbolName: change.symbolName,
-                    filePath: change.filePath,
-                  });
-                }
+          if (matchesAnyGlob(filePath, boundary)) {
+            for (const change of changes) {
+              if (change.changedAt > cardUpdatedAt) {
+                collected.push({
+                  changeType: change.changeType,
+                  symbolName: change.symbolName,
+                  filePath: change.filePath,
+                });
               }
             }
           }
