@@ -42,7 +42,7 @@ description: Emberdeck `ed` CLI 로 카드 기반 설계 지식 관리. emberdec
     - production 파일 함수 중 spec codeLinks 미커버 시 추가 검토
     - glossary 용어와 brief 토픽 양방향 정합
 11. GATE: `ed validate cards` (warnings 0)
-12. GATE: `ed check coverage --uncovered` — production 소스 미커버 시 spec 추가 또는 명시적 ignorePatterns
+12. GATE: `ed check coverage --uncovered` (exported-only). production 소스 exported symbol 미커버 시 spec 추가 또는 명시적 ignorePatterns. internal/private 멤버는 자동 제외 (contract = WHAT, internal = HOW)
 13. `ed spec annotate` → 모든 codeLinks 에 `@spec card-key` 주입
 </workflow>
 
@@ -103,7 +103,7 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed validate links [KEY]` | codeLinks resolve 검증 | X |
 | `ed validate` | cards + links 종합 | X |
 | `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | 6종 drift 다중 검출. 기본 active→drifted 자동 전이. CI 는 `--no-auto-transition`. | 예 (status 변경) |
-| `ed check coverage <KEY>` 또는 `ed check coverage --uncovered\|--suggest` | KEY 위치인자 또는 모드 플래그 둘 중 하나 필수. 둘 다 없으면 `CLI_USAGE_ERROR` | X |
+| `ed check coverage <KEY>` 또는 `ed check coverage --uncovered [--include-internal]\|--suggest` | KEY 위치인자 또는 모드 플래그 둘 중 하나 필수. `--uncovered` 는 기본 exported-only (internal/private 제외). `--include-internal` 로 전체 surface 포함 | X |
 | `ed check impact <files...> [--symbol N]` | 변경 전 영향 분석 | X |
 | `ed check regression <files...>` | drifted 비율 vs threshold. fail 시 exit 2 | X |
 | `ed check interactions <keys...>` | shared symbol/file/import + 충돌 | X |
