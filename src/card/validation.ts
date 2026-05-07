@@ -1,7 +1,7 @@
 import { CardValidationError, ParentValidationError, ActivationGuardError } from './errors';
 import { ensureReindexed, makeSymbolFileCache } from '../ops/link';
 import type { EmberdeckContext } from '../config';
-import type { BriefBody, CardFrontmatter, CardType, SpecBody } from './types';
+import type { BriefBody, CardFrontmatter, CardType, CardStatus, SpecBody } from './types';
 import { validateBriefRefs } from '../brief/validate-refs';
 import { validateSpecRefs } from '../spec/validate-refs';
 import { validatePrincipleCard } from '../principle/validate';
@@ -51,8 +51,6 @@ export interface ValidationInput {
 }
 
 import { CARD_TYPES, CARD_STATUSES } from './types';
-const VALID_TYPES = new Set<string>(CARD_TYPES);
-const VALID_STATUSES = new Set<string>(CARD_STATUSES);
 
 /**
  * Validates size limits of card input values.
@@ -70,9 +68,9 @@ export function validateCardInput(input: ValidationInput): void {
     if (typeof type !== 'string') {
       throw new CardValidationError(`Invalid card type: must be a string (got ${typeof type})`);
     }
-    if (!VALID_TYPES.has(type)) {
+    if (!CARD_TYPES.includes(type as CardType)) {
       throw new CardValidationError(
-        `Invalid card type "${type}" (expected one of: ${[...VALID_TYPES].join(', ')})`,
+        `Invalid card type "${type}" (expected one of: ${CARD_TYPES.join(', ')})`,
       );
     }
   }
@@ -82,9 +80,9 @@ export function validateCardInput(input: ValidationInput): void {
     if (typeof status !== 'string') {
       throw new CardValidationError(`Invalid card status: must be a string (got ${typeof status})`);
     }
-    if (!VALID_STATUSES.has(status)) {
+    if (!CARD_STATUSES.includes(status as CardStatus)) {
       throw new CardValidationError(
-        `Invalid card status "${status}" (expected one of: draft, active, drifted, retired)`,
+        `Invalid card status "${status}" (expected one of: ${CARD_STATUSES.join(', ')})`,
       );
     }
   }
