@@ -4,7 +4,7 @@
  * Top-level structure:
  *   ed card     {create, update, delete, rename, get, list, search, export, set-status, tree, context, relations}
  *   ed glossary {define, lookup, remove, rename}
- *   ed validate {(no arg), cards, links, brief}
+ *   ed validate {(no arg), cards, links}
  *   ed check    {drift, coverage, impact, regression, interactions}
  *   ed spec     {annotate, sync, sync-symbols}
  *   ed bulk     {create, sync}
