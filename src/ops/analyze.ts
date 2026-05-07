@@ -6,7 +6,7 @@ import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { buildCardFromDb } from './sync';
 import { parseStringArrayJson } from '../card/json-fields';
 import { matchesAnyGlob } from '../util/glob';
-import { ensureReindexed, gildashProjectNames } from './link';
+import { ensureReindexed, gildashProjectNames, listAllIndexedFilesWithProject } from './link';
 
 /** Days of changelog history to retain when pruning at the end of `analyze`. */
 const CHANGELOG_RETENTION_DAYS = 90;
@@ -182,16 +182,7 @@ export async function analyze(
   let staleBoundary = 0;
   if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
     await ensureReindexed(ctx);
-    // Aggregate across all gildash projects (monorepo support).
-    const indexedFiles: string[] = [];
-    for (const project of gildashProjectNames(ctx)) {
-      try {
-        const list = ctx.gildash.listIndexedFiles(project);
-        for (const f of list) indexedFiles.push(f.filePath);
-      } catch {
-        // skip
-      }
-    }
+    const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
     if (indexedFiles.length > 0) {
       for (const card of allCards) {
         const boundary = parseStringArrayJson(card.boundaryJson);
@@ -271,16 +262,7 @@ export async function analyze(
   ) {
     try {
       const uniqueFiles = new Map<string, string | undefined>();
-      for (const project of gildashProjectNames(ctx)) {
-        try {
-          const files = ctx.gildash.listIndexedFiles(project);
-          for (const f of files) {
-            if (!uniqueFiles.has(f.filePath)) uniqueFiles.set(f.filePath, project);
-          }
-        } catch {
-          // skip project
-        }
-      }
+      for (const f of listAllIndexedFilesWithProject(ctx)) uniqueFiles.set(f.filePath, f.project);
       // Count symbols by total length (NOT (file,name) dedup) — overloaded
       // functions with the same name in the same file ARE distinct symbols
       // in gildash. Matches `coverage.totalSymbols` counting semantics so

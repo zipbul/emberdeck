@@ -1,7 +1,7 @@
 import type { EmberdeckContext } from '../config';
 import type { CodeLink, CardType } from '../card/types';
 import { GildashNotConfiguredError } from '../card/errors';
-import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSymbolFileCache } from './link';
+import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSymbolFileCache, listAllIndexedFilesWithProject } from './link';
 import { parseStringArrayJson } from '../card/json-fields';
 import { matchesAnyGlob } from '../util/glob';
 import { atomicWrite } from '../fs/writer';
@@ -17,34 +17,6 @@ import { join, relative, dirname } from 'node:path';
  */
 const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as const;
 
-/**
- * Aggregate `listIndexedFiles` across all gildash projects with project
- * attribution. Default-arg `listIndexedFiles()` only sees the alphabetically-
- * first project — for monorepos like nestjs (51 projects, 10k+ files) that
- * misses 99% of the code. Returning project names lets callers route
- * subsequent per-file queries (`getSymbolsByFile`) to the right project.
- */
-function listAllIndexedFilesWithProject(
-  ctx: EmberdeckContext,
-): Array<{ filePath: string; project: string | undefined }> {
-  const gildash = ctx.gildash;
-  if (!gildash || typeof gildash.listIndexedFiles !== 'function') return [];
-  // Dedupe by filePath — gildash project boundaries can overlap (nestjs: same
-  // file appears in multiple sub-projects). Without dedup, callers iterate
-  // and double-count symbols. Keep the first project that lists a given file.
-  const seen = new Map<string, string | undefined>();
-  for (const project of gildashProjectNames(ctx)) {
-    try {
-      const files = gildash.listIndexedFiles(project);
-      for (const f of files) {
-        if (!seen.has(f.filePath)) seen.set(f.filePath, project);
-      }
-    } catch {
-      // skip project on failure
-    }
-  }
-  return [...seen.entries()].map(([filePath, project]) => ({ filePath, project }));
-}
 
 /**
  * Read all tracked annotation tags and dedupe by (filePath, symbolName, value).

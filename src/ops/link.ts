@@ -169,6 +169,31 @@ export function gildashProjectNames(ctx: EmberdeckContext): Array<string | undef
   return names.length > 0 ? names : [undefined];
 }
 
+/**
+ * Aggregate `listIndexedFiles` across all gildash projects with project
+ * attribution. Default-arg `listIndexedFiles()` only sees the alphabetically-
+ * first project — in monorepos that misses most of the code. Returning project
+ * names lets callers route per-file queries (`getSymbolsByFile`) to the right
+ * project. Dedupes by filePath — gildash project boundaries can overlap.
+ */
+export function listAllIndexedFilesWithProject(
+  ctx: EmberdeckContext,
+): Array<{ filePath: string; project: string | undefined }> {
+  const gildash = ctx.gildash;
+  if (!gildash || typeof gildash.listIndexedFiles !== 'function') return [];
+  const seen = new Map<string, string | undefined>();
+  for (const project of gildashProjectNames(ctx)) {
+    try {
+      for (const f of gildash.listIndexedFiles(project)) {
+        if (!seen.has(f.filePath)) seen.set(f.filePath, project);
+      }
+    } catch {
+      // skip project on failure
+    }
+  }
+  return [...seen.entries()].map(([filePath, project]) => ({ filePath, project }));
+}
+
 // ---- Operations ----
 
 /**
