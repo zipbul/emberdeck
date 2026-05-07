@@ -139,16 +139,7 @@ export async function removeGlossary(
     entries.splice(idx, 1);
     writeGlossary(ctx, entries);
 
-    // Scan all cards for references to the removed word
-    const allCards = ctx.cardRepo.list();
-    const affectedCardKeys: string[] = [];
-    for (const card of allCards) {
-      const glossaryJson = parseStringArrayJson(card.glossaryJson);
-      if (glossaryJson.includes(word)) {
-        affectedCardKeys.push(card.key);
-      }
-    }
-
+    const affectedCardKeys = cardsContainingGlossaryWord(ctx, word).map((c) => c.key);
     return { removed: word, affectedCardKeys };
   });
 }
@@ -206,14 +197,7 @@ export async function renameGlossary(
     }
 
     // Collect affected cards before any mutation
-    const allCards = ctx.cardRepo.list();
-    const affectedCards: CardRow[] = [];
-    for (const card of allCards) {
-      const glossaryJson = parseStringArrayJson(card.glossaryJson);
-      if (glossaryJson.includes(oldWord)) {
-        affectedCards.push(card);
-      }
-    }
+    const affectedCards = cardsContainingGlossaryWord(ctx, oldWord);
 
     // Write glossary.yaml FIRST (file before DB — if this fails, nothing changed)
     const originalEntries = entries.map((e) => ({ ...e }));
@@ -297,15 +281,13 @@ export function findCardsByGlossaryWord(
   ctx: EmberdeckContext,
   word: string,
 ): GlossaryCardMatch[] {
-  const allCards = ctx.cardRepo.list();
-  const matches: GlossaryCardMatch[] = [];
-  for (const card of allCards) {
-    const glossary = parseStringArrayJson(card.glossaryJson);
-    if (glossary.includes(word)) {
-      matches.push({ key: card.key, summary: card.summary });
-    }
-  }
-  return matches;
+  return cardsContainingGlossaryWord(ctx, word).map((c) => ({ key: c.key, summary: c.summary }));
+}
+
+function cardsContainingGlossaryWord(ctx: EmberdeckContext, word: string): CardRow[] {
+  return ctx.cardRepo
+    .list()
+    .filter((c) => parseStringArrayJson(c.glossaryJson).includes(word));
 }
 
 // ── reset ─────────────────────────────────────────────────────────────────
