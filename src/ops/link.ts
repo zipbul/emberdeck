@@ -8,6 +8,7 @@ import { GildashNotConfiguredError, CardNotFoundError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { parseStringArrayJson } from '../card/json-fields';
+import { matchesAnyGlob } from '../util/glob';
 
 /**
  * `searchAnnotations` page-size cap. Gildash default is unbounded; pin to
@@ -234,14 +235,9 @@ export async function findCardsBySymbol(
     for (const card of allCards) {
       if (seen.has(card.key)) continue;
       const boundaries = parseStringArrayJson(card.boundaryJson);
-      if (boundaries.length === 0) continue;
-      for (const pattern of boundaries) {
-        const glob = new Bun.Glob(pattern);
-        if (glob.match(filePath)) {
-          seen.add(card.key);
-          result.push({ card, matchType: 'boundary' });
-          break;
-        }
+      if (boundaries.length > 0 && matchesAnyGlob(filePath, boundaries)) {
+        seen.add(card.key);
+        result.push({ card, matchType: 'boundary' });
       }
     }
   }

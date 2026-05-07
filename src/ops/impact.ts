@@ -4,6 +4,7 @@ import { getRelationGraph } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { parseStringArrayJson } from '../card/json-fields';
+import { matchesAnyGlob } from '../util/glob';
 import { SymbolFileCache, expandAffectedFiles, makeSymbolFileCache, gildashProjectNames } from './link';
 
 // ── pre_change_check ──
@@ -76,19 +77,8 @@ export async function preChangeCheck(
     const boundary = parseStringArrayJson(card.boundaryJson);
     if (boundary.length === 0) continue;
 
-    for (const file of files) {
-      let matched = false;
-      for (const pattern of boundary) {
-        const glob = new Bun.Glob(pattern);
-        if (glob.match(file)) {
-          matched = true;
-          break;
-        }
-      }
-      if (matched) {
-        boundaryCards.set(card.key, card);
-        break;
-      }
+    if (files.some((f) => matchesAnyGlob(f, boundary))) {
+      boundaryCards.set(card.key, card);
     }
   }
 
@@ -151,28 +141,14 @@ export async function preChangeCheck(
     const boundary = parseStringArrayJson(card.boundaryJson);
     if (boundary.length === 0) continue;
     for (const file of files) {
-      for (const pattern of boundary) {
-        const glob = new Bun.Glob(pattern);
-        if (glob.match(file)) {
-          coveredFiles.add(file);
-        }
-      }
+      if (matchesAnyGlob(file, boundary)) coveredFiles.add(file);
     }
   }
 
   const newUncoveredFiles: string[] = [];
   for (const file of files) {
     if (coveredFiles.has(file)) continue;
-    // Apply ignorePatterns
-    let ignored = false;
-    for (const pattern of ctx.ignorePatterns) {
-      const glob = new Bun.Glob(pattern);
-      if (glob.match(file)) {
-        ignored = true;
-        break;
-      }
-    }
-    if (!ignored) {
+    if (!matchesAnyGlob(file, ctx.ignorePatterns)) {
       newUncoveredFiles.push(file);
     }
   }
