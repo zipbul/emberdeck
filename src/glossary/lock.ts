@@ -47,7 +47,7 @@ export async function withGlossaryLock<T>(
   }
 
   try {
-    return await Promise.resolve(fn());
+    return await fn();
   } finally {
     releaseSystemLock(ctx, GLOSSARY_LOCK_NAME);
     release!();

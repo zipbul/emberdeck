@@ -53,7 +53,7 @@ export async function withRetry<T>(
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await Promise.resolve(fn());
+      return await fn();
     } catch (err) {
       if (!isSqliteBusy(err)) {
         throw err;
@@ -89,7 +89,7 @@ export async function withCardLock<T>(
   await prev;
 
   try {
-    return await Promise.resolve(fn());
+    return await fn();
   } finally {
     release!();
     if (locks.get(key) === current) {

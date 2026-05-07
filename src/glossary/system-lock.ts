@@ -183,7 +183,7 @@ export async function withSystemLock<T>(
 ): Promise<T> {
   await acquireSystemLock(ctx, name);
   try {
-    return await Promise.resolve(fn());
+    return await fn();
   } finally {
     releaseSystemLock(ctx, name);
   }
