@@ -10,6 +10,19 @@ import { ensureReindexed, gildashProjectNames } from './link';
 /** Days of changelog history to retain when pruning at the end of `analyze`. */
 const CHANGELOG_RETENTION_DAYS = 90;
 
+/**
+ * Read a card's body via buildCardFromDb so the returned text does NOT include
+ * the FTS5-only namespace tail concatenated into row.body at sync time.
+ * Returns null if the card cannot be reconstructed.
+ */
+function readBodyFromDb(ctx: import('../config').EmberdeckContext, key: string): string | null {
+  try {
+    return buildCardFromDb(ctx, key).body;
+  } catch {
+    return null;
+  }
+}
+
 // ── Types ──
 
 export interface AnalyzeHealth {
@@ -142,16 +155,7 @@ export async function analyze(
         brokenLinks: card.brokenLinks,
         totalLinks: card.totalLinks,
       };
-      if (includeBody) {
-        try {
-          // Use buildCardFromDb so the body returned to callers does NOT include
-          // the FTS5-only namespace tail concatenated into row.body at sync time.
-          const cardFile = buildCardFromDb(ctx, card.key);
-          entry.body = cardFile.body;
-        } catch {
-          entry.body = null;
-        }
-      }
+      if (includeBody) entry.body = readBodyFromDb(ctx, card.key);
       driftedCards.push(entry);
     } else if (card.status === 'drifted') {
       // No drift detected now, but card was previously marked drifted in DB
@@ -163,16 +167,7 @@ export async function analyze(
         brokenLinks: card.brokenLinks,
         totalLinks: card.totalLinks,
       };
-      if (includeBody) {
-        try {
-          // Use buildCardFromDb so the body returned to callers does NOT include
-          // the FTS5-only namespace tail concatenated into row.body at sync time.
-          const cardFile = buildCardFromDb(ctx, card.key);
-          entry.body = cardFile.body;
-        } catch {
-          entry.body = null;
-        }
-      }
+      if (includeBody) entry.body = readBodyFromDb(ctx, card.key);
       driftedCards.push(entry);
     } else {
       active++;
