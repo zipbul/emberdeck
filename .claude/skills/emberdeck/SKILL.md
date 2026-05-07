@@ -174,7 +174,7 @@ cross-ref 자동 검증: `flow.covers→goals`, `policy.governs→flow`, `criter
 | `spec.preconditions` | ✓ | `[{id: PRE-001, condition, binds: [{file, symbol}], derives: "brief-key#item-id"}]`, ≥1 |
 | `spec.postconditions` | ✓ | `[{id: POST-001, guarantee, keyword: MUST\|SHALL, binds, derives}]`, ≥1 |
 | `spec.invariants` | ✓ | `[{id: INV-001, statement, binds, always_holds: per-call\|cross-call\|cross-process}]`, ≥1 |
-| `spec.failures` | ✓ | `[{violation, behavior, exception: {class, file}}]`, ≥1 |
+| `spec.failures` | ✓ | `[{violation, behavior, exception: {class, file}}]`, ≥1. 비-throwing failure (return null / error code) 는 `exception: {class: "none", file: ""}` |
 | `spec.state_transitions` | | `[{from, trigger, to, binds}]` |
 | `spec.code_patterns` | | `[{id: PAT-001, pattern: "ast-grep", rule: forbidden\|required, description?}]`. boundary 안에서만 매칭. mass-flip 주의 — N 카드에 같은 패턴 추가 시 N 카드 일괄 drifted 자동 전이 |
 | `boundary` | | `["src/auth/**"]` glob 배열 |
