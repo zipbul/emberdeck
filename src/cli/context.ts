@@ -22,7 +22,6 @@ export interface GlobalFlags {
 export interface CliRuntime {
   ctx: EmberdeckContext;
   output: OutputContext;
-  verbose: boolean;
   cleanup: () => Promise<void>;
 }
 
@@ -59,7 +58,6 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
   return {
     ctx,
     output: { mode },
-    verbose: !!flags.verbose,
     cleanup: () => teardownEmberdeck(ctx),
   };
 }
