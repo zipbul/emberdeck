@@ -105,7 +105,7 @@ export const cardChangelog = sqliteTable(
  * Cross-process advisory lock for serialization of mutations across multiple
  * `ed` CLI invocations. SQLite UNIQUE on `name` provides atomic acquisition.
  * Stale-lock recovery uses (pid, start_time_ticks) to defeat PID recycling.
- * See CLI_PLAN §9.1.
+ * See system_lock table.
  */
 export const systemLock = sqliteTable('system_lock', {
   name: text('name').primaryKey(),

@@ -1,5 +1,5 @@
 /**
- * `ed spec` subcommands per CLI_PLAN §4.5.
+ * `ed spec` subcommands
  */
 
 import { Command } from 'commander';

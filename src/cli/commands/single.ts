@@ -1,6 +1,6 @@
 /**
  * Single top-level commands: analyze, reset.
- * Per CLI_PLAN §4.7.
+ * Single top-level commands: init, analyze, reset.
  */
 
 import { mkdir, writeFile, readFile, stat, appendFile } from 'node:fs/promises';

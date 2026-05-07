@@ -1,6 +1,6 @@
 /**
  * Map ops-layer errors → CliMessage with stable error codes.
- * Stable codes are part of the JSON schema contract (CLI_PLAN §3).
+ * Stable codes are part of the JSON schema contract.
  */
 
 import {

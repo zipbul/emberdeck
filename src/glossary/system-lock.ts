@@ -1,7 +1,7 @@
 /**
  * Cross-process advisory lock backed by SQLite system_lock table.
  *
- * See CLI_PLAN §9.1.
+ * See system_lock table.
  *
  * - Acquire: SELECT existing → liveness check (PID + start_time) → CAS DELETE if stale → INSERT.
  * - Release: DELETE WHERE name + pid match (no-op if already released).

@@ -1,5 +1,5 @@
 /**
- * `ed glossary` subcommands per CLI_PLAN §4.2.
+ * `ed glossary` subcommands
  */
 
 import { Command } from 'commander';

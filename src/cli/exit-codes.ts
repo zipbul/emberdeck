@@ -1,5 +1,5 @@
 /**
- * CLI exit codes per CLI_PLAN §2.3.
+ * CLI exit codes
  * Scripts can branch on these to distinguish failure modes.
  */
 export const EXIT = {

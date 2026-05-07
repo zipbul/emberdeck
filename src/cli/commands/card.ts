@@ -1,5 +1,5 @@
 /**
- * `ed card` subcommands per CLI_PLAN §4.1 (12 commands, migrate excluded per user decision).
+ * `ed card` subcommands (12 commands, migrate excluded per user decision).
  */
 
 import { Command } from 'commander';

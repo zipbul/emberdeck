@@ -6,7 +6,7 @@ import { acquireSystemLock, releaseSystemLock } from './system-lock';
  *
  * Two layers:
  * 1. In-process: Promise chaining (FIFO within same process). Same pattern as withCardLock.
- * 2. Cross-process: SQLite system_lock table (CLI_PLAN §9.1) — defeats PID recycling
+ * 2. Cross-process: SQLite system_lock table — defeats PID recycling
  *    via (pid, start_time_ticks) tuple, CAS DELETE on stale recovery.
  *
  * Read-only operations (lookup) do NOT acquire this lock.

@@ -1,5 +1,5 @@
 /**
- * `ed bulk` subcommands per CLI_PLAN §4.6.
+ * `ed bulk` subcommands
  */
 
 import { Command } from 'commander';
