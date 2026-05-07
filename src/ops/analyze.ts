@@ -186,7 +186,7 @@ export async function analyze(
     const indexedFiles: string[] = [];
     for (const project of gildashProjectNames(ctx)) {
       try {
-        const list = project ? ctx.gildash.listIndexedFiles(project) : ctx.gildash.listIndexedFiles();
+        const list = ctx.gildash.listIndexedFiles(project);
         for (const f of list) indexedFiles.push(f.filePath);
       } catch {
         // skip
@@ -273,7 +273,7 @@ export async function analyze(
       const uniqueFiles = new Map<string, string | undefined>();
       for (const project of gildashProjectNames(ctx)) {
         try {
-          const files = project ? ctx.gildash.listIndexedFiles(project) : ctx.gildash.listIndexedFiles();
+          const files = ctx.gildash.listIndexedFiles(project);
           for (const f of files) {
             if (!uniqueFiles.has(f.filePath)) uniqueFiles.set(f.filePath, project);
           }
@@ -288,7 +288,7 @@ export async function analyze(
       let symbolTotal = 0;
       for (const [file, project] of uniqueFiles) {
         try {
-          const syms = project ? ctx.gildash.getSymbolsByFile(file, project) : ctx.gildash.getSymbolsByFile(file);
+          const syms = ctx.gildash.getSymbolsByFile(file, project);
           symbolTotal += syms.length;
         } catch {
           // skip file
@@ -311,7 +311,7 @@ export async function analyze(
       const allCycles: string[][] = [];
       for (const project of gildashProjectNames(ctx)) {
         try {
-          const has = project ? await ctx.gildash.hasCycle(project) : await ctx.gildash.hasCycle();
+          const has = await ctx.gildash.hasCycle(project);
           if (!has) continue;
           const cycles = project
             ? await ctx.gildash.getCyclePaths(project, { maxCycles: MAX_CYCLES_FETCH })

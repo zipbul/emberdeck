@@ -145,7 +145,7 @@ export async function checkDrift(
       if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
         for (const project of gildashProjectNames(ctx)) {
           try {
-            const list = project ? ctx.gildash.listIndexedFiles(project) : ctx.gildash.listIndexedFiles();
+            const list = ctx.gildash.listIndexedFiles(project);
             for (const f of list) all.push(f.filePath);
           } catch {
             // skip
@@ -636,7 +636,7 @@ export async function checkInteractions(
   if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
     for (const project of gildashProjectNames(ctx)) {
       try {
-        const list = project ? ctx.gildash.listIndexedFiles(project) : ctx.gildash.listIndexedFiles();
+        const list = ctx.gildash.listIndexedFiles(project);
         for (const f of list) indexedFiles.push(f.filePath);
       } catch {
         // skip
@@ -783,7 +783,7 @@ function detectImportDependencies(
       const allDeps = new Set<string>();
       for (const project of projects) {
         try {
-          const fileDeps = project ? gildash.getDependencies(src, project) : gildash.getDependencies(src);
+          const fileDeps = gildash.getDependencies(src, project);
           for (const dep of fileDeps) allDeps.add(dep);
         } catch {
           // graceful degradation

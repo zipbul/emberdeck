@@ -189,7 +189,7 @@ export async function preChangeCheck(
     for (const file of files) {
       for (const project of projectNames) {
         try {
-          const deps = project ? ctx.gildash.getDependents(file, project) : ctx.gildash.getDependents(file);
+          const deps = ctx.gildash.getDependents(file, project);
           for (const d of deps) directDependentsSet.add(d);
         } catch {
           // best-effort

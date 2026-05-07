@@ -35,7 +35,7 @@ function listAllIndexedFilesWithProject(
   const seen = new Map<string, string | undefined>();
   for (const project of gildashProjectNames(ctx)) {
     try {
-      const files = project ? gildash.listIndexedFiles(project) : gildash.listIndexedFiles();
+      const files = gildash.listIndexedFiles(project);
       for (const f of files) {
         if (!seen.has(f.filePath)) seen.set(f.filePath, project);
       }
