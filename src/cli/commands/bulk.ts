@@ -46,10 +46,6 @@ function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: A
   return { ok, errors };
 }
 
-async function readStdin(): Promise<string> {
-  return await Bun.stdin.text();
-}
-
 export function registerBulk(program: Command): void {
   const bulk = program.command('bulk').description('batch operations');
 
@@ -62,7 +58,7 @@ export function registerBulk(program: Command): void {
       const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
       await run(
         async (rt: CliRuntime) => {
-          const text = opts.from === '-' ? await readStdin() : await readFile(opts.from, 'utf-8');
+          const text = opts.from === '-' ? await Bun.stdin.text() : await readFile(opts.from, 'utf-8');
           const parsed = parseJsonOrYaml(text);
           if (!Array.isArray(parsed)) {
             throw new CliUsageError('--from FILE must be an array of card inputs');

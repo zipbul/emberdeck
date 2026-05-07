@@ -17,9 +17,6 @@ interface YamlGlossaryItem {
   definition?: string;
 }
 
-async function readStdin(): Promise<string> {
-  return await Bun.stdin.text();
-}
 
 function parseDefinitionPair(arg: string): { word: string; definition: string } {
   const idx = arg.indexOf('=');
@@ -28,7 +25,7 @@ function parseDefinitionPair(arg: string): { word: string; definition: string } 
 }
 
 async function loadEntriesFromFile(value: string): Promise<Array<{ word: string; definition: string }>> {
-  const text = value === '-' ? await readStdin() : await readFile(value, 'utf-8');
+  const text = value === '-' ? await Bun.stdin.text() : await readFile(value, 'utf-8');
   let parsed: unknown;
   try {
     parsed = Bun.YAML.parse(text);
