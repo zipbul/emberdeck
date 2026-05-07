@@ -6,7 +6,7 @@ import { getRelationGraph } from './query';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { readGlossary } from '../glossary/io';
-import { ensureReindexed, gildashProjectNames, makeSymbolFileCache } from './link';
+import { ensureReindexed, gildashProjectNames, makeSymbolFileCache, listAllIndexedFilesWithProject } from './link';
 import { parseStringArrayJson } from '../card/json-fields';
 import { matchesAnyGlob } from '../util/glob';
 
@@ -141,18 +141,7 @@ export async function checkDrift(
   let indexedFilePaths: Set<string> | null = null;
   const getIndexedFilePaths = (): Set<string> => {
     if (indexedFilePaths === null) {
-      const all: string[] = [];
-      if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
-        for (const project of gildashProjectNames(ctx)) {
-          try {
-            const list = ctx.gildash.listIndexedFiles(project);
-            for (const f of list) all.push(f.filePath);
-          } catch {
-            // skip
-          }
-        }
-      }
-      indexedFilePaths = new Set(all);
+      indexedFilePaths = new Set(listAllIndexedFilesWithProject(ctx).map((f) => f.filePath));
     }
     return indexedFilePaths;
   };
@@ -631,18 +620,7 @@ export async function checkInteractions(
   // Build file sets for import dependency detection (codeLink files + boundary
   // files). Boundary expansion is done against gildash's indexed file list so
   // results are consistent with other gildash queries (and respect ignorePatterns).
-  // Aggregate across all gildash projects — monorepo support.
-  const indexedFiles: string[] = [];
-  if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
-    for (const project of gildashProjectNames(ctx)) {
-      try {
-        const list = ctx.gildash.listIndexedFiles(project);
-        for (const f of list) indexedFiles.push(f.filePath);
-      } catch {
-        // skip
-      }
-    }
-  }
+  const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
   const cardFilesSets = new Map<string, Set<string>>();
   for (const key of keys) {
     const files = new Set((linkMap.get(key) ?? new Map()).keys());
