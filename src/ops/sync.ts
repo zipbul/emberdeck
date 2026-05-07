@@ -15,6 +15,7 @@ import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { txDb } from '../db/connection';
 import { readGlossary } from '../glossary/io';
 import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json-fields';
+import { batchedAllSettled } from '../util/batch';
 
 /**
  * Reverse of the body+namespace concatenation done at write-time
@@ -171,28 +172,18 @@ export async function bulkSyncCards(
   const keyToFile = new Map<string, string>();
   const duplicates = new Map<string, string[]>();
   const errors: BulkSyncResult['errors'] = [];
-  const READ_BATCH_SIZE = 20;
-
-  for (let i = 0; i < cardFiles.length; i += READ_BATCH_SIZE) {
-    const batch = cardFiles.slice(i, i + READ_BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map((filePath) => readCardFile(filePath)),
-    );
-    for (let j = 0; j < results.length; j++) {
-      const result = results[j]!;
-      const filePath = batch[j]!;
-      if (result.status === 'rejected') {
-        errors.push({ filePath, error: result.reason });
-        continue;
-      }
-      const key = result.value.frontmatter.key;
-      if (keyToFile.has(key)) {
-        const existing = duplicates.get(key) ?? [keyToFile.get(key)!];
-        existing.push(filePath);
-        duplicates.set(key, existing);
-      } else {
-        keyToFile.set(key, filePath);
-      }
+  for await (const { item: filePath, result } of batchedAllSettled(cardFiles, 20, readCardFile)) {
+    if (result.status === 'rejected') {
+      errors.push({ filePath, error: result.reason });
+      continue;
+    }
+    const key = result.value.frontmatter.key;
+    if (keyToFile.has(key)) {
+      const existing = duplicates.get(key) ?? [keyToFile.get(key)!];
+      existing.push(filePath);
+      duplicates.set(key, existing);
+    } else {
+      keyToFile.set(key, filePath);
     }
   }
 
@@ -213,23 +204,11 @@ export async function bulkSyncCards(
   }
 
   let synced = 0;
-  const BATCH_SIZE = 20;
   const safeFiles = cardFiles.filter((f) => !duplicateFiles.has(f));
 
-  for (let i = 0; i < safeFiles.length; i += BATCH_SIZE) {
-    const batch = safeFiles.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map((filePath) => syncCardFromFile(ctx, filePath)),
-    );
-
-    for (let j = 0; j < results.length; j++) {
-      const result = results[j]!;
-      if (result.status === 'fulfilled') {
-        synced++;
-      } else {
-        errors.push({ filePath: batch[j]!, error: result.reason });
-      }
-    }
+  for await (const { item: filePath, result } of batchedAllSettled(safeFiles, 20, (f) => syncCardFromFile(ctx, f))) {
+    if (result.status === 'fulfilled') synced++;
+    else errors.push({ filePath, error: result.reason });
   }
 
   return { synced, errors };

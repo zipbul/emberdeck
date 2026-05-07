@@ -4,6 +4,7 @@ import type { CardRow, CardListFilter, RelationRow, ChangelogRow } from '../db/r
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
 import { readCardFileOrThrow } from '../fs/reader';
+import { batchedAllSettled } from '../util/batch';
 import { resolveCardCodeLinks, type ResolvedCodeLink } from './link';
 
 /**
@@ -202,22 +203,10 @@ export async function getCards(
 
   // Parallelize file reads in batches — sequential await per key was the
   // bottleneck for callers that pass dozens of keys at once.
-  const BATCH = 20;
-  for (let i = 0; i < fullKeys.length; i += BATCH) {
-    const batch = fullKeys.slice(i, i + BATCH);
-    const results = await Promise.allSettled(
-      batch.map((k) => getCard(ctx, k, options)),
-    );
-    for (let j = 0; j < results.length; j++) {
-      const r = results[j]!;
-      if (r.status === 'fulfilled') {
-        cards.push(r.value);
-      } else if (r.reason instanceof CardNotFoundError) {
-        notFound.push(batch[j]!);
-      } else {
-        throw r.reason;
-      }
-    }
+  for await (const { item: key, result } of batchedAllSettled(fullKeys, 20, (k) => getCard(ctx, k, options))) {
+    if (result.status === 'fulfilled') cards.push(result.value);
+    else if (result.reason instanceof CardNotFoundError) notFound.push(key);
+    else throw result.reason;
   }
 
   return { cards, notFound };
