@@ -5,6 +5,7 @@ import { getUncoveredSymbols } from './spec-sync';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { buildCardFromDb } from './sync';
 import { parseStringArrayJson } from '../card/json-fields';
+import { matchesAnyGlob } from '../util/glob';
 import { ensureReindexed, gildashProjectNames } from './link';
 
 /** Days of changelog history to retain when pruning at the end of `analyze`. */
@@ -197,13 +198,7 @@ export async function analyze(
         if (boundary.length === 0) continue;
         let anyMatch = false;
         try {
-          for (const pattern of boundary) {
-            const glob = new Bun.Glob(pattern);
-            for (const file of indexedFiles) {
-              if (glob.match(file)) { anyMatch = true; break; }
-            }
-            if (anyMatch) break;
-          }
+          anyMatch = indexedFiles.some((f) => matchesAnyGlob(f, boundary));
         } catch {
           // invalid glob — count as stale
         }
