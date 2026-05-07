@@ -8,6 +8,13 @@ import { writeCardFile } from '../fs/writer';
 import { CardNotFoundError } from '../card/errors';
 import { buildSearchableText } from '../card/searchable-text';
 import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/types';
+import { DrizzleCardRepository } from '../db/card-repo';
+import { DrizzleRelationRepository } from '../db/relation-repo';
+import { DrizzleClassificationRepository } from '../db/classification-repo';
+import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
+import { txDb } from '../db/connection';
+import { readGlossary } from '../glossary/io';
+import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json-fields';
 
 /**
  * Reverse of the body+namespace concatenation done at write-time
@@ -49,16 +56,6 @@ function parseNamespaces(json: string | null): { principle?: unknown; domain?: u
     return {};
   }
 }
-import { DrizzleCardRepository } from '../db/card-repo';
-import { DrizzleRelationRepository } from '../db/relation-repo';
-import { DrizzleClassificationRepository } from '../db/classification-repo';
-import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
-import { txDb } from '../db/connection';
-import { readGlossary } from '../glossary/io';
-
-
-import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json-fields';
-
 export interface BulkSyncResult {
   synced: number;
   errors: Array<{ filePath: string; error: unknown }>;
