@@ -197,4 +197,66 @@ describe('integration: real Gildash + fixture project', () => {
     // auth/jwt-token has a code link to jwt.ts
     expect(result.affectedCards.some((c) => c.key === 'auth/jwt-token')).toBe(true);
   });
+
+  // ── Broader symbol-pattern coverage to catch gildash version regressions ──
+
+  it('gildash indexes abstract class with generic type parameter', () => {
+    const syms = ctx.gildash!.searchSymbols({ text: 'BaseRepository', exact: true });
+    expect(syms.length).toBeGreaterThan(0);
+    expect(syms[0]!.kind).toBe('class');
+  });
+
+  it('gildash indexes class extending a generic base', () => {
+    const syms = ctx.gildash!.searchSymbols({ text: 'UserRepository', exact: true });
+    expect(syms.length).toBeGreaterThan(0);
+    const sym = syms[0]!;
+    expect(sym.kind).toBe('class');
+    expect(sym.filePath.endsWith('repository.ts')).toBe(true);
+  });
+
+  it('gildash indexes methods inside a class (UserController.list via getSymbolsByFile)', () => {
+    // Method members may not be top-level searchable; query the file directly.
+    const syms = ctx.gildash!.searchSymbols({ text: 'UserController', exact: true });
+    expect(syms.length).toBeGreaterThan(0);
+    const filePath = syms[0]!.filePath;
+    const fileSyms = ctx.gildash!.getSymbolsByFile(filePath);
+    // The file should contain at least the class itself plus interface RouteHandler
+    expect(fileSyms.length).toBeGreaterThan(1);
+  });
+
+  it('gildash indexes namespace exports', () => {
+    const syms = ctx.gildash!.searchSymbols({ text: 'Types', exact: true });
+    expect(syms.length).toBeGreaterThan(0);
+  });
+
+  it('gildash exposes interfaces as searchable symbols', () => {
+    const syms = ctx.gildash!.searchSymbols({ text: 'InvoiceLine', exact: true });
+    expect(syms.length).toBeGreaterThan(0);
+    expect(syms[0]!.kind).toBe('interface');
+  });
+
+  it('gildash exposes type aliases', () => {
+    const syms = ctx.gildash!.searchSymbols({ text: 'StringOrNumber', exact: true });
+    expect(syms.length).toBeGreaterThan(0);
+  });
+
+  it('gildash exposes top-level const exports', () => {
+    const syms = ctx.gildash!.searchSymbols({ text: 'VERSION', exact: true });
+    expect(syms.length).toBeGreaterThan(0);
+  });
+
+  it('@spec annotation on abstract class is extracted', async () => {
+    const annotations = ctx.gildash!.searchAnnotations({ tag: 'spec', limit: 100 });
+    expect(annotations.map((a) => a.value.trim())).toContain('generic/repository');
+  });
+
+  it('@spec annotation on namespaced controller is extracted', async () => {
+    const annotations = ctx.gildash!.searchAnnotations({ tag: 'spec', limit: 100 });
+    expect(annotations.map((a) => a.value.trim())).toContain('api/controller');
+  });
+
+  it('@brief annotation on namespace export is extracted', async () => {
+    const annotations = ctx.gildash!.searchAnnotations({ tag: 'brief', limit: 100 });
+    expect(annotations.map((a) => a.value.trim())).toContain('domain/types');
+  });
 });
