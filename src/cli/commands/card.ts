@@ -88,14 +88,6 @@ function applyFieldValue(fields: UpdateCardFields, name: string, value: string):
   }
 }
 
-/**
- * Render card content from DB row WITHOUT touching the original file on disk.
- * Reuses ops/sync.ts buildCardFromDb to avoid logic drift.
- */
-function renderCardContentFromDb(rt: CliRuntime, key: string): string {
-  const cardFile = buildCardFromDb(rt.ctx, key);
-  return serializeCardMarkdown(cardFile.frontmatter, cardFile.body);
-}
 
 // ── register ──
 
@@ -429,7 +421,8 @@ export function registerCard(program: Command): void {
             return ok({ key, filePath, mode: 'in-place' });
           }
           // STDOUT or --out FILE: build content WITHOUT touching original file.
-          const content = renderCardContentFromDb(rt, key);
+          const cardFile = buildCardFromDb(rt.ctx, key);
+          const content = serializeCardMarkdown(cardFile.frontmatter, cardFile.body);
           if (opts.out && opts.out !== '-') {
             await atomicWrite(opts.out, content);
             return ok({ key, filePath: opts.out, mode: 'file' });
