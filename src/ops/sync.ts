@@ -48,6 +48,18 @@ function serializeNamespaces(fm: CardFrontmatter): string | null {
 }
 
 /**
+ * Recursively collect absolute paths of all `*.card.md` files under `targetDir`.
+ */
+async function listCardFiles(targetDir: string): Promise<string[]> {
+  const glob = new Bun.Glob('**/*.card.md');
+  const files: string[] = [];
+  for await (const file of glob.scan({ cwd: targetDir, absolute: true })) {
+    files.push(file);
+  }
+  return files;
+}
+
+/**
  * Type hierarchy rule (4-tier): principle/domain are root-only;
  * brief.parent must be domain; spec.parent must be brief or spec.
  * Returns null when the row is valid.
@@ -150,11 +162,7 @@ export async function bulkSyncCards(
   dirPath?: string,
 ): Promise<BulkSyncResult> {
   const targetDir = dirPath ?? ctx.cardsDir;
-  const glob = new Bun.Glob('**/*.card.md');
-  const cardFiles: string[] = [];
-  for await (const file of glob.scan({ cwd: targetDir, absolute: true })) {
-    cardFiles.push(file);
-  }
+  const cardFiles = await listCardFiles(targetDir);
 
   // Detect duplicate keys.
   // Parallelize file reads in batches — sequential await on N files becomes the
@@ -318,11 +326,7 @@ export async function validateCards(
   dirPath?: string,
 ): Promise<CardValidationResult> {
   const targetDir = dirPath ?? ctx.cardsDir;
-  const glob = new Bun.Glob('**/*.card.md');
-  const cardFiles: string[] = [];
-  for await (const file of glob.scan({ cwd: targetDir, absolute: true })) {
-    cardFiles.push(file);
-  }
+  const cardFiles = await listCardFiles(targetDir);
 
   const fileSet = new Set(cardFiles);
   const dbRows = ctx.cardRepo.list();
