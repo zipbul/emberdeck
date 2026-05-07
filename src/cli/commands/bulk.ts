@@ -5,7 +5,7 @@
 import { Command } from 'commander';
 import { stat } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
-import { run, extractGlobalFlags } from '../runner';
+import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { bulkCreateCards } from '../../ops/bulk-create';
@@ -55,8 +55,7 @@ export function registerBulk(program: Command): void {
     .description('create multiple cards from YAML/JSON file')
     .requiredOption('--from <file>', 'YAML/JSON file (- for STDIN)')
     .action(async (opts: { from: string }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const text = opts.from === '-' ? await Bun.stdin.text() : await readFile(opts.from, 'utf-8');
           const parsed = parseJsonOrYaml(text);
@@ -83,11 +82,10 @@ export function registerBulk(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        globalFlags,
+        cmd,
         {
           // bulk create with any failure → exit 2 (CI gate signal). Pure success → exit 0.
           partialIsFailure: true,
-          
         },
       );
     });
@@ -97,8 +95,7 @@ export function registerBulk(program: Command): void {
     .command('sync [path]')
     .description('sync card files (directory recursive or single file) → DB')
     .action(async (path: string | undefined, _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           if (path) {
             let s;
@@ -126,7 +123,7 @@ export function registerBulk(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        globalFlags,
+        cmd,
         {
           partialIsFailure: true,
           

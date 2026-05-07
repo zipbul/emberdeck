@@ -6,7 +6,7 @@
 import { mkdir, writeFile, readFile, stat, appendFile } from 'node:fs/promises';
 import { resolve, dirname, relative } from 'node:path';
 import { Command } from 'commander';
-import { run, extractGlobalFlags } from '../runner';
+import { run } from '../runner';
 import { ok } from '../output';
 import type { CliRuntime } from '../context';
 import { analyze } from '../../ops/analyze';
@@ -28,8 +28,7 @@ export function registerSingle(program: Command): void {
     .option('--no-gitignore', 'skip .gitignore update')
     .option('--force', 'overwrite existing config / glossary')
     .action(async (opts: { projectRoot?: string; cardsDir?: string; gitignore?: boolean; force?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (_rt: CliRuntime) => {
           const cwd = process.cwd();
           const projectRoot = opts.projectRoot ? resolve(opts.projectRoot) : cwd;
@@ -119,7 +118,7 @@ export function registerSingle(program: Command): void {
             gitignore_updated: gitignoreUpdated,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -131,8 +130,7 @@ export function registerSingle(program: Command): void {
     .option('--drifted-limit <n>', 'paginate drifted cards (default: all)', parsePositiveInt('--drifted-limit'))
     .option('--drifted-offset <n>', 'drifted cards offset', parsePositiveInt('--drifted-offset'))
     .action(async (opts: { includeBody?: boolean; driftedLimit?: number; driftedOffset?: number }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await analyze(rt.ctx, {
             includeBody: opts.includeBody,
@@ -150,7 +148,7 @@ export function registerSingle(program: Command): void {
             unlinked_symbols: result.unlinkedSymbols,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -160,8 +158,7 @@ export function registerSingle(program: Command): void {
     .description('delete every card and clear the glossary. DESTRUCTIVE.')
     .option('--yes', 'skip confirmation prompt (required for non-TTY)')
     .action(async (opts: { yes?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           await confirmDestructive({
             yes: !!opts.yes,
@@ -175,7 +172,7 @@ export function registerSingle(program: Command): void {
             db_reset: result.dbReset,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 }

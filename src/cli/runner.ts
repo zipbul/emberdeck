@@ -3,6 +3,7 @@
  * All command actions go through this.
  */
 
+import type { Command } from 'commander';
 import { buildRuntime, type GlobalFlags, type CliRuntime } from './context';
 import { render, statusToExitCode, type CliResult } from './output';
 import { toCliError } from './errors';
@@ -34,16 +35,15 @@ export function classifyErrorStatus(code: string): 'unknown' | 'error' {
 
 /**
  * Execute a command with full lifecycle: build runtime, run, render, exit.
- *
- * @param fn - Command implementation
- * @param globalFlags - Global flags (already extracted)
- * @param options - render/exit overrides
+ * Extracts global flags from the Commander instance so callers don't repeat
+ * `extractGlobalFlags(cmd.optsWithGlobals())`.
  */
 export async function run(
   fn: CommandFn,
-  globalFlags: GlobalFlags,
+  cmd: Command,
   options: { partialIsFailure?: boolean } = {},
 ): Promise<void> {
+  const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
   let rt: CliRuntime | undefined;
   let result: CliResult;
 
@@ -117,7 +117,7 @@ export async function run(
  * Extract global flags from Commander's parsed options.
  * Commander stores parent program opts via .optsWithGlobals() or .opts().
  */
-export function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
+function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
   return {
     config: opts.config as string | undefined,
     dir: opts.dir as string | undefined,

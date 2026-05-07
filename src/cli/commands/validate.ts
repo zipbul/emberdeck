@@ -7,7 +7,7 @@
  */
 
 import { Command } from 'commander';
-import { run, extractGlobalFlags } from '../runner';
+import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { validateCards } from '../../ops/sync';
@@ -19,8 +19,7 @@ export function registerValidate(program: Command): void {
   // ── validate (no args = all) ──
   validate
     .action(async (_opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const cardsResult = await validateCards(rt.ctx);
           const cardErrors: CliMessage[] = cardsResult.warnings.map((w) => ({
@@ -59,7 +58,7 @@ export function registerValidate(program: Command): void {
           };
           return allErrors.length === 0 ? ok(data) : partial(data, allErrors);
         },
-        globalFlags,
+        cmd,
         {
           partialIsFailure: true,
           
@@ -72,8 +71,7 @@ export function registerValidate(program: Command): void {
     .command('links [key]')
     .description('check that every codeLink points to a real source symbol (one card or all)')
     .action(async (key: string | undefined, _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const errors: CliMessage[] = [];
           let declared = 0;
@@ -104,7 +102,7 @@ export function registerValidate(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        globalFlags,
+        cmd,
         {
           partialIsFailure: true,
           
@@ -117,8 +115,7 @@ export function registerValidate(program: Command): void {
     .command('cards')
     .description('check card integrity: file consistency, hierarchy, glossary references, brief→spec chains')
     .action(async (_opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await validateCards(rt.ctx);
           const errors: CliMessage[] = result.warnings.map((w) => ({
@@ -150,7 +147,7 @@ export function registerValidate(program: Command): void {
           if (errors.length === 0) return ok(data);
           return partial(data, errors);
         },
-        globalFlags,
+        cmd,
         {
           partialIsFailure: true,
           

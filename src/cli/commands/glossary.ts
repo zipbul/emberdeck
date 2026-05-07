@@ -4,7 +4,7 @@
 
 import { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
-import { run, extractGlobalFlags } from '../runner';
+import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { defineGlossary, lookupGlossary, removeGlossary, renameGlossary } from '../../ops/glossary';
@@ -52,8 +52,7 @@ export function registerGlossary(program: Command): void {
     .description('define WORD=DEFINITION pairs (batch up to 50, all-or-nothing)')
     .option('--from <file>', 'read entries from YAML file (- for STDIN)')
     .action(async (pairs: string[], opts: { from?: string }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           let entries: Array<{ word: string; definition: string }> = [];
           if (opts.from) {
@@ -69,7 +68,7 @@ export function registerGlossary(program: Command): void {
             updated: result.results.filter((r) => r.action === 'updated').length,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -78,8 +77,7 @@ export function registerGlossary(program: Command): void {
     .command('lookup [word]')
     .description('look up a word, or list all if WORD omitted')
     .action(async (word: string | undefined, _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = lookupGlossary(rt.ctx, word);
           if (word) {
@@ -90,7 +88,7 @@ export function registerGlossary(program: Command): void {
             total: (result.entries ?? []).length,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -100,8 +98,7 @@ export function registerGlossary(program: Command): void {
     .description('remove a glossary entry (cards referencing it become drifted)')
     .option('--yes', 'skip confirmation prompt (required for non-TTY)')
     .action(async (word: string, opts: { yes?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           await confirmDestructive({
             yes: !!opts.yes,
@@ -111,7 +108,7 @@ export function registerGlossary(program: Command): void {
           const result = await removeGlossary(rt.ctx, word);
           return ok({ removed: result.removed, affected_card_keys: result.affectedCardKeys });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -121,8 +118,7 @@ export function registerGlossary(program: Command): void {
     .description('rename a glossary word (auto-updates card glossary fields)')
     .option('--def <text>', 'optional new definition')
     .action(async (oldWord: string, newWord: string, opts: { def?: string }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await renameGlossary(rt.ctx, oldWord, newWord, opts.def);
           const data = {
@@ -142,7 +138,7 @@ export function registerGlossary(program: Command): void {
           }
           return ok(data);
         },
-        globalFlags,
+        cmd,
       );
     });
 }

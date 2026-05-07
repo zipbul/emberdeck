@@ -3,7 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { run, extractGlobalFlags } from '../runner';
+import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { getLinkCoverage, getUncoveredSymbols, suggestCardScope } from '../../ops/spec-sync';
@@ -20,8 +20,7 @@ export function registerCheck(program: Command): void {
     .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken / heritage_uncovered / pattern_violation)')
     .option('--no-auto-transition', 'do not auto-mark active→drifted')
     .action(async (key: string | undefined, opts: { autoTransition?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await checkDrift(rt.ctx, key, {
             autoTransition: opts.autoTransition !== false,
@@ -32,7 +31,7 @@ export function registerCheck(program: Command): void {
             total_drifted: result.health.drifted,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -43,8 +42,7 @@ export function registerCheck(program: Command): void {
     .option('--uncovered', 'list project symbols not covered by any card')
     .option('--suggest', 'suggest new card scopes for uncovered areas')
     .action(async (key: string | undefined, opts: { uncovered?: boolean; suggest?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           if (opts.suggest) {
             const suggestions = await suggestCardScope(rt.ctx);
@@ -84,7 +82,7 @@ export function registerCheck(program: Command): void {
             unreferenced_total: cov.unreferenced.length,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -94,8 +92,7 @@ export function registerCheck(program: Command): void {
     .description('pre-change impact analysis (direct / boundary / transitive)')
     .option('--symbol <names...>', 'optional: restrict to specific symbols')
     .action(async (files: string[], opts: { symbol?: string[] }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await preChangeCheck(rt.ctx, files, opts.symbol);
           return ok({
@@ -107,7 +104,7 @@ export function registerCheck(program: Command): void {
             ...(result.maxFanIn !== undefined ? { max_fan_in: result.maxFanIn } : {}),
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -116,8 +113,7 @@ export function registerCheck(program: Command): void {
     .command('regression <files...>')
     .description('regression guard: drifted ratio of affected cards vs threshold')
     .action(async (files: string[], _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await regressionGuard(rt.ctx, files);
           if (result.passOrFail === 'fail') {
@@ -138,7 +134,7 @@ export function registerCheck(program: Command): void {
             affected: result.affectedCards,
           });
         },
-        globalFlags,
+        cmd,
         {
           partialIsFailure: true,
           
@@ -151,8 +147,7 @@ export function registerCheck(program: Command): void {
     .command('interactions <keys...>')
     .description('analyze interactions between cards (shared symbols/files/imports)')
     .action(async (keys: string[], _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await checkInteractions(rt.ctx, keys);
           return ok({
@@ -160,7 +155,7 @@ export function registerCheck(program: Command): void {
             undefined_relations: result.undefinedRelations,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 

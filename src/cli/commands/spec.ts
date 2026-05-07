@@ -3,7 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { run, extractGlobalFlags } from '../runner';
+import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { writeSpecAnnotations, syncSpecAnnotations, syncSymbolChanges } from '../../ops/spec-sync';
@@ -18,8 +18,7 @@ export function registerSpec(program: Command): void {
     .command('annotate [key]')
     .description('write @spec card-key JSDoc tags into source code (idempotent)')
     .action(async (key: string | undefined, _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await writeSpecAnnotations(rt.ctx, key);
           const data = {
@@ -35,7 +34,7 @@ export function registerSpec(program: Command): void {
           }
           return ok(data);
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -44,8 +43,7 @@ export function registerSpec(program: Command): void {
     .command('sync')
     .description('reconcile DB codeLinks from @spec annotations in source')
     .action(async (_opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await syncSpecAnnotations(rt.ctx);
           const errors: CliMessage[] = result.unmatched.map((u) => ({
@@ -61,7 +59,7 @@ export function registerSpec(program: Command): void {
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -71,8 +69,7 @@ export function registerSpec(program: Command): void {
     .description('update card code links when source symbols are renamed or moved. --since defaults to the last sync time (or 24h ago on first run)')
     .option('--since <ts>', 'ISO 8601 or epoch ms (overrides stored last_symbol_sync_at)')
     .action(async (opts: { since?: string }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const META_KEY = 'last_symbol_sync_at';
           let since: string;
@@ -128,7 +125,7 @@ export function registerSpec(program: Command): void {
             ? ok(data, [{ code: 'METADATA_WRITE_FAILED', message: upsertWarning }])
             : ok(data);
         },
-        globalFlags,
+        cmd,
       );
     });
 }

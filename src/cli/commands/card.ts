@@ -4,7 +4,7 @@
 
 import { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
-import { run, extractGlobalFlags } from '../runner';
+import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
@@ -99,8 +99,7 @@ export function registerCard(program: Command): void {
     .description('read a card from file')
     .option('--history', 'include changelog history')
     .action(async (key: string, opts: { history?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await getCard(rt.ctx, key, { includeHistory: !!opts.history });
           return ok({
@@ -113,7 +112,7 @@ export function registerCard(program: Command): void {
             ...(result.history ? { history: result.history } : {}),
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -130,8 +129,7 @@ export function registerCard(program: Command): void {
     .option('--limit <n>', 'page size (default 50)', parsePositiveInt('--limit'))
     .option('--offset <n>', 'page offset (default 0)', parsePositiveInt('--offset'))
     .action(async (opts: { type?: string; status?: string; parent?: string; tag?: string; symbol?: string; file?: string; glossary?: string; limit?: number; offset?: number }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      const limit = opts.limit ?? 50;
+            const limit = opts.limit ?? 50;
       const offset = opts.offset ?? 0;
       await run(
         async (rt: CliRuntime) => {
@@ -199,7 +197,7 @@ export function registerCard(program: Command): void {
             page: { limit, offset, has_more: offset + items.length < total },
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -214,8 +212,7 @@ export function registerCard(program: Command): void {
     .option('--glossary <words>', 'comma-separated glossary words (or repeat flag)', collectCsv, [] as string[])
     .option('--tag <name>', 'tag (repeatable)', collectRepeated, [] as string[])
     .action(async (key: string, opts: { type: string; summary?: string; from?: string; status?: string; parent?: string; glossary?: string[]; tag?: string[] }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const validatedType = validateCardType(opts.type);
           const validatedStatus = opts.status ? validateCardStatus(opts.status) : undefined;
@@ -259,7 +256,7 @@ export function registerCard(program: Command): void {
             status: result.card.frontmatter.status,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -273,8 +270,7 @@ export function registerCard(program: Command): void {
     .option('--glossary <words>', 'set glossary words (comma-separated or repeated)', collectCsv, [] as string[])
     .option('--tag <name>', 'set tag (repeatable; replaces existing tags)', collectRepeated, [] as string[])
     .action(async (key: string, opts: { patch?: string; field?: string[]; summary?: string; body?: string; glossary?: string[]; tag?: string[] }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const fields: UpdateCardFields = {};
           if (opts.patch) {
@@ -314,7 +310,7 @@ export function registerCard(program: Command): void {
             warnings,
           );
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -324,8 +320,7 @@ export function registerCard(program: Command): void {
     .option('--force', 'delete even when children exist (children are detached, not deleted)')
     .option('--yes', 'skip confirmation prompt (required for non-TTY invocation)')
     .action(async (key: string, opts: { force?: boolean; yes?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           await confirmDestructive({
             yes: !!opts.yes,
@@ -335,7 +330,7 @@ export function registerCard(program: Command): void {
           const result = await deleteCard(rt.ctx, key, { force: opts.force });
           return ok({ key, filePath: result.filePath });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -343,8 +338,7 @@ export function registerCard(program: Command): void {
     .command('rename <oldKey> <newKey>')
     .description('rename a card key (moves the file and updates every other card referencing it)')
     .action(async (oldKey: string, newKey: string, _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const result = await renameCard(rt.ctx, oldKey, newKey);
           const data = {
@@ -366,7 +360,7 @@ export function registerCard(program: Command): void {
           }
           return ok(data);
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -378,8 +372,7 @@ export function registerCard(program: Command): void {
     .option('--limit <n>', 'page size (default 50)', parsePositiveInt('--limit'))
     .option('--offset <n>', 'page offset (default 0)', parsePositiveInt('--offset'))
     .action(async (query: string, opts: { type?: string; status?: string; limit?: number; offset?: number }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      const limit = opts.limit ?? 50;
+            const limit = opts.limit ?? 50;
       const offset = opts.offset ?? 0;
       await run(
         async (rt: CliRuntime) => {
@@ -403,7 +396,7 @@ export function registerCard(program: Command): void {
             page: { limit, offset, has_more: offset + items.length < total },
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -413,8 +406,7 @@ export function registerCard(program: Command): void {
     .option('--out <file>', 'write to FILE (use - for STDOUT, default)')
     .option('--in-place', 'rewrite the card\'s original file (DB → file overwrite)')
     .action(async (key: string, opts: { out?: string; inPlace?: boolean }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           if (opts.inPlace) {
             const filePath = await exportCardToFile(rt.ctx, key);
@@ -430,7 +422,7 @@ export function registerCard(program: Command): void {
           // STDOUT (default): content goes into data.content (jq-friendly).
           return ok({ key, mode: 'stdout', bytes: content.length, content });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -440,8 +432,7 @@ export function registerCard(program: Command): void {
     .option('--reason <text>', 'reason recorded in changelog')
     .option('--reason-from <file|->', 'read reason from file or STDIN')
     .action(async (key: string, status: string, opts: { reason?: string; reasonFrom?: string }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const validatedStatus = validateCardStatus(status);
           let reason = opts.reason;
@@ -453,7 +444,7 @@ export function registerCard(program: Command): void {
             filePath: result.filePath,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -462,13 +453,12 @@ export function registerCard(program: Command): void {
     .description('parent-child hierarchy starting from KEY')
     .option('--depth <n>', 'max depth (default 10, capped at 20)', parsePositiveInt('--depth'))
     .action(async (key: string, opts: { depth?: number }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const tree = getCardTree(rt.ctx, key, opts.depth);
           return ok(tree);
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -477,8 +467,7 @@ export function registerCard(program: Command): void {
     .description('show related cards (parent chain + declared relations, depth-bounded). Use `card relations` for one-hop only.')
     .option('--depth <n>', 'how many relation hops to traverse (default 1 = direct only)', parsePositiveInt('--depth'))
     .action(async (key: string, opts: { depth?: number }, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           // Note: getCardContext does both forward+backward BFS by design.
           // For direction-filtered traversal, ops/query.ts:getRelationGraph supports it directly;
@@ -500,7 +489,7 @@ export function registerCard(program: Command): void {
             code_links_total: ctx.codeLinks.length,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 
@@ -508,8 +497,7 @@ export function registerCard(program: Command): void {
     .command('relations <key>')
     .description('list direct relations (forward + reverse)')
     .action(async (key: string, _opts, cmd) => {
-      const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());
-      await run(
+            await run(
         async (rt: CliRuntime) => {
           const relations = listCardRelations(rt.ctx, key);
           return ok({
@@ -519,7 +507,7 @@ export function registerCard(program: Command): void {
             total: relations.length,
           });
         },
-        globalFlags,
+        cmd,
       );
     });
 }
