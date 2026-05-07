@@ -290,9 +290,7 @@ export async function expandAffectedFiles(
   const out = new Set<string>(changedFiles);
   for (const project of gildashProjectNames(ctx)) {
     try {
-      const affected = project
-        ? await ctx.gildash.getAffected(changedFiles, project)
-        : await ctx.gildash.getAffected(changedFiles);
+      const affected = await ctx.gildash.getAffected(changedFiles, project);
       for (const f of affected) out.add(f);
     } catch {
       // skip project
