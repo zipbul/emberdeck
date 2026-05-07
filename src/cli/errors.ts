@@ -20,42 +20,34 @@ import { GlossaryParseError, GlossaryValidationError } from '../glossary/io';
 import { SystemLockTimeoutError } from '../glossary/system-lock';
 import type { CliMessage } from './output';
 import { CliUsageError } from './usage-error';
+import { errorMessage } from '../util/error';
 
+
+// Errors that map to {code, message:e.message} with no additional details.
+const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
+  [CliUsageError, 'CLI_USAGE_ERROR'],
+  [FtsSyntaxError, 'FTS_SYNTAX_ERROR'],
+  [CardNotFoundError, 'CARD_NOT_FOUND'],
+  [CardAlreadyExistsError, 'CARD_ALREADY_EXISTS'],
+  [CardKeyError, 'INVALID_CARD_KEY'],
+  [CardValidationError, 'VALIDATION_ERROR'],
+  [ParentValidationError, 'PARENT_VALIDATION_ERROR'],
+  [BoundaryValidationError, 'BOUNDARY_VALIDATION_ERROR'],
+  [GildashNotConfiguredError, 'GILDASH_NOT_CONFIGURED'],
+  [CardRenameSamePathError, 'RENAME_SAME_PATH'],
+  [GlossaryParseError, 'GLOSSARY_PARSE_ERROR'],
+  [GlossaryValidationError, 'GLOSSARY_VALIDATION_ERROR'],
+  [SystemLockTimeoutError, 'LOCK_TIMEOUT'],
+];
 
 export function toCliError(e: unknown): CliMessage {
-  if (e instanceof CliUsageError) {
-    return { code: 'CLI_USAGE_ERROR', message: e.message };
-  }
-  if (e instanceof FtsSyntaxError) {
-    return { code: 'FTS_SYNTAX_ERROR', message: e.message };
-  }
-  if (e instanceof CardNotFoundError) {
-    return { code: 'CARD_NOT_FOUND', message: e.message };
-  }
-  if (e instanceof CardAlreadyExistsError) {
-    return { code: 'CARD_ALREADY_EXISTS', message: e.message };
-  }
-  if (e instanceof CardKeyError) {
-    return { code: 'INVALID_CARD_KEY', message: e.message };
-  }
-  if (e instanceof CardValidationError) {
-    return { code: 'VALIDATION_ERROR', message: e.message };
-  }
-  if (e instanceof ParentValidationError) {
-    return { code: 'PARENT_VALIDATION_ERROR', message: e.message };
-  }
+  // Errors that carry structured details first.
   if (e instanceof ActivationGuardError) {
     return {
       code: 'ACTIVATION_GUARD_FAILED',
       message: e.message,
       details: { unmet_conditions: e.unmetConditions },
     };
-  }
-  if (e instanceof BoundaryValidationError) {
-    return { code: 'BOUNDARY_VALIDATION_ERROR', message: e.message };
-  }
-  if (e instanceof GildashNotConfiguredError) {
-    return { code: 'GILDASH_NOT_CONFIGURED', message: e.message };
   }
   if (e instanceof CompensationError) {
     return {
@@ -67,20 +59,8 @@ export function toCliError(e: unknown): CliMessage {
       },
     };
   }
-  if (e instanceof CardRenameSamePathError) {
-    return { code: 'RENAME_SAME_PATH', message: e.message };
+  for (const [Cls, code] of SIMPLE_ERROR_CODES) {
+    if (e instanceof Cls) return { code, message: e.message };
   }
-  if (e instanceof GlossaryParseError) {
-    return { code: 'GLOSSARY_PARSE_ERROR', message: e.message };
-  }
-  if (e instanceof GlossaryValidationError) {
-    return { code: 'GLOSSARY_VALIDATION_ERROR', message: e.message };
-  }
-  if (e instanceof SystemLockTimeoutError) {
-    return { code: 'LOCK_TIMEOUT', message: e.message };
-  }
-
-  // unknown error
-  const msg = e instanceof Error ? e.message : String(e);
-  return { code: 'INTERNAL_ERROR', message: msg };
+  return { code: 'INTERNAL_ERROR', message: errorMessage(e) };
 }
