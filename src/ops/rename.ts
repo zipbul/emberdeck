@@ -8,7 +8,6 @@ import { parseFullKey, normalizeSlug, buildCardPath } from '../card/card-key';
 import { CardNotFoundError, CardAlreadyExistsError, CardRenameSamePathError } from '../card/errors';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
-import { withCardLock, withRetry } from './safe';
 import { syncCardFromFile } from './sync';
 
 /**
@@ -67,9 +66,7 @@ export async function renameCard(
 
   // Lock both keys (sorted alphabetically to prevent deadlocks)
   const [firstKey, secondKey] = [oldKey, newFullKey].sort() as [string, string];
-  return withCardLock(ctx, firstKey, () =>
-    withCardLock(ctx, secondKey, () =>
-      withRetry(async () => {
+  return (async () => {
         if (!(await Bun.file(oldFilePath).exists())) throw new CardNotFoundError(oldKey);
         if (await Bun.file(newFilePath).exists()) throw new CardAlreadyExistsError(newFullKey);
 
@@ -206,7 +203,4 @@ export async function renameCard(
           result.failedReferenceUpdates = failedReferenceUpdates;
         }
         return result;
-      }),
-    ),
-  );
-}
+      })();}

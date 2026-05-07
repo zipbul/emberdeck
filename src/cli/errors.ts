@@ -17,7 +17,6 @@ import {
   FtsSyntaxError,
 } from '../card/errors';
 import { GlossaryParseError, GlossaryValidationError } from '../glossary/io';
-import { SystemLockTimeoutError } from '../glossary/system-lock';
 import type { CliMessage } from './output';
 import { CliUsageError } from './usage-error';
 import { errorMessage } from '../util/error';
@@ -37,7 +36,6 @@ const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
   [CardRenameSamePathError, 'RENAME_SAME_PATH'],
   [GlossaryParseError, 'GLOSSARY_PARSE_ERROR'],
   [GlossaryValidationError, 'GLOSSARY_VALIDATION_ERROR'],
-  [SystemLockTimeoutError, 'LOCK_TIMEOUT'],
 ];
 
 export function toCliError(e: unknown): CliMessage {

@@ -8,7 +8,7 @@ import { deleteCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { txDb } from '../db/connection';
-import { withCardLock, withRetry, safeWriteOperation } from './safe';
+import { safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 
 export interface DeleteCardOptions {
@@ -40,8 +40,7 @@ export async function deleteCard(
   const filePath = buildCardPath(ctx.cardsDir, key);
   const force = options?.force ?? false;
 
-  return withCardLock(ctx, key, () =>
-    withRetry(async () => {
+  return (async () => {
       // Guard on DB existence, not file existence.
       // The file may have been externally deleted; we still need to clean up DB records.
       if (!ctx.cardRepo.existsByKey(key)) {
@@ -189,6 +188,4 @@ export async function deleteCard(
           }
         },
       });
-    }),
-  );
-}
+    })();}

@@ -27,7 +27,7 @@ import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { txDb } from '../db/connection';
-import { withCardLock, withRetry, safeWriteOperation } from './safe';
+import { safeWriteOperation } from './safe';
 
 /**
  * Input parameters passed to `createCard`.
@@ -86,8 +86,8 @@ export interface CreateCardResult {
  * 3. Atomically executes a DB transaction (card, relations, classifications, code links) and file write.
  * 4. Rolls back the DB if file write fails (`safeWriteOperation`).
  *
- * Concurrent calls for the same ctx + key are serialized in FIFO order (`withCardLock`).
- * Retries with exponential backoff on SQLite BUSY errors (`withRetry`).
+
+
  *
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param input - Card data to create.
@@ -118,8 +118,7 @@ export async function createCard(
   const filePath = buildCardPath(ctx.cardsDir, slug);
   const status = input.status ?? 'draft';
 
-  return withCardLock(ctx, fullKey, () =>
-    withRetry(async () => {
+  return (async () => {
       const exists = await Bun.file(filePath).exists();
       if (exists) {
         throw new CardAlreadyExistsError(fullKey);
@@ -244,6 +243,4 @@ export async function createCard(
           ctx.cardRepo.deleteByKey(fullKey);
         },
       });
-    }),
-  );
-}
+    })();}

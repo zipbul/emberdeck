@@ -29,7 +29,6 @@ export {
   CompensationError,
   FtsSyntaxError,
 } from './src/card/errors';
-export { SystemLockTimeoutError } from './src/glossary/system-lock';
 
 // ---- Operations ----
 export { createCard, type CreateCardInput, type CreateCardResult } from './src/ops/create';
@@ -158,7 +157,6 @@ export {
   GlossaryValidationError,
   type GlossaryEntry,
 } from './src/glossary/io';
-export { withGlossaryLock } from './src/glossary/lock';
 export { validateCardGlossaryField, validateGlossaryEntry } from './src/glossary/validation';
 export { buildGlossaryMatcher } from './src/glossary/cross-validate';
 
@@ -185,12 +183,9 @@ export type { ValidationInput } from './src/card/validation';
 // ---- DB (CLI integration) ----
 export { migrateEmberdeck, type EmberdeckDb } from './src/db/connection';
 
-// ---- Safe operations (concurrency / rollback) ----
+// ---- Safe operations (rollback) ----
 export {
-  withRetry,
-  withCardLock,
   safeWriteOperation,
-  type RetryOptions,
   type SafeWriteOptions,
 } from './src/ops/safe';
 

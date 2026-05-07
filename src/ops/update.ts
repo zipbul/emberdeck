@@ -35,7 +35,7 @@ import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { DrizzleChangelogRepository } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
-import { withCardLock, withRetry, safeWriteOperation } from './safe';
+import { safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 import { buildSearchableText } from '../card/searchable-text';
 
@@ -173,8 +173,7 @@ export async function updateCard(
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 
-  return withCardLock(ctx, key, () =>
-    withRetry(async () => {
+  return (async () => {
       const current = await readCardFileOrThrow(filePath, key, { checkKey: true });
 
       const prev = current.frontmatter;
@@ -414,9 +413,7 @@ export async function updateCard(
         },
       });
       return result;
-    }),
-  );
-}
+    })();}
 
 /**
  * Changes only the card's status.
@@ -438,8 +435,7 @@ export async function updateCardStatus(
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 
-  return withCardLock(ctx, key, () =>
-    withRetry(async () => {
+  return (async () => {
       const current = await readCardFileOrThrow(filePath, key, { checkKey: true });
 
       // Activation guard for active status
@@ -525,6 +521,4 @@ export async function updateCardStatus(
           await syncCardFromFile(ctx, filePath);
         },
       });
-    }),
-  );
-}
+    })();}
