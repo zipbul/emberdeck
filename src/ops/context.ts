@@ -291,11 +291,7 @@ export async function checkDrift(
           const relations = [];
           for (const project of gildashProjectNames(ctx)) {
             try {
-              const r = ctx.gildash.searchRelations(
-                project
-                  ? { type: 'extends', dstFilePath: link.file, project }
-                  : { type: 'extends', dstFilePath: link.file },
-              );
+              const r = ctx.gildash.searchRelations({ type: 'extends', dstFilePath: link.file, project });
               relations.push(...r);
             } catch {
               // skip project on failure
@@ -363,10 +359,7 @@ export async function checkDrift(
           let lastError: unknown;
           for (const project of gildashProjectNames(ctx)) {
             try {
-              const opts: { project?: string; filePaths?: string[] } = {};
-              if (project) opts.project = project;
-              if (scopedFiles) opts.filePaths = scopedFiles;
-              const matches = await ctx.gildash.findPattern(p.pattern, opts);
+              const matches = await ctx.gildash.findPattern(p.pattern, { project, filePaths: scopedFiles });
               count += matches.length;
               anySucceeded = true;
             } catch (e) {
