@@ -121,7 +121,6 @@ export function registerSingle(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -154,7 +153,6 @@ export function registerSingle(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -181,7 +179,6 @@ export function registerSingle(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 }

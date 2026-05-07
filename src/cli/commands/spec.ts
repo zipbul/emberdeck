@@ -37,7 +37,6 @@ export function registerSpec(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -65,7 +64,6 @@ export function registerSpec(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -134,7 +132,6 @@ export function registerSpec(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 }

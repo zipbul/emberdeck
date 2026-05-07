@@ -34,7 +34,6 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -88,7 +87,6 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -113,7 +111,6 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -169,7 +166,6 @@ export function registerCheck(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 

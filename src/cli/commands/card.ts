@@ -123,7 +123,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -211,7 +210,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -273,7 +271,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -330,7 +327,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -353,7 +349,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -386,7 +381,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -425,7 +419,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -453,7 +446,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -478,7 +470,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -495,7 +486,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -529,7 +519,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 
@@ -550,7 +539,6 @@ export function registerCard(program: Command): void {
         },
         [],
         globalFlags,
-        { },
       );
     });
 }

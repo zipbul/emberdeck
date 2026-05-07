@@ -71,7 +71,6 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -94,7 +93,6 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -117,7 +115,6 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 
@@ -150,7 +147,6 @@ export function registerGlossary(program: Command): void {
         },
         [],
         globalFlags,
-        {  },
       );
     });
 }
