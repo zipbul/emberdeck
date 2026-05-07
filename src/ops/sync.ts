@@ -155,7 +155,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
  * Scans the entire cardsDir (or dirPath) and bulk-syncs all .card.md files to the DB.
  *
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
- * File reads are executed in parallel via `Promise.allSettled` to minimize I/O wait time.
+ * File reads/writes are executed in bounded parallel batches via `batchedAllSettled`.
  * Each file's DB write is atomic, guaranteed by the transaction inside `syncCardFromFile`.
  */
 export async function bulkSyncCards(
