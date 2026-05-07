@@ -1,4 +1,3 @@
-import { errorMessage } from '../util/error';
 /**
  * Cross-process advisory lock backed by SQLite system_lock table.
  *
@@ -15,6 +14,7 @@ import { errorMessage } from '../util/error';
 
 import { readFileSync } from 'node:fs';
 import type { EmberdeckContext } from '../config';
+import { errorMessage } from '../util/error';
 
 const POLL_INTERVAL_MS = 50;
 const TIMEOUT_MS = 5000;

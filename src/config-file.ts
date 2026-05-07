@@ -1,4 +1,3 @@
-import { errorMessage } from './util/error';
 /**
  * Emberdeck configuration file loader.
  *
@@ -11,6 +10,7 @@ import { resolve, dirname } from 'node:path';
 import { err } from '@zipbul/result';
 import { findPackageRoot } from './fs/package-root';
 import type { Result } from '@zipbul/result';
+import { errorMessage } from './util/error';
 
 // ── Types ──
 
