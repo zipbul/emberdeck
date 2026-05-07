@@ -57,25 +57,7 @@ import { txDb } from '../db/connection';
 import { readGlossary } from '../glossary/io';
 
 
-function safeParseBoundary(json: string | null): string[] | null {
-  if (!json) return null;
-  try {
-    const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeParseGlossaryJson(json: string | undefined | null): string[] | null {
-  if (!json || json === '[]') return null;
-  try {
-    const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+import { parseStringArrayJson } from '../card/json-fields';
 
 export interface BulkSyncResult {
   synced: number;
@@ -500,9 +482,9 @@ export async function validateCards(
       // Skip parent-child pairs
       if (a.parent === b.key || b.parent === a.key) continue;
 
-      const aBoundary = safeParseBoundary(a.boundaryJson);
-      const bBoundary = safeParseBoundary(b.boundaryJson);
-      if (!aBoundary || !bBoundary) continue;
+      const aBoundary = parseStringArrayJson(a.boundaryJson);
+      const bBoundary = parseStringArrayJson(b.boundaryJson);
+      if (aBoundary.length === 0 || bBoundary.length === 0) continue;
 
       const overlapping: string[] = [];
       for (const pa of aBoundary) {
@@ -561,8 +543,8 @@ export async function validateCards(
   const usedGlossaryWords = new Set<string>();
 
   for (const row of dbRows) {
-    const cardGlossary = safeParseGlossaryJson(row.glossaryJson);
-    if (cardGlossary && cardGlossary.length > 0) {
+    const cardGlossary = parseStringArrayJson(row.glossaryJson);
+    if (cardGlossary.length > 0) {
       // Track usage for unused detection
       for (const w of cardGlossary) usedGlossaryWords.add(w);
 
@@ -667,7 +649,7 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     .findByCardKey(key)
     .map((r) => ({ kind: r.kind, file: r.file, symbol: r.symbol }));
 
-  const glossary = safeParseGlossaryJson(row.glossaryJson);
+  const glossary = parseStringArrayJson(row.glossaryJson);
 
   const ns = parseNamespaces(row.namespacesJson);
   const fm: CardFrontmatter = {
@@ -676,11 +658,11 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     status: row.status as CardStatus,
     type: row.type as CardType,
     ...(row.parent ? { parent: row.parent } : {}),
-    ...(row.boundaryJson ? (() => { const b = safeParseBoundary(row.boundaryJson); return b ? { boundary: b } : {}; })() : {}),
+    ...((() => { const b = parseStringArrayJson(row.boundaryJson); return b.length > 0 ? { boundary: b } : {}; })()),
     ...(relations.length ? { relations } : {}),
     ...(tags.length ? { tags } : {}),
     ...(codeLinks.length ? { codeLinks } : {}),
-    ...(glossary && glossary.length > 0 ? { glossary } : {}),
+    ...(glossary.length > 0 ? { glossary } : {}),
     ...(ns.principle ? { principle: ns.principle as CardFrontmatter['principle'] } : {}),
     ...(ns.domain ? { domain: ns.domain as CardFrontmatter['domain'] } : {}),
     ...(ns.brief ? { brief: ns.brief as CardFrontmatter['brief'] } : {}),
