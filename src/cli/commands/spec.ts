@@ -1,4 +1,3 @@
-import { errorMessage } from '../../util/error';
 /**
  * `ed spec` subcommands per CLI_PLAN §4.5.
  */
@@ -9,6 +8,7 @@ import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { writeSpecAnnotations, syncSpecAnnotations, syncSymbolChanges } from '../../ops/spec-sync';
 import { CliUsageError } from '../usage-error';
+import { errorMessage } from '../../util/error';
 
 export function registerSpec(program: Command): void {
   const spec = program.command('spec').description('source code ↔ card binding sync');

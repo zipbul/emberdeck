@@ -1,4 +1,3 @@
-import { errorMessage } from '../../util/error';
 /**
  * `ed glossary` subcommands per CLI_PLAN §4.2.
  */
@@ -11,6 +10,7 @@ import type { CliRuntime } from '../context';
 import { defineGlossary, lookupGlossary, removeGlossary, renameGlossary } from '../../ops/glossary';
 import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../usage-error';
+import { errorMessage } from '../../util/error';
 
 interface YamlGlossaryItem {
   word?: string;
