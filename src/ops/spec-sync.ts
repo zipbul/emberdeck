@@ -58,11 +58,7 @@ function collectTrackedAnnotations(ctx: EmberdeckContext) {
   for (const project of gildashProjectNames(ctx)) {
     for (const tag of TRACKED_ANNOTATION_TAGS) {
       try {
-        const batch = gildash.searchAnnotations(
-          project
-            ? { tag, project, limit: GILDASH_ANNOTATION_LIMIT }
-            : { tag, limit: GILDASH_ANNOTATION_LIMIT },
-        );
+        const batch = gildash.searchAnnotations({ tag, project, limit: GILDASH_ANNOTATION_LIMIT });
         for (const ann of batch) {
           const key = `${ann.tag}\0${ann.filePath}\0${ann.symbolName ?? ''}\0${ann.value}`;
           if (seen.has(key)) continue;

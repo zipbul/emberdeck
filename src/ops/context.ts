@@ -535,7 +535,7 @@ async function collectSymbolChanges(
       try {
         const c = ctx.gildash.getSymbolChanges(oldestUpdatedAt, {
           changeTypes: ['added', 'modified', 'removed', 'renamed', 'moved'],
-          ...(project ? { project } : {}),
+          project,
         });
         changes.push(...c);
       } catch {
