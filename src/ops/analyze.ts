@@ -412,22 +412,16 @@ export async function getOnboardingSummary(
 ): Promise<OnboardingSummary> {
   const allCards = ctx.cardRepo.list();
 
-  // Count by type
+  // Single pass: type/status counts + drifted-card collection.
   const byType = { principle: 0, domain: 0, brief: 0, spec: 0 };
-  for (const card of allCards) {
-    if (card.type === 'principle') byType.principle++;
-    else if (card.type === 'domain') byType.domain++;
-    else if (card.type === 'brief') byType.brief++;
-    else if (card.type === 'spec') byType.spec++;
-  }
-
-  // Count by status
   const byStatus = { draft: 0, active: 0, drifted: 0, retired: 0 };
+  const driftedCards: OnboardingDriftedCard[] = [];
   for (const card of allCards) {
-    if (card.status === 'draft') byStatus.draft++;
-    else if (card.status === 'active') byStatus.active++;
-    else if (card.status === 'drifted') byStatus.drifted++;
-    else if (card.status === 'retired') byStatus.retired++;
+    byType[card.type as keyof typeof byType]++;
+    byStatus[card.status as keyof typeof byStatus]++;
+    if (card.status === 'drifted') {
+      driftedCards.push({ key: card.key, summary: card.summary });
+    }
   }
 
   // Build hierarchy from root cards (cards without a parent)
@@ -441,17 +435,6 @@ export async function getOnboardingSummary(
   if (ctx.gildash) {
     const uncoveredResult = await getUncoveredSymbols(ctx);
     coverageRatio = uncoveredResult.coverageRatio;
-  }
-
-  // Drifted cards (from DB status, lightweight — no drift re-detection)
-  const driftedCards: OnboardingDriftedCard[] = [];
-  for (const card of allCards) {
-    if (card.status === 'drifted') {
-      driftedCards.push({
-        key: card.key,
-        summary: card.summary,
-      });
-    }
   }
 
   // If there are drifted cards, run lightweight drift detection to get actual driftType
