@@ -1,4 +1,3 @@
-import { errorMessage } from '../../util/error';
 /**
  * `ed bulk` subcommands per CLI_PLAN §4.6.
  */
@@ -14,6 +13,8 @@ import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
 import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
 import { CliUsageError } from '../usage-error';
+import { parseJsonOrYaml } from '../parse-input';
+import { errorMessage } from '../../util/error';
 
 function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
   const ok: CreateCardInput[] = [];
@@ -62,17 +63,7 @@ export function registerBulk(program: Command): void {
       await run(
         async (rt: CliRuntime) => {
           const text = opts.from === '-' ? await readStdin() : await readFile(opts.from, 'utf-8');
-          const trimmed = text.trim();
-          let parsed: unknown;
-          try {
-            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-              try { parsed = JSON.parse(text); } catch { parsed = Bun.YAML.parse(text); }
-            } else {
-              parsed = Bun.YAML.parse(text);
-            }
-          } catch (e) {
-            throw new CliUsageError(`failed to parse --from input as JSON or YAML: ${errorMessage(e)}`);
-          }
+          const parsed = parseJsonOrYaml(text);
           if (!Array.isArray(parsed)) {
             throw new CliUsageError('--from FILE must be an array of card inputs');
           }

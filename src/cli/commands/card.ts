@@ -1,4 +1,3 @@
-import { errorMessage } from '../../util/error';
 /**
  * `ed card` subcommands per CLI_PLAN §4.1 (12 commands, migrate excluded per user decision).
  */
@@ -33,6 +32,7 @@ import { parsePositiveInt } from '../parsers';
 import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../usage-error';
 import { atomicWrite } from '../../fs/writer';
+import { parseJsonOrYaml } from '../parse-input';
 
 // ── helpers ──
 
@@ -95,22 +95,6 @@ function applyFieldValue(fields: UpdateCardFields, name: string, value: string):
 function renderCardContentFromDb(rt: CliRuntime, key: string): string {
   const cardFile = buildCardFromDb(rt.ctx, key);
   return serializeCardMarkdown(cardFile.frontmatter, cardFile.body);
-}
-
-async function parseInputFile(text: string): Promise<unknown> {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return JSON.parse(text);
-    } catch {
-      // fall through to YAML
-    }
-  }
-  try {
-    return Bun.YAML.parse(text);
-  } catch (e) {
-    throw new CliUsageError(`failed to parse --from/--patch input as JSON or YAML: ${errorMessage(e)}`);
-  }
 }
 
 // ── register ──
@@ -259,7 +243,7 @@ export function registerCard(program: Command): void {
           if (opts.from) {
             const text = await readBodyFromOption(opts.from);
             if (!text) throw new CliUsageError('--from produced empty input');
-            const parsedRaw = await parseInputFile(text);
+            const parsedRaw = await parseJsonOrYaml(text);
             if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
               throw new CliUsageError('--from must be a JSON/YAML object (got non-object root)');
             }
@@ -310,7 +294,7 @@ export function registerCard(program: Command): void {
           if (opts.patch) {
             const text = await readBodyFromOption(opts.patch);
             if (!text) throw new CliUsageError('--patch produced empty input');
-            const parsedRaw = await parseInputFile(text);
+            const parsedRaw = await parseJsonOrYaml(text);
             if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
               throw new CliUsageError('--patch must be a JSON/YAML object (got non-object root)');
             }
