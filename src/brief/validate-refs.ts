@@ -39,6 +39,7 @@ function collectIds(body: BriefBody): RefSets {
  *  - every flow must be verified by ≥1 criterion (no unverified flow)
  *
  * @throws {CardValidationError} on the first violation found.
+  * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateBriefRefs(body: BriefBody): void {
   const errors: string[] = [];

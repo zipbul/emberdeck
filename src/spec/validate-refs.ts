@@ -76,6 +76,7 @@ function collectBriefRefIds(brief: BriefBody): Set<string> {
  * @param briefLookup - optional: function to fetch parent brief body by key.
  *   When provided, derives references are resolved against the brief.
  *   When omitted, derives format is validated but target existence is not checked.
+  * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateSpecRefs(
   spec: SpecBody,

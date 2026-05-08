@@ -4,29 +4,12 @@ import { DrizzleCardRepository } from './card-repo';
 import { DrizzleRelationRepository } from './relation-repo';
 import { DrizzleClassificationRepository } from './classification-repo';
 import type { EmberdeckDb } from './connection';
-import type { CardRow } from './repository';
+import { makeCardRow as makeCard } from '../../test/fixtures/card-row';
 
 let db: EmberdeckDb;
 let cardRepo: DrizzleCardRepository;
 let relationRepo: DrizzleRelationRepository;
 let classificationRepo: DrizzleClassificationRepository;
-
-function makeCard(overrides: Partial<CardRow> = {}): CardRow {
-  return {
-    key: 'test-card',
-    summary: 'Test card',
-    status: 'draft',
-    type: 'spec',
-    parent: null,
-    boundaryJson: null,
-    namespacesJson: null,
-    body: null,
-    glossaryJson: '[]',
-    filePath: '.emberdeck/cards/test-card.card.md',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
 
 beforeEach(() => {
   db = createEmberdeckDb(':memory:');

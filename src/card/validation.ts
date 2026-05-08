@@ -59,6 +59,7 @@ import { CARD_TYPES, CARD_STATUSES } from './types';
  *
  * @param input - The input object to validate. `undefined` fields are skipped.
  * @throws {CardValidationError} On size limit violation.
+  * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateCardInput(input: ValidationInput): void {
   const { key, summary, body, tags, relations, codeLinks, boundary, type, status } = input;
@@ -224,6 +225,7 @@ const MAX_PARENT_DEPTH = 20;
 
 /**
  * Validates that the parent card exists in the DB.
+  * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateParentExists(ctx: EmberdeckContext, parentKey: string): void {
   if (!ctx.cardRepo.existsByKey(parentKey)) {
@@ -237,6 +239,7 @@ export function validateParentExists(ctx: EmberdeckContext, parentKey: string): 
  * - domain: must be root (no parent allowed) — bounded contexts are top-level
  * - brief: parent MUST be domain (no brief recursion; siblings absorb bloat instead)
  * - spec: parent must be brief or spec (sub-spec recursion allowed)
+  * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
   const parent = ctx.cardRepo.findByKey(parentKey);
@@ -270,6 +273,7 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
 
 /**
  * Detects circular parent references by walking the ancestor chain (max 20 depth).
+  * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, parentKey: string): void {
   let current: string | null = parentKey;
@@ -284,6 +288,7 @@ export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, pare
 
 /**
  * Validates that all relation targets exist in the DB and none is a self-reference.
+  * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, relations: string[]): void {
   for (const target of relations) {
@@ -304,6 +309,7 @@ export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, 
  * - principle / domain children should be: nothing for principle, brief for domain.
  * - brief: only spec children allowed.
  * - spec: only spec children allowed.
+  * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string, newType: CardType): void {
   const children = ctx.cardRepo.findChildren(cardKey);
@@ -362,6 +368,7 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
  * - spec: requires `spec` namespace, codeLinks >= 1 and all resolve; if boundary
  *         present, at least 1 file must match.
  *         parent MUST exist and be a brief or spec card (4-tier hierarchy).
+  * @spec card-lifecycle/status-and-safe-write/update-card-status
  */
 export async function validateActivationGuard(
   ctx: EmberdeckContext,
@@ -507,41 +514,46 @@ export async function validateActivationGuard(
   const links = card.codeLinks ?? [];
   if (links.length === 0) {
     unmet.push('spec card must have at least 1 codeLink');
-  } else if (ctx.gildash) {
+  } else {
     await ensureReindexed(ctx);
-    const cache = makeSymbolFileCache(ctx)!;
-    for (const link of links) {
-      try {
-        if (!cache.find(link.file, link.symbol)) {
+    // Empty index (no source files yet) is "no information" — skip the
+    // resolution check rather than block activation on missing symbols
+    // when there's nothing to compare against. Matches the boundary check
+    // semantics in checkDrift / analyze.
+    const indexedFiles = ctx.gildash.listIndexedFiles();
+    if (indexedFiles.length > 0) {
+      const cache = makeSymbolFileCache(ctx);
+      for (const link of links) {
+        try {
+          if (!cache.find(link.file, link.symbol)) {
+            unmet.push(`codeLink '${link.file}:${link.symbol}' unresolved`);
+          }
+        } catch {
           unmet.push(`codeLink '${link.file}:${link.symbol}' unresolved`);
         }
-      } catch {
-        unmet.push(`codeLink '${link.file}:${link.symbol}' unresolved`);
       }
     }
   }
 
   if (card.boundary && card.boundary.length > 0) {
-    let anyMatch = false;
-    for (const pattern of card.boundary) {
-      const glob = new Bun.Glob(pattern);
-      // Check if at least one file matches (scan project root)
-      if (ctx.gildash) {
-        const files = ctx.gildash.listIndexedFiles();
+    const files = ctx.gildash.listIndexedFiles();
+    // Treat empty index as "no information" — only assert mismatch when we
+    // have a populated index to compare against.
+    if (files.length > 0) {
+      let anyMatch = false;
+      for (const pattern of card.boundary) {
+        const glob = new Bun.Glob(pattern);
         for (const f of files) {
           if (glob.match(f.filePath)) {
             anyMatch = true;
             break;
           }
         }
-      } else {
-        // Without gildash, skip boundary check
-        anyMatch = true;
+        if (anyMatch) break;
       }
-      if (anyMatch) break;
-    }
-    if (!anyMatch) {
-      unmet.push(`boundary patterns match no indexed files`);
+      if (!anyMatch) {
+        unmet.push(`boundary patterns match no indexed files`);
+      }
     }
   }
 
@@ -553,6 +565,7 @@ export async function validateActivationGuard(
 /**
  * Re-validates activation guard when type changes on an active card.
  * Returns 'draft' if the new type's conditions are unmet, otherwise returns the current status.
+  * @spec card-lifecycle/status-and-safe-write/update-card-status
  */
 export async function validateTypeChangeActivation(
   ctx: EmberdeckContext,

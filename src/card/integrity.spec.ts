@@ -1,13 +1,10 @@
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { createEmberdeckDb, closeDb } from '../db/connection';
-import type { EmberdeckDb } from '../db/connection';
 import type { EmberdeckContext } from '../config';
-import type { CardRow } from '../db/repository';
-import { DrizzleCardRepository } from '../db/card-repo';
-import { DrizzleRelationRepository } from '../db/relation-repo';
-import { DrizzleClassificationRepository } from '../db/classification-repo';
-import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
-import { DrizzleChangelogRepository } from '../db/changelog-repo';
+import { setupEmberdeck, teardownEmberdeck } from '../setup';
+import { makeCardRow as makeCard } from '../../test/fixtures/card-row';
 import { ParentValidationError, ActivationGuardError, CardValidationError } from './errors';
 import {
   validateParentExists,
@@ -19,50 +16,23 @@ import {
   validateTypeChangeActivation,
 } from './validation';
 
-let db: EmberdeckDb;
 let ctx: EmberdeckContext;
+let tmpRoot: string;
 
-function makeCard(overrides: Partial<CardRow> = {}): CardRow {
-  return {
-    key: 'test-card',
-    summary: 'Test card',
-    status: 'draft',
-    type: 'spec',
-    parent: null,
-    boundaryJson: null,
-    namespacesJson: null,
-    body: null,
-    glossaryJson: '[]',
-    filePath: '.emberdeck/cards/test-card.card.md',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
-
-beforeEach(() => {
-  db = createEmberdeckDb(':memory:');
-  const cardRepo = new DrizzleCardRepository(db);
-  const relationRepo = new DrizzleRelationRepository(db);
-  const classificationRepo = new DrizzleClassificationRepository(db);
-  const codeLinkRepo = new DrizzleCodeLinkRepository(db);
-  const changelogRepo = new DrizzleChangelogRepository(db);
-
-  ctx = {
-    cardsDir: '/tmp/test-cards',
-    db,
-    cardRepo,
-    relationRepo,
-    classificationRepo,
-    codeLinkRepo,
-    changelogRepo,
-    ignorePatterns: [],
-    regressionThreshold: 0,
-    gildash: undefined,
-  };
+beforeEach(async () => {
+  tmpRoot = await mkdtemp(join(tmpdir(), 'emberdeck-integrity-'));
+  await mkdir(join(tmpRoot, 'cards'), { recursive: true });
+  await writeFile(join(tmpRoot, 'src.ts'), '', 'utf8');
+  ctx = await setupEmberdeck({
+    cardsDir: join(tmpRoot, 'cards'),
+    dbPath: ':memory:',
+    projectRoot: tmpRoot,
+  });
 });
 
-afterEach(() => {
-  closeDb(db);
+afterEach(async () => {
+  await teardownEmberdeck(ctx);
+  await rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
 });
 
 // ── validateParentExists ────────────────────────────────────────────────────

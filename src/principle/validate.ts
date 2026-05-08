@@ -14,6 +14,7 @@ import { CardValidationError } from '../card/errors';
  * Field-level validation happens in markdown.ts during parse.
  *
  * @throws {CardValidationError} when principle namespace is missing.
+  * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validatePrincipleCard(fm: CardFrontmatter): void {
   if (fm.type !== 'principle') {
