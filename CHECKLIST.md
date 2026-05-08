@@ -6,6 +6,31 @@
 - 검증 후 [x] + verdict + 실제 본 line/text 를 명시
 - batch 금지. 한 항목씩.
 
+## 6차 관찰 라운드 (사용자: "관찰을 해")
+
+failure injection / mock / runtime trace 로 직접 관찰. file:line + 코드 trace 로만
+confirm 했던 race/silent/divergence 항목들을 actual 동작으로 재현.
+
+**직접 관찰 (관찰 불가능 → 가능 으로 전환)**:
+- **G-001 race**: bun -e mock reindex 첫 호출 throw → 두번째 silent return (callCount=1). WeakSet 가 이미 mark 됐기 때문. permanent silent failure 재현.
+- **G-014 swallow**: child 카드 파일 직접 삭제 후 force delete parent → status:ok, errors:[] (best-effort 가 ENOENT 묻음).
+- **N-004 corruption**: domain 카드 force delete → child brief 의 `parent = null` 직접 DB 관찰. 4-tier 위반.
+- **G-018/G-019 partial reset**: chmod a-w cards/ 후 reset → DB cards=0 인데 r1/r2/r3 파일 잔존. status:"ok", `db_reset:true` 하드코딩.
+- **G-029 silent**: 모든 project 의 getAffected throw → expandAffectedFiles 가 original input 만 반환 (silent fallback).
+- **C4 + G-009**: safeWriteOperation 의 dbAction throw → compensate 미호출 (try 밖). compensate 자체 throw → CompensationError wrap.
+- **G-039 else**: DB row 없는 카드에 updateCardStatus → body=`"body\n"` (raw, namespace tail 결손) DB 직접 관찰.
+- **J-007 + 변형**: replaceForCard with [tgt, tgt] → UNIQUE constraint failed mid-loop. partial state.
+- **G-006 cycle**: bulk create a→b→a → topological sort silent accept, downstream BULK_CREATE_FAILED catch.
+- **G-027 silent default**: malformed JSON / invalid rule / missing id → 모두 [] 묵음 반환.
+- **G-024 misleading**: brokenLinks=1 보고 후 b throw → c 검사 못 함 — count 부정확 재현.
+- **G-020 false negative**: `overlap("src/**", "a/b/c/d/e.ts")` → false (sample 미생성).
+- **G-031 신규 발견**: 같은 카드의 link 3 개에 각각 replaceForCard 호출 → symbol 이 `_renamed_renamed_renamed` 누적. **단순 perf 이슈 넘어 correctness 이슈** — 각 호출이 모든 link 변경.
+
+이전 5차 deep 결과 (REFUTED 새로 발견):
+- J-016: bun:sqlite Database.close() 자체 idempotent
+- J-027: 현재 Drizzle*Repository constructor 가 throw path 0
+- I-031: state_transitions 에 id 부재
+
 ## 5차 deep 라운드 (사용자 요청: "완벽하게")
 
 claim 의 file:line 만 보고 confirm 했던 항목들을 actual runtime 으로 재현.
