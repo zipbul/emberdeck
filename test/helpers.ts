@@ -1,8 +1,15 @@
-import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { setupEmberdeck, teardownEmberdeck, type EmberdeckContext } from '../index';
+import { createEmberdeckDb, closeDb } from '../src/db/connection';
+import { DrizzleCardRepository } from '../src/db/card-repo';
+import { DrizzleRelationRepository } from '../src/db/relation-repo';
+import { DrizzleClassificationRepository } from '../src/db/classification-repo';
+import { DrizzleCodeLinkRepository } from '../src/db/code-link-repo';
+import { DrizzleChangelogRepository } from '../src/db/changelog-repo';
+import { mockGildash } from './fixtures/gildash';
 import type {
   BriefBody,
   PrincipleBody,
@@ -125,14 +132,28 @@ export async function ensure4tierScaffold(
   return withBrief ? { domain: domainKey, brief: briefKey } : { domain: domainKey };
 }
 
+/**
+ * Default test context. Spins up a real `Gildash.open` against a tmp project
+ * so behavior that depends on the real index (boundary checks, reindex
+ * caching, etc.) is exercised end-to-end.
+ *
+ * If your test reassigns `tc.ctx.gildash = mockGildash(...)` immediately, prefer
+ * `createMockTestContext()` — it skips the real `Gildash.open` (15-30 ms each)
+ * and produces a context with an empty mock gildash already installed.
+ */
 export async function createTestContext(): Promise<TestContext> {
   const tmpDir = await mkdtemp(join(tmpdir(), 'emberdeck_test_'));
   const cardsDir = join(tmpDir, 'cards');
   await mkdir(cardsDir, { recursive: true });
+  // Minimum project shape for gildash to recognize and index the project.
+  // Tests that need real-source-vs-boundary behavior add their own files.
+  await writeFile(join(tmpDir, 'package.json'), JSON.stringify({ name: 'ed-test', version: '0.0.0' }), 'utf8');
+  await writeFile(join(tmpDir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'esnext', module: 'esnext' } }), 'utf8');
 
   const ctx = await setupEmberdeck({
     cardsDir,
     dbPath: ':memory:',
+    projectRoot: tmpDir,
   });
 
   return {
@@ -140,6 +161,46 @@ export async function createTestContext(): Promise<TestContext> {
     cardsDir,
     cleanup: async () => {
       await teardownEmberdeck(ctx);
+      await rm(tmpDir, { recursive: true, force: true });
+    },
+  };
+}
+
+/**
+ * Lightweight test context that bypasses the real `Gildash.open`. Use when
+ * the test reassigns `ctx.gildash` to a controlled mock anyway — saves the
+ * real-index startup cost (15-30 ms × N tests).
+ *
+ * The default `mockGildash({})` returns empty results for every method, which
+ * is the same behavior as a freshly-opened gildash on an empty TS project, so
+ * tests that rely on "no indexed files" semantics still work without changes.
+ */
+export async function createMockTestContext(): Promise<TestContext> {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'emberdeck_test_mock_'));
+  const cardsDir = join(tmpDir, 'cards');
+  await mkdir(cardsDir, { recursive: true });
+
+  const db = createEmberdeckDb(':memory:');
+  const ctx: EmberdeckContext = {
+    cardsDir,
+    projectRoot: tmpDir,
+    db,
+    cardRepo: new DrizzleCardRepository(db),
+    relationRepo: new DrizzleRelationRepository(db),
+    classificationRepo: new DrizzleClassificationRepository(db),
+    codeLinkRepo: new DrizzleCodeLinkRepository(db),
+    changelogRepo: new DrizzleChangelogRepository(db),
+    ignorePatterns: [],
+    regressionThreshold: 0,
+    gildash: mockGildash({}),
+  };
+
+  return {
+    ctx,
+    cardsDir,
+    cleanup: async () => {
+      try { await ctx.gildash.close(); } catch { /* mock — best effort */ }
+      closeDb(db);
       await rm(tmpDir, { recursive: true, force: true });
     },
   };

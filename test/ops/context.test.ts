@@ -1,5 +1,4 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { mock } from 'bun:test';
 
 import {
   createCard,
@@ -7,7 +6,7 @@ import {
   checkDrift,
   checkInteractions,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 describe('checkDrift', () => {
   let tc: TestContext;
@@ -17,7 +16,7 @@ describe('checkDrift', () => {
   });
 
   it('should return healthy result for card with no issues', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'healthy', summary: 'Healthy card', type: 'spec' });
     const result = await checkDrift(tc.ctx, 'healthy');
     expect(result.health.draft).toBe(1);
@@ -25,7 +24,7 @@ describe('checkDrift', () => {
   });
 
   it('should check all cards when key is omitted', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'all-a', summary: 'A', type: 'spec' });
     await createCard(tc.ctx, { key: 'all-b', summary: 'B', type: 'spec' });
 
@@ -34,14 +33,14 @@ describe('checkDrift', () => {
   });
 
   it('should return empty for empty project', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await checkDrift(tc.ctx);
     expect(result.health.total).toBe(0);
     expect(result.cards).toHaveLength(0);
   });
 
   it('should include related cards in drift scope via BFS', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'drift-root',
       summary: 'Root',
@@ -60,7 +59,7 @@ describe('checkDrift', () => {
   });
 
   it('should count active and drifted cards in health', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'h-active',
@@ -81,7 +80,7 @@ describe('checkDrift', () => {
   });
 
   it('should skip draft cards from drift analysis', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'draft-skip',
       summary: 'Draft',
@@ -95,35 +94,7 @@ describe('checkDrift', () => {
   });
 });
 
-// ── Mock Gildash Factory ──
-
-function createMockGildash(overrides: {
-  searchAnnotations?: (...args: unknown[]) => unknown[];
-  searchSymbols?: (...args: unknown[]) => unknown;
-  getSymbolChanges?: (...args: unknown[]) => unknown[];
-  getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
-  getFileInfo?: (...args: unknown[]) => unknown;
-  getDependencies?: (...args: unknown[]) => unknown;
-  listIndexedFiles?: (...args: unknown[]) => unknown[];
-  reindex?: () => Promise<void>;
-} = {}) {
-  const searchSymbols = overrides.searchSymbols ?? (() => []);
-  const defaultGetSymbolsByFile = (file: string) => {
-    const result = searchSymbols({ filePath: file, exact: false }) as Array<{ filePath?: string }>;
-    return Array.isArray(result) ? result.filter((s) => !s.filePath || s.filePath === file) : [];
-  };
-  return {
-    searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
-    searchSymbols: mock(searchSymbols),
-    getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
-    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? defaultGetSymbolsByFile),
-    listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
-    getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
-    getDependencies: overrides.getDependencies ? mock(overrides.getDependencies) : undefined,
-    reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
-    close: mock(() => Promise.resolve()),
-  } as any;
-}
+import { mockGildash as createMockGildash } from '../fixtures/gildash';
 
 describe('checkDrift with gildash — broken link detection', () => {
   let tc: TestContext;
@@ -133,7 +104,7 @@ describe('checkDrift with gildash — broken link detection', () => {
   });
 
   it('should detect broken links and set driftType to broken_link', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'drift-broken',
@@ -160,7 +131,7 @@ describe('checkDrift with gildash — broken link detection', () => {
   });
 
   it('should report zero broken links when searchSymbols finds the symbol', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'drift-ok',
@@ -186,7 +157,7 @@ describe('checkDrift with gildash — broken link detection', () => {
   });
 
   it('should NOT count broken links for draft card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'drift-draft',
       summary: 'Draft card',
@@ -206,7 +177,7 @@ describe('checkDrift with gildash — broken link detection', () => {
   });
 
   it('should respect autoTransition=false', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'no-trans',
@@ -232,7 +203,7 @@ describe('checkDrift with gildash — broken link detection', () => {
 
   // D-3: targeted UPDATE preserves concurrent changes
   it('should only update status field when auto-transitioning — not overwrite summary', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'tgt-upd',
@@ -259,7 +230,7 @@ describe('checkDrift with gildash — broken link detection', () => {
   });
 
   it('should skip file write when DB status was already changed by concurrent op', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'skip-file',
@@ -297,7 +268,7 @@ describe('checkInteractions', () => {
   });
 
   it('should detect shared symbols between cards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'ia',
       summary: 'Card A',
@@ -318,7 +289,7 @@ describe('checkInteractions', () => {
   });
 
   it('should detect undefined relations when symbols are shared', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'ua',
       summary: 'A',
@@ -338,7 +309,7 @@ describe('checkInteractions', () => {
   });
 
   it('should report hasRelation=true for related cards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'ra', summary: 'A', type: 'spec' });
     await createCard(tc.ctx, {
       key: 'rb',
@@ -357,7 +328,7 @@ describe('checkInteractions', () => {
   });
 
   it('should return empty for cards with no overlap', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'na',
       summary: 'A',
@@ -377,14 +348,14 @@ describe('checkInteractions', () => {
   });
 
   it('should handle empty card list', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await checkInteractions(tc.ctx, []);
     expect(result.interactions).toEqual([]);
     expect(result.undefinedRelations).toEqual([]);
   });
 
   it('should detect shared files as potential conflicts', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'fa',
       summary: 'A',
@@ -404,7 +375,7 @@ describe('checkInteractions', () => {
   });
 
   it('should populate sharedFiles array with exact file paths', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'sf-a',
       summary: 'A',
@@ -425,7 +396,7 @@ describe('checkInteractions', () => {
   });
 
   it('should include importDependencies field (empty without gildash)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'id-a',
       summary: 'A',

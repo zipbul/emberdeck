@@ -376,40 +376,6 @@ describe('CLI: STDIN input', () => {
   });
 });
 
-describe('CLI: gildash-required commands without projectRoot', () => {
-  let tmp: string;
-
-  beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), 'ed-cli-'));
-    writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'test', version: '0.0.0' }));
-    writeFileSync(
-      join(tmp, '.emberdeck.jsonc'),
-      // intentionally NO projectRoot — gildash will be undefined
-      JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
-    );
-    mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
-  });
-
-  afterEach(() => {
-    try { rmSync(tmp, { recursive: true, force: true }); } catch {}
-  });
-
-  test('check coverage --uncovered without gildash → exit 6', async () => {
-    const r = await runEd(['check', 'coverage', '--uncovered'], tmp);
-    expect(r.exitCode).toBe(6);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('error');
-    expect(parsed.error.code).toBe('GILDASH_NOT_CONFIGURED');
-  });
-
-  test('check coverage --suggest without gildash → exit 6', async () => {
-    const r = await runEd(['check', 'coverage', '--suggest'], tmp);
-    expect(r.exitCode).toBe(6);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.error.code).toBe('GILDASH_NOT_CONFIGURED');
-  });
-});
-
 describe('CLI: stdout is pure JSON (agent-first)', () => {
   let tmp: string;
 

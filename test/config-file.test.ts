@@ -249,9 +249,7 @@ describe('buildDefaultConfig', () => {
     const config = buildDefaultConfig('/base');
     expect(config.cardsDir).toBe(resolve('/base', DEFAULT_CARDS_DIR));
     expect(config.dbPath).toBe(resolve('/base', DEFAULT_DB_PATH));
-    expect(config.projectRoot).toBeUndefined();
-    expect(config.analysisIgnore).toBeUndefined();
-    expect(config.projectRoot).toBeUndefined();
+    expect(config.projectRoot).toBe('/base');
     expect(config.analysisIgnore).toBeUndefined();
   });
 });

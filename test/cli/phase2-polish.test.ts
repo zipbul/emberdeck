@@ -166,7 +166,7 @@ describe('Phase 2 polish: spec sync-symbols --since persistence (programmatic)',
     const { setupEmberdeck, teardownEmberdeck } = await import('../../src/setup');
     const tmp = mkdtempSync(join(tmpdir(), 'meta-'));
     mkdirSync(join(tmp, 'cards'), { recursive: true });
-    const ctx = await setupEmberdeck({ cardsDir: join(tmp, 'cards'), dbPath: join(tmp, 'data.db') });
+    const ctx = await setupEmberdeck({ cardsDir: join(tmp, 'cards'), dbPath: join(tmp, 'data.db'), projectRoot: tmp });
 
     // first read: empty (Bun.SQLite returns null for no rows in some versions)
     const before = ctx.db.$client

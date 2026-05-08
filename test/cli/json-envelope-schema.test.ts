@@ -155,11 +155,16 @@ describe('JSON envelope: schema regression across major commands', () => {
     expect(r.exitCode).toBe(2);
   });
 
-  test('GILDASH_NOT_CONFIGURED envelope on gildash-required command without projectRoot', async () => {
-    const r = await runEd(['spec', 'sync'], handle.tmp);
-    const env = assertEnvelope(r.stdout);
-    expect(env.status).toBe('error');
-    expect(env.error?.code).toBe('GILDASH_NOT_CONFIGURED');
-    expect(r.exitCode).toBe(6);
+  test('GILDASH_INIT_FAILED envelope when projectRoot is invalid', async () => {
+    const bad = setupTmpProject({ projectRoot: '/nonexistent/path/that/cannot/exist' });
+    try {
+      const r = await runEd(['card', 'list'], bad.tmp);
+      const env = assertEnvelope(r.stdout);
+      expect(env.status).toBe('error');
+      expect(env.error?.code).toBe('GILDASH_INIT_FAILED');
+      expect(r.exitCode).toBe(6);
+    } finally {
+      bad.cleanup();
+    }
   });
 });

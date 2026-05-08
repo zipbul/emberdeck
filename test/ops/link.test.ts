@@ -231,28 +231,10 @@ describe('ops/link', () => {
     expect(result.planned[0]!.reason).toBe('symbol-not-found');
   });
 
-  // 13. [NE] resolveCardCodeLinks: gildash undefined → GildashNotConfiguredError
-  it('should throw GildashNotConfiguredError when ctx.gildash is not set in resolveCardCodeLinks', async () => {
-    await createCard('auth/token', [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }]);
-    tc.ctx.gildash = undefined;
-    await expect(resolveCardCodeLinks(tc.ctx, 'auth/token')).rejects.toMatchObject({
-      name: 'GildashNotConfiguredError',
-    });
-  });
-
   // 14. [NE] resolveCardCodeLinks: card file missing → CardNotFoundError
   it('should throw CardNotFoundError when card file does not exist in resolveCardCodeLinks', async () => {
     await expect(resolveCardCodeLinks(tc.ctx, 'auth/token')).rejects.toMatchObject({
       name: 'CardNotFoundError',
-    });
-  });
-
-  // 15. [NE] validateCodeLinks: gildash undefined → GildashNotConfiguredError
-  it('should throw GildashNotConfiguredError when ctx.gildash is not set in validateCodeLinks', async () => {
-    await createCard('auth/token', [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }]);
-    tc.ctx.gildash = undefined;
-    await expect(validateCodeLinks(tc.ctx, 'auth/token')).rejects.toMatchObject({
-      name: 'GildashNotConfiguredError',
     });
   });
 

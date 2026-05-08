@@ -80,6 +80,19 @@ describeIfNotRoot('FS write error e2e', () => {
     expect(files.filter((f) => f.includes('.tmp.'))).toEqual([]);
   });
 
+  test('readonly cards dir → safeWriteOperation rolls back DB row (no orphan in card list)', async () => {
+    chmodSync(join(tmp, '.emberdeck/cards'), 0o500);
+    const create = await runCli(['card', 'create', 'p', '--type', 'brief', '--summary', 's'], tmp);
+    expect(create.exitCode).not.toBe(0);
+    chmodSync(join(tmp, '.emberdeck/cards'), 0o755);
+
+    // After rollback the card must not exist in the DB; `card get` returns NOT_FOUND.
+    const got = await runCli(['card', 'get', 'p'], tmp);
+    expect(got.exitCode).toBe(3); // NOT_FOUND
+    const parsed = JSON.parse(got.stdout);
+    expect(parsed.error.code).toBe('CARD_NOT_FOUND');
+  });
+
   test('missing parent dir for namespaced key still creates dir tree', async () => {
     // Card with deep namespace requires mkdir -p; verify it's handled.
     const r = await runCli(['card', 'create', 'a/b/c/deep', '--type', 'brief', '--summary', 's'], tmp);

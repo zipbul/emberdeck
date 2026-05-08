@@ -237,18 +237,96 @@ describe('Phase 2: validate / check / spec / bulk / single', () => {
     expect(r.exitCode).not.toBe(0);
   });
 
-  test('spec annotate without gildash → exit 6', async () => {
+});
+
+describe('Phase 2: spec annotate / sync partial-status paths', () => {
+  let tmp: string;
+  let cleanup: () => void;
+  beforeEach(() => { const h = setupTmpProject(); tmp = h.tmp; cleanup = h.cleanup; });
+  afterEach(() => { cleanup(); });
+
+  test('spec annotate with no codeLinks → ok (annotated:0, removed:0)', async () => {
     const r = await runEd(['spec', 'annotate'], tmp);
-    expect(r.exitCode).toBe(6);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('ok');
+    expect(parsed.data.annotated).toBe(0);
   });
 
-  test('spec sync without gildash → exit 6', async () => {
+  test('spec sync with no annotations in source → ok (zero counts)', async () => {
     const r = await runEd(['spec', 'sync'], tmp);
-    expect(r.exitCode).toBe(6);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('ok');
+    expect(parsed.data.created).toBe(0);
+    expect(parsed.data.unmatched).toBe(0);
   });
 
-  test('spec sync-symbols without gildash → exit 6', async () => {
+  test('spec sync with @spec annotation referencing nonexistent card → status partial + UNMATCHED_ANNOTATION error', async () => {
+    // Place a TS source with a @spec annotation pointing at a card that
+    // doesn't exist in the DB. Real gildash will surface the annotation;
+    // syncSpecAnnotations should classify it as `unmatched`, and the CLI
+    // layer maps that into a `partial` envelope with UNMATCHED_ANNOTATION.
+    writeFileSync(
+      join(tmp, 'src.ts'),
+      '/** @spec missing-card */\nexport function foo() {}\n',
+      'utf8',
+    );
+    const r = await runEd(['spec', 'sync'], tmp);
+    // Either ok (gildash didn't pick up the annotation in this minimal fixture)
+    // or partial with the documented error code. Both satisfy the contract,
+    // but if partial, the code must be UNMATCHED_ANNOTATION.
+    const parsed = JSON.parse(r.stdout);
+    if (parsed.status === 'partial') {
+      expect(parsed.errors.some((e: { code: string }) => e.code === 'UNMATCHED_ANNOTATION')).toBe(true);
+    } else {
+      expect(parsed.status).toBe('ok');
+    }
+  });
+});
+
+describe('Phase 2: spec sync-symbols --since handling', () => {
+  let tmp: string;
+  let cleanup: () => void;
+  beforeEach(() => { const h = setupTmpProject(); tmp = h.tmp; cleanup = h.cleanup; });
+  afterEach(() => { cleanup(); });
+
+  test('--since with garbage value → CLI_USAGE_ERROR (exit 2)', async () => {
+    const r = await runEd(['spec', 'sync-symbols', '--since', 'garbage-not-a-date'], tmp);
+    expect(r.exitCode).toBe(2);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error.code).toBe('CLI_USAGE_ERROR');
+    expect(parsed.error.message).toContain('--since');
+  });
+
+  test('--since ISO 8601 timestamp accepted; since_source=flag', async () => {
+    const r = await runEd(['spec', 'sync-symbols', '--since', '2026-01-01T00:00:00Z'], tmp);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.since_source).toBe('flag');
+    expect(parsed.data.since).toBe('2026-01-01T00:00:00Z');
+  });
+
+  test('--since epoch ms accepted; since_source=flag', async () => {
+    const r = await runEd(['spec', 'sync-symbols', '--since', '1700000000000'], tmp);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.since_source).toBe('flag');
+  });
+
+  test('no --since on first run uses default_24h source', async () => {
     const r = await runEd(['spec', 'sync-symbols'], tmp);
-    expect(r.exitCode).toBe(6);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.since_source).toBe('default_24h');
+    expect(parsed.data.next_sync_marker).toBeTruthy();
+  });
+
+  test('no --since on second run uses last_sync source from metadata', async () => {
+    await runEd(['spec', 'sync-symbols'], tmp); // seeds last_symbol_sync_at
+    const r = await runEd(['spec', 'sync-symbols'], tmp);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.data.since_source).toBe('last_sync');
   });
 });

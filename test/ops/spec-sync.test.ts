@@ -15,36 +15,12 @@ import {
   writeSpecAnnotations,
   syncSymbolChanges,
   getLinkCoverage,
-  GildashNotConfiguredError,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createMockTestContext, type TestContext } from '../helpers';
 
 // ── Mock Gildash Factory ──
 
-function createMockGildash(overrides: {
-  searchAnnotations?: (...args: unknown[]) => unknown[];
-  searchSymbols?: (...args: unknown[]) => unknown;
-  getSymbolChanges?: (...args: unknown[]) => unknown[];
-  getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
-  listIndexedFiles?: (...args: unknown[]) => unknown[];
-  reindex?: () => Promise<void>;
-} = {}) {
-  const searchSymbols = overrides.searchSymbols ?? (() => []);
-  const defaultGetSymbolsByFile = (file: string) => {
-    const result = searchSymbols({ filePath: file, exact: false }) as Array<{ filePath?: string }>;
-    if (!Array.isArray(result)) return [];
-    return result.filter((s) => !s.filePath || s.filePath === file);
-  };
-  return {
-    searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
-    searchSymbols: mock(searchSymbols),
-    getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
-    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? defaultGetSymbolsByFile),
-    listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
-    reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
-    close: mock(() => Promise.resolve()),
-  } as any;
-}
+import { mockGildash as createMockGildash } from '../fixtures/gildash';
 
 // ════════════════════════════════════════
 // syncSpecAnnotations
@@ -60,7 +36,7 @@ describe('syncSpecAnnotations', () => {
   // ── HP: Happy Path ──
 
   it('should create code link from @spec annotation matching an existing card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'auth-token', summary: 'Auth token', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
@@ -83,7 +59,7 @@ describe('syncSpecAnnotations', () => {
   });
 
   it('should create multiple code links from multiple annotations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'card-a', summary: 'A', type: 'spec' as const });
     await createCard(tc.ctx, { key: 'card-b', summary: 'B', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
@@ -104,13 +80,8 @@ describe('syncSpecAnnotations', () => {
 
   // ── NE: Negative / Error ──
 
-  it('should throw GildashNotConfiguredError when gildash is not set', async () => {
-    tc = await createTestContext();
-    await expect(syncSpecAnnotations(tc.ctx)).rejects.toThrow(GildashNotConfiguredError);
-  });
-
   it('should report unmatched when card does not exist for annotation', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'nonexistent', filePath: 'src/x.ts', symbolName: 'fn', source: 'line' },
@@ -126,7 +97,7 @@ describe('syncSpecAnnotations', () => {
   // ── ED: Edge ──
 
   it('should skip annotation with empty value', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: '  ', filePath: 'src/x.ts', symbolName: 'fn', source: 'line' },
@@ -139,7 +110,7 @@ describe('syncSpecAnnotations', () => {
   });
 
   it('should skip annotation with null symbolName', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'orphan', summary: 'Orphan', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
@@ -152,7 +123,7 @@ describe('syncSpecAnnotations', () => {
   });
 
   it('should return zero counts when no annotations found', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({ searchAnnotations: () => [] });
 
     const result = await syncSpecAnnotations(tc.ctx);
@@ -161,7 +132,7 @@ describe('syncSpecAnnotations', () => {
   });
 
   it('should not create duplicate link when link already exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'dup-link',
       summary: 'Dup',
@@ -181,7 +152,7 @@ describe('syncSpecAnnotations', () => {
   });
 
   it('should preserve existing manual links when adding new annotation link', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'preserve',
       summary: 'Preserve',
@@ -203,7 +174,7 @@ describe('syncSpecAnnotations', () => {
   });
 
   it('should set kind to unknown when searchSymbols returns error Result', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'err-sym', summary: 'Error symbol', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
@@ -218,7 +189,7 @@ describe('syncSpecAnnotations', () => {
   });
 
   it('should set kind to unknown when searchSymbols finds no match', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'no-match', summary: 'No match', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
@@ -235,7 +206,7 @@ describe('syncSpecAnnotations', () => {
   // ── CO: Corner ──
 
   it('should not report unmatched when card missing and symbolName is null', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
         { tag: 'spec', value: 'nonexistent', filePath: 'src/x.ts', symbolName: null, source: 'line' },
@@ -249,7 +220,7 @@ describe('syncSpecAnnotations', () => {
   // ── ID: Idempotency ──
 
   it('should return same result when called twice with same state', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'idem', summary: 'Idempotent', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash({
       searchAnnotations: () => [
@@ -283,7 +254,7 @@ describe('syncSymbolChanges', () => {
   // ── HP ──
 
   it('should update symbol name on rename', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'rename-card',
       summary: 'Rename',
@@ -313,7 +284,7 @@ describe('syncSymbolChanges', () => {
   });
 
   it('should update file path on move', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'move-card',
       summary: 'Move',
@@ -342,7 +313,7 @@ describe('syncSymbolChanges', () => {
   });
 
   it('should report removed symbols as broken without deleting links', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'del-card',
       summary: 'Deleted',
@@ -371,17 +342,10 @@ describe('syncSymbolChanges', () => {
     expect(links).toHaveLength(1);
   });
 
-  // ── NE ──
-
-  it('should throw GildashNotConfiguredError when gildash is not set', async () => {
-    tc = await createTestContext();
-    await expect(syncSymbolChanges(tc.ctx, '2020-01-01')).rejects.toThrow(GildashNotConfiguredError);
-  });
-
   // ── ED ──
 
   it('should return zero counts when no changes detected', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({ getSymbolChanges: () => [] });
 
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
@@ -391,7 +355,7 @@ describe('syncSymbolChanges', () => {
   });
 
   it('should skip changes with no matching code links', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'unrelated',
       summary: 'Unrelated',
@@ -419,7 +383,7 @@ describe('syncSymbolChanges', () => {
   // ── CO ──
 
   it('should handle rename where oldName is null (uses symbolName as fallback)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'fallback',
       summary: 'Fallback',
@@ -446,7 +410,7 @@ describe('syncSymbolChanges', () => {
   });
 
   it('should handle multiple changes affecting the same card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'multi-change',
       summary: 'Multi',
@@ -478,7 +442,7 @@ describe('syncSymbolChanges', () => {
   // ── ID ──
 
   it('should be idempotent when called twice with same changes', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'idem-sync',
       summary: 'Idem',
@@ -511,7 +475,7 @@ describe('getLinkCoverage', () => {
   // ── HP ──
 
   it('should return full coverage when all links resolve', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'full-cov',
       summary: 'Full coverage',
@@ -535,7 +499,7 @@ describe('getLinkCoverage', () => {
   });
 
   it('should report broken links and reduced coverage', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'partial-cov',
       summary: 'Partial',
@@ -558,7 +522,7 @@ describe('getLinkCoverage', () => {
   });
 
   it('should find unreferenced symbols in linked files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'unref',
       summary: 'Unreferenced',
@@ -581,18 +545,11 @@ describe('getLinkCoverage', () => {
     expect(result.unreferenced.some((u) => u.symbol === 'ClassC')).toBe(true);
   });
 
-  // ── NE ──
-
-  it('should throw GildashNotConfiguredError when gildash is not set', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'no-gildash', summary: 'No gildash', type: 'spec' as const });
-    await expect(getLinkCoverage(tc.ctx, 'no-gildash')).rejects.toThrow(GildashNotConfiguredError);
-  });
 
   // ── ED ──
 
   it('should return coverage 1 and empty arrays for card with no code links', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'no-links', summary: 'No links', type: 'spec' as const });
     tc.ctx.gildash = createMockGildash();
 
@@ -605,7 +562,7 @@ describe('getLinkCoverage', () => {
   });
 
   it('should handle searchSymbols returning non-array (error Result)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'err-search',
       summary: 'Error search',
@@ -621,7 +578,7 @@ describe('getLinkCoverage', () => {
   });
 
   it('should handle getSymbolsByFile returning null', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'null-syms',
       summary: 'Null symbols',
@@ -638,7 +595,7 @@ describe('getLinkCoverage', () => {
   // ── CO ──
 
   it('should count all links as broken when none resolve', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'all-broken',
       summary: 'All broken',
@@ -658,7 +615,7 @@ describe('getLinkCoverage', () => {
   });
 
   it('should call gildash.reindex() before calculating coverage', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'reindex-cov',
       summary: 'Reindex coverage',
@@ -703,7 +660,7 @@ describe('writeSpecAnnotations', () => {
   // ── HP: Happy Path ──
 
   it('should insert @spec annotation above a symbol with no existing comment', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -734,7 +691,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should add @spec tag inside existing multi-line JSDoc', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -775,7 +732,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should expand single-line JSDoc and add @spec tag', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -804,24 +761,10 @@ describe('writeSpecAnnotations', () => {
     expect(content).toContain('Short doc');
   });
 
-  // ── NE: Negative / Error ──
-
-  it('should throw GildashNotConfiguredError when gildash is not set', async () => {
-    tc = await createTestContext();
-    await expect(writeSpecAnnotations(tc.ctx)).rejects.toThrow(GildashNotConfiguredError);
-  });
-
-  it('should throw GildashNotConfiguredError when projectRoot is not set', async () => {
-    tc = await createTestContext();
-    tc.ctx.gildash = createMockGildash();
-    tc.ctx.projectRoot = undefined;
-    await expect(writeSpecAnnotations(tc.ctx)).rejects.toThrow(GildashNotConfiguredError);
-  });
-
   // ── ED: Edge ──
 
   it('should not duplicate annotation when @spec already exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -853,7 +796,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should not duplicate @spec inside existing multi-line JSDoc', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -887,7 +830,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should count symbolNotFound when gildash returns no match', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -908,7 +851,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should process all cards when no key filter is provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -949,7 +892,7 @@ describe('writeSpecAnnotations', () => {
 
   // B-1: two cards referencing same symbol on same line
   it('should insert both @spec tags when two cards reference the same symbol', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -989,7 +932,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should add both @spec tags inside existing JSDoc when two cards share same symbol', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1038,7 +981,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should skip already-present card and insert only new card when same symbol shared', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1082,7 +1025,7 @@ describe('writeSpecAnnotations', () => {
   // ── CO: Corner ──
 
   it('should return zero counts when card has no code links', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1101,7 +1044,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should handle multiple code links to the same file', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1140,7 +1083,7 @@ describe('writeSpecAnnotations', () => {
   // ── ID: Idempotency ──
 
   it('should be idempotent when called twice', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1183,7 +1126,7 @@ describe('writeSpecAnnotations', () => {
   // ── Reconciler: REMOVE orphan @spec ──
 
   it('should remove orphan @spec when card is deleted (standalone comment)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1209,7 +1152,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should remove orphan @spec line inside multi-line JSDoc', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1241,7 +1184,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should remove entire JSDoc block when @spec was the only content', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1272,7 +1215,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should handle rename: remove old key + insert new key', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1307,7 +1250,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should remove all @spec when DB is empty (reset scenario)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 
@@ -1334,7 +1277,7 @@ describe('writeSpecAnnotations', () => {
   });
 
   it('should be idempotent: removed=0, annotated=0 on second run', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const projectRoot = tc.cardsDir.replace(/\/cards$/, '');
     tc.ctx.projectRoot = projectRoot;
 

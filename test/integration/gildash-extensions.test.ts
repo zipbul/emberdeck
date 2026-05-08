@@ -19,7 +19,7 @@ import {
   updateCardStatus,
 } from '../../index';
 import {
-  createTestContext,
+  createMockTestContext,
   ensure4tierScaffold,
   SPEC_BODY,
   makeTestSpec,
@@ -54,7 +54,7 @@ describe('analyze — health.codeCycles', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('reports cycle count and samples when hasCycle is true', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = makeGildash({
       hasCycle: async () => true,
       getCyclePaths: async () => [['a.ts', 'b.ts', 'a.ts'], ['c.ts', 'd.ts', 'c.ts']],
@@ -66,17 +66,12 @@ describe('analyze — health.codeCycles', () => {
   });
 
   it('reports zero cycles when hasCycle is false', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = makeGildash({ hasCycle: async () => false });
     const result = await analyze(tc.ctx);
     expect(result.health.codeCycles).toEqual({ count: 0, samples: [] });
   });
 
-  it('omits codeCycles when gildash is unavailable', async () => {
-    tc = await createTestContext();
-    const result = await analyze(tc.ctx);
-    expect(result.health.codeCycles).toBeUndefined();
-  });
 });
 
 // ── getFanMetrics → preChangeCheck risk promotion ────────────────────
@@ -86,7 +81,7 @@ describe('preChangeCheck — maxFanIn risk promotion', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('promotes risk one tier when fan-in ≥ 10', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'hot-card',
       summary: 'Hot card',
@@ -103,7 +98,7 @@ describe('preChangeCheck — maxFanIn risk promotion', () => {
   });
 
   it('does not promote when fan-in < threshold', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'warm-card',
       summary: 'Warm',
@@ -118,7 +113,7 @@ describe('preChangeCheck — maxFanIn risk promotion', () => {
   });
 
   it('caps promotion at critical', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     // Create 5+ affected cards to start at 'critical'
     for (let i = 0; i < 6; i++) {
       await createCard(tc.ctx, {
@@ -143,7 +138,7 @@ describe('validateCodeLinks — internalLinks', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('flags codeLinks targeting non-exported symbols', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'mixed',
       summary: 'Mixed visibility',
@@ -172,8 +167,8 @@ describe('validateCodeLinks — internalLinks', () => {
     expect(result.internalLinks).toEqual([{ file: 'src/m.ts', symbol: 'priv' }]);
   });
 
-  it('omits internalLinks when getModuleInterface is unavailable', async () => {
-    tc = await createTestContext();
+  it('reports an empty internalLinks array when no exports are returned', async () => {
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'noiface',
       summary: 'No iface',
@@ -182,10 +177,11 @@ describe('validateCodeLinks — internalLinks', () => {
     });
     tc.ctx.gildash = makeGildash({
       getSymbolsByFile: () => [{ name: 'fn', memberName: null, filePath: 'src/x.ts', kind: 'function' }],
-      getModuleInterface: undefined,
+      getModuleInterface: () => ({ filePath: 'src/x.ts', exports: [] }),
     });
     const result = await validateCodeLinks(tc.ctx, 'noiface');
-    expect(result.internalLinks).toBeUndefined();
+    // No exports → all linked symbols flagged as internal.
+    expect(result.internalLinks).toEqual([{ file: 'src/x.ts', symbol: 'fn' }]);
   });
 });
 
@@ -196,7 +192,7 @@ describe('checkDrift — heritage_uncovered', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('flags subclasses not covered by any spec card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'base-spec',
@@ -238,7 +234,7 @@ describe('checkDrift — heritage_uncovered', () => {
   });
 
   it('does not flag when subclass has its own spec card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'covered-base',
@@ -297,7 +293,7 @@ describe('syncSpecAnnotations — 4-tier annotation tags', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('creates code links for @brief/@principle/@domain tags too', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     // Use the existing scaffold cards that ensure4tierScaffold creates
     // Here we just verify the tag-routing: each tag finds a matching card.
@@ -329,7 +325,7 @@ describe('syncSpecAnnotations — 4-tier annotation tags', () => {
   });
 
   it('dedupes when a mock returns the same annotation across tag queries', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'dup-card', summary: 's', type: 'spec' });
     const ann = { tag: 'spec', value: 'dup-card', filePath: 'src/d.ts', symbolName: 'dup', source: 'line' };
     tc.ctx.gildash = makeGildash({
@@ -351,7 +347,7 @@ describe('checkDrift — pattern_violation', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('flags forbidden pattern with matches', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/p.ts', 'fn');
     spec.code_patterns = [
@@ -386,7 +382,7 @@ describe('checkDrift — pattern_violation', () => {
   });
 
   it('flags required pattern with zero matches', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/r.ts', 'fn');
     spec.code_patterns = [
@@ -419,7 +415,7 @@ describe('checkDrift — pattern_violation', () => {
   });
 
   it('passes when forbidden pattern has zero matches and required has matches', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/ok.ts', 'fn');
     spec.code_patterns = [
@@ -462,7 +458,7 @@ describe('checkDrift — multi-detection', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('reports both broken_link and pattern_violation simultaneously', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/m.ts', 'gone');
     spec.code_patterns = [{ id: 'PAT-1', pattern: 'console.log($$$)', rule: 'forbidden' }];
@@ -494,7 +490,7 @@ describe('checkDrift — multi-detection', () => {
   });
 
   it('driftTypes empty when no drift detected', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'clean',
@@ -517,7 +513,7 @@ describe('checkDrift — multi-detection', () => {
   });
 
   it('priority order: broken_link before boundary_inactive', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'prio',
@@ -549,7 +545,7 @@ describe('checkDrift — auto-transition for new drift types', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('auto-transitions active→drifted on heritage_uncovered when autoTransition=true', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'auto-her',
@@ -589,7 +585,7 @@ describe('checkDrift — auto-transition for new drift types', () => {
   });
 
   it('auto-transitions active→drifted on pattern_violation when autoTransition=true', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/v.ts', 'fn');
     spec.code_patterns = [{ id: 'PAT-X', pattern: 'console.log($$$)', rule: 'forbidden' }];
@@ -695,7 +691,7 @@ describe('monorepo — gildash API routing across projects', () => {
   }
 
   it('SymbolFileCache unions symbols from each project', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'union-card',
@@ -722,7 +718,7 @@ describe('monorepo — gildash API routing across projects', () => {
   });
 
   it('searchAnnotations iterates projects (4-tier × N-project)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, { key: 'multi-spec', summary: 's', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/x.ts', 'fn') });
     tc.ctx.gildash = makeMultiProjectGildash({
@@ -739,7 +735,7 @@ describe('monorepo — gildash API routing across projects', () => {
   });
 
   it('findPattern sums matches across projects (pattern_violation)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/p.ts', 'fn');
     spec.code_patterns = [{ id: 'PAT-A', pattern: 'console.log($$$)', rule: 'forbidden' }];
@@ -758,7 +754,7 @@ describe('monorepo — gildash API routing across projects', () => {
   });
 
   it('searchRelations heritage_uncovered iterates projects', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, { key: 'her-multi', summary: 'h', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'class', file: 'src/c.ts', symbol: 'Base' }], spec: makeTestSpec('src/c.ts', 'Base') });
     await updateCardStatus(tc.ctx, 'her-multi', 'active');
@@ -775,7 +771,7 @@ describe('monorepo — gildash API routing across projects', () => {
   });
 
   it('preChangeCheck max fan-in picks max across projects', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'fan-multi', summary: 'f', type: 'spec', codeLinks: [{ kind: 'function', file: 'src/h.ts', symbol: 'h' }] });
     tc.ctx.gildash = makeMultiProjectGildash({
       projects: ['projA', 'projB'],
@@ -794,7 +790,7 @@ describe('monorepo — gildash API routing across projects', () => {
   });
 
   it('expandAffectedFiles unions across projects', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'imp-card', summary: 'i', type: 'spec', codeLinks: [{ kind: 'function', file: 'src/imp.ts', symbol: 'imp' }] });
     tc.ctx.gildash = makeMultiProjectGildash({
       projects: ['projA', 'projB'],
@@ -811,7 +807,7 @@ describe('monorepo — gildash API routing across projects', () => {
   });
 
   it('getSymbolChanges unions across projects (symbol_changed drift)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, { key: 'sym-multi', summary: 'sm', type: 'spec', parent: '_br', body: SPEC_BODY, boundary: ['src/changed/**'], codeLinks: [{ kind: 'function', file: 'src/changed/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/changed/x.ts', 'fn') });
     await updateCardStatus(tc.ctx, 'sym-multi', 'active');
@@ -841,7 +837,7 @@ describe('SpecBody.code_patterns — round-trip', () => {
   afterEach(async () => { await tc?.cleanup(); });
 
   it('preserves code_patterns through DB serialize/deserialize', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/rt.ts', 'fn');
     spec.code_patterns = [

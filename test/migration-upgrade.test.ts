@@ -65,6 +65,7 @@ describe('migration: 0001 → 0002 upgrade path', () => {
       const ctx = await setupEmberdeck({
         cardsDir: join(tmp, 'cards'),
         dbPath,
+        projectRoot: tmp,
       });
 
       // After setup, system_lock should exist

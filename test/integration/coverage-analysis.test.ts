@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'bun:test';
+import { join } from 'node:path';
 
 import {
   createCard,
@@ -7,7 +8,8 @@ import {
   analyze,
   type CardRow,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createMockTestContext, createTestContext, type TestContext } from '../helpers';
+import { mockGildashFromSymbols as createMockGildash } from '../fixtures/gildash';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,68 +36,6 @@ function insertCard(
   tc.ctx.cardRepo.upsert(row);
 }
 
-/** Create a mock gildash for testing symbol operations. */
-function createMockGildash(symbols: Record<string, Array<{ name: string; kind: string; isExported: boolean }>>) {
-  // Map: absolute-path -> symbols
-  const fileSymbols = new Map<string, Array<{ name: string; kind: string; isExported: boolean; filePath: string }>>();
-  const indexedFiles: Array<{ project: string; filePath: string; mtimeMs: number; size: number; contentHash: string; updatedAt: string; lineCount: number }> = [];
-
-  for (const [filePath, syms] of Object.entries(symbols)) {
-    fileSymbols.set(filePath, syms.map((s) => ({
-      ...s,
-      filePath,
-      id: 0,
-      span: { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } },
-      signature: null,
-      fingerprint: null,
-      detail: {},
-    })));
-    indexedFiles.push({
-      project: 'default',
-      filePath,
-      mtimeMs: Date.now(),
-      size: 100,
-      contentHash: 'abc',
-      updatedAt: new Date().toISOString(),
-      lineCount: 10,
-    });
-  }
-
-  return {
-    reindex: async () => {},
-    close: async () => {},
-    listIndexedFiles: () => indexedFiles,
-    getSymbolsByFile: (fp: string) => {
-      const direct = fileSymbols.get(fp);
-      if (direct) return direct;
-      for (const [key, syms] of fileSymbols) {
-        if (key === fp || key.endsWith('/' + fp)) return syms;
-      }
-      return [];
-    },
-    searchSymbols: (query: { text?: string; exact?: boolean; filePath?: string }) => {
-      const results: any[] = [];
-      for (const [fp, syms] of fileSymbols) {
-        if (query.filePath) {
-          // Match both absolute and relative paths (checkDrift passes relative link.file)
-          const matches = fp === query.filePath || fp.endsWith('/' + query.filePath);
-          if (!matches) continue;
-        }
-        for (const s of syms) {
-          if (query.exact && query.text && s.name !== query.text) continue;
-          if (!query.exact && query.text && !s.name.includes(query.text)) continue;
-          // Return with relative filePath matching the query for comparison in checkDrift
-          results.push(query.filePath ? { ...s, filePath: query.filePath } : s);
-        }
-      }
-      return results;
-    },
-    getSymbolChanges: () => [],
-    searchAnnotations: () => [],
-    getDependencies: () => [],
-  } as any;
-}
-
 // ---------------------------------------------------------------------------
 // getUncoveredSymbols
 // ---------------------------------------------------------------------------
@@ -108,7 +48,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('returns all symbols when no cards exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
         { name: 'login', kind: 'function', isExported: true },
@@ -125,7 +65,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('excludes symbols covered by codeLinks', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
         { name: 'login', kind: 'function', isExported: true },
@@ -148,7 +88,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('excludes symbols in boundary-covered files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
 
     // Create a real temp directory for boundary scanning
     const { mkdirSync, writeFileSync, rmSync } = require('node:fs');
@@ -174,7 +114,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('applies ignorePatterns patterns', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.ignorePatterns = ['src/generated/**'];
     tc.ctx.gildash = createMockGildash({
@@ -192,7 +132,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('applies excludePatterns on top of ignorePatterns', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.ignorePatterns = ['src/generated/**'];
     tc.ctx.gildash = createMockGildash({
@@ -215,7 +155,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('filters by exportedOnly', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
@@ -232,7 +172,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('filters by kinds', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
@@ -248,7 +188,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('filters by specific files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
@@ -265,7 +205,7 @@ describe('getUncoveredSymbols', () => {
   });
 
   it('returns ratio=1 when no symbols exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({});
 
@@ -288,7 +228,7 @@ describe('suggestCardScope', () => {
   });
 
   it('suggests brief card for directory with multiple files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
@@ -309,7 +249,7 @@ describe('suggestCardScope', () => {
   });
 
   it('suggests brief card when domain ancestor exists (4-tier)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     // Create domain at src/api so a child directory under it gets a brief suggestion
     await createCard(tc.ctx, { key: 'src/api', summary: 'API domain', type: 'domain' });
@@ -330,7 +270,7 @@ describe('suggestCardScope', () => {
   });
 
   it('suggests spec card for single-file directory', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/utils/hash.ts': [
@@ -345,7 +285,7 @@ describe('suggestCardScope', () => {
   });
 
   it('skips directories already covered by existing cards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth/login.ts': [
@@ -362,7 +302,7 @@ describe('suggestCardScope', () => {
   });
 
   it('respects path filter', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
@@ -380,7 +320,7 @@ describe('suggestCardScope', () => {
   });
 
   it('path filter does not match sibling directories with shared prefix', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
@@ -398,7 +338,7 @@ describe('suggestCardScope', () => {
   });
 
   it('respects maxDepth', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/deep/nested/dir/file.ts': [
@@ -417,7 +357,7 @@ describe('suggestCardScope', () => {
   });
 
   it('returns empty when all symbols are covered', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
@@ -436,7 +376,7 @@ describe('suggestCardScope', () => {
   });
 
   it('skips directories covered by existing boundary globs', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
@@ -455,7 +395,7 @@ describe('suggestCardScope', () => {
   });
 
   it('suggests parent when ancestor card exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/v2/routes.ts': [
@@ -484,7 +424,7 @@ describe('analyze', () => {
   });
 
   it('returns correct health counts based on detected state', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
@@ -508,7 +448,7 @@ describe('analyze', () => {
   });
 
   it('health.drifted reflects detected drift, not just DB status', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
@@ -531,7 +471,7 @@ describe('analyze', () => {
   });
 
   it('drifted-in-DB card with no current drift still counts as drifted', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
 
     // Card marked drifted in DB, but has no code links or boundary → no drift detected
     insertCard(tc, 'was-drifted', { status: 'drifted' });
@@ -545,29 +485,21 @@ describe('analyze', () => {
   });
 
   it('detects boundary_inactive drift in driftedCards', async () => {
+    // Real gildash needed: the test asserts boundary_inactive against a populated index.
     tc = await createTestContext();
+    const { writeFileSync } = require('node:fs');
+    writeFileSync(join(tc.ctx.projectRoot, 'src.ts'), 'export const x = 1;\n');
+    insertCard(tc, 'stale-boundary', { status: 'active', boundary: ['nonexistent/**/*.ts'] });
 
-    const { mkdirSync, rmSync } = require('node:fs');
-    const tmpRoot = '/tmp/ed-coverage-boundary-drift-' + Date.now();
-    mkdirSync(tmpRoot, { recursive: true });
-    tc.ctx.projectRoot = tmpRoot;
-
-    try {
-      // Active card with boundary that matches nothing → boundary_inactive
-      insertCard(tc, 'stale-boundary', { status: 'active', boundary: ['nonexistent/**'] });
-
-      const result = await analyze(tc.ctx);
-      expect(result.health.drifted).toBe(1);
-      expect(result.driftedCards).toHaveLength(1);
-      expect(result.driftedCards[0]!.key).toBe('stale-boundary');
-      expect(result.driftedCards[0]!.driftType).toBe('boundary_inactive');
-    } finally {
-      rmSync(tmpRoot, { recursive: true, force: true });
-    }
+    const result = await analyze(tc.ctx);
+    expect(result.health.drifted).toBe(1);
+    expect(result.driftedCards).toHaveLength(1);
+    expect(result.driftedCards[0]!.key).toBe('stale-boundary');
+    expect(result.driftedCards[0]!.driftType).toBe('boundary_inactive');
   });
 
   it('reports coverage when gildash is available', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
@@ -593,46 +525,22 @@ describe('analyze', () => {
     expect(result.unlinkedSymbols[0]!.symbol).toBe('logout');
   });
 
-  it('returns empty coverage when gildash is unavailable', async () => {
+  it('detects stale boundaries against the populated index', async () => {
     tc = await createTestContext();
-    tc.ctx.gildash = undefined;
+    const { writeFileSync } = require('node:fs');
+    writeFileSync(join(tc.ctx.projectRoot, 'src.ts'), 'export const x = 1;\n');
+    insertCard(tc, 'stale', { boundary: ['nonexistent/dir/**'] });
 
     const result = await analyze(tc.ctx);
-    expect(result.coverage.totalSymbols).toBe(0);
-    expect(result.coverage.ratio).toBe(1);
-    expect(result.unlinkedSymbols).toHaveLength(0);
-  });
-
-  it('detects stale boundaries', async () => {
-    tc = await createTestContext();
-
-    // Use a tmp directory as projectRoot so Bun.Glob scanning works
-    const { mkdirSync, rmSync } = require('node:fs');
-    const tmpRoot = '/tmp/ed-coverage-analyze-' + Date.now();
-    mkdirSync(tmpRoot, { recursive: true });
-    tc.ctx.projectRoot = tmpRoot;
-
-    try {
-      // Card with boundary matching nothing
-      insertCard(tc, 'stale', { boundary: ['nonexistent/dir/**'] });
-
-      const result = await analyze(tc.ctx);
-      expect(result.health.staleBoundary).toBe(1);
-    } finally {
-      rmSync(tmpRoot, { recursive: true, force: true });
-    }
+    expect(result.health.staleBoundary).toBe(1);
   });
 
   it('includes body in drifted cards when includeBody=true', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     insertCard(tc, 'drifted-card', { status: 'drifted', body: 'Design rationale here' });
     tc.ctx.codeLinkRepo.replaceForCard('drifted-card', [
       { kind: 'function', file: 'src/missing.ts', symbol: 'gone' },
     ]);
-
-    // Set up gildash that reports the link as broken
-    tc.ctx.gildash = createMockGildash({});
-    tc.ctx.projectRoot = '/project';
 
     const result = await analyze(tc.ctx, { includeBody: true });
     const drifted = result.driftedCards.find((c) => c.key === 'drifted-card');
@@ -641,7 +549,7 @@ describe('analyze', () => {
   });
 
   it('does not include body by default', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     insertCard(tc, 'drifted-card2', { status: 'drifted', body: 'Secret body' });
     tc.ctx.codeLinkRepo.replaceForCard('drifted-card2', [
       { kind: 'function', file: 'src/missing.ts', symbol: 'gone' },
@@ -657,7 +565,7 @@ describe('analyze', () => {
   });
 
   it('limits unlinked symbols to top N', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
 
     // Create 30 symbols
@@ -677,7 +585,7 @@ describe('analyze', () => {
   });
 
   it('driftedCards list includes broken link info', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     insertCard(tc, 'broken-card', { status: 'active' });
     tc.ctx.codeLinkRepo.replaceForCard('broken-card', [
       { kind: 'function', file: 'src/missing.ts', symbol: 'gone' },
@@ -699,7 +607,7 @@ describe('analyze', () => {
   // ── Pagination (offset/limit) ──
 
   it('returns driftedCardsTotal equal to driftedCards length when no pagination', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
@@ -718,7 +626,7 @@ describe('analyze', () => {
   });
 
   it('applies limit to driftedCards while preserving driftedCardsTotal', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
@@ -735,7 +643,7 @@ describe('analyze', () => {
   });
 
   it('applies offset to driftedCards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
@@ -758,7 +666,7 @@ describe('analyze', () => {
   });
 
   it('applies offset and limit together', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
@@ -780,7 +688,7 @@ describe('analyze', () => {
   });
 
   it('returns empty driftedCards when offset exceeds total', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
@@ -795,7 +703,7 @@ describe('analyze', () => {
   });
 
   it('health.drifted count is unaffected by pagination', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 

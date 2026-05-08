@@ -24,7 +24,7 @@ beforeAll(async () => {
   const tmp = await mkdtemp(join(tmpdir(), 'ed-perf-'));
   const cardsDir = join(tmp, 'cards');
   await mkdir(cardsDir, { recursive: true });
-  ctx = await setupEmberdeck({ cardsDir, dbPath: ':memory:' });
+  ctx = await setupEmberdeck({ cardsDir, dbPath: ':memory:', projectRoot: tmp });
   cleanup = async () => {
     await teardownEmberdeck(ctx);
     await rm(tmp, { recursive: true, force: true });

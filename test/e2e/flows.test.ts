@@ -29,88 +29,12 @@ import {
   syncSpecAnnotations,
   analyze,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
 
 // ============================================================================
-// Mock gildash factory (same pattern as coverage-analysis tests)
-// ============================================================================
+// Use the shared symbol-map mock factory.
 
-function createMockGildash(
-  symbols: Record<string, Array<{ name: string; kind: string; isExported: boolean }>>,
-  overrides?: { searchAnnotations?: (...args: unknown[]) => unknown[] },
-) {
-  const fileSymbols = new Map<
-    string,
-    Array<{ name: string; kind: string; isExported: boolean; filePath: string }>
-  >();
-  const indexedFiles: Array<{
-    project: string;
-    filePath: string;
-    mtimeMs: number;
-    size: number;
-    contentHash: string;
-    updatedAt: string;
-    lineCount: number;
-  }> = [];
-
-  for (const [filePath, syms] of Object.entries(symbols)) {
-    fileSymbols.set(
-      filePath,
-      syms.map((s) => ({
-        ...s,
-        filePath,
-        id: 0,
-        span: { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } },
-        signature: null,
-        fingerprint: null,
-        detail: {},
-      })),
-    );
-    indexedFiles.push({
-      project: 'default',
-      filePath,
-      mtimeMs: Date.now(),
-      size: 100,
-      contentHash: 'abc',
-      updatedAt: new Date().toISOString(),
-      lineCount: 10,
-    });
-  }
-
-  return {
-    reindex: async () => {},
-    close: async () => {},
-    listIndexedFiles: () => indexedFiles,
-    getSymbolsByFile: (fp: string) => {
-      const direct = fileSymbols.get(fp);
-      if (direct) return direct;
-      // Mock symbols are keyed by absolute path; accept relative lookups too
-      // (mirrors real gildash 0.26 which stores project-root-relative paths).
-      for (const [key, syms] of fileSymbols) {
-        if (key === fp || key.endsWith('/' + fp)) return syms;
-      }
-      return [];
-    },
-    searchSymbols: (query: { text?: string; exact?: boolean; filePath?: string }) => {
-      const results: any[] = [];
-      for (const [fp, syms] of fileSymbols) {
-        if (query.filePath) {
-          const matches = fp === query.filePath || fp.endsWith('/' + query.filePath);
-          if (!matches) continue;
-        }
-        for (const s of syms) {
-          if (query.exact && query.text && s.name !== query.text) continue;
-          if (!query.exact && query.text && !s.name.includes(query.text)) continue;
-          results.push(query.filePath ? { ...s, filePath: query.filePath } : s);
-        }
-      }
-      return results;
-    },
-    getSymbolChanges: () => [],
-    searchAnnotations: overrides?.searchAnnotations ?? (() => []),
-    getDependencies: () => [],
-  } as any;
-}
+import { mockGildashFromSymbols as createMockGildash } from '../fixtures/gildash';
 
 
 // ============================================================================
@@ -124,7 +48,7 @@ describe('E2E Scenario 1: Onboarding flow', () => {
   });
 
   it('should scan project, suggest cards, bulk create, validate, and analyze', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
@@ -194,7 +118,7 @@ describe('E2E Scenario 2: Code change flow', () => {
   });
 
   it('should detect impact, drift after symbol removal, and regression guard failure', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     await ensure4tierScaffold(tc.ctx, true);
 
@@ -257,7 +181,7 @@ describe('E2E Scenario 3: Design change flow', () => {
   });
 
   it('should handle type change, activation guard, rename, and history', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
 
     // Step 1: Create brief card with domain parent and activate it
@@ -325,7 +249,7 @@ describe('E2E Scenario 4: Card deletion + cleanup', () => {
   });
 
   it('should delete parent, detect orphans, and verify sync', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
 
     // Step 1: Create parent + 2 children, then add cross-relations
     await createCard(tc.ctx, {
@@ -385,7 +309,7 @@ describe('E2E Scenario 5: Code → spec flow', () => {
   });
 
   it('should find uncovered symbols, create card, validate links, and sync annotations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/payment.ts': [

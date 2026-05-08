@@ -4,10 +4,10 @@
  * Covers: boundary_inactive, symbol_changed, linkStatus,
  * importDependencies with gildash, markerMissing, linkMissing.
  */
-import { describe, it, expect, afterEach, mock } from 'bun:test';
-import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { describe, it, expect, afterEach } from 'bun:test';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { mockGildash as createMockGildash } from '../fixtures/gildash';
 
 import {
   createCard,
@@ -17,39 +17,7 @@ import {
   preChangeCheck,
   syncSpecAnnotations,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
-
-// ── Mock Gildash Factory ──
-
-function createMockGildash(overrides: {
-  searchAnnotations?: (...args: unknown[]) => unknown[];
-  searchSymbols?: (...args: unknown[]) => unknown;
-  getSymbolChanges?: (...args: unknown[]) => unknown[];
-  getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
-  getFileInfo?: (...args: unknown[]) => unknown;
-  getDependencies?: (...args: unknown[]) => unknown;
-  reindex?: () => Promise<void>;
-  listIndexedFiles?: (...args: unknown[]) => unknown[];
-} = {}) {
-  const searchSymbols = overrides.searchSymbols ?? (() => []);
-  // Default getSymbolsByFile derives from searchSymbols so existing tests that
-  // only configure searchSymbols still drive results through the file cache.
-  const defaultGetSymbolsByFile = (file: string) => {
-    const result = searchSymbols({ filePath: file, exact: false }) as Array<{ filePath?: string }>;
-    return Array.isArray(result) ? result.filter((s) => !s.filePath || s.filePath === file) : [];
-  };
-  return {
-    searchAnnotations: mock(overrides.searchAnnotations ?? (() => [])),
-    searchSymbols: mock(searchSymbols),
-    getSymbolChanges: mock(overrides.getSymbolChanges ?? (() => [])),
-    getSymbolsByFile: mock(overrides.getSymbolsByFile ?? defaultGetSymbolsByFile),
-    listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
-    getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
-    getDependencies: overrides.getDependencies ? mock(overrides.getDependencies) : undefined,
-    reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
-    close: mock(() => Promise.resolve()),
-  } as any;
-}
+import { createMockTestContext, createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
 
 // ════════════════════════════════════════
 // 1. checkDrift — boundary_inactive
@@ -62,42 +30,39 @@ describe('checkDrift — boundary_inactive', () => {
     await tc?.cleanup();
   });
 
-  it('should detect boundary_inactive when boundary glob matches no files', async () => {
-    // Create a temp project root with no files matching the boundary
-    const tmpDir = await mkdtemp(join(tmpdir(), 'drift_boundary_'));
+  it('should detect boundary_inactive when boundary glob matches no indexed files', async () => {
+    // Real gildash: this test depends on listIndexedFiles returning the seeded src.ts.
     tc = await createTestContext();
-    tc.ctx.projectRoot = tmpDir;
+    await writeFile(join(tc.ctx.projectRoot, 'src.ts'), 'export function fn() {}\n', 'utf8');
 
     await ensure4tierScaffold(tc.ctx, true);
+    // Create card with a boundary that DOES match (so activation passes), then
+    // mutate the row directly to a boundary that does not match — simulating
+    // boundary drift after the source it referenced was moved/renamed.
     await createCard(tc.ctx, {
       key: 'bnd-inactive',
       summary: 'Boundary inactive',
       type: 'spec',
       parent: '_br',
       body: SPEC_BODY,
-      boundary: ['src/nonexistent/**'],
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
-      spec: makeTestSpec('src/a.ts', 'fn'),
+      boundary: ['*.ts'],
+      codeLinks: [{ kind: 'function', file: 'src.ts', symbol: 'fn' }],
+      spec: makeTestSpec('src.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'bnd-inactive', 'active');
+    const row = tc.ctx.cardRepo.findByKey('bnd-inactive')!;
+    tc.ctx.cardRepo.upsert({ ...row, boundaryJson: JSON.stringify(['nonexistent/**/*.ts']) });
 
-    // No gildash → broken_link won't trigger (no symbol check)
     const result = await checkDrift(tc.ctx, 'bnd-inactive', { autoTransition: false });
     const card = result.cards.find((c) => c.key === 'bnd-inactive');
     expect(card).toBeDefined();
-    expect(card!.driftType).toBe('boundary_inactive');
-    // autoTransition=false → DB status should remain active
+    expect(card!.driftTypes).toContain('boundary_inactive');
     expect(card!.status).toBe('active');
-    const rowBefore = tc.ctx.cardRepo.findByKey('bnd-inactive');
-    expect(rowBefore!.status).toBe('active');
-
-    await rm(tmpDir, { recursive: true, force: true });
   });
 
   it('should auto-transition active → drifted when boundary_inactive and autoTransition=true', async () => {
-    const tmpDir = await mkdtemp(join(tmpdir(), 'drift_boundary_'));
     tc = await createTestContext();
-    tc.ctx.projectRoot = tmpDir;
+    await writeFile(join(tc.ctx.projectRoot, 'src.ts'), 'export function fn() {}\n', 'utf8');
 
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
@@ -106,34 +71,28 @@ describe('checkDrift — boundary_inactive', () => {
       type: 'spec',
       parent: '_br',
       body: SPEC_BODY,
-      boundary: ['src/nonexistent/**'],
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
-      spec: makeTestSpec('src/a.ts', 'fn'),
+      boundary: ['*.ts'],
+      codeLinks: [{ kind: 'function', file: 'src.ts', symbol: 'fn' }],
+      spec: makeTestSpec('src.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'bnd-trans', 'active');
+    const row0 = tc.ctx.cardRepo.findByKey('bnd-trans')!;
+    tc.ctx.cardRepo.upsert({ ...row0, boundaryJson: JSON.stringify(['nonexistent/**/*.ts']) });
 
-    // autoTransition=true (default)
     const result = await checkDrift(tc.ctx, 'bnd-trans');
     const card = result.cards.find((c) => c.key === 'bnd-trans');
     expect(card).toBeDefined();
-    expect(card!.driftType).toBe('boundary_inactive');
+    expect(card!.driftTypes).toContain('boundary_inactive');
     expect(card!.status).toBe('drifted');
 
-    // Verify DB was updated
     const row = tc.ctx.cardRepo.findByKey('bnd-trans');
     expect(row!.status).toBe('drifted');
-
-    await rm(tmpDir, { recursive: true, force: true });
   });
 
   it('should NOT detect boundary_inactive when files match the boundary', async () => {
-    const tmpDir = await mkdtemp(join(tmpdir(), 'drift_boundary_'));
-    // Create a file that matches the boundary
-    await mkdir(join(tmpDir, 'src', 'ops'), { recursive: true });
-    await writeFile(join(tmpDir, 'src', 'ops', 'test.ts'), 'export const x = 1;');
-
-    tc = await createTestContext();
-    tc.ctx.projectRoot = tmpDir;
+    tc = await createMockTestContext();
+    await mkdir(join(tc.ctx.projectRoot, 'src'), { recursive: true });
+    await writeFile(join(tc.ctx.projectRoot, 'src', 'a.ts'), 'export function fn() {}\n', 'utf8');
 
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
@@ -142,7 +101,7 @@ describe('checkDrift — boundary_inactive', () => {
       type: 'spec',
       parent: '_br',
       body: SPEC_BODY,
-      boundary: ['src/ops/**'],
+      boundary: ['src/**/*.ts'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
       spec: makeTestSpec('src/a.ts', 'fn'),
     });
@@ -151,10 +110,8 @@ describe('checkDrift — boundary_inactive', () => {
     const result = await checkDrift(tc.ctx, 'bnd-active', { autoTransition: false });
     const card = result.cards.find((c) => c.key === 'bnd-active');
     expect(card).toBeDefined();
-    // boundary matches files, so no boundary_inactive
-    expect(card!.driftType).toBeUndefined();
-
-    await rm(tmpDir, { recursive: true, force: true });
+    // boundary matches files → no boundary_inactive
+    expect(card!.driftTypes ?? []).not.toContain('boundary_inactive');
   });
 });
 
@@ -170,7 +127,7 @@ describe('checkDrift — symbol_changed', () => {
   });
 
   it('should detect symbol_changed when boundary file symbols changed after card update', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
 
     // Create card with boundary, codeLinks (to pass activation), and set as active
     await ensure4tierScaffold(tc.ctx, true);
@@ -216,7 +173,7 @@ describe('checkDrift — symbol_changed', () => {
   });
 
   it('should NOT detect symbol_changed when changes are before card updatedAt', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
 
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
@@ -267,7 +224,7 @@ describe('preChangeCheck — linkStatus', () => {
   });
 
   it('should include linkStatus when gildash is available', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'ls-card',
       summary: 'Link status card',
@@ -295,19 +252,19 @@ describe('preChangeCheck — linkStatus', () => {
     expect(card!.linkStatus!.broken).toBe(1);
   });
 
-  it('should not include linkStatus when gildash is not available', async () => {
-    tc = await createTestContext();
+  it('reports zero broken when card has no codeLinks', async () => {
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
-      key: 'no-gildash',
-      summary: 'No gildash',
+      key: 'no-links',
+      summary: 'No links',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+      codeLinks: [],
     });
 
     const result = await preChangeCheck(tc.ctx, ['src/a.ts']);
-    const card = result.affectedCards.find((c) => c.key === 'no-gildash');
-    expect(card).toBeDefined();
-    expect(card!.linkStatus).toBeUndefined();
+    // The card has no linked symbols and no boundary, so it isn't affected.
+    const card = result.affectedCards.find((c) => c.key === 'no-links');
+    expect(card).toBeUndefined();
   });
 });
 
@@ -323,7 +280,7 @@ describe('checkInteractions — importDependencies', () => {
   });
 
   it('should detect importDependencies when gildash.getDependencies is available', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'dep-a',
       summary: 'A',
@@ -353,8 +310,8 @@ describe('checkInteractions — importDependencies', () => {
     expect(dep!.file).toBe('src/a.ts');
   });
 
-  it('should return empty importDependencies when gildash has no getDependencies', async () => {
-    tc = await createTestContext();
+  it('returns no importDependencies when getDependencies returns empty', async () => {
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'no-dep-a',
       summary: 'A',
@@ -368,14 +325,11 @@ describe('checkInteractions — importDependencies', () => {
       codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fnB' }],
     });
 
-    // gildash without getDependencies
-    tc.ctx.gildash = {
-      searchSymbols: mock(() => []),
-      close: mock(() => Promise.resolve()),
-    } as any;
+    tc.ctx.gildash = createMockGildash({
+      getDependencies: () => [],
+    });
 
     const result = await checkInteractions(tc.ctx, ['no-dep-a', 'no-dep-b']);
-    // No interactions because no shared symbols/files/deps
     expect(result.interactions).toHaveLength(0);
   });
 });
@@ -392,7 +346,7 @@ describe('syncSpecAnnotations — markerMissing', () => {
   });
 
   it('should detect markerMissing when codeLink exists but no @spec annotation', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'marker-test',
       summary: 'Marker test',
@@ -413,7 +367,7 @@ describe('syncSpecAnnotations — markerMissing', () => {
   });
 
   it('should NOT report markerMissing when @spec annotation matches the codeLink', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'marker-ok',
       summary: 'Marker OK',
@@ -446,7 +400,7 @@ describe('syncSpecAnnotations — linkMissing', () => {
   });
 
   it('should report linkMissing for newly created links from @spec annotations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'link-missing',
       summary: 'Link missing',
@@ -469,7 +423,7 @@ describe('syncSpecAnnotations — linkMissing', () => {
   });
 
   it('should NOT report linkMissing when link already exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'link-exists',
       summary: 'Link exists',
@@ -502,7 +456,7 @@ describe('preChangeCheck — ignorePatterns', () => {
   });
 
   it('should exclude ignorePatterns-matched files from newUncoveredFiles', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     // Set ignorePatterns patterns
     tc.ctx.ignorePatterns = ['test/**', '*.test.ts'];
 
@@ -516,7 +470,7 @@ describe('preChangeCheck — ignorePatterns', () => {
   });
 
   it('should not exclude non-matching files from newUncoveredFiles', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     tc.ctx.ignorePatterns = ['vendor/**'];
 
     const result = await preChangeCheck(tc.ctx, ['src/new-feature.ts']);
@@ -537,7 +491,7 @@ describe('validateCodeLinks — batch mode (CLI layer)', () => {
   });
 
   it('should validate all cards when key is omitted (batch pattern)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const { validateCodeLinks } = await import('../../index');
 
     // Create two cards with codeLinks
