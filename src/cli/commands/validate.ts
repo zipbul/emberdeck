@@ -41,13 +41,11 @@ export function registerValidate(program: Command): void {
           const linkErrors: CliMessage[] = [];
           let linkDeclared = 0;
           let linkBroken = 0;
-          if (rt.ctx.gildash) {
-            for (const c of allCards) {
-              const r = await validateCodeLinks(rt.ctx, c.key);
-              linkDeclared += r.declared;
-              linkBroken += r.broken.length;
-              for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
-            }
+          for (const c of allCards) {
+            const r = await validateCodeLinks(rt.ctx, c.key);
+            linkDeclared += r.declared;
+            linkBroken += r.broken.length;
+            for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
           }
 
           const allErrors = [...cardErrors, ...linkErrors];

@@ -25,7 +25,6 @@ export {
   ParentValidationError,
   ActivationGuardError,
   BoundaryValidationError,
-  GildashNotConfiguredError,
   CompensationError,
   FtsSyntaxError,
 } from './src/card/errors';

@@ -1,5 +1,41 @@
 {
   // Emberdeck self-dogfooding config
   "projectRoot": ".",
-  "ignorePatterns": ["dist/**", "test/**", "**/*.spec.ts", "**/*.test.ts", "drizzle/**"]
+  "ignorePatterns": [
+    "dist/**",
+    "test/**",
+    "bench/**",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "drizzle/**",
+    // Type and error declarations covered by parent specs implicitly
+    "src/card/types.ts",
+    "src/card/errors.ts",
+    "src/card/json-fields.ts",
+    "src/card/searchable-text.ts",
+    // Thin CLI command wrappers covered by cli-surface/runner-and-output spec
+    "src/cli/commands/**",
+    "src/cli/index.ts",
+    "src/cli/exit-codes.ts",
+    "src/cli/usage-error.ts",
+    "src/cli/parse-input.ts",
+    "src/cli/parsers.ts",
+    "src/cli/confirm.ts",
+    "src/cli/context.ts",
+    // DB repository implementations are single-file and covered by card-storage/persistence
+    "src/db/card-repo.ts",
+    "src/db/changelog-repo.ts",
+    "src/db/classification-repo.ts",
+    "src/db/code-link-repo.ts",
+    "src/db/relation-repo.ts",
+    "src/db/repository.ts",
+    "src/db/schema.ts",
+    // Pure helpers
+    "src/util/**",
+    "src/glossary/io.ts",
+    "src/fs/reader.ts",
+    "src/fs/writer.ts",
+    "src/config.ts",
+    "index.ts"
+  ]
 }

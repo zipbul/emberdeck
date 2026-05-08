@@ -10,12 +10,10 @@
  * Run: bun run bench/large-scale.bench.ts
  */
 
-import { createEmberdeckDb, closeDb } from '../src/db/connection';
-import { DrizzleCardRepository } from '../src/db/card-repo';
-import { DrizzleRelationRepository } from '../src/db/relation-repo';
-import { DrizzleClassificationRepository } from '../src/db/classification-repo';
-import { DrizzleCodeLinkRepository } from '../src/db/code-link-repo';
-import { DrizzleChangelogRepository } from '../src/db/changelog-repo';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { setupEmberdeck, teardownEmberdeck } from '../src/setup';
 import type { EmberdeckContext } from '../src/config';
 import { analyze } from '../src/ops/analyze';
 import { checkDrift } from '../src/ops/context';
@@ -48,25 +46,14 @@ async function timeAsync(label: string, fn: () => Promise<void>): Promise<number
 
 console.log(`\nBenchmark: ${CARD_COUNT} cards, ${CARD_COUNT * SYMBOLS_PER_CARD} code links\n`);
 
-const db = createEmberdeckDb(':memory:');
-const cardRepo = new DrizzleCardRepository(db);
-const relationRepo = new DrizzleRelationRepository(db);
-const classificationRepo = new DrizzleClassificationRepository(db);
-const codeLinkRepo = new DrizzleCodeLinkRepository(db);
-const changelogRepo = new DrizzleChangelogRepository(db);
-
-const ctx: EmberdeckContext = {
-  cardsDir: '/tmp/bench-cards',
-  db,
-  cardRepo,
-  relationRepo,
-  classificationRepo,
-  codeLinkRepo,
-  changelogRepo,
-  ignorePatterns: [],
-  regressionThreshold: 0,
-  gildash: undefined,
-};
+const tmpRoot = mkdtempSync(join(tmpdir(), 'ed-bench-'));
+mkdirSync(join(tmpRoot, 'cards'), { recursive: true });
+writeFileSync(join(tmpRoot, 'src.ts'), '', 'utf8');
+const ctx: EmberdeckContext = await setupEmberdeck({
+  cardsDir: join(tmpRoot, 'cards'),
+  dbPath: ':memory:',
+  projectRoot: tmpRoot,
+});
 
 // ── Seed ──
 
@@ -101,7 +88,7 @@ for (let i = 0; i < CARD_COUNT; i++) {
     parent = `card-${String(pIdx).padStart(4, '0')}`;
   }
 
-  cardRepo.upsert({
+  ctx.cardRepo.upsert({
     key,
     summary: `Card ${i} summary`,
     status: i % 10 === 0 ? 'draft' : i % 5 === 0 ? 'drifted' : 'active',
@@ -128,7 +115,7 @@ for (let i = 0; i < CARD_COUNT; i++) {
       symbol: `symbol_${i}_${j}`,
     });
   }
-  codeLinkRepo.replaceForCard(key, links);
+  ctx.codeLinkRepo.replaceForCard(key, links);
 }
 
 // Insert relations
@@ -142,7 +129,7 @@ for (let i = 0; i < CARD_COUNT; i++) {
     }
   }
   if (targetSet.size > 0) {
-    relationRepo.replaceForCard(key, [...targetSet]);
+    ctx.relationRepo.replaceForCard(key, [...targetSet]);
   }
 }
 
@@ -153,35 +140,35 @@ console.log(`  Seed complete: ${(performance.now() - seedStart).toFixed(0)}ms\n`
 console.log('Running benchmarks...\n');
 
 // 1. DB query: list all cards
-time('cardRepo.list()', () => {
-  cardRepo.list();
+time('ctx.cardRepo.list()', () => {
+  ctx.cardRepo.list();
 });
 
 // 2. DB query: findByKey (random access)
-time('cardRepo.findByKey() x1000', () => {
+time('ctx.cardRepo.findByKey() x1000', () => {
   for (let i = 0; i < CARD_COUNT; i++) {
-    cardRepo.findByKey(`card-${String(i).padStart(4, '0')}`);
+    ctx.cardRepo.findByKey(`card-${String(i).padStart(4, '0')}`);
   }
 });
 
 // 3. DB query: findBySymbol
-time('codeLinkRepo.findBySymbol() x100', () => {
+time('ctx.codeLinkRepo.findBySymbol() x100', () => {
   for (let i = 0; i < 100; i++) {
-    codeLinkRepo.findBySymbol(`symbol_${i}_0`);
+    ctx.codeLinkRepo.findBySymbol(`symbol_${i}_0`);
   }
 });
 
 // 4. DB query: findByFile
-time('codeLinkRepo.findByFile() x50', () => {
+time('ctx.codeLinkRepo.findByFile() x50', () => {
   for (let i = 0; i < 50; i++) {
-    codeLinkRepo.findByFile(`src/module-${i}/file-0.ts`);
+    ctx.codeLinkRepo.findByFile(`src/module-${i}/file-0.ts`);
   }
 });
 
 // 5. Relation queries
-time('relationRepo.findByCardKey() x1000', () => {
+time('ctx.relationRepo.findByCardKey() x1000', () => {
   for (let i = 0; i < CARD_COUNT; i++) {
-    relationRepo.findByCardKey(`card-${String(i).padStart(4, '0')}`);
+    ctx.relationRepo.findByCardKey(`card-${String(i).padStart(4, '0')}`);
   }
 });
 
@@ -201,12 +188,13 @@ await timeAsync('analyze (offset=500, limit=10)', async () => {
 });
 
 // 9. findChildren
-time('cardRepo.findChildren() x100', () => {
+time('ctx.cardRepo.findChildren() x100', () => {
   for (let i = 0; i < 100; i++) {
-    cardRepo.findChildren(`card-${String(i).padStart(4, '0')}`);
+    ctx.cardRepo.findChildren(`card-${String(i).padStart(4, '0')}`);
   }
 });
 
 console.log('\nDone.');
 
-closeDb(db);
+await teardownEmberdeck(ctx);
+rmSync(tmpRoot, { recursive: true, force: true });
