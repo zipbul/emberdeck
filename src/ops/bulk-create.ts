@@ -71,6 +71,7 @@ function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
  * @param ctx - EmberdeckContext from setupEmberdeck()
  * @param inputs - Array of card inputs (same schema as createCard)
  * @returns Summary with created count, failed count, keys, and errors
+  * @spec card-lifecycle/mutation-workflows/delete-rename-bulk
  */
 export async function bulkCreateCards(
   ctx: EmberdeckContext,

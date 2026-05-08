@@ -117,6 +117,7 @@ const UNLINKED_SYMBOLS_LIMIT = 20;
  *
  * Combines check_drift and getUncoveredSymbols into a single report.
  * Always operates on the entire project (no file/symbol params).
+  * @spec analysis/impact-and-aggregate/interactions-and-analyze
  */
 export async function analyze(
   ctx: EmberdeckContext,
@@ -175,63 +176,35 @@ export async function analyze(
   }
 
   // 3. Stale boundary count: boundary globs that match no indexed files.
-  // Empty index treated as "no information" (consistent with checkDrift's
-  // boundary_inactive guard) so we don't false-positive when gildash isn't
-  // configured or the project happens to have zero indexed sources.
+  // Empty index is treated as "no information" — staleBoundary only counts
+  // against a populated index, consistent with checkDrift's boundary_inactive.
   let staleBoundary = 0;
-  if (ctx.gildash && typeof ctx.gildash.listIndexedFiles === 'function') {
-    await ensureReindexed(ctx);
-    const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
-    if (indexedFiles.length > 0) {
-      for (const card of allCards) {
-        const boundary = parseStringArrayJson(card.boundaryJson);
-        if (boundary.length === 0) continue;
-        let anyMatch = false;
-        try {
-          anyMatch = indexedFiles.some((f) => matchesAnyGlob(f, boundary));
-        } catch {
-          // invalid glob — count as stale
-        }
-        if (!anyMatch) staleBoundary++;
-      }
-    }
-  } else if (ctx.projectRoot) {
-    // Fallback when gildash is absent: scan the projectRoot directly.
+  await ensureReindexed(ctx);
+  const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
+  if (indexedFiles.length > 0) {
     for (const card of allCards) {
       const boundary = parseStringArrayJson(card.boundaryJson);
       if (boundary.length === 0) continue;
       let anyMatch = false;
       try {
-        for (const pattern of boundary) {
-          const glob = new Bun.Glob(pattern);
-          for (const _ of glob.scanSync({ cwd: ctx.projectRoot })) {
-            anyMatch = true;
-            break;
-          }
-          if (anyMatch) break;
-        }
+        anyMatch = indexedFiles.some((f) => matchesAnyGlob(f, boundary));
       } catch {
-        // unreadable projectRoot — count as stale
+        // invalid glob — count as stale
       }
       if (!anyMatch) staleBoundary++;
     }
   }
 
-  // 4. Symbol coverage (requires gildash)
-  let coverage: AnalyzeCoverage = { totalSymbols: 0, covered: 0, ratio: 1 };
-  let unlinkedSymbols: UnlinkedSymbol[] = [];
-
-  if (ctx.gildash) {
-    const uncoveredResult = await getUncoveredSymbols(ctx);
-    coverage = {
-      totalSymbols: uncoveredResult.totalSymbols,
-      covered: uncoveredResult.coveredSymbols,
-      ratio: uncoveredResult.coverageRatio,
-    };
-    unlinkedSymbols = uncoveredResult.uncovered
-      .slice(0, UNLINKED_SYMBOLS_LIMIT)
-      .map((s) => ({ file: s.file, symbol: s.symbol, kind: s.kind }));
-  }
+  // 4. Symbol coverage
+  const uncoveredResult = await getUncoveredSymbols(ctx);
+  const coverage: AnalyzeCoverage = {
+    totalSymbols: uncoveredResult.totalSymbols,
+    covered: uncoveredResult.coveredSymbols,
+    ratio: uncoveredResult.coverageRatio,
+  };
+  const unlinkedSymbols: UnlinkedSymbol[] = uncoveredResult.uncovered
+    .slice(0, UNLINKED_SYMBOLS_LIMIT)
+    .map((s) => ({ file: s.file, symbol: s.symbol, kind: s.kind }));
 
   // Apply offset/limit to driftedCards
   const driftedCardsTotal = driftedCards.length;
@@ -254,72 +227,58 @@ export async function analyze(
   // sub-projects); dedupe by file path AND by (file, symbol-name) pair so a
   // symbol shared across projects counts once.
   let codeStats: AnalyzeHealth['codeStats'];
-  if (
-    ctx.gildash &&
-    typeof ctx.gildash.listIndexedFiles === 'function' &&
-    typeof ctx.gildash.getSymbolsByFile === 'function'
-  ) {
-    try {
-      const uniqueFiles = new Map<string, string | undefined>();
-      for (const f of listAllIndexedFilesWithProject(ctx)) uniqueFiles.set(f.filePath, f.project);
-      // Count symbols by total length (NOT (file,name) dedup) — overloaded
-      // functions with the same name in the same file ARE distinct symbols
-      // in gildash. Matches `coverage.totalSymbols` counting semantics so
-      // both fields produce the same number for the same data set.
-      let symbolTotal = 0;
-      for (const [file, project] of uniqueFiles) {
-        try {
-          const syms = ctx.gildash.getSymbolsByFile(file, project);
-          symbolTotal += syms.length;
-        } catch {
-          // skip file
-        }
+  try {
+    const uniqueFiles = new Map<string, string | undefined>();
+    for (const f of listAllIndexedFilesWithProject(ctx)) uniqueFiles.set(f.filePath, f.project);
+    // Count symbols by total length (NOT (file,name) dedup) — overloaded
+    // functions with the same name in the same file ARE distinct symbols
+    // in gildash. Matches `coverage.totalSymbols` counting semantics so
+    // both fields produce the same number for the same data set.
+    let symbolTotal = 0;
+    for (const [file, project] of uniqueFiles) {
+      try {
+        const syms = ctx.gildash.getSymbolsByFile(file, project);
+        symbolTotal += syms.length;
+      } catch {
+        // skip file
       }
-      codeStats = { files: uniqueFiles.size, symbols: symbolTotal };
-    } catch {
-      // best-effort
     }
+    codeStats = { files: uniqueFiles.size, symbols: symbolTotal };
+  } catch {
+    // best-effort
   }
 
   // Code-side architectural debt: aggregate cycles across ALL projects.
   let codeCycles: AnalyzeHealth['codeCycles'];
-  if (
-    ctx.gildash &&
-    typeof ctx.gildash.getCyclePaths === 'function' &&
-    typeof ctx.gildash.hasCycle === 'function'
-  ) {
-    try {
-      const allCycles: string[][] = [];
-      for (const project of gildashProjectNames(ctx)) {
-        try {
-          const has = await ctx.gildash.hasCycle(project);
-          if (!has) continue;
-          const cycles = await ctx.gildash.getCyclePaths(project, { maxCycles: MAX_CYCLES_FETCH });
-          allCycles.push(...cycles);
-          if (allCycles.length >= MAX_CYCLES_FETCH) break;
-        } catch {
-          // skip project on failure
-        }
+  try {
+    const allCycles: string[][] = [];
+    for (const project of gildashProjectNames(ctx)) {
+      try {
+        const has = await ctx.gildash.hasCycle(project);
+        if (!has) continue;
+        const cycles = await ctx.gildash.getCyclePaths(project, { maxCycles: MAX_CYCLES_FETCH });
+        allCycles.push(...cycles);
+        if (allCycles.length >= MAX_CYCLES_FETCH) break;
+      } catch {
+        // skip project on failure
       }
-      codeCycles = {
-        count: allCycles.length,
-        samples: allCycles.slice(0, MAX_CYCLE_SAMPLES),
-      };
-    } catch {
-      // best-effort; cycle reporting is informational
     }
+    codeCycles = {
+      count: allCycles.length,
+      samples: allCycles.slice(0, MAX_CYCLE_SAMPLES),
+    };
+  } catch {
+    // best-effort; cycle reporting is informational
   }
 
   // Hygiene: prune old gildash changelog entries on each analyze run.
   // Bounded retention prevents `.gildash/` from growing unbounded across
   // long-lived projects; failures are non-fatal (analyze must still return).
-  if (ctx.gildash && typeof ctx.gildash.pruneChangelog === 'function') {
-    try {
-      const cutoff = new Date(Date.now() - CHANGELOG_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-      ctx.gildash.pruneChangelog(cutoff);
-    } catch {
-      // best-effort; do not fail the report
-    }
+  try {
+    const cutoff = new Date(Date.now() - CHANGELOG_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    ctx.gildash.pruneChangelog(cutoff);
+  } catch {
+    // best-effort; do not fail the report
   }
 
   return {

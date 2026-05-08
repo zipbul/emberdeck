@@ -21,6 +21,7 @@ export interface RelationGraphOptions {
   direction?: 'forward' | 'backward' | 'both';
 }
 
+/** @spec card-storage/queries/tree-context */
 export function getRelationGraph(
   ctx: EmberdeckContext,
   fullKey: string,
@@ -88,6 +89,7 @@ export interface GetCardContextOptions {
   depth?: number;
 }
 
+/** @spec card-storage/queries/tree-context */
 export async function getCardContext(
   ctx: EmberdeckContext,
   fullKey: string,
@@ -97,10 +99,7 @@ export async function getCardContext(
   const filePath = buildCardPath(ctx.cardsDir, key);
   const card = await readCardFileOrThrow(filePath, key);
 
-  let codeLinks: ResolvedCodeLink[] = [];
-  if (ctx.gildash) {
-    codeLinks = await resolveCardCodeLinks(ctx, fullKey);
-  }
+  const codeLinks: ResolvedCodeLink[] = await resolveCardCodeLinks(ctx, fullKey);
 
   const relations = ctx.relationRepo.findByCardKey(key);
   const upstreamCards = relations
@@ -159,6 +158,7 @@ export interface GetCardResult {
  * @param options - Optional: includeHistory to get changelog.
  * @returns The complete frontmatter + body, optionally with history.
  * @throws {CardNotFoundError} When the file does not exist.
+  * @spec card-storage/queries/get-list-search
  */
 export async function getCard(
   ctx: EmberdeckContext,
@@ -192,6 +192,7 @@ export interface GetCardsResult {
  * @param fullKeys - Array of card keys to retrieve.
  * @param options - Optional: includeHistory to get changelog for each card.
  * @returns Cards that were found and a list of keys that were not found.
+  * @spec card-storage/queries/get-list-search
  */
 export async function getCards(
   ctx: EmberdeckContext,
@@ -221,6 +222,7 @@ export async function getCards(
  */
 export type CardSummaryRow = Omit<CardRow, 'body'>;
 
+/** @spec card-storage/queries/get-list-search */
 export function listCards(ctx: EmberdeckContext, filter?: CardListFilter): CardSummaryRow[] {
   return ctx.cardRepo.list(filter).map(({ body, ...rest }) => rest);
 }
@@ -237,6 +239,7 @@ export interface SearchCardsOptions {
  * @param query - Search query text. Returns an empty array if the query is empty.
  * @param options - Optional type and status filters.
  * @returns Array of DB rows matching the search.
+  * @spec card-storage/queries/get-list-search
  */
 export function searchCards(
   ctx: EmberdeckContext,
@@ -261,6 +264,7 @@ export function searchCards(
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param fullKey - fullKey of the card to query.
  * @returns `isReverse=false` for outgoing relations, `isReverse=true` for incoming relations.
+  * @spec card-storage/queries/get-list-search
  */
 export function listCardRelations(ctx: EmberdeckContext, fullKey: string): RelationRow[] {
   const key = parseFullKey(fullKey);
@@ -288,6 +292,7 @@ export interface CardTreeNode {
  * @param maxDepth - Maximum tree depth (default 10, capped at 20).
  * @returns Recursive tree structure.
  * @throws {CardNotFoundError} When the root card does not exist.
+  * @spec card-storage/queries/tree-context
  */
 export function getCardTree(
   ctx: EmberdeckContext,

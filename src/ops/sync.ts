@@ -108,6 +108,7 @@ export interface CardValidationResult {
  * Syncs an externally modified card file to the DB.
  * Invoked by CLI sync commands (`ed sync`) and as the compensation step
  * for failed file writes in create/update operations.
+  * @spec card-storage/persistence/sync
  */
 export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string): Promise<void> {
   const cardFile = await readCardFile(filePath);
@@ -157,6 +158,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
  * File reads/writes are executed in bounded parallel batches via `batchedAllSettled`.
  * Each file's DB write is atomic, guaranteed by the transaction inside `syncCardFromFile`.
+  * @spec card-storage/persistence/sync
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,
@@ -299,6 +301,7 @@ function globPatternsOverlap(pa: string, pb: string): boolean {
 /**
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
  * Performs read-only structural validation including hierarchy, relations, and boundary checks.
+  * @spec card-storage/persistence/sync
  */
 export async function validateCards(
   ctx: EmberdeckContext,
@@ -608,6 +611,7 @@ export async function validateCards(
 /**
  * Build a CardFile from the DB row + auxiliary tables. Pure — does NOT touch the filesystem.
  * Used by both exportCardToFile (which writes to disk) and CLI `card export` (which renders to STDOUT).
+  * @spec card-storage/persistence/sync
  */
 export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFile {
   const key = parseFullKey(fullKey);
@@ -648,6 +652,7 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
   return { frontmatter: fm, body: cleanBody, filePath: row.filePath };
 }
 
+/** @spec card-storage/persistence/sync */
 export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
   const cardFile = buildCardFromDb(ctx, fullKey);
   await writeCardFile(cardFile.filePath!, cardFile);
@@ -657,6 +662,7 @@ export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): 
 /**
  * Removes a card from the DB when its file has been externally deleted.
  * Invoked by CLI sync commands when a tracked card file is missing.
+  * @spec card-storage/persistence/sync
  */
 export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void {
   const existing = ctx.cardRepo.findByFilePath(filePath);

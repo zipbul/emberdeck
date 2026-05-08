@@ -105,6 +105,7 @@ interface SymbolChangeInfo {
  * When autoTransition=true (default), active cards found drifted are
  * automatically transitioned to 'drifted' status (DB + file).
  * Draft cards are excluded from drift analysis.
+  * @spec analysis/drift-detection/check-drift
  */
 export async function checkDrift(
   ctx: EmberdeckContext,
@@ -147,16 +148,14 @@ export async function checkDrift(
   };
 
   // Shared per-file symbol cache for broken_link detection.
-  const symbolCache = ctx.gildash ? makeSymbolFileCache(ctx)! : null;
+  const symbolCache = makeSymbolFileCache(ctx);
 
   // Build a set of (file:symbol) covered by *any* card's codeLinks. Used by
   // heritage_uncovered detection — a subclass of a linked class is "covered"
   // if some other card already links to it. Single bulk read avoids N×findByCardKey.
   const allCoveredSymbols = new Set<string>();
-  if (ctx.gildash && typeof ctx.gildash.searchRelations === 'function') {
-    for (const link of ctx.codeLinkRepo.findAll()) {
-      allCoveredSymbols.add(`${link.file}:${link.symbol}`);
-    }
+  for (const link of ctx.codeLinkRepo.findAll()) {
+    allCoveredSymbols.add(`${link.file}:${link.symbol}`);
   }
 
   const driftCards: DriftCard[] = [];
@@ -181,7 +180,7 @@ export async function checkDrift(
     // Check code link health via gildash (per-file symbol cache).
     // If gildash throws (transient failure), skip drift detection for this card.
     let gildashUnavailable = false;
-    if (symbolCache && links.length > 0) {
+    if (links.length > 0) {
       for (const link of links) {
         try {
           if (!symbolCache.find(link.file, link.symbol)) brokenLinks++;
@@ -207,38 +206,18 @@ export async function checkDrift(
     // ignorePatterns); fall back to scanning projectRoot when gildash is absent.
     // An empty index is treated as "no information" rather than "no matches"
     // — boundary_inactive only fires when we have a populated source of truth.
-    if (row.status === 'active' && (ctx.gildash || ctx.projectRoot)) {
+    if (row.status === 'active') {
       const boundary = parseStringArrayJson(row.boundaryJson);
       if (boundary.length > 0) {
-        let anyMatch = false;
-        let canDecide = false;
-        if (ctx.gildash) {
-          const indexedFiles = getIndexedFilePaths();
-          if (indexedFiles.size > 0) {
-            canDecide = true;
-            for (const filePath of indexedFiles) {
-              if (matchesAnyGlob(filePath, boundary)) { anyMatch = true; break; }
-            }
+        const indexedFiles = getIndexedFilePaths();
+        // Empty index is treated as "no information" — boundary_inactive only
+        // fires against a populated index.
+        if (indexedFiles.size > 0) {
+          let anyMatch = false;
+          for (const filePath of indexedFiles) {
+            if (matchesAnyGlob(filePath, boundary)) { anyMatch = true; break; }
           }
-        }
-        if (!canDecide && ctx.projectRoot) {
-          try {
-            for (const pattern of boundary) {
-              const glob = new Bun.Glob(pattern);
-              for (const _ of glob.scanSync({ cwd: ctx.projectRoot })) {
-                anyMatch = true;
-                break;
-              }
-              if (anyMatch) break;
-            }
-            canDecide = true;
-          } catch {
-            // projectRoot inaccessible (test mocks, missing dir) — treat as
-            // "no information" rather than asserting boundary_inactive.
-          }
-        }
-        if (canDecide && !anyMatch) {
-          addDrift('boundary_inactive');
+          if (!anyMatch) addDrift('boundary_inactive');
         }
       }
     }
@@ -275,12 +254,7 @@ export async function checkDrift(
     // inheritance (returns ancestors, not descendants) — to find subclasses we
     // query the `extends` relation graph and filter by dst = our linked class.
     let uncoveredSubclasses: Array<{ file: string; symbol: string }> | undefined;
-    if (
-      row.status === 'active' &&
-      symbolCache &&
-      ctx.gildash &&
-      typeof ctx.gildash.searchRelations === 'function'
-    ) {
+    if (row.status === 'active') {
       const collected: Array<{ file: string; symbol: string }> = [];
       const seen = new Set<string>();
       for (const link of links) {
@@ -322,12 +296,7 @@ export async function checkDrift(
     // when zero matches. Boundary files limit the search scope when present.
     let patternViolations: DriftCard['patternViolations'];
     let patternErrors: DriftCard['patternErrors'];
-    if (
-      row.status === 'active' &&
-      ctx.gildash &&
-      typeof ctx.gildash.findPattern === 'function' &&
-      row.namespacesJson
-    ) {
+    if (row.status === 'active' && row.namespacesJson) {
       const patterns = parseSpecCodePatterns(row.namespacesJson);
       if (patterns.length > 0) {
         // Scope pattern search to this card's boundary when set — a card's
@@ -494,8 +463,6 @@ async function collectSymbolChanges(
   ctx: EmberdeckContext,
   targetKeys: string[],
 ): Promise<Map<string, SymbolChangeInfo[]> | null> {
-  if (!ctx.gildash || typeof ctx.gildash.getSymbolChanges !== 'function') return null;
-
   // Find oldest updatedAt among active cards with boundary
   let oldestUpdatedAt: string | null = null;
   for (const key of targetKeys) {
@@ -580,6 +547,7 @@ export interface InteractionResult {
  * Analyze interactions between a set of cards.
  * Detects shared code symbols, shared files, import dependencies,
  * existing relations, and potential conflicts.
+  * @spec analysis/impact-and-aggregate/interactions-and-analyze
  */
 export async function checkInteractions(
   ctx: EmberdeckContext,
@@ -734,10 +702,6 @@ function detectImportDependencies(
   filesA: Set<string>,
   filesB: Set<string>,
 ): ImportDependency[] {
-  if (!ctx.gildash || typeof ctx.gildash.getDependencies !== 'function') {
-    return [];
-  }
-
   const gildash = ctx.gildash;
   const projects = gildashProjectNames(ctx);
   const deps: ImportDependency[] = [];

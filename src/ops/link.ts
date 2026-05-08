@@ -4,7 +4,6 @@ import type { EmberdeckContext } from '../config';
 import type { CodeLink } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
-import { GildashNotConfiguredError } from '../card/errors';
 import { readCardFileOrThrow } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { parseStringArrayJson } from '../card/json-fields';
@@ -26,6 +25,7 @@ export const GILDASH_ANNOTATION_LIMIT = 10000;
  * owns the file, and routes the call. Subsequent lookups hit the cache.
  *
  * Callers create a fresh instance per operation.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export class SymbolFileCache {
   private readonly cache = new Map<string, SymbolSearchResult[]>();
@@ -86,9 +86,9 @@ export class SymbolFileCache {
 /**
  * Build a `SymbolFileCache` configured with all gildash project names.
  * Use at every site that constructs the cache so monorepos work transparently.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
-export function makeSymbolFileCache(ctx: EmberdeckContext): SymbolFileCache | null {
-  if (!ctx.gildash) return null;
+export function makeSymbolFileCache(ctx: EmberdeckContext): SymbolFileCache {
   return new SymbolFileCache(ctx.gildash, gildashProjectNames(ctx));
 }
 
@@ -142,8 +142,8 @@ async function readCard(ctx: EmberdeckContext, fullKey: string) {
  */
 const reindexedContexts = new WeakSet<EmberdeckContext>();
 
+/** @spec code-binding/link-and-coverage/resolve-and-validate */
 export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
-  if (!ctx.gildash || typeof ctx.gildash.reindex !== 'function') return;
   if (reindexedContexts.has(ctx)) return;
   reindexedContexts.add(ctx);
   await ctx.gildash.reindex();
@@ -158,10 +158,10 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
  * accessors (`listIndexedFiles()`, `getStats()`, `getCyclePaths()` without
  * `project` arg) only see one project's data — usually the alphabetically-first
  * sample app. Iterating all projects is the only way to cover the whole repo.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export function gildashProjectNames(ctx: EmberdeckContext): Array<string | undefined> {
-  // Array.isArray guard tolerates test mocks that omit the `projects` accessor.
-  if (!ctx.gildash || !Array.isArray(ctx.gildash.projects)) return [undefined];
+  if (!Array.isArray(ctx.gildash.projects)) return [undefined];
   const names = ctx.gildash.projects.map((p) => p.project).filter(Boolean);
   return names.length > 0 ? names : [undefined];
 }
@@ -172,12 +172,12 @@ export function gildashProjectNames(ctx: EmberdeckContext): Array<string | undef
  * first project — in monorepos that misses most of the code. Returning project
  * names lets callers route per-file queries (`getSymbolsByFile`) to the right
  * project. Dedupes by filePath — gildash project boundaries can overlap.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export function listAllIndexedFilesWithProject(
   ctx: EmberdeckContext,
 ): Array<{ filePath: string; project: string | undefined }> {
   const gildash = ctx.gildash;
-  if (!gildash || typeof gildash.listIndexedFiles !== 'function') return [];
   const seen = new Map<string, string | undefined>();
   for (const project of gildashProjectNames(ctx)) {
     try {
@@ -195,14 +195,12 @@ export function listAllIndexedFilesWithProject(
 
 /**
  * Resolves a card's codeLinks by looking them up in the gildash symbol index.
- * Throws GildashNotConfiguredError if gildash is not configured.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function resolveCardCodeLinks(
   ctx: EmberdeckContext,
   fullKey: string,
 ): Promise<ResolvedCodeLink[]> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
-
   await ensureReindexed(ctx);
 
   const cardFile = await readCard(ctx, fullKey);
@@ -231,6 +229,7 @@ export interface SymbolMatchResult {
 /**
  * Returns the list of cards that reference the given symbol name (+ optional file path).
  * Matches via codeLinks first, then via boundary glob patterns.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function findCardsBySymbol(
   ctx: EmberdeckContext,
@@ -273,15 +272,13 @@ export async function findCardsBySymbol(
  *
  * Returns the original list when gildash is not configured or the call fails.
  * The returned list is deduplicated and contains the original input.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function expandAffectedFiles(
   ctx: EmberdeckContext,
   changedFiles: string[],
 ): Promise<string[]> {
   if (changedFiles.length === 0) return [];
-  if (!ctx.gildash || typeof ctx.gildash.getAffected !== 'function') {
-    return [...new Set(changedFiles)];
-  }
   await ensureReindexed(ctx);
   // Aggregate across all projects (monorepo support).
   const out = new Set<string>(changedFiles);
@@ -301,6 +298,7 @@ export async function expandAffectedFiles(
  * those files via codeLinks. Expands the input through the import graph so a
  * change to `foo.ts` also flags cards that link to importers of `foo.ts`.
  * Internal function — not part of the public API. Use preChangeCheck instead.
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function findAffectedCards(
   ctx: EmberdeckContext,
@@ -333,13 +331,12 @@ export async function findAffectedCards(
  *
  * When broken links are detected on an active card, the card is automatically
  * transitioned to 'drifted' status (DB + file).
+  * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function validateCodeLinks(
   ctx: EmberdeckContext,
   fullKey: string,
 ): Promise<ValidateCodeLinksResult> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
-
   await ensureReindexed(ctx);
 
   const cardFile = await readCard(ctx, fullKey);
@@ -357,14 +354,11 @@ export async function validateCodeLinks(
   // Cache module interfaces per file so we don't recompute the export set for
   // every link in the same file.
   const interfaceCache = new Map<string, Set<string>>();
-  const supportsModuleInterface =
-    typeof ctx.gildash.getModuleInterface === 'function';
-  const getExportNames = (file: string): Set<string> | null => {
-    if (!supportsModuleInterface) return null;
+  const getExportNames = (file: string): Set<string> => {
     let names = interfaceCache.get(file);
     if (names === undefined) {
       try {
-        const mod = ctx.gildash!.getModuleInterface(file);
+        const mod = ctx.gildash.getModuleInterface(file);
         names = new Set(mod?.exports?.map((e) => e.name) ?? []);
       } catch {
         names = new Set();
@@ -397,7 +391,7 @@ export async function validateCodeLinks(
       valid++;
       // Flag non-exported symbols (informational only — does not affect status).
       const exports = getExportNames(link.file);
-      if (exports && !exports.has(link.symbol) && !exports.has(found.name)) {
+      if (!exports.has(link.symbol) && !exports.has(found.name)) {
         internalLinks.push({ file: link.file, symbol: link.symbol });
       }
     }

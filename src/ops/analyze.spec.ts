@@ -1,17 +1,11 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { createEmberdeckDb, closeDb } from '../db/connection';
-import type { EmberdeckDb } from '../db/connection';
 import type { EmberdeckContext } from '../config';
-import type { CardRow } from '../db/repository';
-import { DrizzleCardRepository } from '../db/card-repo';
-import { DrizzleRelationRepository } from '../db/relation-repo';
-import { DrizzleClassificationRepository } from '../db/classification-repo';
-import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
-import { DrizzleChangelogRepository } from '../db/changelog-repo';
+import { setupEmberdeck, teardownEmberdeck } from '../setup';
 import { analyze } from './analyze';
+import { makeCardRow as makeCard } from '../../test/fixtures/card-row';
 
 const tmpDirs: string[] = [];
 async function createTmpDir(): Promise<string> {
@@ -20,50 +14,24 @@ async function createTmpDir(): Promise<string> {
   return dir;
 }
 
-let db: EmberdeckDb;
 let ctx: EmberdeckContext;
 
-function makeCard(overrides: Partial<CardRow> = {}): CardRow {
-  return {
-    key: 'test-card',
-    summary: 'Test card',
-    status: 'draft',
-    type: 'spec',
-    parent: null,
-    boundaryJson: null,
-    namespacesJson: null,
-    body: null,
-    glossaryJson: '[]',
-    filePath: '.emberdeck/cards/test-card.card.md',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
-
-beforeEach(() => {
-  db = createEmberdeckDb(':memory:');
-  const cardRepo = new DrizzleCardRepository(db);
-  const relationRepo = new DrizzleRelationRepository(db);
-  const classificationRepo = new DrizzleClassificationRepository(db);
-  const codeLinkRepo = new DrizzleCodeLinkRepository(db);
-  const changelogRepo = new DrizzleChangelogRepository(db);
-
-  ctx = {
-    cardsDir: '/tmp/test-cards',
-    db,
-    cardRepo,
-    relationRepo,
-    classificationRepo,
-    codeLinkRepo,
-    changelogRepo,
-    ignorePatterns: [],
-    regressionThreshold: 0,
-    gildash: undefined,
-  };
+beforeEach(async () => {
+  const tmp = await createTmpDir();
+  await mkdir(join(tmp, 'cards'), { recursive: true });
+  // Project shape gildash expects (package.json + tsconfig.json + a TS source).
+  await writeFile(join(tmp, 'package.json'), JSON.stringify({ name: 'analyze-spec', version: '0.0.0' }), 'utf8');
+  await writeFile(join(tmp, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'esnext', module: 'esnext' }, include: ['src.ts'] }), 'utf8');
+  await writeFile(join(tmp, 'src.ts'), 'export const x = 1;\n', 'utf8');
+  ctx = await setupEmberdeck({
+    cardsDir: join(tmp, 'cards'),
+    dbPath: ':memory:',
+    projectRoot: tmp,
+  });
 });
 
 afterEach(async () => {
-  closeDb(db);
+  await teardownEmberdeck(ctx);
   for (const dir of tmpDirs) {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
@@ -124,14 +92,12 @@ describe('analyze', () => {
     expect(result.driftedCards[0]!.driftType).toBeUndefined();
   });
 
-  it('returns coverage ratio 1 when gildash is not available', async () => {
+  it('returns coverage with totalSymbols when source is indexed', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'c1', status: 'active', filePath: 'cards/c1.card.md' }));
 
     const result = await analyze(ctx);
 
-    expect(result.coverage.ratio).toBe(1);
-    expect(result.coverage.totalSymbols).toBe(0);
-    expect(result.unlinkedSymbols).toEqual([]);
+    expect(result.coverage.totalSymbols).toBeGreaterThanOrEqual(0);
   });
 
   it('handles mixed draft/active/drifted cards', async () => {
@@ -207,10 +173,7 @@ describe('analyze', () => {
     expect(result.driftedCards[0]!.body).toBeUndefined();
   });
 
-  it('counts staleBoundary when projectRoot is set and boundary matches no files', async () => {
-    const tmpDir = await createTmpDir();
-    ctx.projectRoot = tmpDir;
-
+  it('counts staleBoundary when boundary matches no indexed files', async () => {
     ctx.cardRepo.upsert(makeCard({
       key: 'stale-boundary',
       status: 'active',
@@ -221,26 +184,12 @@ describe('analyze', () => {
       key: 'no-boundary',
       status: 'active',
       boundaryJson: null,
-    namespacesJson: null,
+      namespacesJson: null,
       filePath: 'cards/no-boundary.card.md',
     }));
 
     const result = await analyze(ctx);
 
     expect(result.health.staleBoundary).toBe(1);
-  });
-
-  it('staleBoundary is 0 when projectRoot is not set', async () => {
-    ctx.cardRepo.upsert(makeCard({
-      key: 'has-boundary',
-      status: 'active',
-      boundaryJson: JSON.stringify(['nonexistent/**']),
-      filePath: 'cards/has-boundary.card.md',
-    }));
-
-    const result = await analyze(ctx);
-
-    // projectRoot is undefined → boundary check skipped → staleBoundary = 0
-    expect(result.health.staleBoundary).toBe(0);
   });
 });

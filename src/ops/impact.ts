@@ -43,6 +43,7 @@ export interface PreChangeResult {
  * 3. BFS backward to find cards that transitively depend on affected cards.
  * 4. Identify files not covered by any card.
  * 5. Calculate risk level and suggest actions.
+  * @spec analysis/impact-and-aggregate/impact-and-regression
  */
 export async function preChangeCheck(
   ctx: EmberdeckContext,
@@ -57,7 +58,7 @@ export async function preChangeCheck(
   const expandedFiles = await expandAffectedFiles(ctx, files);
 
   // Shared symbol cache reused across all per-card link-status checks below.
-  const sharedCache = ctx.gildash ? makeSymbolFileCache(ctx)! : undefined;
+  const sharedCache = makeSymbolFileCache(ctx)!;
 
   // Find directly affected cards by codeLinks
   for (const file of expandedFiles) {
@@ -166,34 +167,30 @@ export async function preChangeCheck(
   // Aggregate fan metrics + dependents across all gildash projects (monorepo).
   let maxFanIn = 0;
   let maxFanOut = 0;
-  const projectNames = ctx.gildash ? gildashProjectNames(ctx) : [undefined];
-  if (ctx.gildash && typeof ctx.gildash.getFanMetrics === 'function') {
-    for (const file of files) {
-      for (const project of projectNames) {
-        try {
-          const metrics = project
-            ? await ctx.gildash.getFanMetrics(file, project)
-            : await ctx.gildash.getFanMetrics(file);
-          if (metrics.fanIn > maxFanIn) maxFanIn = metrics.fanIn;
-          if (metrics.fanOut > maxFanOut) maxFanOut = metrics.fanOut;
-        } catch {
-          // best-effort
-        }
+  const projectNames = gildashProjectNames(ctx);
+  for (const file of files) {
+    for (const project of projectNames) {
+      try {
+        const metrics = project
+          ? await ctx.gildash.getFanMetrics(file, project)
+          : await ctx.gildash.getFanMetrics(file);
+        if (metrics.fanIn > maxFanIn) maxFanIn = metrics.fanIn;
+        if (metrics.fanOut > maxFanOut) maxFanOut = metrics.fanOut;
+      } catch {
+        // best-effort
       }
     }
   }
 
   // Direct importers (gildash.getDependents) aggregated across projects.
   const directDependentsSet = new Set<string>();
-  if (ctx.gildash && typeof ctx.gildash.getDependents === 'function') {
-    for (const file of files) {
-      for (const project of projectNames) {
-        try {
-          const deps = ctx.gildash.getDependents(file, project);
-          for (const d of deps) directDependentsSet.add(d);
-        } catch {
-          // best-effort
-        }
+  for (const file of files) {
+    for (const project of projectNames) {
+      try {
+        const deps = ctx.gildash.getDependents(file, project);
+        for (const d of deps) directDependentsSet.add(d);
+      } catch {
+        // best-effort
       }
     }
   }
@@ -248,7 +245,6 @@ export async function preChangeCheck(
 
 /**
  * Compute link status (valid/broken) for a card using gildash.
- * Returns undefined if gildash is not available.
  *
  * Accepts an optional shared SymbolFileCache so a sweep over many cards
  * (preChangeCheck) reuses one getSymbolsByFile call per file.
@@ -257,9 +253,7 @@ function computeLinkStatus(
   ctx: EmberdeckContext,
   cardKey: string,
   cache?: SymbolFileCache,
-): { valid: number; broken: number } | undefined {
-  if (!ctx.gildash) return undefined;
-
+): { valid: number; broken: number } {
   const links = ctx.codeLinkRepo.findByCardKey(cardKey);
   if (links.length === 0) return { valid: 0, broken: 0 };
 
@@ -296,6 +290,7 @@ export interface RegressionResult {
  * - 0 affected cards → pass
  * - driftedRatio <= threshold → pass
  * - driftedRatio > threshold → fail
+  * @spec analysis/impact-and-aggregate/impact-and-regression
  */
 export async function regressionGuard(
   ctx: EmberdeckContext,

@@ -1,6 +1,5 @@
 import type { EmberdeckContext } from '../config';
 import type { CodeLink, CardType } from '../card/types';
-import { GildashNotConfiguredError } from '../card/errors';
 import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSymbolFileCache, listAllIndexedFilesWithProject } from './link';
 import { parseStringArrayJson } from '../card/json-fields';
 import { matchesAnyGlob } from '../util/glob';
@@ -24,7 +23,7 @@ const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as cons
  * filter, so dedup keeps results stable in tests and harmless in production.
  */
 function collectTrackedAnnotations(ctx: EmberdeckContext) {
-  const gildash = ctx.gildash!;
+  const gildash = ctx.gildash;
   const seen = new Set<string>();
   const out: Array<ReturnType<typeof gildash.searchAnnotations>[number]> = [];
   for (const project of gildashProjectNames(ctx)) {
@@ -69,9 +68,9 @@ export interface SpecSyncResult {
  * Also detects:
  * - markerMissing: code links that have no @spec annotation in source
  * - linkMissing: @spec annotations that were just created as new links
+  * @spec code-binding/annotation-roundtrip/annotate-and-sync
  */
 export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSyncResult> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
 
   await ensureReindexed(ctx);
 
@@ -187,14 +186,13 @@ export interface WriteSpecResult {
  *
  * When cardKey is provided, only that card's codeLinks are in the desired set,
  * and only that card's orphan @spec annotations are removed.
+  * @spec code-binding/annotation-roundtrip/annotate-and-sync
  */
 export async function writeSpecAnnotations(
   ctx: EmberdeckContext,
   cardKey?: string,
   options?: { prune?: boolean },
 ): Promise<WriteSpecResult> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
-  if (!ctx.projectRoot) throw new GildashNotConfiguredError();
 
   await ensureReindexed(ctx);
 
@@ -265,7 +263,7 @@ export async function writeSpecAnnotations(
   }
 
   for (const [filePath, orphans] of orphansByFile) {
-    const absPath = join(ctx.projectRoot!, filePath);
+    const absPath = join(ctx.projectRoot, filePath);
     let content: string;
     try {
       content = await Bun.file(absPath).text();
@@ -400,7 +398,7 @@ export async function writeSpecAnnotations(
 
     if (targets.length === 0) continue;
 
-    const absPath = join(ctx.projectRoot!, filePath);
+    const absPath = join(ctx.projectRoot, filePath);
     let content: string;
     try {
       content = await Bun.file(absPath).text();
@@ -593,12 +591,12 @@ export interface SymbolSyncResult {
  * - Renamed symbols: update the symbol name in code links.
  * - Moved symbols: update the file path in code links.
  * - Deleted symbols: no auto-delete — reported for manual review.
+  * @spec code-binding/annotation-roundtrip/annotate-and-sync
  */
 export async function syncSymbolChanges(
   ctx: EmberdeckContext,
   since: Date | string,
 ): Promise<SymbolSyncResult> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
 
   await ensureReindexed(ctx);
 
@@ -695,12 +693,12 @@ export interface LinkCoverageResult {
  * Checks how many declared links resolve in gildash, and finds
  * unreferenced symbols in the same files. Applies ignorePatterns
  * patterns to exclude symbols from unreferenced list.
+  * @spec code-binding/link-and-coverage/coverage
  */
 export async function getLinkCoverage(
   ctx: EmberdeckContext,
   fullKey: string,
 ): Promise<LinkCoverageResult> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
 
   await ensureReindexed(ctx);
 
@@ -803,12 +801,12 @@ export interface GetUncoveredSymbolsOptions {
  * Returns all gildash-indexed symbols that are not covered by any card's
  * codeLinks or boundary globs. Applies ignorePatterns + excludePatterns
  * to filter out files that should be excluded.
+  * @spec code-binding/link-and-coverage/coverage
  */
 export async function getUncoveredSymbols(
   ctx: EmberdeckContext,
   options?: GetUncoveredSymbolsOptions,
 ): Promise<UncoveredResult> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
 
   await ensureReindexed(ctx);
 
@@ -833,7 +831,7 @@ export async function getUncoveredSymbols(
   // Carry project attribution so per-file getSymbolsByFile queries below route
   // to the correct project (gildash defaults to primary, missing 99% in monorepos).
   const toRelative = (p: string): string => {
-    if (ctx.projectRoot && p.startsWith(ctx.projectRoot + '/')) {
+    if (p.startsWith(ctx.projectRoot + '/')) {
       return p.slice(ctx.projectRoot.length + 1);
     }
     return p;
@@ -879,7 +877,7 @@ export async function getUncoveredSymbols(
     const primary = project
       ? ctx.gildash.getSymbolsByFile(file, project)
       : ctx.gildash.getSymbolsByFile(file);
-    const symbols = primary.length === 0 && ctx.projectRoot
+    const symbols = primary.length === 0
       ? ctx.gildash.getSymbolsByFile(join(ctx.projectRoot, file))
       : primary;
     if (symbols.length === 0) continue;
@@ -948,12 +946,12 @@ export interface SuggestCardScopeOptions {
  *   - single-file scope                  → spec
  *   - directory + domain ancestor        → brief (parent=domain)
  *   - directory + no domain ancestor     → domain (new root-level bounded context)
+  * @spec code-binding/link-and-coverage/coverage
  */
 export async function suggestCardScope(
   ctx: EmberdeckContext,
   options?: SuggestCardScopeOptions,
 ): Promise<CardSuggestion[]> {
-  if (!ctx.gildash) throw new GildashNotConfiguredError();
 
   const basePath = options?.path ?? '';
   const maxDepth = options?.maxDepth ?? 3;

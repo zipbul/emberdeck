@@ -28,6 +28,7 @@ export interface DefineGlossaryResult {
 /**
  * Define or update words in the project glossary.
  * All-or-nothing: if any entry fails validation, entire call is rejected.
+  * @spec glossary/lifecycle/define-and-lookup
  */
 export async function defineGlossary(
   ctx: EmberdeckContext,
@@ -90,6 +91,7 @@ export interface LookupGlossaryResult {
  * Look up a word in the project glossary, or list all entries.
  * Case-sensitive exact match when word is provided.
  * No lock needed — read-only.
+  * @spec glossary/lifecycle/define-and-lookup
  */
 export function lookupGlossary(
   ctx: EmberdeckContext,
@@ -119,6 +121,7 @@ export interface RemoveGlossaryResult {
 /**
  * Remove a word from the project glossary.
  * Cards referencing this word will become drifted on next check_drift.
+  * @spec glossary/lifecycle/remove-rename-reset
  */
 export async function removeGlossary(
   ctx: EmberdeckContext,
@@ -161,6 +164,7 @@ export interface RenameGlossaryResult {
  * Uses safeWriteOperation pattern: glossary.yaml write first, DB transaction second.
  * If glossary.yaml write fails -> nothing changed.
  * If DB transaction fails -> compensate by reverting glossary.yaml.
+  * @spec glossary/lifecycle/remove-rename-reset
  */
 export async function renameGlossary(
   ctx: EmberdeckContext,
@@ -275,6 +279,7 @@ export interface GlossaryCardMatch {
 
 /**
  * Find all cards that declare a specific glossary word in their glossary field.
+  * @spec glossary/lifecycle/define-and-lookup
  */
 export function findCardsByGlossaryWord(
   ctx: EmberdeckContext,
@@ -300,6 +305,7 @@ export interface ResetResult {
 /**
  * Reset all emberdeck state: delete all cards (DB + files), clear glossary.yaml.
  * @spec annotations in source are NOT removed — run writeSpecAnnotations after reset to reconcile.
+  * @spec glossary/lifecycle/remove-rename-reset
  */
 export async function resetEmberdeck(
   ctx: EmberdeckContext,
