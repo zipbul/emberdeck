@@ -6,6 +6,21 @@
 - 검증 후 [x] + verdict + 실제 본 line/text 를 명시
 - batch 금지. 한 항목씩.
 
+## 5차 deep 라운드 (사용자 요청: "완벽하게")
+
+claim 의 file:line 만 보고 confirm 했던 항목들을 actual runtime 으로 재현.
+ed CLI / bun -e / EXPLAIN QUERY PLAN 등 사용. 새로 발견:
+- **J-016 → REFUTED (5차 deep)**: bun:sqlite Database.close() 가 자체 idempotent. PROBLEM 가정 잘못.
+- **J-027 → REFUTED (5차 deep)**: 모든 Drizzle*Repository constructor 가 `private db` 단순 저장만 — throw path 0. 현재 코드 leak 시나리오 없음.
+- **I-031 → REFUTED 재확인 + 후속**: state_transitions 에 id 부재 — claim 자체 array 잘못.
+- **H-007 → CONFIRMED + nuance**: 대부분 partial path 라 exit 2. error path (COMPENSATION_FAILED) 만 미매핑 → exit 1.
+- **K-006 → CONFIRMED + 정확한 line**: SKILL.md:362 shape 에 parent 누락.
+- **G-039 → CONFIRMED + 영향 범위**: else branch 는 DB row 부재 시만 — production 영향 좁음.
+- **G-033**: typeof field narrowing 이 안 되므로 `Record<typeof field, ...>` 가 effective Record<F, ...>. 의미 모호하나 runtime 영향 0.
+- **I-022 deep**: `..hidden`, `foo..bar`, `foo.` 모두 통과 — slug regex 가 hidden file 패턴 못 잡음.
+- **I-023 deep**: `/foo/` strip OK, but `////foo//bar///` 는 mid-slash 때문에 reject — leading/trailing 만 silent.
+- **J-020 deep**: relative pattern `**/*.ts` 가 absolute path 매칭. abs/rel 정규화 부재 confirmed + behavior nuance.
+
 ## 0. MISTAKE 항목
 - [x] MISTAKE-1 — `grep -rn "withCardLock\|withRetry" src/ops/` → 0건. `bunx tsc --noEmit` exit=0. **REFUTED 재확인**
 - [x] MISTAKE-2 — `spec.ts:90` `SELECT value FROM system_metadata WHERE key = ?` (read), `:110-112` INSERT/UPSERT, `phase2-polish.test.ts:164,173,181,186,194,199` 통합 테스트 6건 직접 확인. **REFUTED 재확인**
@@ -95,7 +110,7 @@
 - [x] H-004 — `output.ts:154-165` `data.key` (단일) 또는 `data.items[].key` (목록) 만 처리 직접 확인. analyze/check drift/check coverage 의 data shape 둘 다 없음 → quiet 모드에서 빈 stdout. **CONFIRMED**
 - [x] H-005 — `parsers.ts:12` `throw new InvalidArgumentError(...)` 직접 확인. `grep exitOverride src/cli/index.ts` → 0건. commander 가 default behavior 로 process.exit(1) + plaintext stderr → JSON envelope 우회. 4차에서 직접 재현됨. **CONFIRMED**
 - [x] H-006 — H-005 와 같은 root (exitOverride 부재 → commander missing-arg/missing-required-option/unknown-flag 모두 우회). 4차에서 `ed card get` 직접 재현 확인. **CONFIRMED**
-- [x] H-007 — `bulk.ts:114` `code: 'SYNC_FAILED'` 직접 확인. `grep "SYNC_FAILED|BULK_VALIDATION_FAILED|..." src/cli/output.ts` → 0건 매핑. 모두 EXIT.GENERIC_ERROR 1. **CONFIRMED**
+- [x] H-007 — `bulk.ts:114` `code: 'SYNC_FAILED'` 직접 확인. `grep "SYNC_FAILED|..." src/cli/output.ts` → 0건. **5차 deep 재현**: `bulk sync` 가 partial 상태로 → partialIsFailure=true 통해 exit 2. SYNC_FAILED/BULK_* 는 partial path 라 exit 2 OK. 그러나 COMPENSATION_FAILED (errors.ts:53) 는 toCliError 통한 single error 경로 → ERROR_CODE_TO_EXIT 미매핑 → exit 1. substance 정확하나 영향 범위 partial path 에서는 manifest 안 됨. **CONFIRMED (substance), 영향 범위 nuance**
 - [x] H-008 — `card.ts:276-295` `if (opts.patch) { Object.assign(fields, parsedRaw) } ... fieldMap = parseFields; for [name,value] of fieldMap { applyFieldValue(fields, ...) }` 직접 확인. mutex 없음. patch 적용 후 field overlay. **CONFIRMED**
 - [x] H-009 — `card.ts:81` `fields.parent = value === '' ? null : value;` 직접 확인. `--field parent=` 빈 문자열이 silent null. **CONFIRMED**
 - [x] H-010 — `card.ts:61-70` parseFields 가 `f.slice(0, idx)` 그대로 key 사용 직접 확인. `applyFieldValue` switch case 가 `'summary'`, `'parent'` 등 lowercase only — `Summary=x` switch default 통과 안 함 (실제로 default 처리 봐야). **CONFIRMED**
@@ -146,7 +161,7 @@
 - [x] I-028 — `sync.ts:42-49` 직접 read. fixed order principle→domain→brief→spec 으로 build. JSON.stringify 결정적. Bun.YAML.parse insertion order 보존. round-trip 결정적. **REFUTED 재확인**
 - [x] I-029 — `update.ts:248` validateChildrenHierarchy 호출은 `fields.type` 변경 시 만 직접 확인. 주기적 / standalone 검사 없음. **CONFIRMED**
 - [x] I-030 — `validation.ts:213-217` `try { new Bun.Glob(pattern); } catch { throw }` 직접 확인. compile 결과 폐기 (보존 안 함). 호출 site 가 다시 `new Bun.Glob` (J-019). **CONFIRMED**
-- [x] I-031 — `types.ts:250` `SpecStateTransition` 직접 read — id 필드 없음 (from/trigger/to/binds 만). PROBLEM 의 "state_transitions[] ID 중복" claim 은 잘못. 단 preconditions/postconditions/invariants 의 id 중복 미검출은 별도로 사실 (markdown.ts asId 가 패턴만 검증). **PARTIAL — claim 의 array 이름 잘못, substance 는 다른 array 에 적용**
+- [x] I-031 — **5차 deep 후속**: `types.ts:250` SpecStateTransition `{from, trigger, to, binds}` (id 부재), SKILL.md:178 동일, `markdown.ts:556-563` 파싱에 asId 호출 0. state_transitions 자체에 id 가 없으므로 "ID 중복 미검출" claim 자체가 잘못. 별도 array (preconditions/postconditions/invariants/failures/code_patterns/criteria 등) 에는 id 가 있고 중복 미검출 substance 가 적용되나 PROBLEM 의 array 지정은 부정확. **REFUTED (5차 후속 — claim 잘못)**
 
 ## J. db / fs / setup
 - [x] J-001 — `schema.ts:104-115` `systemLock` table 정의 직접 확인. `drizzle/0002_*.sql` CREATE TABLE 직접 확인. `grep system_lock src/` schema.ts 외 사용처 0건. **CONFIRMED**
@@ -164,18 +179,18 @@
 - [x] J-013 — `config-file.ts:130-145` 직접 read. assertString (cardsDir/dbPath/projectRoot), assertStringArray (allowEmpty=true), assertNumber (regressionThreshold) 만 검사. 빈 string / glob syntax / ignorePatterns 의 빈 element 등 검사 0. **CONFIRMED**
 - [x] J-014 — `Bun.JSONC.parse("{ \"a\": 1, garbage")` 직접 실행 → AggregateError, e.line=1, e.column=17, e.message="Failed to parse JSONC" 재현 완료. `config-file.ts:223-229` `errorMessage(e)` (= e.message 만) 사용 → line/col 폐기. **CONFIRMED**
 - [x] J-015 — `connection.ts:22-27` 3 PRAGMAs (journal_mode WAL, foreign_keys ON, busy_timeout 5000) 직접 확인. synchronous 미설정. **CONFIRMED**
-- [x] J-016 — `connection.ts:58-60` `closeDb` = `db.$client.close()` (idempotent guard 없음) 직접 확인. `setup.ts:80-86` teardownEmberdeck 가 finally 에서 closeDb 호출. 두 번 호출 시 두번째 close 가 throw 가능. **CONFIRMED**
+- [x] J-016 — `connection.ts:58-60` `db.$client.close()` 직접 확인. **5차 deep 재현**: `bun -e` 로 Database.close() 두 번 호출 → 둘 다 throw 안 함 (bun:sqlite 이 자체적으로 idempotent). PROBLEM 의 "non-idempotent" 가정 잘못. **REFUTED (5차 발견)**
 - [x] J-017 — `connection.ts:68-70` `return tx as EmberdeckDb;` 직접 확인. 런타임 검증 없음. **CONFIRMED**
 - [x] J-018 — alias of G-022. 위 G-022 검증 동일. **CONFIRMED**
 - [x] J-019 — `glob.ts:7` `if (new Bun.Glob(p).match(path))` 매 호출마다 새 Glob 컴파일 직접 확인. `spec-sync.ts:748` `for (const file of linkedFiles) { matchesAnyGlob(file, ctx.ignorePatterns) }` hot loop 직접 확인. **CONFIRMED**
-- [x] J-020 — `glob.ts` 전체 직접 read. path 정규화 (abs vs rel) 처리 0. 코멘트 도 abs/rel 명시 없음. **CONFIRMED**
+- [x] J-020 — `glob.ts` 전체 read. **5차 deep 재현**: `matchesAnyGlob("/abs/path/file.ts", ["**/*.ts"])` → true. `matchesAnyGlob("a/b/file.ts", ["*.ts"])` → false (top-level glob). abs path + relative pattern 가 매칭됨 — 의도와 다를 수 있음. 코멘트/문서 0. **CONFIRMED + behavior nuance**
 - [x] J-021 — `error.ts` 전체: `e.message` 또는 String(e) 그대로 반환 직접 확인. PII redact 없음. **CONFIRMED**
 - [x] J-022 — `schema.ts:79-83` `cardFts = sqliteTable('card_fts', ...)` (regular sqliteTable) 직접 확인. 실제 FTS5 virtual table 은 migration SQL + raw SQL 로만 (`card-repo.ts:105-120` `JOIN card_fts f ON c.rowid = f.rowid` raw). drizzle generate 시 footgun. **CONFIRMED**
 - [x] J-023 — `0000_init.sql:99-104` `CREATE TRIGGER card_au AFTER UPDATE ON card BEGIN DELETE FROM card_fts ...; INSERT INTO card_fts ...` 직접 확인. UPDATE 시 FTS row 항상 rewrite (metadata-only update 도). **CONFIRMED**
 - [x] J-024 — `config.ts:14` `projectRoot: string;` (required) 직접 확인. file 모드 (':memory:' 등) 시 silent default 처리는 별도 path 검증 필요 — 구조적 비대칭. **CONFIRMED**
 - [x] J-025 — `relation-repo.ts:48` 와 `code-link-repo.ts:35` 둘 다 `msg.includes('FOREIGN KEY constraint failed')` substring 직접 확인. SQLite 에러 메시지 변경 시 fragile. **CONFIRMED**
 - [x] J-026 — `relation-repo.ts:16-50` 직접 read. 두 delete + N (forward+reverse) insert 모두 별 statement, savepoint/internal transaction 없음. mid-loop UNIQUE/transient 시 partial 상태 가능. **CONFIRMED**
-- [x] J-027 — `setup.ts:58-70` repo 생성자 (`new DrizzleCardRepository(db)` 등) 가 try/catch 밖에서 직접 호출됨 직접 확인. 임의의 repo 생성자가 sync throw 시 db 와 gildash 둘 다 leak. **CONFIRMED**
+- [x] J-027 — `setup.ts:58-70` repo 생성자가 try/catch 밖. **5차 deep**: 모든 Drizzle*Repository constructor (`db/{card,code-link,classification,changelog,relation}-repo.ts:8-11`) 가 `private db` 단순 저장만 — throw 불가. 현재 코드에서 leak path 0. preventive concern 만 있음. **REFUTED (현재 코드)**
 - [x] J-028 — `spec.ts:90` SELECT `value` only (updated_at 미read) 직접 확인. `:110-112` INSERT/UPSERT 에 updated_at 양쪽 write. read 0건 → write-only column. **CONFIRMED**
 - [x] J-029 — `classification-repo.ts:48` `DELETE FROM tag WHERE id NOT IN (SELECT tag_id FROM card_tag)` 직접 확인. NOT IN subquery 형태 (LEFT JOIN/anti-join 보다 일반적으로 느림). **CONFIRMED**
 - [x] J-030 — `writer.ts:19-28` 직접 read. random tmpPath + rename 만, flock/O_EXCL 없음. `grep flock|O_EXCL src/` → 0. lock 인프라 제거 후 동시 writer 보호 0. **CONFIRMED**
@@ -186,7 +201,7 @@
 - [x] K-003 — SKILL.md:163 measure shape (numeric: `{predicate, value, comparator, unit, reference?}`, binary: `{predicate, method?, reference?}`, verification: `{method, reference, predicate?, unit?}`) vs `types.ts:175-178` 코드 union (numeric: `{value, comparator, unit}`, binary: `{predicate}`, verification: `{method, reference}`) 직접 비교. SKILL 의 optional 필드 코드에 0. **CONFIRMED**
 - [x] K-004 — SKILL.md:351-355 `key/total_symbols/covered_symbols/coverage_ratio/uncovered` vs `check.ts:82-86` `declared/resolved/broken/coverage_ratio/unreferenced_symbols` 직접 비교. shape 완전히 다름. **CONFIRMED**
 - [x] K-005 — `check.ts:72` `uncovered: uc.uncovered.slice(0, 100)` 직접 확인. SKILL.md grep 100 cap 명시 0건. **CONFIRMED**
-- [x] K-006 — `check.ts:53` `parent: s.parent` 출력 직접 확인. SKILL.md `--suggest` shape 에 parent 필드 누락 (grep 결과 의 line 327 fence body 봐야하나 PROBLEM 4차에서 confirm). **CONFIRMED**
+- [x] K-006 — **5차 deep**: SKILL.md:362 정확한 shape `{key, type, files, symbols, reason, suggested_glossary}` 직접 확인. `check.ts:51-58` 출력 `{key, type, parent, files, symbols, reason, suggested_glossary}` — `parent` 필드 SKILL 누락 확인. **CONFIRMED**
 - [x] K-007 — SKILL.md:105 `[--max-depth N]` 명시. `check.ts:21` 의 옵션은 `--no-auto-transition` 만 직접 확인. `--max-depth` 부재 — commander reject. 4차에서 직접 재현됨. **CONFIRMED**
 - [x] K-008 — SKILL.md:88 표 marks rename "예" (destructive — 파괴적). `glossary.ts:115-143` action 에 confirmDestructive 호출 0건 직접 확인. **CONFIRMED**
 - [x] K-009 — `card.ts:404-405` description "Default prints to STDOUT". SKILL.md:95 표는 `[--out FILE|--in-place]` (default 명시 없음). default behavior SKILL 누락. **CONFIRMED**
