@@ -7,9 +7,9 @@ import {
   CardValidationError,
   ParentValidationError,
   ActivationGuardError,
-  GildashNotConfiguredError,
   CompensationError,
 } from '../card/errors';
+import { GildashInitError } from '../setup';
 import { GlossaryValidationError } from '../glossary/io';
 
 describe('toCliError', () => {
@@ -45,9 +45,10 @@ describe('toCliError', () => {
     expect(m.details?.unmet_conditions).toEqual(['needs body', 'needs codeLinks']);
   });
 
-  test('GildashNotConfiguredError → GILDASH_NOT_CONFIGURED', () => {
-    const m = toCliError(new GildashNotConfiguredError());
-    expect(m.code).toBe('GILDASH_NOT_CONFIGURED');
+  test('GildashInitError → GILDASH_INIT_FAILED', () => {
+    const m = toCliError(new GildashInitError('gildash failed: path not found'));
+    expect(m.code).toBe('GILDASH_INIT_FAILED');
+    expect(m.message).toContain('path not found');
   });
 
   test('CompensationError preserves both errors in details', () => {

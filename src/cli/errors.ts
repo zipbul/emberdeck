@@ -12,10 +12,10 @@ import {
   ParentValidationError,
   ActivationGuardError,
   BoundaryValidationError,
-  GildashNotConfiguredError,
   CompensationError,
   FtsSyntaxError,
 } from '../card/errors';
+import { GildashInitError } from '../setup';
 import { GlossaryParseError, GlossaryValidationError } from '../glossary/io';
 import type { CliMessage } from './output';
 import { CliUsageError } from './usage-error';
@@ -32,12 +32,13 @@ const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
   [CardValidationError, 'VALIDATION_ERROR'],
   [ParentValidationError, 'PARENT_VALIDATION_ERROR'],
   [BoundaryValidationError, 'BOUNDARY_VALIDATION_ERROR'],
-  [GildashNotConfiguredError, 'GILDASH_NOT_CONFIGURED'],
+  [GildashInitError, 'GILDASH_INIT_FAILED'],
   [CardRenameSamePathError, 'RENAME_SAME_PATH'],
   [GlossaryParseError, 'GLOSSARY_PARSE_ERROR'],
   [GlossaryValidationError, 'GLOSSARY_VALIDATION_ERROR'],
 ];
 
+/** @spec cli-surface/command-routing-and-envelope/runner-and-output */
 export function toCliError(e: unknown): CliMessage {
   // Errors that carry structured details first.
   if (e instanceof ActivationGuardError) {

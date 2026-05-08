@@ -80,7 +80,7 @@ describe('output: statusToExitCode', () => {
   test('error code → mapped exit code', () => {
     expect(statusToExitCode(err({ code: 'CARD_NOT_FOUND', message: 'x' }))).toBe(EXIT.NOT_FOUND);
     expect(statusToExitCode(err({ code: 'CARD_ALREADY_EXISTS', message: 'x' }))).toBe(EXIT.CONFLICT);
-    expect(statusToExitCode(err({ code: 'GILDASH_NOT_CONFIGURED', message: 'x' }))).toBe(EXIT.CONFIG_MISSING);
+    expect(statusToExitCode(err({ code: 'GILDASH_INIT_FAILED', message: 'x' }))).toBe(EXIT.CONFIG_MISSING);
     expect(statusToExitCode(err({ code: 'VALIDATION_ERROR', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);
     expect(statusToExitCode(err({ code: 'INVALID_CARD_KEY', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);
     expect(statusToExitCode(err({ code: 'BOUNDARY_VALIDATION_ERROR', message: 'x' }))).toBe(EXIT.VALIDATION_FAILURE);

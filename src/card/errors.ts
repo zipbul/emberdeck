@@ -81,17 +81,6 @@ export class BoundaryValidationError extends Error {
 }
 
 /**
- * Thrown when `EmberdeckOptions.projectRoot` is not configured in code link operations
- * that use gildash (`resolveCardCodeLinks`, `validateCodeLinks`, etc.).
- */
-export class GildashNotConfiguredError extends Error {
-  constructor() {
-    super('gildash is not configured: set projectRoot in EmberdeckOptions');
-    this.name = 'GildashNotConfiguredError';
-  }
-}
-
-/**
  * Thrown when a filesystem operation fails after a successful DB transaction, and the
  * compensation (rollback) also fails. Contains both `originalError` and `compensationError`,
  * so both should be logged. This state risks database-filesystem inconsistency and may

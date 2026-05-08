@@ -7,7 +7,6 @@ import {
   ParentValidationError,
   ActivationGuardError,
   BoundaryValidationError,
-  GildashNotConfiguredError,
 } from './errors';
 
 // ── CardValidationError ──────────────────────────────────────────────────────
@@ -196,48 +195,3 @@ describe('BoundaryValidationError', () => {
   });
 });
 
-// ── GildashNotConfiguredError ─────────────────────────────────────────────────
-
-describe('GildashNotConfiguredError', () => {
-  // 19. [HP] exact message string
-  it('should set correct message when constructed', () => {
-    // Arrange / Act
-    const err = new GildashNotConfiguredError();
-    // Assert
-    expect(err.message).toBe(
-      'gildash is not configured: set projectRoot in EmberdeckOptions',
-    );
-  });
-
-  // 20. [HP] name check
-  it('should set name to GildashNotConfiguredError when constructed', () => {
-    // Arrange / Act
-    const err = new GildashNotConfiguredError();
-    // Assert
-    expect(err.name).toBe('GildashNotConfiguredError');
-  });
-
-  // 21. [HP] instanceof Error
-  it('should be instanceof Error when constructed', () => {
-    // Arrange / Act
-    const err = new GildashNotConfiguredError();
-    // Assert
-    expect(err).toBeInstanceOf(Error);
-  });
-
-  // 22. [HP] instanceof GildashNotConfiguredError
-  it('should be instanceof GildashNotConfiguredError when constructed', () => {
-    // Arrange / Act
-    const err = new GildashNotConfiguredError();
-    // Assert
-    expect(err).toBeInstanceOf(GildashNotConfiguredError);
-  });
-
-  // 23. [HP] catchable after throw
-  it('should be catchable as GildashNotConfiguredError when thrown', () => {
-    // Arrange / Act / Assert
-    expect(() => {
-      throw new GildashNotConfiguredError();
-    }).toThrow(GildashNotConfiguredError);
-  });
-});

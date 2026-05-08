@@ -23,6 +23,7 @@ function buildFallbackOutputContext(flags: GlobalFlags): import('./output').Outp
  * Decide CliResult.status from an error code.
  * Transient/retryable errors → 'unknown' (exit 7); everything else → 'error'.
  * Exported for testability.
+  * @spec cli-surface/command-routing-and-envelope/runner-and-output
  */
 export function classifyErrorStatus(code: string): 'unknown' | 'error' {
   // Add codes here when ops layer surfaces transient failures. Currently:
@@ -36,6 +37,7 @@ export function classifyErrorStatus(code: string): 'unknown' | 'error' {
  * Execute a command with full lifecycle: build runtime, run, render, exit.
  * Extracts global flags from the Commander instance so callers don't repeat
  * `extractGlobalFlags(cmd.optsWithGlobals())`.
+  * @spec cli-surface/command-routing-and-envelope/runner-and-output
  */
 export async function run(
   fn: CommandFn,
@@ -76,7 +78,7 @@ export async function run(
   try {
     verboseLog(`buildRuntime: config=${globalFlags.config ?? '(auto)'} dir=${globalFlags.dir ?? '(default)'}`);
     rt = await buildRuntime(globalFlags);
-    verboseLog(`runtime ready: cardsDir=${rt.ctx.cardsDir} gildash=${rt.ctx.gildash ? 'on' : 'off'}`);
+    verboseLog(`runtime ready: cardsDir=${rt.ctx.cardsDir} projectRoot=${rt.ctx.projectRoot}`);
     result = await fn(rt);
     verboseLog(`command done: status=${result.status} warnings=${result.warnings.length} errors=${result.errors.length}`);
   } catch (e) {

@@ -18,7 +18,7 @@ import { errorMessage } from './util/error';
 export interface EmberdeckFileConfig {
   cardsDir: string;
   dbPath: string;
-  projectRoot?: string;
+  projectRoot: string;
   analysisIgnore?: string[];
   ignorePatterns: string[];
   regressionThreshold: number;
@@ -105,6 +105,7 @@ const KNOWN_TOP_KEYS = new Set([
 /**
  * Validates the raw parsed result and converts it to `EmberdeckFileConfig`.
  * Collects all unknown keys, type errors, and range errors, then reports them at once.
+  * @spec cli-surface/project-setup/setup-config-root
  */
 export function validateRawConfig(
   raw: unknown,
@@ -164,7 +165,7 @@ export function validateRawConfig(
   const projectRoot =
     typeof obj['projectRoot'] === 'string'
       ? resolve(resolvedDir, obj['projectRoot'])
-      : undefined;
+      : resolvedDir;
 
   const analysisIgnore = Array.isArray(obj['analysisIgnore'])
     ? (obj['analysisIgnore'] as string[])
@@ -190,6 +191,7 @@ export function validateRawConfig(
 
 /**
  * Reads, parses, and validates the config file at the specified path.
+  * @spec cli-surface/project-setup/setup-config-root
  */
 export async function loadConfigFromPath(
   filePath: string,
@@ -233,6 +235,7 @@ export async function loadConfigFromPath(
 /**
  * Automatically searches for `.emberdeck.jsonc` or `.emberdeck.json` from CWD.
  * If found, loads and validates it; if not found, creates a config with defaults.
+  * @spec cli-surface/project-setup/setup-config-root
  */
 export async function loadConfig(
   cwd?: string,
@@ -254,6 +257,7 @@ export async function loadConfig(
 /**
  * Overrides config with CLI args.
  * Args that are undefined are ignored.
+  * @spec cli-surface/project-setup/setup-config-root
  */
 export function mergeCliArgs(
   config: EmberdeckFileConfig,
@@ -273,12 +277,13 @@ export function mergeCliArgs(
 
 /**
  * Creates a config using only defaults. Used when no config file exists.
+  * @spec cli-surface/project-setup/setup-config-root
  */
 export function buildDefaultConfig(baseDir: string): EmberdeckFileConfig {
   return {
     cardsDir: resolve(baseDir, DEFAULT_CARDS_DIR),
     dbPath: resolve(baseDir, DEFAULT_DB_PATH),
-    projectRoot: undefined,
+    projectRoot: baseDir,
     analysisIgnore: undefined,
     ignorePatterns: [],
     regressionThreshold: 0,

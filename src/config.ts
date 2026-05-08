@@ -10,8 +10,8 @@ export interface EmberdeckOptions {
   cardsDir: string;
   /** Absolute path to the SQLite DB file. ':memory:' is allowed */
   dbPath: string;
-  /** Absolute path to the project root for enabling gildash. Code link feature is disabled when not specified */
-  projectRoot?: string;
+  /** Absolute path to the project root. Required — emberdeck binds cards to code via gildash, so projectRoot is non-optional. */
+  projectRoot: string;
   /** Additional gildash-specific ignore patterns (on top of ignorePatterns) */
   analysisIgnore?: string[];
   /** Glob patterns for files to exclude from coverage and gildash indexing */
@@ -26,8 +26,8 @@ export interface EmberdeckOptions {
  */
 export interface EmberdeckContext {
   cardsDir: string;
-  /** Project root directory. Available when projectRoot was specified in options. */
-  projectRoot?: string;
+  /** Project root directory. Always present (emberdeck requires gildash binding). */
+  projectRoot: string;
   db: EmberdeckDb;
   cardRepo: CardRepository;
   relationRepo: RelationRepository;
@@ -38,6 +38,6 @@ export interface EmberdeckContext {
   ignorePatterns: string[];
   /** Regression guard threshold (0-1). 0 = any drifted card fails */
   regressionThreshold: number;
-  /** Gildash instance. undefined when projectRoot is not set or initialization fails */
-  gildash?: Gildash;
+  /** Gildash instance. Always initialized (setupEmberdeck throws if Gildash.open fails). */
+  gildash: Gildash;
 }
