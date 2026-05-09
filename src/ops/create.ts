@@ -45,8 +45,6 @@ export interface CreateCardInput {
   parent?: string;
   /** File/directory glob patterns this card is responsible for (optional). */
   boundary?: string[];
-  /** Markdown body (optional). */
-  body?: string;
   /** List of tags for classification (optional). */
   tags?: string[];
   /** List of related card keys (optional). */
@@ -73,7 +71,7 @@ export interface CreateCardResult {
   filePath: string;
   /** fullKey of the created card (= normalized key). */
   fullKey: string;
-  /** Complete data of the created card (frontmatter + body). */
+  /** Complete data of the created card. */
   card: CardFile;
 
 }
@@ -106,7 +104,6 @@ export async function createCard(
   validateCardInput({
     key: input.key,
     summary: input.summary,
-    body: input.body,
     tags: input.tags,
     relations: input.relations,
     codeLinks: input.codeLinks,
@@ -138,7 +135,7 @@ export async function createCard(
       }
 
       // Glossary validation (M1, M2, M3)
-      // Progressive enforcement: required only when glossary.yaml has entries
+      // Progressive enforcement: required only when glossary.json has entries
       const glossaryEntries = readGlossary(ctx);
       if (glossaryEntries.length > 0 && (!input.glossary || input.glossary.length === 0)) {
         throw new GlossaryValidationError('glossary field is required when project glossary exists');
@@ -179,13 +176,9 @@ export async function createCard(
         ...(input.spec ? { spec: input.spec } : {}),
       };
 
-      const body = input.body ?? '';
-      const card: CardFile = { filePath, frontmatter, body };
-      // Concatenate body + searchable namespace text for FTS5 indexing.
-      const searchableBody = (() => {
-        const ns = buildSearchableText(frontmatter);
-        return [body, ns].filter((s) => s.trim().length > 0).join('\n\n');
-      })();
+      const card: CardFile = { filePath, frontmatter };
+      // Searchable namespace text for FTS5 indexing.
+      const searchableBody = buildSearchableText(frontmatter);
 
       const now = new Date().toISOString();
 

@@ -22,8 +22,6 @@ export interface RenameCardResult {
   newFullKey: string;
   /** New card data (with updated frontmatter). */
   card: CardFile;
-  /** Card keys that contain the old key in their body text. */
-  bodyReferencesFound?: string[];
   /** Card keys whose file update failed (DB has new key but file retains old key). */
   failedReferenceUpdates?: string[];
 }
@@ -74,7 +72,6 @@ export async function renameCard(
         // Collect all cards that reference this key (relations or parent)
         const allCards = ctx.cardRepo.list();
         const referencingCards: Array<{ key: string; filePath: string }> = [];
-        const bodyReferencesFound: string[] = [];
 
         // Bulk-resolve cards that have a forward relation pointing to oldKey
         // (one query instead of N findByCardKey calls).
@@ -104,7 +101,6 @@ export async function renameCard(
           ) {
             referencingCards.push({ key: row.key, filePath: row.filePath });
           }
-          if (row.body?.includes(oldKey)) bodyReferencesFound.push(row.key);
         }
 
         await mkdir(dirname(newFilePath), { recursive: true });
@@ -114,7 +110,6 @@ export async function renameCard(
         const card: CardFile = {
           filePath: newFilePath,
           frontmatter: { ...current.frontmatter, key: newFullKey },
-          body: current.body,
         };
         await writeCardFile(newFilePath, card);
 
@@ -190,16 +185,12 @@ export async function renameCard(
           const restored: CardFile = {
             filePath: oldFilePath,
             frontmatter: { ...orig.frontmatter, key: oldKey },
-            body: orig.body,
           };
           await writeCardFile(oldFilePath, restored);
           throw dbErr;
         }
 
         const result: RenameCardResult = { oldFilePath, newFilePath, newFullKey, card };
-        if (bodyReferencesFound.length > 0) {
-          result.bodyReferencesFound = bodyReferencesFound;
-        }
         if (failedReferenceUpdates.length > 0) {
           result.failedReferenceUpdates = failedReferenceUpdates;
         }

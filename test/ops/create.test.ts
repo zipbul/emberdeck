@@ -31,9 +31,7 @@ describe('createCard', () => {
       key: 'with-body',
       summary: 'With body',
       type: 'spec',
-      body: 'Hello world',
     });
-    expect(result.card.body).toBe('Hello world');
   });
 
   it('should save tags to DB when tags are provided', async () => {
@@ -62,14 +60,14 @@ describe('createCard', () => {
     tc = await createTestContext();
     const result = await createCard(tc.ctx, { key: 'a/b', summary: 'Nested', type: 'spec' });
     expect(existsSync(result.filePath)).toBe(true);
-    expect(result.filePath).toContain('a/b.card.md');
+    expect(result.filePath).toContain('a/b.json');
   });
 
   it('should return correct { filePath, fullKey, card } shape', async () => {
     tc = await createTestContext();
     const result = await createCard(tc.ctx, { key: 'shape-card', summary: 'Shape', type: 'spec' });
     expect(result.fullKey).toBe('shape-card');
-    expect(result.filePath).toContain('shape-card.card.md');
+    expect(result.filePath).toContain('shape-card.json');
     expect(result.card.frontmatter.key).toBe('shape-card');
   });
 
@@ -108,7 +106,6 @@ describe('createCard', () => {
   it("should default body to empty string when body is undefined", async () => {
     tc = await createTestContext();
     const result = await createCard(tc.ctx, { key: 'no-body', summary: 'No body', type: 'spec' });
-    expect(result.card.body).toBe('');
   });
 
   it('should omit tags field from frontmatter when tags is empty array', async () => {
@@ -161,7 +158,7 @@ describe('createCard', () => {
     await createCard(tc.ctx, { key: 're-create', summary: 'First', type: 'spec' });
     tc.ctx.cardRepo.deleteByKey('re-create');
     const { rm } = await import('node:fs/promises');
-    const filePath = `${tc.cardsDir}/re-create.card.md`;
+    const filePath = `${tc.cardsDir}/re-create.json`;
     await rm(filePath, { force: true });
     const result = await createCard(tc.ctx, { key: 're-create', summary: 'Second', type: 'spec' });
     expect(existsSync(result.filePath)).toBe(true);

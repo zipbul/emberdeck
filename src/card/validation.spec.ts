@@ -11,8 +11,7 @@ describe('validateCardInput', () => {
       validateCardInput({
         key: 'my-card',
         summary: 'Normal summary',
-        body: 'Normal body',
-        tags: ['tag1', 'tag2'],
+                tags: ['tag1', 'tag2'],
         relations: ['other-card'],
         codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'getToken' }],
         boundary: ['src/auth/**'],
@@ -34,8 +33,7 @@ describe('validateCardInput', () => {
     expect(() =>
       validateCardInput({
         summary: 'Valid summary',
-        body: '',
-        tags: [],
+                tags: [],
         relations: [],
         codeLinks: [],
         boundary: [],
@@ -82,7 +80,7 @@ describe('validateCardInput', () => {
     const bigBody = 'x'.repeat(LIMITS.BODY_MAX + 1);
     // Act / Assert
     expect(() =>
-      validateCardInput({ summary: 'ok', body: bigBody }),
+      validateCardInput({ summary: 'ok' }),
     ).toThrow(CardValidationError);
   });
 
@@ -262,7 +260,7 @@ describe('validateCardInput', () => {
     const boundary = Array(LIMITS.BOUNDARY_MAX_PATTERNS).fill('p'.repeat(LIMITS.BOUNDARY_PATTERN_MAX)); // 50x500
     // Act / Assert
     expect(() =>
-      validateCardInput({ key, summary, body, tags, relations, codeLinks, boundary }),
+      validateCardInput({ key, summary, tags, relations, codeLinks, boundary }),
     ).not.toThrow();
   });
 

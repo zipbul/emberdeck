@@ -357,7 +357,7 @@ export async function checkDrift(
       }
     }
 
-    // glossary_broken: card declares glossary words not in glossary.yaml
+    // glossary_broken: card declares glossary words not in glossary.json
     {
       const cardGlossary = parseStringArrayJson(row.glossaryJson);
       if (cardGlossary.length > 0) {

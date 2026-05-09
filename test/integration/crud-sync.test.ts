@@ -35,7 +35,7 @@ import {
   ActivationGuardError,
 } from '../../index';
 import { readCardFile } from '../../src/fs/reader';
-import { serializeCardMarkdown } from '../../src/card/markdown';
+import { serializeCard } from '../../src/card/serialize';
 
 let tc: TestContext;
 
@@ -70,7 +70,7 @@ describe('create', () => {
   it('should reject spec card with active status and no codeLinks (activation guard)', async () => {
     tc = await createTestContext();
     await expect(
-      createCard(tc.ctx, { key: 'no-links', summary: 'No links', type: 'spec', status: 'active', body: SPEC_BODY }),
+      createCard(tc.ctx, { key: 'no-links', summary: 'No links', type: 'spec', status: 'active' }),
     ).rejects.toThrow('Activation conditions not met');
   });
 
@@ -175,7 +175,7 @@ describe('update', () => {
   it('should force draft when type change breaks activation conditions', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'arch-active', summary: 'Arch', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief() });
     // Change to spec (requires codeLinks) → should force to draft
     const result = await updateCard(tc.ctx, 'arch-active', { type: 'spec' });
     expect(result.card.frontmatter.status).toBe('draft');
@@ -231,7 +231,7 @@ describe('update', () => {
 
   it('should apply activation guard when status set to active', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'no-act', summary: 'No activation', type: 'spec', body: SPEC_BODY });
+    await createCard(tc.ctx, { key: 'no-act', summary: 'No activation', type: 'spec' });
     await expect(
       updateCard(tc.ctx, 'no-act', { status: 'active' }),
     ).rejects.toThrow('Activation conditions not met');
@@ -244,7 +244,7 @@ describe('updateCardStatus', () => {
   it('should record reason in changelog', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'st-card', summary: 'Status card', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'st-card', 'active', 'passed review');
 
     const result = await getCard(tc.ctx, 'st-card', { includeHistory: true });
@@ -255,7 +255,7 @@ describe('updateCardStatus', () => {
 
   it('should reject active status for spec without codeLinks', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'spec-no-link', summary: 'Spec', type: 'spec', body: SPEC_BODY });
+    await createCard(tc.ctx, { key: 'spec-no-link', summary: 'Spec', type: 'spec' });
     await expect(
       updateCardStatus(tc.ctx, 'spec-no-link', 'active'),
     ).rejects.toThrow('Activation conditions not met');
@@ -330,20 +330,6 @@ describe('rename', () => {
     expect(childFile.frontmatter.parent).toBe('rn-parent-new');
   });
 
-  it('should return bodyReferencesFound when old key appears in other card bodies', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'body-ref-target', summary: 'Target', type: 'spec' });
-    await createCard(tc.ctx, {
-      key: 'body-ref-src',
-      summary: 'Source',
-      type: 'spec',
-      body: 'This references body-ref-target in the text.',
-    });
-
-    const result = await renameCard(tc.ctx, 'body-ref-target', 'body-ref-renamed');
-    expect(result.bodyReferencesFound).toEqual(['body-ref-src']);
-  });
-
   it('should record key change in changelog', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'cl-rename', summary: 'CL rename', type: 'spec' });
@@ -402,7 +388,7 @@ describe('sync', () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'rw-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief(), relations: ['rw-draft'] });
+    await createCard(tc.ctx, { key: 'rw-active', summary: 'Active', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief(), relations: ['rw-draft'] });
 
     const result = await validateCards(tc.ctx);
     const rework = result.warnings.find((w) => w.type === 'rework-dependency' && w.cardKey === 'rw-active');
@@ -573,10 +559,10 @@ describe('sync duplicate key', () => {
   it('bulkSyncCards should detect duplicate keys across files', async () => {
     tc = await createTestContext();
     // Write two files with the same key
-    const file1 = join(tc.cardsDir, 'dup1.card.md');
-    const file2 = join(tc.cardsDir, 'dup2.card.md');
+    const file1 = join(tc.cardsDir, 'dup1.json');
+    const file2 = join(tc.cardsDir, 'dup2.json');
     const fm = { key: 'dup-key', summary: 'Dup', status: 'draft' as const, type: 'spec' as const };
-    const content = serializeCardMarkdown(fm, '');
+    const content = serializeCard(fm);
     await writeFile(file1, content);
     await writeFile(file2, content);
 
@@ -635,7 +621,7 @@ describe('validateCards full checks', () => {
   it('should detect empty tree (active brief with no children)', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'empty-arch', summary: 'Empty arch', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief() });
 
     const result = await validateCards(tc.ctx);
     const empty = result.warnings.find((w) => w.type === 'empty-tree' && w.cardKey === 'empty-arch');
@@ -846,7 +832,7 @@ describe('bulk-create activation guard', () => {
   it('should reject spec card with active status and no codeLinks in bulk create', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      { key: 'bc-active', summary: 'Active spec', type: 'spec', status: 'active', body: SPEC_BODY },
+      { key: 'bc-active', summary: 'Active spec', type: 'spec', status: 'active' },
     ]);
     expect(result.created).toBe(0);
     expect(result.failed).toBe(1);
@@ -857,7 +843,7 @@ describe('bulk-create activation guard', () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
     const result = await bulkCreateCards(tc.ctx, [
-      { key: 'bc-arch-active', summary: 'Active arch', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() },
+      { key: 'bc-arch-active', summary: 'Active arch', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief() },
     ]);
     expect(result.created).toBe(1);
     expect(result.failed).toBe(0);
@@ -875,7 +861,7 @@ describe('brief namespace enforcement (canonical structure path)', () => {
     await ensure4tierScaffold(tc.ctx);
     let caught: any = null;
     try {
-      await createCard(tc.ctx, { key: 'no-ns', summary: 'No namespace', type: 'brief', status: 'active', parent: '_dom', body: 'Some text' });
+      await createCard(tc.ctx, { key: 'no-ns', summary: 'No namespace', type: 'brief', status: 'active', parent: '_dom' });
     } catch (e) {
       caught = e;
     }
@@ -885,30 +871,21 @@ describe('brief namespace enforcement (canonical structure path)', () => {
 
   it('allows draft brief card without namespace (body and namespace both free until activation)', async () => {
     tc = await createTestContext();
-    const result = await createCard(tc.ctx, { key: 'draft-brief', summary: 'Draft', type: 'brief', body: 'Free-form prose, no namespace.' });
+    const result = await createCard(tc.ctx, { key: 'draft-brief', summary: 'Draft', type: 'brief' });
     expect(result.fullKey).toBe('draft-brief');
   });
 
   it('allows active brief card with valid brief namespace (body is free-form)', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    const result = await createCard(tc.ctx, { key: 'full-brief', summary: 'Full', type: 'brief', status: 'active', parent: '_dom', body: 'Any prose works.', brief: makeTestBrief() });
-    expect(result.card.frontmatter.status).toBe('active');
-  });
-
-  it('allows body update that changes prose without breaking activation (body is free-form)', async () => {
-    tc = await createTestContext();
-    await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'active-brief', summary: 'Active', type: 'brief', status: 'active', parent: '_dom', body: 'Old prose.', brief: makeTestBrief() });
-    const result = await updateCard(tc.ctx, 'active-brief', { body: 'New prose.' });
-    expect(result.card.body).toBe('New prose.');
+    const result = await createCard(tc.ctx, { key: 'full-brief', summary: 'Full', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief() });
     expect(result.card.frontmatter.status).toBe('active');
   });
 
   it('rejects updateCardStatus to active on brief without namespace', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'draft-no-ns', summary: 'Draft', type: 'brief', parent: '_dom', body: 'No namespace yet' });
+    await createCard(tc.ctx, { key: 'draft-no-ns', summary: 'Draft', type: 'brief', parent: '_dom' });
     let caught: any = null;
     try {
       await updateCardStatus(tc.ctx, 'draft-no-ns', 'active');
@@ -922,7 +899,7 @@ describe('brief namespace enforcement (canonical structure path)', () => {
   it('allows updateCardStatus to active on brief with namespace', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'draft-with-ns', summary: 'Draft', type: 'brief', parent: '_dom', body: 'Prose', brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'draft-with-ns', summary: 'Draft', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     const result = await updateCardStatus(tc.ctx, 'draft-with-ns', 'active');
     expect(result.card.frontmatter.status).toBe('active');
   });
@@ -972,8 +949,7 @@ describe('activation guard on active card field changes', () => {
       summary: 'Active spec',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+            codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
       spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'guard-spec', 'active');
@@ -992,8 +968,7 @@ describe('activation guard on active card field changes', () => {
       summary: 'Active spec 2',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fn2' }],
+            codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fn2' }],
       spec: makeTestSpec('src/b.ts', 'fn2'),
     });
     await updateCardStatus(tc.ctx, 'guard-spec2', 'active');
@@ -1011,8 +986,7 @@ describe('activation guard on active card field changes', () => {
       summary: 'Safe update',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'fn3' }],
+            codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'fn3' }],
       spec: makeTestSpec('src/c.ts', 'fn3'),
     });
     await updateCardStatus(tc.ctx, 'guard-safe', 'active');
@@ -1031,7 +1005,6 @@ describe('activation guard on active card field changes', () => {
       summary: 'spec ns guard',
       type: 'spec',
       parent: '_br',
-      body: 'prose',
       codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'doX' }],
       spec: makeTestSpec('src/x.ts', 'doX'),
     });
@@ -1052,7 +1025,6 @@ describe('activation guard on active card field changes', () => {
       summary: 'brief ns guard',
       type: 'brief',
       parent: '_dom',
-      body: 'prose',
       brief: goodBrief,
       status: 'active',
     });
@@ -1071,7 +1043,6 @@ describe('activation guard on active card field changes', () => {
       summary: 'parent guard',
       type: 'spec',
       parent: '_br',
-      body: 'prose',
       codeLinks: [{ kind: 'function', file: 'src/y.ts', symbol: 'doY' }],
       spec: makeTestSpec('src/y.ts', 'doY'),
     });

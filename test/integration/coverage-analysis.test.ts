@@ -30,7 +30,7 @@ function insertCard(
     namespacesJson: null,
     body: opts?.body ?? null,
     glossaryJson: '[]',
-    filePath: `cards/${key}.card.md`,
+    filePath: `cards/${key}.json`,
     updatedAt: new Date().toISOString(),
   };
   tc.ctx.cardRepo.upsert(row);
@@ -516,35 +516,6 @@ describe('analyze', () => {
 
     const result = await analyze(tc.ctx);
     expect(result.health.staleBoundary).toBe(1);
-  });
-
-  it('includes body in drifted cards when includeBody=true', async () => {
-    tc = await createMockTestContext();
-    insertCard(tc, 'drifted-card', { status: 'drifted', body: 'Design rationale here' });
-    tc.ctx.codeLinkRepo.replaceForCard('drifted-card', [
-      { kind: 'function', file: 'src/missing.ts', symbol: 'gone' },
-    ]);
-
-    const result = await analyze(tc.ctx, { includeBody: true });
-    const drifted = result.driftedCards.find((c) => c.key === 'drifted-card');
-    expect(drifted).toBeDefined();
-    expect(drifted!.body).toBe('Design rationale here');
-  });
-
-  it('does not include body by default', async () => {
-    tc = await createMockTestContext();
-    insertCard(tc, 'drifted-card2', { status: 'drifted', body: 'Secret body' });
-    tc.ctx.codeLinkRepo.replaceForCard('drifted-card2', [
-      { kind: 'function', file: 'src/missing.ts', symbol: 'gone' },
-    ]);
-
-    tc.ctx.gildash = createMockGildash({});
-    tc.ctx.projectRoot = '/project';
-
-    const result = await analyze(tc.ctx);
-    const drifted = result.driftedCards.find((c) => c.key === 'drifted-card2');
-    expect(drifted).toBeDefined();
-    expect(drifted!.body).toBeUndefined();
   });
 
   it('limits unlinked symbols to top N', async () => {

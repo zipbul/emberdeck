@@ -55,8 +55,8 @@ describe('analyze', () => {
   });
 
   it('counts all draft cards correctly', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'd1', status: 'draft', filePath: 'cards/d1.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'd2', status: 'draft', filePath: 'cards/d2.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'd1', status: 'draft', filePath: 'cards/d1.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'd2', status: 'draft', filePath: 'cards/d2.json' }));
 
     const result = await analyze(ctx);
 
@@ -67,8 +67,8 @@ describe('analyze', () => {
   });
 
   it('counts active cards with no drift', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'a1', status: 'active', filePath: 'cards/a1.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'a2', status: 'active', filePath: 'cards/a2.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'a1', status: 'active', filePath: 'cards/a1.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'a2', status: 'active', filePath: 'cards/a2.json' }));
 
     const result = await analyze(ctx);
 
@@ -79,7 +79,7 @@ describe('analyze', () => {
   });
 
   it('counts drifted cards from DB status and includes in driftedCards array', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'dr1', status: 'drifted', filePath: 'cards/dr1.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dr1', status: 'drifted', filePath: 'cards/dr1.json' }));
 
     const result = await analyze(ctx);
 
@@ -93,7 +93,7 @@ describe('analyze', () => {
   });
 
   it('returns coverage with totalSymbols when source is indexed', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'c1', status: 'active', filePath: 'cards/c1.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'c1', status: 'active', filePath: 'cards/c1.json' }));
 
     const result = await analyze(ctx);
 
@@ -101,9 +101,9 @@ describe('analyze', () => {
   });
 
   it('handles mixed draft/active/drifted cards', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'draft', status: 'draft', filePath: 'cards/draft.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'active', status: 'active', filePath: 'cards/active.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'drifted', status: 'drifted', filePath: 'cards/drifted.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'draft', status: 'draft', filePath: 'cards/draft.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'active', status: 'active', filePath: 'cards/active.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'drifted', status: 'drifted', filePath: 'cards/drifted.json' }));
 
     const result = await analyze(ctx);
 
@@ -114,9 +114,9 @@ describe('analyze', () => {
   });
 
   it('health.drifted always equals driftedCardsTotal', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'dr1', status: 'drifted', filePath: 'cards/dr1.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'dr2', status: 'drifted', filePath: 'cards/dr2.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'a1', status: 'active', filePath: 'cards/a1.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dr1', status: 'drifted', filePath: 'cards/dr1.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dr2', status: 'drifted', filePath: 'cards/dr2.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'a1', status: 'active', filePath: 'cards/a1.json' }));
 
     const result = await analyze(ctx);
 
@@ -124,9 +124,9 @@ describe('analyze', () => {
   });
 
   it('paginates driftedCards with offset and limit', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'dr-a', status: 'drifted', summary: 'A', filePath: 'cards/dr-a.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'dr-b', status: 'drifted', summary: 'B', filePath: 'cards/dr-b.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'dr-c', status: 'drifted', summary: 'C', filePath: 'cards/dr-c.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dr-a', status: 'drifted', summary: 'A', filePath: 'cards/dr-a.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dr-b', status: 'drifted', summary: 'B', filePath: 'cards/dr-b.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dr-c', status: 'drifted', summary: 'C', filePath: 'cards/dr-c.json' }));
 
     const result = await analyze(ctx, { offset: 1, limit: 1 });
 
@@ -136,7 +136,7 @@ describe('analyze', () => {
   });
 
   it('offset beyond driftedCards returns empty array', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'dr1', status: 'drifted', filePath: 'cards/dr1.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dr1', status: 'drifted', filePath: 'cards/dr1.json' }));
 
     const result = await analyze(ctx, { offset: 10 });
 
@@ -145,47 +145,19 @@ describe('analyze', () => {
     expect(result.health.drifted).toBe(1);
   });
 
-  it('includeBody attaches body to drifted card entries', async () => {
-    ctx.cardRepo.upsert(makeCard({
-      key: 'dr-body',
-      status: 'drifted',
-      body: '## Contracts\n- WHEN x THEN y',
-      filePath: 'cards/dr-body.card.md',
-    }));
-
-    const result = await analyze(ctx, { includeBody: true });
-
-    expect(result.driftedCards).toHaveLength(1);
-    expect(result.driftedCards[0]!.body).toBe('## Contracts\n- WHEN x THEN y');
-  });
-
-  it('includeBody=false omits body field', async () => {
-    ctx.cardRepo.upsert(makeCard({
-      key: 'dr-nobody',
-      status: 'drifted',
-      body: 'some body',
-      filePath: 'cards/dr-nobody.card.md',
-    }));
-
-    const result = await analyze(ctx, { includeBody: false });
-
-    expect(result.driftedCards).toHaveLength(1);
-    expect(result.driftedCards[0]!.body).toBeUndefined();
-  });
-
   it('counts staleBoundary when boundary matches no indexed files', async () => {
     ctx.cardRepo.upsert(makeCard({
       key: 'stale-boundary',
       status: 'active',
       boundaryJson: JSON.stringify(['nonexistent-dir/**/*.ts']),
-      filePath: 'cards/stale-boundary.card.md',
+      filePath: 'cards/stale-boundary.json',
     }));
     ctx.cardRepo.upsert(makeCard({
       key: 'no-boundary',
       status: 'active',
       boundaryJson: null,
       namespacesJson: null,
-      filePath: 'cards/no-boundary.card.md',
+      filePath: 'cards/no-boundary.json',
     }));
 
     const result = await analyze(ctx);

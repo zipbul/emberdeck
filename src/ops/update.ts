@@ -96,10 +96,6 @@ export interface UpdateCardFields {
   parent?: string | null;
   /** Boundary glob patterns. */
   boundary?: string[];
-  /** New body. If undefined, kept as-is. Mutually exclusive with bodyPatches. */
-  body?: string;
-  /** Partial body edits via search-and-replace. Applied sequentially. Mutually exclusive with body. */
-  bodyPatches?: BodyPatch[];
   /** Tags. null or empty array deletes the field. */
   tags?: string[] | null;
   /** Relations list (string[]). null or empty array deletes the field. */
@@ -152,9 +148,6 @@ export async function updateCard(
   fullKey: string,
   fields: UpdateCardFields,
 ): Promise<UpdateCardResult> {
-  if (fields.body !== undefined && fields.bodyPatches !== undefined) {
-    throw new CardValidationError('body and bodyPatches are mutually exclusive');
-  }
   // Defense in depth: CLI 'card update' already rejects no-field payloads, but
   // direct lib callers (and bulk paths) could still pass {} — refuse explicitly
   // rather than silently doing a wasteful timestamp-only write.
@@ -163,7 +156,6 @@ export async function updateCard(
   }
   validateCardInput({
     summary: fields.summary,
-    body: fields.body,
     tags: fields.tags ?? undefined,
     relations: fields.relations ?? undefined,
     codeLinks: fields.codeLinks ?? undefined,
@@ -305,28 +297,7 @@ export async function updateCard(
         });
       }
 
-      let nextBody: string;
-      if (fields.bodyPatches !== undefined && fields.bodyPatches.length > 0) {
-        nextBody = current.body;
-        for (let i = 0; i < fields.bodyPatches.length; i++) {
-          const patch = fields.bodyPatches[i]!;
-          const occurrences = nextBody.split(patch.old).length - 1;
-          if (occurrences === 0) {
-            throw new CardValidationError(`bodyPatches[${i}].old not found in card body`);
-          }
-          if (occurrences > 1) {
-            throw new CardValidationError(`bodyPatches[${i}].old appears ${occurrences} times in card body (must be unique)`);
-          }
-          nextBody = nextBody.replace(patch.old, () => patch.new);
-        }
-        validateCardInput({ body: nextBody });
-      } else if (fields.body !== undefined) {
-        nextBody = fields.body;
-      } else {
-        nextBody = current.body;
-      }
-      // Body is free-form — section validation lives in namespace activation guard.
-      const card: CardFile = { filePath, frontmatter: next, body: nextBody };
+      const card: CardFile = { filePath, frontmatter: next };
 
       const now = new Date().toISOString();
 
@@ -355,10 +326,7 @@ export async function updateCard(
                 if (next.spec) nsObj.spec = next.spec;
                 return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
               })(),
-              body: (() => {
-                const ns = buildSearchableText(next);
-                return [nextBody, ns].filter((s) => s.trim().length > 0).join('\n\n');
-              })(),
+              body: buildSearchableText(next),
               glossaryJson: next.glossary ? JSON.stringify(next.glossary) : '[]',
               filePath,
               updatedAt: now,
@@ -382,10 +350,6 @@ export async function updateCard(
             if (fields.boundary !== undefined) {
               changelogRepo.insert({ cardKey: key, field: 'boundary', oldValue: prev.boundary ? JSON.stringify(prev.boundary) : null, newValue: next.boundary ? JSON.stringify(next.boundary) : null, changedAt: now, changedBy });
             }
-            if ((fields.body !== undefined && fields.body !== current.body) || (fields.bodyPatches !== undefined && fields.bodyPatches.length > 0)) {
-              changelogRepo.insert({ cardKey: key, field: 'body', oldValue: null, newValue: null, changedAt: now, changedBy });
-            }
-
             if (fields.relations !== undefined) {
               relationRepo.replaceForCard(key, next.relations ?? []);
               changelogRepo.insert({ cardKey: key, field: 'relations', oldValue: prev.relations ? JSON.stringify(prev.relations) : null, newValue: next.relations ? JSON.stringify(next.relations) : null, changedAt: now, changedBy });
@@ -459,7 +423,6 @@ export async function updateCardStatus(
       const card: CardFile = {
         filePath,
         frontmatter: { ...current.frontmatter, status },
-        body: current.body,
       };
 
       const now = new Date().toISOString();
@@ -491,7 +454,7 @@ export async function updateCardStatus(
                     if (current.frontmatter.spec) nsObj.spec = current.frontmatter.spec;
                     return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
                   })(),
-                  body: current.body,
+                  body: buildSearchableText(current.frontmatter),
                   glossaryJson: current.frontmatter.glossary
                     ? JSON.stringify(current.frontmatter.glossary)
                     : '[]',

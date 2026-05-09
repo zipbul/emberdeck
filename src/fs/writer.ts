@@ -1,10 +1,10 @@
 import { rename, unlink } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import type { CardFile } from '../card/types';
-import { serializeCardMarkdown } from '../card/markdown';
+import { serializeCard } from '../card/serialize';
 
 export async function writeCardFile(filePath: string, card: CardFile): Promise<void> {
-  const text = serializeCardMarkdown(card.frontmatter, card.body);
+  const text = serializeCard(card.frontmatter);
   await atomicWrite(filePath, text);
 }
 

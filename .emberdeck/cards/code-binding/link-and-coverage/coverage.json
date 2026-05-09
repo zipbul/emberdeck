@@ -1,0 +1,139 @@
+{
+  "key": "code-binding/link-and-coverage/coverage",
+  "summary": "getLinkCoverage, getUncoveredSymbols, and suggestCardScope produce coverage metrics over indexed project symbols.",
+  "status": "draft",
+  "type": "spec",
+  "parent": "code-binding/link-and-coverage",
+  "codeLinks": [
+    {
+      "kind": "function",
+      "file": "src/ops/spec-sync.ts",
+      "symbol": "getLinkCoverage"
+    },
+    {
+      "kind": "function",
+      "file": "src/ops/spec-sync.ts",
+      "symbol": "getUncoveredSymbols"
+    },
+    {
+      "kind": "function",
+      "file": "src/ops/spec-sync.ts",
+      "symbol": "suggestCardScope"
+    }
+  ],
+  "glossary": [
+    "codeLink",
+    "boundary"
+  ],
+  "spec": {
+    "preconditions": [
+      {
+        "id": "PRE-001",
+        "condition": "Caller invokes coverage with --uncovered or --suggest mode.",
+        "binds": [
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "getUncoveredSymbols"
+          }
+        ],
+        "derives": "code-binding/link-and-coverage#G-003"
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "POST-001",
+        "guarantee": "getUncoveredSymbols returns gildash-indexed symbols that are not bound by any card's codeLinks or boundary glob, narrowed by caller-supplied kinds/files/excludePatterns and project ignorePatterns.",
+        "keyword": "MUST",
+        "binds": [
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "getUncoveredSymbols"
+          }
+        ],
+        "derives": "code-binding/link-and-coverage#G-003"
+      },
+      {
+        "id": "POST-002",
+        "guarantee": "suggestCardScope produces card suggestions with type, files, symbols, and reason.",
+        "keyword": "SHALL",
+        "binds": [
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "suggestCardScope"
+          }
+        ],
+        "derives": "code-binding/link-and-coverage#G-003"
+      },
+      {
+        "id": "POST-003",
+        "guarantee": "Each uncovered entry contains only {file, symbol, kind} fields; no visibility metadata is exposed.",
+        "keyword": "MUST",
+        "binds": [
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "getUncoveredSymbols"
+          }
+        ],
+        "derives": "code-binding/link-and-coverage#G-003"
+      },
+      {
+        "id": "POST-004",
+        "guarantee": "coverageRatio is null when no symbols are indexed; otherwise it equals coveredSymbols divided by totalSymbols.",
+        "keyword": "MUST",
+        "binds": [
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "getUncoveredSymbols"
+          }
+        ],
+        "derives": "code-binding/link-and-coverage#G-003"
+      }
+    ],
+    "invariants": [
+      {
+        "id": "INV-001",
+        "statement": "Symbol visibility (exported vs internal) is not a filter axis for coverage classification.",
+        "binds": [
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "getUncoveredSymbols"
+          }
+        ],
+        "always_holds": "per-call"
+      },
+      {
+        "id": "INV-002",
+        "statement": "suggestCardScope derives its uncovered set by calling getUncoveredSymbols; the two functions cannot disagree about which symbols are covered.",
+        "binds": [
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "getUncoveredSymbols"
+          },
+          {
+            "file": "src/ops/spec-sync.ts",
+            "symbol": "suggestCardScope"
+          }
+        ],
+        "always_holds": "cross-call"
+      }
+    ],
+    "failures": [
+      {
+        "violation": "--uncovered and --suggest are both omitted.",
+        "behavior": "CLI throws CliUsageError; exit 2.",
+        "exception": {
+          "class": "none",
+          "file": "src/cli/errors.ts"
+        }
+      },
+      {
+        "violation": "An invalid boundary glob pattern is supplied via card.boundaryJson.",
+        "behavior": "The invalid pattern is silently skipped; other patterns and the uncovered computation are unaffected.",
+        "exception": {
+          "class": "none",
+          "file": "src/ops/spec-sync.ts"
+        }
+      }
+    ]
+  }
+}

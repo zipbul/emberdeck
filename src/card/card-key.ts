@@ -57,13 +57,13 @@ export function parseFullKey(fullKey: string): string {
 }
 
 /**
- * cardsDir + slug → absolute path to the card file (`*.card.md`).
+ * cardsDir + slug → absolute path to the card file (`*.json`).
  *
  * @example
  * buildCardPath('/data/cards', 'auth-token')
- * // → '/data/cards/auth-token.card.md'
+ * // → '/data/cards/auth-token.json'
   * @spec card-model/schema-and-validation/card-key
  */
 export function buildCardPath(cardsDir: string, slug: string): string {
-  return join(cardsDir, `${slug}.card.md`);
+  return join(cardsDir, `${slug}.json`);
 }

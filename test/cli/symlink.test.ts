@@ -55,7 +55,7 @@ describe('symlink handling e2e', () => {
     const realPath = join(tmp, 'real-card.md');
     writeFileSync(realPath, validCardContent('symlinked'));
     // Symlink inside cards dir points to real file.
-    symlinkSync(realPath, join(tmp, '.emberdeck/cards/symlinked.card.md'));
+    symlinkSync(realPath, join(tmp, '.emberdeck/cards/symlinked.json'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);
     expect(sync.exitCode).toBe(0);
@@ -66,8 +66,8 @@ describe('symlink handling e2e', () => {
   });
 
   test('broken symlink → bulk sync handles cleanly, good cards still synced', async () => {
-    symlinkSync('/nonexistent/path', join(tmp, '.emberdeck/cards/broken.card.md'));
-    writeFileSync(join(tmp, '.emberdeck/cards/good.card.md'), validCardContent('good'));
+    symlinkSync('/nonexistent/path', join(tmp, '.emberdeck/cards/broken.json'));
+    writeFileSync(join(tmp, '.emberdeck/cards/good.json'), validCardContent('good'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);
     // Either skipped (exit 0) or reported as partial (exit 2). Both acceptable —
@@ -85,7 +85,7 @@ describe('symlink handling e2e', () => {
     try {
       const remotePath = join(otherTmp, 'remote.md');
       writeFileSync(remotePath, validCardContent('remote'));
-      symlinkSync(remotePath, join(tmp, '.emberdeck/cards/remote.card.md'));
+      symlinkSync(remotePath, join(tmp, '.emberdeck/cards/remote.json'));
 
       const sync = await runCli(['bulk', 'sync'], tmp);
       expect(sync.exitCode).toBe(0);
@@ -99,7 +99,7 @@ describe('symlink handling e2e', () => {
   test('directory symlink in cards tree: contents discovered if Bun.Glob follows', async () => {
     const realDir = join(tmp, 'real-dir');
     mkdirSync(realDir, { recursive: true });
-    writeFileSync(join(realDir, 'inside.card.md'), validCardContent('linked-dir/inside'));
+    writeFileSync(join(realDir, 'inside.json'), validCardContent('linked-dir/inside'));
     symlinkSync(realDir, join(tmp, '.emberdeck/cards/linked-dir'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);

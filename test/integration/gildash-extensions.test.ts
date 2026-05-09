@@ -142,8 +142,7 @@ describe('checkDrift — heritage_uncovered', () => {
       summary: 'Base class spec',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'class', file: 'src/base.ts', symbol: 'Base' }],
+            codeLinks: [{ kind: 'class', file: 'src/base.ts', symbol: 'Base' }],
       spec: makeTestSpec('src/base.ts', 'Base'),
     });
     await updateCardStatus(tc.ctx, 'base-spec', 'active');
@@ -184,8 +183,7 @@ describe('checkDrift — heritage_uncovered', () => {
       summary: 'Base',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'class', file: 'src/base.ts', symbol: 'Base' }],
+            codeLinks: [{ kind: 'class', file: 'src/base.ts', symbol: 'Base' }],
       spec: makeTestSpec('src/base.ts', 'Base'),
     });
     await updateCardStatus(tc.ctx, 'covered-base', 'active');
@@ -194,8 +192,7 @@ describe('checkDrift — heritage_uncovered', () => {
       summary: 'Derived',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'class', file: 'src/derived.ts', symbol: 'Derived' }],
+            codeLinks: [{ kind: 'class', file: 'src/derived.ts', symbol: 'Derived' }],
       spec: makeTestSpec('src/derived.ts', 'Derived'),
     });
 
@@ -301,8 +298,7 @@ describe('checkDrift — pattern_violation', () => {
       summary: 'No console.log',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/p.ts', symbol: 'fn' }],
+            codeLinks: [{ kind: 'function', file: 'src/p.ts', symbol: 'fn' }],
       spec,
     });
     await updateCardStatus(tc.ctx, 'pat-forbid', 'active');
@@ -336,8 +332,7 @@ describe('checkDrift — pattern_violation', () => {
       summary: 'Must log',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/r.ts', symbol: 'fn' }],
+            codeLinks: [{ kind: 'function', file: 'src/r.ts', symbol: 'fn' }],
       spec,
     });
     await updateCardStatus(tc.ctx, 'pat-require', 'active');
@@ -370,8 +365,7 @@ describe('checkDrift — pattern_violation', () => {
       summary: 'OK',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'fn' }],
+            codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'fn' }],
       spec,
     });
     await updateCardStatus(tc.ctx, 'pat-ok', 'active');
@@ -410,8 +404,7 @@ describe('checkDrift — multi-detection', () => {
       summary: 'Multi drift',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/m.ts', symbol: 'gone' }],
+            codeLinks: [{ kind: 'function', file: 'src/m.ts', symbol: 'gone' }],
       spec,
     });
     await updateCardStatus(tc.ctx, 'multi-d', 'active');
@@ -440,8 +433,7 @@ describe('checkDrift — multi-detection', () => {
       summary: 'Clean',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'ok' }],
+            codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'ok' }],
       spec: makeTestSpec('src/c.ts', 'ok'),
     });
     await updateCardStatus(tc.ctx, 'clean', 'active');
@@ -463,8 +455,7 @@ describe('checkDrift — multi-detection', () => {
       summary: 'Priority test',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      boundary: ['src/nowhere/**'],
+            boundary: ['src/nowhere/**'],
       codeLinks: [{ kind: 'function', file: 'src/p.ts', symbol: 'missing' }],
       spec: makeTestSpec('src/p.ts', 'missing'),
     });
@@ -495,8 +486,7 @@ describe('checkDrift — auto-transition for new drift types', () => {
       summary: 'Auto her',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'class', file: 'src/b.ts', symbol: 'B' }],
+            codeLinks: [{ kind: 'class', file: 'src/b.ts', symbol: 'B' }],
       spec: makeTestSpec('src/b.ts', 'B'),
     });
     await updateCardStatus(tc.ctx, 'auto-her', 'active');
@@ -537,8 +527,7 @@ describe('checkDrift — auto-transition for new drift types', () => {
       summary: 'Auto pat',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/v.ts', symbol: 'fn' }],
+            codeLinks: [{ kind: 'function', file: 'src/v.ts', symbol: 'fn' }],
       spec,
     });
     await updateCardStatus(tc.ctx, 'auto-pat', 'active');
@@ -641,8 +630,7 @@ describe('monorepo — gildash API routing across projects', () => {
       summary: 'union',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/u.ts', symbol: 'fnFromB' }],
+            codeLinks: [{ kind: 'function', file: 'src/u.ts', symbol: 'fnFromB' }],
       spec: makeTestSpec('src/u.ts', 'fnFromB'),
     });
     await updateCardStatus(tc.ctx, 'union-card', 'active');
@@ -663,7 +651,7 @@ describe('monorepo — gildash API routing across projects', () => {
   it('searchAnnotations iterates projects (4-tier × N-project)', async () => {
     tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
-    await createCard(tc.ctx, { key: 'multi-spec', summary: 's', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/x.ts', 'fn') });
+    await createCard(tc.ctx, { key: 'multi-spec', summary: 's', type: 'spec', parent: '_br', codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/x.ts', 'fn') });
     tc.ctx.gildash = makeMultiProjectGildash({
       projects: ['projA', 'projB'],
       filesByProject: { projA: [], projB: [] },
@@ -682,7 +670,7 @@ describe('monorepo — gildash API routing across projects', () => {
     await ensure4tierScaffold(tc.ctx, true);
     const spec = makeTestSpec('src/p.ts', 'fn');
     spec.code_patterns = [{ id: 'PAT-A', pattern: 'console.log($$$)', rule: 'forbidden' }];
-    await createCard(tc.ctx, { key: 'pat-multi', summary: 'p', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'function', file: 'src/p.ts', symbol: 'fn' }], spec });
+    await createCard(tc.ctx, { key: 'pat-multi', summary: 'p', type: 'spec', parent: '_br', codeLinks: [{ kind: 'function', file: 'src/p.ts', symbol: 'fn' }], spec });
     await updateCardStatus(tc.ctx, 'pat-multi', 'active');
     tc.ctx.gildash = makeMultiProjectGildash({
       projects: ['projA', 'projB'],
@@ -699,7 +687,7 @@ describe('monorepo — gildash API routing across projects', () => {
   it('searchRelations heritage_uncovered iterates projects', async () => {
     tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
-    await createCard(tc.ctx, { key: 'her-multi', summary: 'h', type: 'spec', parent: '_br', body: SPEC_BODY, codeLinks: [{ kind: 'class', file: 'src/c.ts', symbol: 'Base' }], spec: makeTestSpec('src/c.ts', 'Base') });
+    await createCard(tc.ctx, { key: 'her-multi', summary: 'h', type: 'spec', parent: '_br', codeLinks: [{ kind: 'class', file: 'src/c.ts', symbol: 'Base' }], spec: makeTestSpec('src/c.ts', 'Base') });
     await updateCardStatus(tc.ctx, 'her-multi', 'active');
     tc.ctx.gildash = makeMultiProjectGildash({
       projects: ['projA', 'projB'],
@@ -752,7 +740,7 @@ describe('monorepo — gildash API routing across projects', () => {
   it('getSymbolChanges unions across projects (symbol_changed drift)', async () => {
     tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
-    await createCard(tc.ctx, { key: 'sym-multi', summary: 'sm', type: 'spec', parent: '_br', body: SPEC_BODY, boundary: ['src/changed/**'], codeLinks: [{ kind: 'function', file: 'src/changed/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/changed/x.ts', 'fn') });
+    await createCard(tc.ctx, { key: 'sym-multi', summary: 'sm', type: 'spec', parent: '_br', boundary: ['src/changed/**'], codeLinks: [{ kind: 'function', file: 'src/changed/x.ts', symbol: 'fn' }], spec: makeTestSpec('src/changed/x.ts', 'fn') });
     await updateCardStatus(tc.ctx, 'sym-multi', 'active');
     // Backdate updatedAt
     const row = tc.ctx.cardRepo.findByKey('sym-multi')!;
@@ -791,8 +779,7 @@ describe('SpecBody.code_patterns — round-trip', () => {
       summary: 'RT',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/rt.ts', symbol: 'fn' }],
+            codeLinks: [{ kind: 'function', file: 'src/rt.ts', symbol: 'fn' }],
       spec,
     });
     const row = tc.ctx.cardRepo.findByKey('rt-card');

@@ -32,7 +32,6 @@ describe('bulkCreateCards', () => {
         key: 'full-card',
         summary: 'Full card',
         type: 'spec',
-        body: '# Body',
         tags: ['tag1'],
         codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }],
       },

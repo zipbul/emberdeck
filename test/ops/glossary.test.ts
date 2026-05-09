@@ -25,8 +25,8 @@ import {
   checkDrift,
   preChangeCheck,
   analyze,
-  parseCardMarkdown,
-  serializeCardMarkdown,
+  parseCard,
+  serializeCard,
 } from '../../index';
 import { createTestContext, ensure4tierScaffold, BRIEF_BODY, makeTestBrief, type TestContext } from '../helpers';
 
@@ -40,12 +40,12 @@ describe('Glossary', () => {
   // ── Glossary I/O ──────────────────────────────────────────────────────
 
   describe('I/O', () => {
-    it('should return empty array when glossary.yaml does not exist', async () => {
+    it('should return empty array when glossary.json does not exist', async () => {
       tc = await createTestContext();
       expect(readGlossary(tc.ctx)).toEqual([]);
     });
 
-    it('should return empty array when glossary.yaml is empty', async () => {
+    it('should return empty array when glossary.json is empty', async () => {
       tc = await createTestContext();
       writeFileSync(glossaryFilePath(tc.ctx), '', 'utf-8');
       expect(readGlossary(tc.ctx)).toEqual([]);
@@ -63,7 +63,7 @@ describe('Glossary', () => {
       expect(() => readGlossary(tc.ctx)).toThrow(GlossaryParseError);
     });
 
-    it('should create glossary.yaml on first define_glossary call', async () => {
+    it('should create glossary.json on first define_glossary call', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'A unit of work' }] });
       expect(existsSync(glossaryFilePath(tc.ctx))).toBe(true);
@@ -306,21 +306,21 @@ describe('Glossary', () => {
   // ── Card glossary validation (M1, M2, M3) ─────────────────────────────
 
   describe('Card validation', () => {
-    it('M1: should reject create_card without glossary when glossary.yaml exists', async () => {
+    it('M1: should reject create_card without glossary when glossary.json exists', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' }))
         .toThrow(/glossary field is required/);
     });
 
-    it('M1: should reject create_card with empty glossary when glossary.yaml exists', async () => {
+    it('M1: should reject create_card with empty glossary when glossary.json exists', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: [] }))
         .toThrow(/glossary field is required/);
     });
 
-    it('should allow create_card without glossary when no glossary.yaml', async () => {
+    it('should allow create_card without glossary when no glossary.json', async () => {
       tc = await createTestContext();
       const r = await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       expect(r.fullKey).toBe('c');
@@ -372,13 +372,13 @@ describe('Glossary', () => {
   describe('Markdown roundtrip', () => {
     it('should preserve glossary field through serialize then parse', () => {
       const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'brief' as const, glossary: ['Job', 'Worker'] };
-      const parsed = parseCardMarkdown(serializeCardMarkdown(fm, '## Body'));
+      const parsed = parseCard(serializeCard(fm));
       expect(parsed.frontmatter.glossary).toEqual(['Job', 'Worker']);
     });
 
     it('should omit glossary when not set', () => {
       const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'brief' as const };
-      const parsed = parseCardMarkdown(serializeCardMarkdown(fm, ''));
+      const parsed = parseCard(serializeCard(fm));
       expect(parsed.frontmatter.glossary).toBeUndefined();
     });
   });
@@ -390,7 +390,7 @@ describe('Glossary', () => {
       tc = await createTestContext();
       await ensure4tierScaffold(tc.ctx);
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief(), glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief(), glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: false });
       expect(result.cards.find(c => c.key === 'c')?.driftType).toBe('glossary_broken');
@@ -400,7 +400,7 @@ describe('Glossary', () => {
       tc = await createTestContext();
       await ensure4tierScaffold(tc.ctx);
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
-      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief(), glossary: ['Job'] });
+      await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief(), glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
       const result = await checkDrift(tc.ctx, 'c', { autoTransition: true });
       expect(result.cards.find(c => c.key === 'c')?.status).toBe('drifted');

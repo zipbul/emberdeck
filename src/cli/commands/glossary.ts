@@ -12,7 +12,7 @@ import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../usage-error';
 import { errorMessage } from '../../util/error';
 
-interface YamlGlossaryItem {
+interface GlossaryItem {
   word?: string;
   definition?: string;
 }
@@ -28,14 +28,14 @@ async function loadEntriesFromFile(value: string): Promise<Array<{ word: string;
   const text = value === '-' ? await Bun.stdin.text() : await readFile(value, 'utf-8');
   let parsed: unknown;
   try {
-    parsed = Bun.YAML.parse(text);
+    parsed = JSON.parse(text);
   } catch (e) {
-    throw new CliUsageError(`failed to parse --from as YAML: ${errorMessage(e)}`);
+    throw new CliUsageError(`failed to parse --from as JSON: ${errorMessage(e)}`);
   }
   if (!Array.isArray(parsed)) {
-    throw new CliUsageError('--from FILE must be a YAML array of {word, definition} objects');
+    throw new CliUsageError('--from FILE must be a JSON array of {word, definition} objects');
   }
-  return parsed.map((item: YamlGlossaryItem, i: number) => {
+  return parsed.map((item: GlossaryItem, i: number) => {
     if (!item.word || !item.definition) {
       throw new CliUsageError(`--from FILE entry ${i} missing word or definition`);
     }
@@ -50,7 +50,7 @@ export function registerGlossary(program: Command): void {
   glossary
     .command('define [pairs...]')
     .description('define WORD=DEFINITION pairs (batch up to 50, all-or-nothing)')
-    .option('--from <file>', 'read entries from YAML file (- for STDIN)')
+    .option('--from <file>', 'read entries from JSON file (- for STDIN)')
     .action(async (pairs: string[], opts: { from?: string }, cmd) => {
             await run(
         async (rt: CliRuntime) => {

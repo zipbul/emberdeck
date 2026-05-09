@@ -1,10 +1,10 @@
 import type { CardFile } from '../card/types';
-import { parseCardMarkdown } from '../card/markdown';
+import { parseCard } from '../card/serialize';
 import { CardNotFoundError } from '../card/errors';
 
 export async function readCardFile(filePath: string): Promise<CardFile> {
   const text = await Bun.file(filePath).text();
-  const parsed = parseCardMarkdown(text);
+  const parsed = parseCard(text);
   return { ...parsed, filePath };
 }
 

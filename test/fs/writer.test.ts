@@ -4,17 +4,16 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { CardFile } from '../../src/card/types';
 import { writeCardFile, deleteCardFile } from '../../src/fs/writer';
-import { serializeCardMarkdown } from '../../src/card/markdown';
+import { serializeCard } from '../../src/card/serialize';
 
 // ---- Fixtures ----
 
 const CARD_FIXTURE: CardFile = {
   frontmatter: { key: 'k', summary: 's', status: 'draft', type: 'spec' },
-  body: 'body',
-  filePath: '/cards/k.card.md',
+  filePath: '/cards/k.json',
 };
 
-const EXPECTED_SERIALIZED = serializeCardMarkdown(CARD_FIXTURE.frontmatter, CARD_FIXTURE.body);
+const EXPECTED_SERIALIZED = serializeCard(CARD_FIXTURE.frontmatter);
 
 // ---- writeCardFile ----
 
@@ -22,7 +21,7 @@ describe('writeCardFile', () => {
   // HP: atomic write produces correct file content
   it('should write correct serialized content to file via atomic rename', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emberdeck-writer-'));
-    const filePath = join(dir, 'k.card.md');
+    const filePath = join(dir, 'k.json');
     try {
       await writeCardFile(filePath, CARD_FIXTURE);
       const content = await readFile(filePath, 'utf-8');
@@ -35,7 +34,7 @@ describe('writeCardFile', () => {
   // HP: overwrite existing file atomically
   it('should overwrite existing file with new content', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emberdeck-writer-'));
-    const filePath = join(dir, 'k.card.md');
+    const filePath = join(dir, 'k.json');
     try {
       await Bun.write(filePath, 'old content');
       await writeCardFile(filePath, CARD_FIXTURE);
@@ -49,7 +48,7 @@ describe('writeCardFile', () => {
   // HP: no tmp file left after successful write
   it('should not leave tmp files after successful write', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emberdeck-writer-'));
-    const filePath = join(dir, 'k.card.md');
+    const filePath = join(dir, 'k.json');
     try {
       await writeCardFile(filePath, CARD_FIXTURE);
       const glob = new Bun.Glob('*.tmp.*');
@@ -64,7 +63,7 @@ describe('writeCardFile', () => {
   // HP: resolve void
   it('should resolve void when write succeeds', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emberdeck-writer-'));
-    const filePath = join(dir, 'k.card.md');
+    const filePath = join(dir, 'k.json');
     try {
       const result = await writeCardFile(filePath, CARD_FIXTURE);
       expect(result).toBeUndefined();
@@ -75,7 +74,7 @@ describe('writeCardFile', () => {
 
   // NE: reject when directory does not exist
   it('should reject when target directory does not exist', async () => {
-    await expect(writeCardFile('/nonexistent/dir/k.card.md', CARD_FIXTURE)).rejects.toThrow();
+    await expect(writeCardFile('/nonexistent/dir/k.json', CARD_FIXTURE)).rejects.toThrow();
   });
 });
 
@@ -91,7 +90,7 @@ describe('writeCardFile', () => {
 describe('deleteCardFile', () => {
   it('removes an existing file', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'ed-del-'));
-    const path = join(dir, 'k.card.md');
+    const path = join(dir, 'k.json');
     await Bun.write(path, 'x');
     expect(await Bun.file(path).exists()).toBe(true);
     await deleteCardFile(path);
@@ -101,7 +100,7 @@ describe('deleteCardFile', () => {
 
   it('is a no-op when file does not exist (idempotent, no throw)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'ed-del-'));
-    const path = join(dir, 'missing.card.md');
+    const path = join(dir, 'missing.json');
     await deleteCardFile(path); // first call — file never existed
     await deleteCardFile(path); // second call — still missing
     expect(await Bun.file(path).exists()).toBe(false);

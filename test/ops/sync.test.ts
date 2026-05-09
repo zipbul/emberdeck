@@ -9,20 +9,19 @@ import {
   bulkSyncCards,
   validateCards,
   exportCardToFile,
-  serializeCardMarkdown,
-  parseCardMarkdown,
+  serializeCard,
+  parseCard,
   listCards,
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
 import { createTestContext, BRIEF_BODY, makeTestSpec, type TestContext } from '../helpers';
 
-async function writeTestCardFile(cardsDir: string, slug: string, summary: string, body = '') {
-  const content = serializeCardMarkdown(
+async function writeTestCardFile(cardsDir: string, slug: string, summary: string) {
+  const content = serializeCard(
     { key: slug, summary, status: 'draft', type: 'spec' },
-    body,
   );
-  const filePath = join(cardsDir, `${slug}.card.md`);
+  const filePath = join(cardsDir, `${slug}.json`);
   await writeFile(filePath, content, 'utf-8');
   return filePath;
 }
@@ -55,7 +54,7 @@ describe('syncCardFromFile', () => {
   it('should update DB relations when syncing file that has relations', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'sync-rel-dst', summary: 'Dst', type: 'spec' });
-    const content = serializeCardMarkdown(
+    const content = serializeCard(
       {
         key: 'sync-rel-src',
         summary: 'Rel src',
@@ -63,9 +62,8 @@ describe('syncCardFromFile', () => {
         type: 'spec',
         relations: ['sync-rel-dst'],
       },
-      '',
     );
-    const filePath = join(tc.cardsDir, 'sync-rel-src.card.md');
+    const filePath = join(tc.cardsDir, 'sync-rel-src.json');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
     const rows = tc.ctx.relationRepo.findByCardKey('sync-rel-src');
@@ -74,7 +72,7 @@ describe('syncCardFromFile', () => {
 
   it('should update DB tags when syncing file with classification', async () => {
     tc = await createTestContext();
-    const content = serializeCardMarkdown(
+    const content = serializeCard(
       {
         key: 'sync-cls',
         summary: 'Cls',
@@ -82,9 +80,8 @@ describe('syncCardFromFile', () => {
         type: 'spec',
         tags: ['tag1'],
       },
-      '',
     );
-    const filePath = join(tc.cardsDir, 'sync-cls.card.md');
+    const filePath = join(tc.cardsDir, 'sync-cls.json');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
     expect(tc.ctx.classificationRepo.findTagsByCard('sync-cls')).toContain('tag1');
@@ -94,8 +91,8 @@ describe('syncCardFromFile', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'sync-norel-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'sync-norel-dst', summary: 'Dst', type: 'spec' });
-    const filePathWithRel = join(tc.cardsDir, 'sync-norel-src.card.md');
-    const contentWith = serializeCardMarkdown(
+    const filePathWithRel = join(tc.cardsDir, 'sync-norel-src.json');
+    const contentWith = serializeCard(
       {
         key: 'sync-norel-src',
         summary: 'Src',
@@ -103,13 +100,11 @@ describe('syncCardFromFile', () => {
         type: 'spec',
         relations: ['sync-norel-dst'],
       },
-      '',
     );
     await writeFile(filePathWithRel, contentWith, 'utf-8');
     await syncCardFromFile(tc.ctx, filePathWithRel);
-    const contentWithout = serializeCardMarkdown(
+    const contentWithout = serializeCard(
       { key: 'sync-norel-src', summary: 'Src', status: 'draft', type: 'spec' },
-      '',
     );
     await writeFile(filePathWithRel, contentWithout, 'utf-8');
     await syncCardFromFile(tc.ctx, filePathWithRel);
@@ -119,9 +114,9 @@ describe('syncCardFromFile', () => {
   it('should reflect latest values after syncing same file twice', async () => {
     tc = await createTestContext();
     await writeTestCardFile(tc.cardsDir, 'sync-twice', 'First sync');
-    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.card.md'));
+    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.json'));
     await writeTestCardFile(tc.cardsDir, 'sync-twice', 'Second sync');
-    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.card.md'));
+    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.json'));
     const row = tc.ctx.cardRepo.findByKey('sync-twice');
     expect(row?.summary).toBe('Second sync');
   });
@@ -137,7 +132,7 @@ describe('syncCardFromFile', () => {
 
   it('should propagate error when card file has invalid YAML frontmatter', async () => {
     tc = await createTestContext();
-    const filePath = join(tc.cardsDir, 'bad-yaml.card.md');
+    const filePath = join(tc.cardsDir, 'bad-yaml.json');
     await writeFile(filePath, '---\nNOT VALID YAML: [[\n---\nbody', 'utf-8');
     expect(syncCardFromFile(tc.ctx, filePath)).rejects.toThrow();
   });
@@ -159,7 +154,7 @@ describe('removeCardByFile', () => {
 
   it('should do nothing when no card matches the given filePath', async () => {
     tc = await createTestContext();
-    const unknownPath = join(tc.cardsDir, 'unknown.card.md');
+    const unknownPath = join(tc.cardsDir, 'unknown.json');
     expect(() => removeCardByFile(tc.ctx, unknownPath)).not.toThrow();
   });
 });
@@ -173,7 +168,7 @@ describe('syncCardFromFile — codeLinks', () => {
 
   it('should persist codeLinks to DB when syncing a file with codeLinks in frontmatter', async () => {
     tc = await createTestContext();
-    const content = serializeCardMarkdown(
+    const content = serializeCard(
       {
         key: 'sync-cl',
         summary: 'CL',
@@ -181,9 +176,8 @@ describe('syncCardFromFile — codeLinks', () => {
         type: 'spec',
         codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
       },
-      '',
     );
-    const filePath = join(tc.cardsDir, 'sync-cl.card.md');
+    const filePath = join(tc.cardsDir, 'sync-cl.json');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
     const links = tc.ctx.codeLinkRepo.findByCardKey('sync-cl');
@@ -193,8 +187,8 @@ describe('syncCardFromFile — codeLinks', () => {
 
   it('should clear codeLinks from DB when syncing same file without codeLinks', async () => {
     tc = await createTestContext();
-    const filePath = join(tc.cardsDir, 'sync-cl-rm.card.md');
-    const contentWith = serializeCardMarkdown(
+    const filePath = join(tc.cardsDir, 'sync-cl-rm.json');
+    const contentWith = serializeCard(
       {
         key: 'sync-cl-rm',
         summary: 'CL RM',
@@ -202,13 +196,11 @@ describe('syncCardFromFile — codeLinks', () => {
         type: 'spec',
         codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
       },
-      '',
     );
     await writeFile(filePath, contentWith, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
-    const contentWithout = serializeCardMarkdown(
+    const contentWithout = serializeCard(
       { key: 'sync-cl-rm', summary: 'CL RM', status: 'draft', type: 'spec' },
-      '',
     );
     await writeFile(filePath, contentWithout, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
@@ -257,7 +249,7 @@ describe('bulkSyncCards', () => {
 
   it('should collect failing file in errors and continue processing remaining files', async () => {
     tc = await createTestContext();
-    await writeFile(join(tc.cardsDir, 'bad.card.md'), 'NOT VALID FRONTMATTER AT ALL', 'utf-8');
+    await writeFile(join(tc.cardsDir, 'bad.json'), 'NOT VALID FRONTMATTER AT ALL', 'utf-8');
     await writeTestCardFile(tc.cardsDir, 'bulk-good', 'Good');
     const result = await bulkSyncCards(tc.ctx);
     expect(result.errors.length).toBeGreaterThanOrEqual(1);
@@ -323,10 +315,10 @@ describe('validateCards', () => {
 
   it('should report file as orphan when no corresponding DB row exists', async () => {
     tc = await createTestContext();
-    const orphanPath = join(tc.cardsDir, 'orphan.card.md');
+    const orphanPath = join(tc.cardsDir, 'orphan.json');
     await writeFile(
       orphanPath,
-      serializeCardMarkdown({ key: 'orphan', summary: 'O', status: 'draft', type: 'spec' }, ''),
+      serializeCard({ key: 'orphan', summary: 'O', status: 'draft', type: 'spec' }),
       'utf-8',
     );
     const result = await validateCards(tc.ctx);
@@ -435,18 +427,16 @@ describe('exportCardToFile', () => {
       key: 'exp-rt-src',
       summary: 'Round-trip source',
       type: 'spec',
-      body: 'body content',
       tags: ['tag1'],
       relations: ['exp-rt-tgt'],
       codeLinks: [{ kind: 'function', file: 'src/foo.ts', symbol: 'foo' }],
     });
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-rt-src');
     const text = await Bun.file(exportedPath).text();
-    const parsed = parseCardMarkdown(text);
+    const parsed = parseCard(text);
     expect(exportedPath).toBe(filePath);
     expect(parsed.frontmatter.key).toBe('exp-rt-src');
     expect(parsed.frontmatter.summary).toBe('Round-trip source');
-    expect(parsed.body).toContain('body content');
     expect(parsed.frontmatter.tags).toContain('tag1');
     expect(parsed.frontmatter.relations).toHaveLength(1);
     expect(parsed.frontmatter.codeLinks).toHaveLength(1);
@@ -463,7 +453,7 @@ describe('exportCardToFile', () => {
     });
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-fwd-src');
     const text = await Bun.file(exportedPath).text();
-    const parsed = parseCardMarkdown(text);
+    const parsed = parseCard(text);
     expect(parsed.frontmatter.relations).toHaveLength(1);
     expect(parsed.frontmatter.relations![0]).toBe('exp-fwd-tgt');
   });
@@ -473,7 +463,7 @@ describe('exportCardToFile', () => {
     await createCard(tc.ctx, { key: 'exp-tag', summary: 'Tag card', type: 'spec', tags: ['release', 'v2'] });
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-tag');
     const text = await Bun.file(exportedPath).text();
-    const parsed = parseCardMarkdown(text);
+    const parsed = parseCard(text);
     expect(parsed.frontmatter.tags).toEqual(expect.arrayContaining(['release', 'v2']));
   });
 
@@ -487,7 +477,7 @@ describe('exportCardToFile', () => {
     });
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-cl');
     const text = await Bun.file(exportedPath).text();
-    const parsed = parseCardMarkdown(text);
+    const parsed = parseCard(text);
     expect(parsed.frontmatter.codeLinks).toHaveLength(1);
     expect(parsed.frontmatter.codeLinks![0]!.symbol).toBe('Bar');
   });
@@ -499,39 +489,26 @@ describe('exportCardToFile', () => {
       key: 'exp-body',
       summary: 'Body card',
       type: 'spec',
-      body: expected,
     });
     const returnedPath = await exportCardToFile(tc.ctx, 'exp-body');
-    const text = await Bun.file(returnedPath).text();
-    const parsed = parseCardMarkdown(text);
     expect(returnedPath).toBe(filePath);
-    expect(parsed.body).toContain('## Details');
   });
 
-  it('should NOT append namespace text to body on round-trip when frontmatter has spec namespace', async () => {
-    // Regression: row.body stored body+namespaceText for FTS5; export must strip the
-    // namespace tail so .card.md doesn't grow on each round-trip.
+  it('round-trip export produces identical content', async () => {
     tc = await createTestContext();
-    const userBody = '## Notes\n\nuser-authored body content';
     await createCard(tc.ctx, {
       key: 'exp-ns-rt',
       summary: 'NS round-trip',
       type: 'spec',
-      body: userBody,
       spec: makeTestSpec('src/x.ts', 'foo'),
       codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'foo' }],
     });
-    // Export twice — second export must produce identical content.
     const path1 = await exportCardToFile(tc.ctx, 'exp-ns-rt');
     const text1 = await Bun.file(path1).text();
-    // Re-sync to refresh DB row from the just-exported file (closes the loop).
     await syncCardFromFile(tc.ctx, path1);
     const path2 = await exportCardToFile(tc.ctx, 'exp-ns-rt');
     const text2 = await Bun.file(path2).text();
     expect(text2).toBe(text1);
-    // Body must not contain the FTS5 helper concatenation (namespace text leaks).
-    const parsed = parseCardMarkdown(text1);
-    expect(parsed.body.trim()).toBe(userBody);
   });
 
   it('round-trips a domain card (namespacesJson preserves overview/scope/cross_domain_dependencies)', async () => {
@@ -555,7 +532,7 @@ describe('exportCardToFile', () => {
     const path2 = await exportCardToFile(tc.ctx, 'platform-b');
     const text2 = await Bun.file(path2).text();
     expect(text2).toBe(text1);
-    const parsed = parseCardMarkdown(text1);
+    const parsed = parseCard(text1);
     expect(parsed.frontmatter.type).toBe('domain');
     expect(parsed.frontmatter.domain).toBeDefined();
     expect(parsed.frontmatter.domain!.overview).toBe('B overview');
@@ -585,7 +562,7 @@ describe('exportCardToFile', () => {
     });
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-rev-tgt');
     const text = await Bun.file(exportedPath).text();
-    const parsed = parseCardMarkdown(text);
+    const parsed = parseCard(text);
     expect(parsed.frontmatter.relations).toBeUndefined();
   });
 
@@ -594,7 +571,7 @@ describe('exportCardToFile', () => {
     await createCard(tc.ctx, { key: 'exp-min', summary: 'Minimal card', type: 'spec' });
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-min');
     const text = await Bun.file(exportedPath).text();
-    const parsed = parseCardMarkdown(text);
+    const parsed = parseCard(text);
     expect(parsed.frontmatter.key).toBe('exp-min');
     expect(parsed.frontmatter.relations).toBeUndefined();
     expect(parsed.frontmatter.tags).toBeUndefined();
@@ -615,11 +592,10 @@ describe('syncCardFromFile — type', () => {
 
   it('should persist type to DB when syncing a file with type in frontmatter', async () => {
     tc = await createTestContext();
-    const content = serializeCardMarkdown(
+    const content = serializeCard(
       { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'brief' },
-      '',
     );
-    const filePath = join(tc.cardsDir, 'sync-type.card.md');
+    const filePath = join(tc.cardsDir, 'sync-type.json');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
 
@@ -646,7 +622,7 @@ describe('exportCardToFile — type round-trip', () => {
 
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-type');
     const text = await Bun.file(exportedPath).text();
-    const parsed = parseCardMarkdown(text);
+    const parsed = parseCard(text);
     expect(parsed.frontmatter.type).toBe('brief');
   });
 });

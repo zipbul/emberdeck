@@ -25,14 +25,14 @@ import {
 import { deleteCard } from '../../ops/delete';
 import { renameCard } from '../../ops/rename';
 import { exportCardToFile, buildCardFromDb } from '../../ops/sync';
-import { serializeCardMarkdown } from '../../card/markdown';
+import { serializeCard } from '../../card/serialize';
 import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
 import { parsePositiveInt, collectCsv, collectRepeated } from '../parsers';
 import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../usage-error';
 import { atomicWrite } from '../../fs/writer';
-import { parseJsonOrYaml } from '../parse-input';
+import { parseJsonInput } from '../parse-input';
 
 // ── helpers ──
 
@@ -108,7 +108,6 @@ export function registerCard(program: Command): void {
             status: result.card.frontmatter.status,
             summary: result.card.frontmatter.summary,
             frontmatter: result.card.frontmatter,
-            body: result.card.body,
             ...(result.history ? { history: result.history } : {}),
           });
         },
@@ -206,7 +205,7 @@ export function registerCard(program: Command): void {
     .description('create a new card')
     .requiredOption('--type <type>', 'card type (principle|domain|brief|spec)')
     .option('--summary <s>', 'one-line summary')
-    .option('--from <file>', 'read frontmatter+body from YAML/JSON file (- for STDIN)')
+    .option('--from <file>', 'read frontmatter from JSON file (- for STDIN)')
     .option('--status <status>', 'initial status (default: draft)')
     .option('--parent <key>', 'parent card key')
     .option('--glossary <words>', 'comma-separated glossary words (or repeat flag)', collectCsv, [] as string[])
@@ -228,9 +227,9 @@ export function registerCard(program: Command): void {
           if (opts.from) {
             const text = await readBodyFromOption(opts.from);
             if (!text) throw new CliUsageError('--from produced empty input');
-            const parsedRaw = await parseJsonOrYaml(text);
+            const parsedRaw = await parseJsonInput(text);
             if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
-              throw new CliUsageError('--from must be a JSON/YAML object (got non-object root)');
+              throw new CliUsageError('--from must be a JSON object (got non-object root)');
             }
             const parsed = parsedRaw as Partial<CreateCardInput>;
             const summary = opts.summary ?? parsed.summary ?? '';
@@ -266,19 +265,18 @@ export function registerCard(program: Command): void {
     .option('--patch <file>', 'apply patches from JSON file (- for STDIN)')
     .option('--field <name=value>', 'set frontmatter field (repeatable)', collectRepeated, [] as string[])
     .option('--summary <s>', 'shortcut for --field summary=<s>')
-    .option('--body <file>', 'replace body from file (- for STDIN)')
     .option('--glossary <words>', 'set glossary words (comma-separated or repeated)', collectCsv, [] as string[])
     .option('--tag <name>', 'set tag (repeatable; replaces existing tags)', collectRepeated, [] as string[])
-    .action(async (key: string, opts: { patch?: string; field?: string[]; summary?: string; body?: string; glossary?: string[]; tag?: string[] }, cmd) => {
+    .action(async (key: string, opts: { patch?: string; field?: string[]; summary?: string; glossary?: string[]; tag?: string[] }, cmd) => {
             await run(
         async (rt: CliRuntime) => {
           const fields: UpdateCardFields = {};
           if (opts.patch) {
             const text = await readBodyFromOption(opts.patch);
             if (!text) throw new CliUsageError('--patch produced empty input');
-            const parsedRaw = await parseJsonOrYaml(text);
+            const parsedRaw = await parseJsonInput(text);
             if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
-              throw new CliUsageError('--patch must be a JSON/YAML object (got non-object root)');
+              throw new CliUsageError('--patch must be a JSON object (got non-object root)');
             }
             Object.assign(fields, parsedRaw as UpdateCardFields);
           }
@@ -289,12 +287,8 @@ export function registerCard(program: Command): void {
           }
           if (opts.glossary && opts.glossary.length > 0) fields.glossary = opts.glossary;
           if (opts.tag && opts.tag.length > 0) fields.tags = opts.tag;
-          if (opts.body !== undefined) {
-            const body = await readBodyFromOption(opts.body);
-            if (body !== undefined) fields.body = body;
-          }
           if (Object.keys(fields).length === 0) {
-            throw new CliUsageError('card update: no changes specified — pass --field/--summary/--body/--patch/--glossary/--tag');
+            throw new CliUsageError('card update: no changes specified — pass --field/--summary/--patch/--glossary/--tag');
           }
           const result = await updateCard(rt.ctx, key, fields);
           const warnings: CliMessage[] = (result.warnings ?? []).map((m) => ({
@@ -346,7 +340,6 @@ export function registerCard(program: Command): void {
             new_key: result.newFullKey,
             old_path: result.oldFilePath,
             new_path: result.newFilePath,
-            body_references: result.bodyReferencesFound ?? [],
             failed_reference_updates: result.failedReferenceUpdates ?? [],
           };
           const failed = result.failedReferenceUpdates ?? [];
@@ -414,7 +407,7 @@ export function registerCard(program: Command): void {
           }
           // STDOUT or --out FILE: build content WITHOUT touching original file.
           const cardFile = buildCardFromDb(rt.ctx, key);
-          const content = serializeCardMarkdown(cardFile.frontmatter, cardFile.body);
+          const content = serializeCard(cardFile.frontmatter);
           if (opts.out && opts.out !== '-') {
             await atomicWrite(opts.out, content);
             return ok({ key, filePath: opts.out, mode: 'file' });

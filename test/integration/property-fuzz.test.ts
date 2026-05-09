@@ -7,7 +7,7 @@
  *     corruption of the card store.
  *   - listCards count == createCard success count.
  *   - getCard immediately after createCard returns the same data.
- *   - parseCardMarkdown ∘ serializeCardMarkdown is roundtrip-stable for any
+ *   - parseCard ∘ serializeCard is roundtrip-stable for any
  *     valid frontmatter the system itself produced.
  */
 
@@ -28,7 +28,7 @@ import {
   CardNotFoundError,
 } from '../../src/card/errors';
 import { GlossaryValidationError } from '../../src/glossary/io';
-import { parseCardMarkdown, serializeCardMarkdown } from '../../src/card/markdown';
+import { parseCard, serializeCard } from '../../src/card/serialize';
 import type { CardFrontmatter } from '../../src/card/types';
 
 // ── Arbitraries ──
@@ -152,16 +152,17 @@ describe('property: serialize ∘ parse is stable for system-produced cards', ()
   it('roundtrip preserves frontmatter for any successfully created card', async () => {
     await fc.assert(
       fc.asyncProperty(createInputArb, async (input) => {
-        let card: { frontmatter: CardFrontmatter; body: string } | null = null;
+        let card: { frontmatter: CardFrontmatter } | null = null;
         try {
           const r = await createCard(ctx, { ...input, status: 'draft' });
-          card = { frontmatter: r.card.frontmatter, body: r.card.body };
+          card = { frontmatter: r.card.frontmatter };
         } catch (e) {
           if (!isExpectedCreateError(e)) throw e;
           return;
         }
-        const text = serializeCardMarkdown(card.frontmatter, card.body);
-        const reparsed = parseCardMarkdown(text);
+        if (!card) return;
+        const text = serializeCard(card.frontmatter);
+        const reparsed = parseCard(text);
         expect(reparsed.frontmatter.key).toBe(card.frontmatter.key);
         expect(reparsed.frontmatter.type).toBe(card.frontmatter.type);
         expect(reparsed.frontmatter.summary).toBe(card.frontmatter.summary);

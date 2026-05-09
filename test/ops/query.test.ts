@@ -24,11 +24,10 @@ describe('getCard', () => {
 
   it('should return GetCardResult with card when card exists', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'q-exists', summary: 'Exists', type: 'spec', body: 'My body' });
+    await createCard(tc.ctx, { key: 'q-exists', summary: 'Exists', type: 'spec' });
     const result = await getCard(tc.ctx, 'q-exists');
     expect(result.card.frontmatter.key).toBe('q-exists');
     expect(result.card.frontmatter.summary).toBe('Exists');
-    expect(result.card.body).toBe('My body');
   });
 
   it('should throw CardNotFoundError when card does not exist', async () => {
@@ -52,7 +51,7 @@ describe('getCard', () => {
   it('should include history when includeHistory is true', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'q-hist', 'active');
     const result = await getCard(tc.ctx, 'q-hist', { includeHistory: true });
     expect(result.history).toBeDefined();
@@ -69,8 +68,8 @@ describe('getCards', () => {
 
   it('should return all cards when all keys exist', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'gc-a', summary: 'A', type: 'spec', body: 'Body A' });
-    await createCard(tc.ctx, { key: 'gc-b', summary: 'B', type: 'brief', body: 'Body B' });
+    await createCard(tc.ctx, { key: 'gc-a', summary: 'A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'gc-b', summary: 'B', type: 'brief' });
     const result = await getCards(tc.ctx, ['gc-a', 'gc-b']);
     expect(result.cards).toHaveLength(2);
     expect(result.notFound).toHaveLength(0);
@@ -104,7 +103,7 @@ describe('getCards', () => {
   it('should include history when includeHistory is true', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'gc-hist', 'active');
     const result = await getCards(tc.ctx, ['gc-hist'], { includeHistory: true });
     expect(result.cards).toHaveLength(1);
@@ -146,7 +145,7 @@ describe('listCards', () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'flt-draft', summary: 'Draft', type: 'spec' });
-    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'flt-acc', 'active');
     const rows = listCards(tc.ctx, { status: 'active' });
     expect(rows.every((r) => r.status === 'active')).toBe(true);
@@ -194,7 +193,7 @@ describe('listCards', () => {
   // P-2: body field stripped from listCards results
   it('should not include body field in listCards results', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'nobody', summary: 'NB', type: 'spec', body: 'This body should not appear' });
+    await createCard(tc.ctx, { key: 'nobody', summary: 'NB', type: 'spec' });
     const rows = listCards(tc.ctx);
     const row = rows.find((r) => r.key === 'nobody');
     expect(row).toBeDefined();
@@ -242,7 +241,7 @@ describe('searchCards', () => {
   // P-2: body field stripped from searchCards results
   it('should not include body field in searchCards results', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'srch-nobody', summary: 'Searchable', type: 'spec', body: 'Hidden body' });
+    await createCard(tc.ctx, { key: 'srch-nobody', summary: 'Searchable', type: 'spec' });
     const rows = searchCards(tc.ctx, 'Searchable');
     expect(rows).toHaveLength(1);
     expect('body' in rows[0]!).toBe(false);

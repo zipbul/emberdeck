@@ -45,7 +45,7 @@ function setupProject(): string {
 }
 
 function writeCard(tmp: string, key: string, content: string): void {
-  const path = join(tmp, '.emberdeck/cards', `${key}.card.md`);
+  const path = join(tmp, '.emberdeck/cards', `${key}.json`);
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, content);
 }

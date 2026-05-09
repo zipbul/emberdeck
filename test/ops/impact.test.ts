@@ -253,8 +253,7 @@ describe('regressionGuard', () => {
       summary: 'Drift via driftType',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'drift-detect', 'active');

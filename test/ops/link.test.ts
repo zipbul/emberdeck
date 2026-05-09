@@ -57,7 +57,6 @@ async function createCard(
       type: 'spec',
       ...(codeLinks !== undefined ? { codeLinks } : {}),
     },
-    body: '',
   };
   await writeCardFile(filePath, cardFile);
 }
@@ -410,7 +409,6 @@ describe('ops/link', () => {
         type: 'spec',
         boundary: ['src/services/**'],
       },
-      body: '',
     };
     await writeCardFile(fp, cardFile);
     // Sync to DB so the card exists with boundaryJson

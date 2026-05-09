@@ -1,0 +1,154 @@
+{
+  "key": "cli-surface/command-routing-and-envelope/runner-and-output",
+  "summary": "run wraps every subcommand action; ok, partial, err, unknown, and render build and emit the JSON envelope.",
+  "status": "draft",
+  "type": "spec",
+  "parent": "cli-surface/command-routing-and-envelope",
+  "codeLinks": [
+    {
+      "kind": "function",
+      "file": "src/cli/runner.ts",
+      "symbol": "run"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/runner.ts",
+      "symbol": "classifyErrorStatus"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/output.ts",
+      "symbol": "ok"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/output.ts",
+      "symbol": "partial"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/output.ts",
+      "symbol": "err"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/output.ts",
+      "symbol": "unknown"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/output.ts",
+      "symbol": "render"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/output.ts",
+      "symbol": "statusToExitCode"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/output.ts",
+      "symbol": "resolveOutputMode"
+    },
+    {
+      "kind": "function",
+      "file": "src/cli/errors.ts",
+      "symbol": "toCliError"
+    }
+  ],
+  "glossary": [
+    "json-envelope"
+  ],
+  "spec": {
+    "preconditions": [
+      {
+        "id": "PRE-001",
+        "condition": "A commander.js subcommand action wraps its body in run with a CommandFn.",
+        "binds": [
+          {
+            "file": "src/cli/runner.ts",
+            "symbol": "run"
+          }
+        ],
+        "derives": "cli-surface/command-routing-and-envelope#G-001"
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "POST-001",
+        "guarantee": "Every subcommand emits the documented envelope on stdout via render.",
+        "keyword": "MUST",
+        "binds": [
+          {
+            "file": "src/cli/output.ts",
+            "symbol": "render"
+          },
+          {
+            "file": "src/cli/output.ts",
+            "symbol": "ok"
+          },
+          {
+            "file": "src/cli/output.ts",
+            "symbol": "partial"
+          },
+          {
+            "file": "src/cli/output.ts",
+            "symbol": "err"
+          }
+        ],
+        "derives": "cli-surface/command-routing-and-envelope#G-001"
+      },
+      {
+        "id": "POST-002",
+        "guarantee": "statusToExitCode maps status to documented exit codes (0 / 1 / 2 / 3 / 4 / 5 / 6 / 7).",
+        "keyword": "SHALL",
+        "binds": [
+          {
+            "file": "src/cli/output.ts",
+            "symbol": "statusToExitCode"
+          }
+        ],
+        "derives": "cli-surface/command-routing-and-envelope#G-002"
+      },
+      {
+        "id": "POST-003",
+        "guarantee": "resolveOutputMode returns quiet when --quiet is set so render emits only the data key.",
+        "keyword": "MUST",
+        "binds": [
+          {
+            "file": "src/cli/output.ts",
+            "symbol": "resolveOutputMode"
+          },
+          {
+            "file": "src/cli/output.ts",
+            "symbol": "render"
+          }
+        ],
+        "derives": "cli-surface/command-routing-and-envelope#G-003"
+      }
+    ],
+    "invariants": [
+      {
+        "id": "INV-001",
+        "statement": "Every catchable error class is mapped through toCliError to a CliMessage with a stable code.",
+        "binds": [
+          {
+            "file": "src/cli/errors.ts",
+            "symbol": "toCliError"
+          }
+        ],
+        "always_holds": "per-call"
+      }
+    ],
+    "failures": [
+      {
+        "violation": "An unmapped error class is thrown inside the action.",
+        "behavior": "classifyErrorStatus returns unknown; render emits status=unknown and exit code 1.",
+        "exception": {
+          "class": "none",
+          "file": "src/cli/errors.ts"
+        }
+      }
+    ]
+  }
+}

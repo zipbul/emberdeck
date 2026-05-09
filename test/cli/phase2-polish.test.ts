@@ -117,7 +117,7 @@ describe('Phase 2 polish: card export STDOUT default', () => {
   });
 
   test('default STDOUT does NOT modify original file', async () => {
-    const path = join(tmp, '.emberdeck/cards/expo.card.md');
+    const path = join(tmp, '.emberdeck/cards/expo.json');
     const before = await Bun.file(path).text();
     const beforeStat = await Bun.file(path).stat();
     await runEd(['card', 'export', 'expo'], tmp);
@@ -128,7 +128,7 @@ describe('Phase 2 polish: card export STDOUT default', () => {
   });
 
   test('--out FILE does NOT modify original file', async () => {
-    const path = join(tmp, '.emberdeck/cards/expo.card.md');
+    const path = join(tmp, '.emberdeck/cards/expo.json');
     const before = await Bun.file(path).text();
     await runEd(['card', 'export', 'expo', '--out', join(tmp, 'side.md')], tmp);
     const after = await Bun.file(path).text();

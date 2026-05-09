@@ -46,7 +46,7 @@ describe('validateParentExists', () => {
   it('does not throw when parent exists', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'existing-parent', type: 'brief', filePath: '.emberdeck/cards/existing-parent.card.md' }),
+      makeCard({ key: 'existing-parent', type: 'brief', filePath: '.emberdeck/cards/existing-parent.json' }),
     );
 
     // Act / Assert
@@ -60,7 +60,7 @@ describe('validateParentType', () => {
   it('domain parent for brief child: OK (4-tier — brief.parent must be domain)', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'arch-parent', type: 'domain', filePath: '.emberdeck/cards/arch-parent.card.md' }),
+      makeCard({ key: 'arch-parent', type: 'domain', filePath: '.emberdeck/cards/arch-parent.json' }),
     );
 
     // Act / Assert
@@ -69,7 +69,7 @@ describe('validateParentType', () => {
 
   it('brief parent for brief child: REJECTED (no brief recursion in 4-tier)', () => {
     ctx.cardRepo.upsert(
-      makeCard({ key: 'rec-parent', type: 'brief', filePath: '.emberdeck/cards/rec-parent.card.md' }),
+      makeCard({ key: 'rec-parent', type: 'brief', filePath: '.emberdeck/cards/rec-parent.json' }),
     );
     expect(() => validateParentType(ctx, 'brief', 'rec-parent')).toThrow(ParentValidationError);
   });
@@ -77,7 +77,7 @@ describe('validateParentType', () => {
   it('spec parent for spec child: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'spec-parent', type: 'spec', filePath: '.emberdeck/cards/spec-parent.card.md' }),
+      makeCard({ key: 'spec-parent', type: 'spec', filePath: '.emberdeck/cards/spec-parent.json' }),
     );
 
     // Act / Assert
@@ -87,7 +87,7 @@ describe('validateParentType', () => {
   it('brief parent for spec child: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'arch-parent', type: 'brief', filePath: '.emberdeck/cards/arch-parent.card.md' }),
+      makeCard({ key: 'arch-parent', type: 'brief', filePath: '.emberdeck/cards/arch-parent.json' }),
     );
 
     // Act / Assert
@@ -97,7 +97,7 @@ describe('validateParentType', () => {
   it('spec parent for brief child: throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'spec-parent', type: 'spec', filePath: '.emberdeck/cards/spec-parent.card.md' }),
+      makeCard({ key: 'spec-parent', type: 'spec', filePath: '.emberdeck/cards/spec-parent.json' }),
     );
 
     // Act / Assert
@@ -117,10 +117,10 @@ describe('validateParentCycle', () => {
     // Arrange — A exists with parent=B, B exists with parent=null
     // We want to set B.parent = A which would create A->B->A
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-b', parent: null, type: 'brief', filePath: '.emberdeck/cards/card-b.card.md' }),
+      makeCard({ key: 'card-b', parent: null, type: 'brief', filePath: '.emberdeck/cards/card-b.json' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-a', parent: 'card-b', type: 'brief', filePath: '.emberdeck/cards/card-a.card.md' }),
+      makeCard({ key: 'card-a', parent: 'card-b', type: 'brief', filePath: '.emberdeck/cards/card-a.json' }),
     );
 
     // Act / Assert — trying to set B's parent to A
@@ -130,13 +130,13 @@ describe('validateParentCycle', () => {
   it('A->B->C (no cycle): OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-c', parent: null, type: 'brief', filePath: '.emberdeck/cards/card-c.card.md' }),
+      makeCard({ key: 'card-c', parent: null, type: 'brief', filePath: '.emberdeck/cards/card-c.json' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-b', parent: 'card-c', type: 'brief', filePath: '.emberdeck/cards/card-b.card.md' }),
+      makeCard({ key: 'card-b', parent: 'card-c', type: 'brief', filePath: '.emberdeck/cards/card-b.json' }),
     );
     ctx.cardRepo.upsert(
-      makeCard({ key: 'card-a', parent: 'card-b', type: 'brief', filePath: '.emberdeck/cards/card-a.card.md' }),
+      makeCard({ key: 'card-a', parent: 'card-b', type: 'brief', filePath: '.emberdeck/cards/card-a.json' }),
     );
 
     // Act / Assert — setting A's parent to B (already the case, no cycle with C)
@@ -146,7 +146,7 @@ describe('validateParentCycle', () => {
   it('self-reference (parent=self): throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'self-ref', parent: null, type: 'brief', filePath: '.emberdeck/cards/self-ref.card.md' }),
+      makeCard({ key: 'self-ref', parent: null, type: 'brief', filePath: '.emberdeck/cards/self-ref.json' }),
     );
 
     // Act / Assert
@@ -159,8 +159,8 @@ describe('validateParentCycle', () => {
 describe('validateRelationTargets', () => {
   it('target exists: OK', () => {
     // Arrange
-    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'dst', filePath: '.emberdeck/cards/dst.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'dst', filePath: '.emberdeck/cards/dst.json' }));
 
     // Act / Assert
     expect(() => validateRelationTargets(ctx, 'src', ['dst'])).not.toThrow();
@@ -168,7 +168,7 @@ describe('validateRelationTargets', () => {
 
   it('target does not exist: throws CardValidationError', () => {
     // Arrange
-    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.json' }));
 
     // Act / Assert
     expect(() => validateRelationTargets(ctx, 'src', ['ghost'])).toThrow(CardValidationError);
@@ -176,7 +176,7 @@ describe('validateRelationTargets', () => {
 
   it('self-reference: throws CardValidationError', () => {
     // Arrange
-    ctx.cardRepo.upsert(makeCard({ key: 'self', filePath: '.emberdeck/cards/self.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'self', filePath: '.emberdeck/cards/self.json' }));
 
     // Act / Assert
     expect(() => validateRelationTargets(ctx, 'self', ['self'])).toThrow(CardValidationError);
@@ -184,7 +184,7 @@ describe('validateRelationTargets', () => {
 
   it('empty relations array: OK', () => {
     // Arrange
-    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.json' }));
 
     // Act / Assert
     expect(() => validateRelationTargets(ctx, 'src', [])).not.toThrow();
@@ -192,8 +192,8 @@ describe('validateRelationTargets', () => {
 
   it('multiple targets with one missing: throws CardValidationError', () => {
     // Arrange
-    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.card.md' }));
-    ctx.cardRepo.upsert(makeCard({ key: 'exists', filePath: '.emberdeck/cards/exists.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'src', filePath: '.emberdeck/cards/src.json' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'exists', filePath: '.emberdeck/cards/exists.json' }));
 
     // Act / Assert
     expect(() => validateRelationTargets(ctx, 'src', ['exists', 'missing'])).toThrow(CardValidationError);
@@ -206,14 +206,14 @@ describe('validateChildrenHierarchy', () => {
   it('change arch->spec with brief children: throws ParentValidationError', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'parent', type: 'brief', filePath: '.emberdeck/cards/parent.card.md' }),
+      makeCard({ key: 'parent', type: 'brief', filePath: '.emberdeck/cards/parent.json' }),
     );
     ctx.cardRepo.upsert(
       makeCard({
         key: 'arch-child',
         type: 'brief',
         parent: 'parent',
-        filePath: '.emberdeck/cards/arch-child.card.md',
+        filePath: '.emberdeck/cards/arch-child.json',
       }),
     );
 
@@ -224,14 +224,14 @@ describe('validateChildrenHierarchy', () => {
   it('change arch->spec with spec children: OK', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'parent', type: 'brief', filePath: '.emberdeck/cards/parent.card.md' }),
+      makeCard({ key: 'parent', type: 'brief', filePath: '.emberdeck/cards/parent.json' }),
     );
     ctx.cardRepo.upsert(
       makeCard({
         key: 'spec-child',
         type: 'spec',
         parent: 'parent',
-        filePath: '.emberdeck/cards/spec-child.card.md',
+        filePath: '.emberdeck/cards/spec-child.json',
       }),
     );
 
@@ -242,14 +242,14 @@ describe('validateChildrenHierarchy', () => {
   it('change spec->arch: OK (no restrictions)', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'parent', type: 'spec', filePath: '.emberdeck/cards/parent.card.md' }),
+      makeCard({ key: 'parent', type: 'spec', filePath: '.emberdeck/cards/parent.json' }),
     );
     ctx.cardRepo.upsert(
       makeCard({
         key: 'spec-child',
         type: 'spec',
         parent: 'parent',
-        filePath: '.emberdeck/cards/spec-child.card.md',
+        filePath: '.emberdeck/cards/spec-child.json',
       }),
     );
 
@@ -260,7 +260,7 @@ describe('validateChildrenHierarchy', () => {
   it('no children: OK for any type change', () => {
     // Arrange
     ctx.cardRepo.upsert(
-      makeCard({ key: 'lonely', type: 'brief', filePath: '.emberdeck/cards/lonely.card.md' }),
+      makeCard({ key: 'lonely', type: 'brief', filePath: '.emberdeck/cards/lonely.json' }),
     );
 
     // Act / Assert
@@ -274,11 +274,11 @@ describe('validateActivationGuard', () => {
   // Helpers: set up 4-tier scaffolding directly in the in-memory ctx
   // (createCard isn't used here — these are unit tests of the guard itself).
   function setupDomain(): void {
-    ctx.cardRepo.upsert(makeCard({ key: '_dom', type: 'domain', filePath: '/_dom.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: '_dom', type: 'domain', filePath: '/_dom.json' }));
   }
   function setupBrief(): void {
     setupDomain();
-    ctx.cardRepo.upsert(makeCard({ key: '_br', type: 'brief', parent: '_dom', filePath: '/_br.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: '_br', type: 'brief', parent: '_dom', filePath: '/_br.json' }));
   }
 
   it('brief without parent: rejected (4-tier strict)', async () => {
@@ -302,7 +302,7 @@ describe('validateActivationGuard', () => {
   });
 
   it('brief with non-domain parent: rejected (4-tier strict)', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'p-spec', type: 'spec', filePath: '/p-spec.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'p-spec', type: 'spec', filePath: '/p-spec.json' }));
     try {
       await validateActivationGuard(ctx, { type: 'brief', parent: 'p-spec' });
       expect.unreachable('should have thrown');
@@ -313,7 +313,7 @@ describe('validateActivationGuard', () => {
   });
 
   it('principle/domain with parent: rejected (must be root-level)', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'any-parent', type: 'domain', filePath: '/ap.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'any-parent', type: 'domain', filePath: '/ap.json' }));
     try {
       await validateActivationGuard(ctx, { type: 'principle', parent: 'any-parent', principle: { statement: 's', rationale: 'r', applies_to: '*', enforcement: 'blocking' } });
       expect.unreachable('should have thrown');
@@ -357,7 +357,7 @@ describe('validateActivationGuard', () => {
   });
 
   it('domain type with cross_domain_dependencies pointing at non-domain: throws', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'not-a-domain', type: 'spec', filePath: '/n.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'not-a-domain', type: 'spec', filePath: '/n.json' }));
     try {
       await validateActivationGuard(ctx, {
         type: 'domain',
@@ -376,7 +376,7 @@ describe('validateActivationGuard', () => {
   });
 
   it('domain type with valid namespace + valid cross-deps: passes', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'sibling-dom', type: 'domain', filePath: '/sd.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'sibling-dom', type: 'domain', filePath: '/sd.json' }));
     await expect(
       validateActivationGuard(ctx, {
         type: 'domain',
@@ -464,7 +464,7 @@ describe('validateActivationGuard', () => {
   });
 
   it('spec type with non-spec/non-brief parent: rejected', async () => {
-    ctx.cardRepo.upsert(makeCard({ key: 'p-dom', type: 'domain', filePath: '/p-dom.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'p-dom', type: 'domain', filePath: '/p-dom.json' }));
     try {
       await validateActivationGuard(ctx, {
         type: 'spec',
@@ -496,7 +496,7 @@ describe('validateTypeChangeActivation', () => {
 
   it('active spec -> brief: keeps active when brief namespace present', async () => {
     const { makeTestBrief } = await import('../../test/helpers');
-    ctx.cardRepo.upsert(makeCard({ key: '_dom', type: 'domain', filePath: '/_dom.card.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: '_dom', type: 'domain', filePath: '/_dom.json' }));
     const result = await validateTypeChangeActivation(
       ctx,
       {

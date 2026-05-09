@@ -154,23 +154,23 @@ describe('parseFullKey', () => {
 
 describe('buildCardPath', () => {
   // HP
-  it('should return "/cards/api.card.md" when cardsDir="/cards" and slug="api"', () => {
+  it('should return "/cards/api.json" when cardsDir="/cards" and slug="api"', () => {
     // Arrange
     const cardsDir = '/cards';
     const slug = 'api';
     // Act
     const result = buildCardPath(cardsDir, slug);
     // Assert
-    expect(result).toBe('/cards/api.card.md');
+    expect(result).toBe('/cards/api.json');
   });
 
-  it('should return "/base/specs/api.card.md" when nested slug given', () => {
+  it('should return "/base/specs/api.json" when nested slug given', () => {
     // Arrange
     const cardsDir = '/base';
     const slug = 'specs/api';
     // Act
     const result = buildCardPath(cardsDir, slug);
     // Assert
-    expect(result).toBe('/base/specs/api.card.md');
+    expect(result).toBe('/base/specs/api.json');
   });
 });

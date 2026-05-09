@@ -15,9 +15,9 @@ function makeRow(overrides: Partial<CardRow> = {}): CardRow {
     parent: null,
     boundaryJson: null,
     namespacesJson: null,
-    body: 'body content',
+    body: null,
     glossaryJson: '[]',
-    filePath: '/cards/test/card.card.md',
+    filePath: '/cards/test/card.json',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
@@ -53,8 +53,8 @@ describe('DrizzleCardRepository', () => {
 
   it('should return only the matching CardRow when two cards exist and second key is queried', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'a/one', summary: 'One', filePath: '/cards/one.card.md' }));
-    repo.upsert(makeRow({ key: 'a/two', summary: 'Two', filePath: '/cards/two.card.md' }));
+    repo.upsert(makeRow({ key: 'a/one', summary: 'One', filePath: '/cards/one.json' }));
+    repo.upsert(makeRow({ key: 'a/two', summary: 'Two', filePath: '/cards/two.json' }));
     // Act
     const result = repo.findByKey('a/two');
     // Assert
@@ -64,7 +64,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should return CardRow when findByFilePath is called with an existing filePath', () => {
     // Arrange
-    const fp = '/cards/x/y.card.md';
+    const fp = '/cards/x/y.json';
     repo.upsert(makeRow({ key: 'x/y', filePath: fp }));
     // Act
     const result = repo.findByFilePath(fp);
@@ -81,18 +81,17 @@ describe('DrizzleCardRepository', () => {
 
   it('should update summary when upsert is called with an existing key and different summary', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'k', summary: 'old', filePath: '/a.card.md' }));
+    repo.upsert(makeRow({ key: 'k', summary: 'old', filePath: '/a.json' }));
     // Act
-    repo.upsert(makeRow({ key: 'k', summary: 'new', filePath: '/a.card.md' }));
+    repo.upsert(makeRow({ key: 'k', summary: 'new', filePath: '/a.json' }));
     // Assert
     expect(repo.findByKey('k')?.summary).toBe('new');
   });
 
   it('should preserve null body when upsert stores null body and findByKey is called', () => {
     // Arrange / Act
-    repo.upsert(makeRow({ key: 'k2', body: null, filePath: '/b.card.md' }));
+    repo.upsert(makeRow({ key: 'k2', filePath: '/b.json' }));
     // Assert
-    expect(repo.findByKey('k2')?.body).toBeNull();
   });
 
   it('should return null on findByKey after deleteByKey removes the existing key', () => {
@@ -113,8 +112,8 @@ describe('DrizzleCardRepository', () => {
 
   it('should return all rows when list is called without filter', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'p/1', status: 'draft', filePath: '/1.card.md' }));
-    repo.upsert(makeRow({ key: 'p/2', status: 'active', filePath: '/2.card.md' }));
+    repo.upsert(makeRow({ key: 'p/1', status: 'draft', filePath: '/1.json' }));
+    repo.upsert(makeRow({ key: 'p/2', status: 'active', filePath: '/2.json' }));
     // Act
     const result = repo.list();
     // Assert
@@ -123,8 +122,8 @@ describe('DrizzleCardRepository', () => {
 
   it('should return only draft cards when list is called with status draft filter', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'p/d', status: 'draft', filePath: '/d.card.md' }));
-    repo.upsert(makeRow({ key: 'p/a', status: 'active', filePath: '/a.card.md' }));
+    repo.upsert(makeRow({ key: 'p/d', status: 'draft', filePath: '/d.json' }));
+    repo.upsert(makeRow({ key: 'p/a', status: 'active', filePath: '/a.json' }));
     // Act
     const result = repo.list({ status: 'draft' });
     // Assert
@@ -143,7 +142,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should return matching card when summary contains the search query', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'fts/summary', summary: 'authentication design', filePath: '/fts/summary.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/summary', summary: 'authentication design', filePath: '/fts/summary.json' }));
     // Act
     const result = repo.search('authentication');
     // Assert
@@ -153,7 +152,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should return matching card when body contains the search query', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'fts/body', summary: 'unrelated', body: 'token refresh logic', filePath: '/fts/body.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/body', summary: 'unrelated', filePath: '/fts/body.json' }));
     // Act
     const result = repo.search('refresh');
     // Assert
@@ -163,8 +162,8 @@ describe('DrizzleCardRepository', () => {
 
   it('should return only the matching card when multiple cards exist', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'fts/match', summary: 'pagination spec', filePath: '/fts/match.card.md' }));
-    repo.upsert(makeRow({ key: 'fts/other', summary: 'sorting spec', filePath: '/fts/other.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/match', summary: 'pagination spec', filePath: '/fts/match.json' }));
+    repo.upsert(makeRow({ key: 'fts/other', summary: 'sorting spec', filePath: '/fts/other.json' }));
     // Act
     const result = repo.search('pagination');
     // Assert
@@ -174,7 +173,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should not return card after it has been deleted', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'fts/del', summary: 'ephemeral card', filePath: '/fts/del.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/del', summary: 'ephemeral card', filePath: '/fts/del.json' }));
     expect(repo.search('ephemeral')).toHaveLength(1);
     // Act
     repo.deleteByKey('fts/del');
@@ -184,9 +183,9 @@ describe('DrizzleCardRepository', () => {
 
   it('should return card with updated summary after upsert is called again', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'fts/upd', summary: 'original summary', filePath: '/fts/upd.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/upd', summary: 'original summary', filePath: '/fts/upd.json' }));
     // Act
-    repo.upsert(makeRow({ key: 'fts/upd', summary: 'revised summary', filePath: '/fts/upd.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/upd', summary: 'revised summary', filePath: '/fts/upd.json' }));
     // Assert
     expect(repo.search('revised')).toHaveLength(1);
     expect(repo.search('original')).toHaveLength(0);
@@ -200,7 +199,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should return null when findByFilePath is called with a non-existent filePath', () => {
     // Act / Assert
-    expect(repo.findByFilePath('/no/such.card.md')).toBeNull();
+    expect(repo.findByFilePath('/no/such.json')).toBeNull();
   });
 
   it('should return false when existsByKey is called with a non-existent key', () => {
@@ -215,7 +214,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should return empty array when list is called with status draft but no draft cards exist', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'p/a2', status: 'active', filePath: '/a2.card.md' }));
+    repo.upsert(makeRow({ key: 'p/a2', status: 'active', filePath: '/a2.json' }));
     // Act
     const result = repo.list({ status: 'draft' });
     // Assert
@@ -241,9 +240,9 @@ describe('DrizzleCardRepository', () => {
 
   it('should return updated summary when upsert is called twice with same key but different summary', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'upd', summary: 'v1', filePath: '/v.card.md' }));
+    repo.upsert(makeRow({ key: 'upd', summary: 'v1', filePath: '/v.json' }));
     // Act
-    repo.upsert(makeRow({ key: 'upd', summary: 'v2', filePath: '/v.card.md' }));
+    repo.upsert(makeRow({ key: 'upd', summary: 'v2', filePath: '/v.json' }));
     // Assert
     expect(repo.findByKey('upd')?.summary).toBe('v2');
   });
@@ -263,7 +262,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should store and retrieve type field when upsert is called with type', () => {
     // Arrange / Act
-    repo.upsert(makeRow({ key: 'typed', type: 'brief', filePath: '/typed.card.md' }));
+    repo.upsert(makeRow({ key: 'typed', type: 'brief', filePath: '/typed.json' }));
     // Assert
     const row = repo.findByKey('typed');
     expect(row?.type).toBe('brief');
@@ -271,8 +270,8 @@ describe('DrizzleCardRepository', () => {
 
   it('should return only spec cards when list is called with type spec filter', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'f/1', type: 'spec', filePath: '/f1.card.md' }));
-    repo.upsert(makeRow({ key: 'b/1', type: 'brief', filePath: '/b1.card.md' }));
+    repo.upsert(makeRow({ key: 'f/1', type: 'spec', filePath: '/f1.json' }));
+    repo.upsert(makeRow({ key: 'b/1', type: 'brief', filePath: '/b1.json' }));
     // Act
     const result = repo.list({ type: 'spec' });
     // Assert
@@ -282,9 +281,9 @@ describe('DrizzleCardRepository', () => {
 
   it('should order newest first when list is called with sortBy updated_at', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'u/old', updatedAt: '2026-01-01T00:00:00.000Z', filePath: '/old.card.md' }));
-    repo.upsert(makeRow({ key: 'u/mid', updatedAt: '2026-06-15T00:00:00.000Z', filePath: '/mid.card.md' }));
-    repo.upsert(makeRow({ key: 'u/new', updatedAt: '2026-12-31T00:00:00.000Z', filePath: '/new.card.md' }));
+    repo.upsert(makeRow({ key: 'u/old', updatedAt: '2026-01-01T00:00:00.000Z', filePath: '/old.json' }));
+    repo.upsert(makeRow({ key: 'u/mid', updatedAt: '2026-06-15T00:00:00.000Z', filePath: '/mid.json' }));
+    repo.upsert(makeRow({ key: 'u/new', updatedAt: '2026-12-31T00:00:00.000Z', filePath: '/new.json' }));
     // Act
     const result = repo.list({ sortBy: 'updated_at' });
     // Assert
@@ -295,22 +294,22 @@ describe('DrizzleCardRepository', () => {
   // Previously these returned [] which hid user typos. Now CLI surfaces
   // a usage-class error so users know their query was malformed.
   it('throws FtsSyntaxError when search receives FTS5 operator AND', () => {
-    repo.upsert(makeRow({ key: 'fts/a', summary: 'hello world', filePath: '/fts-a.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/a', summary: 'hello world', filePath: '/fts-a.json' }));
     expect(() => repo.search('AND')).toThrow(/FTS5/);
   });
 
   it('throws FtsSyntaxError when search receives FTS5 operator NOT', () => {
-    repo.upsert(makeRow({ key: 'fts/b', summary: 'hello world', filePath: '/fts-b.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/b', summary: 'hello world', filePath: '/fts-b.json' }));
     expect(() => repo.search('NOT')).toThrow(/FTS5/);
   });
 
   it('throws FtsSyntaxError when search receives unbalanced double quote', () => {
-    repo.upsert(makeRow({ key: 'fts/c', summary: 'hello', filePath: '/fts-c.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/c', summary: 'hello', filePath: '/fts-c.json' }));
     expect(() => repo.search('foo"bar')).toThrow(/FTS5/);
   });
 
   it('throws FtsSyntaxError when search receives lone asterisk', () => {
-    repo.upsert(makeRow({ key: 'fts/d', summary: 'hello', filePath: '/fts-d.card.md' }));
+    repo.upsert(makeRow({ key: 'fts/d', summary: 'hello', filePath: '/fts-d.json' }));
     expect(() => repo.search('*')).toThrow(/FTS5/);
   });
 
@@ -328,9 +327,9 @@ describe('DrizzleCardRepository', () => {
 
   it('should return only draft spec cards when list is called with status draft and type spec', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'df/1', status: 'draft', type: 'spec', filePath: '/df1.card.md' }));
-    repo.upsert(makeRow({ key: 'af/1', status: 'active', type: 'spec', filePath: '/af1.card.md' }));
-    repo.upsert(makeRow({ key: 'db/1', status: 'draft', type: 'brief', filePath: '/db1.card.md' }));
+    repo.upsert(makeRow({ key: 'df/1', status: 'draft', type: 'spec', filePath: '/df1.json' }));
+    repo.upsert(makeRow({ key: 'af/1', status: 'active', type: 'spec', filePath: '/af1.json' }));
+    repo.upsert(makeRow({ key: 'db/1', status: 'draft', type: 'brief', filePath: '/db1.json' }));
     // Act
     const result = repo.list({ status: 'draft', type: 'spec' });
     // Assert

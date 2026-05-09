@@ -70,7 +70,6 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
       summary: 'JWT token management and validation',
       type: 'spec',
       parent: '_br',
-      body: '# Auth Token\n\nHandles JWT lifecycle including generation, validation, refresh, and revocation.',
       tags: ['auth', 'security'],
       relations: [],
       codeLinks: [
@@ -97,17 +96,14 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
     expect(created.card.frontmatter.tags).toEqual(['auth', 'security']);
     expect(created.card.frontmatter.relations).toEqual(['user-session', 'api-gateway']);
     expect(created.card.frontmatter.codeLinks).toHaveLength(2);
-    expect(created.card.body).toContain('JWT lifecycle');
 
     // -- Step 2: Update fields --
     const updated = await updateCard(ctx, 'auth-token', {
       summary: 'JWT token management, validation, and blacklisting',
-      body: '# Auth Token\n\nUpdated description with blacklisting.\n\n' + SPEC_BODY,
       tags: ['auth', 'security', 'jwt'],
     });
 
     expect(updated.card.frontmatter.summary).toContain('blacklisting');
-    expect(updated.card.body).toContain('Updated description');
     const tags = ctx.classificationRepo.findTagsByCard('auth-token');
     expect(tags).toContain('jwt');
 
@@ -250,7 +246,7 @@ describe('Scenario 3: File Sync Chaos -- external edits + re-sync', () => {
     await unlink(filePathB);
 
     // Add a new file externally
-    const newFilePath = join(cardsDir, 'sync-c.card.md');
+    const newFilePath = join(cardsDir, 'sync-c.json');
     await writeFile(newFilePath, '---\nkey: sync-c\nsummary: Card C (external)\nstatus: draft\ntype: spec\n---\nNew card body', 'utf-8');
 
     // Validate to detect issues

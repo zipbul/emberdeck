@@ -2,21 +2,13 @@ import { errorMessage } from '../util/error';
 import { CliUsageError } from './usage-error';
 
 /**
- * Parse text as JSON first, fall back to YAML. Used by `card create`/`card update`
- * `--from`/`--patch` and `bulk create --from` for accepting either format.
+ * Parse text as JSON. Used by `card create`/`card update` `--from`/`--patch`
+ * and `bulk create --from` for accepting input from file or STDIN.
  */
-export function parseJsonOrYaml(text: string): unknown {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return JSON.parse(text);
-    } catch {
-      // fall through to YAML
-    }
-  }
+export function parseJsonInput(text: string): unknown {
   try {
-    return Bun.YAML.parse(text);
+    return JSON.parse(text);
   } catch (e) {
-    throw new CliUsageError(`failed to parse input as JSON or YAML: ${errorMessage(e)}`);
+    throw new CliUsageError(`failed to parse input as JSON: ${errorMessage(e)}`);
   }
 }

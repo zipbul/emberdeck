@@ -44,8 +44,7 @@ describe('checkDrift — boundary_inactive', () => {
       summary: 'Boundary inactive',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      boundary: ['*.ts'],
+            boundary: ['*.ts'],
       codeLinks: [{ kind: 'function', file: 'src.ts', symbol: 'fn' }],
       spec: makeTestSpec('src.ts', 'fn'),
     });
@@ -70,8 +69,7 @@ describe('checkDrift — boundary_inactive', () => {
       summary: 'Boundary transition',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      boundary: ['*.ts'],
+            boundary: ['*.ts'],
       codeLinks: [{ kind: 'function', file: 'src.ts', symbol: 'fn' }],
       spec: makeTestSpec('src.ts', 'fn'),
     });
@@ -100,8 +98,7 @@ describe('checkDrift — boundary_inactive', () => {
       summary: 'Boundary active',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      boundary: ['src/**/*.ts'],
+            boundary: ['src/**/*.ts'],
       codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
       spec: makeTestSpec('src/a.ts', 'fn'),
     });
@@ -136,8 +133,7 @@ describe('checkDrift — symbol_changed', () => {
       summary: 'Symbol changed',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      boundary: ['src/auth/**'],
+            boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],
       spec: makeTestSpec('src/auth/login.ts', 'login'),
     });
@@ -181,8 +177,7 @@ describe('checkDrift — symbol_changed', () => {
       summary: 'Old change',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      boundary: ['src/auth/**'],
+            boundary: ['src/auth/**'],
       codeLinks: [{ kind: 'function', file: 'src/auth/login.ts', symbol: 'login' }],
       spec: makeTestSpec('src/auth/login.ts', 'login'),
     });

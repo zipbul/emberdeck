@@ -15,7 +15,7 @@ import { createTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, ma
 import { syncCardFromFile, bulkSyncCards } from '../../src/ops/sync';
 import { createCard } from '../../src/ops/create';
 import { updateCardStatus } from '../../src/ops/update';
-import { serializeCardMarkdown } from '../../src/card/markdown';
+import { serializeCard } from '../../src/card/serialize';
 import { ActivationGuardError } from '../../src/card/errors';
 
 let tc: TestContext;
@@ -27,8 +27,8 @@ afterEach(async () => {
 describe('Structured card flow E2E', () => {
   it('creates principle via file write + sync, then activates', async () => {
     tc = await createTestContext();
-    const filePath = join(tc.cardsDir, 'pr.card.md');
-    const md = serializeCardMarkdown(
+    const filePath = join(tc.cardsDir, 'pr.json');
+    const md = serializeCard(
       {
         key: 'pr',
         summary: 'Test principle',
@@ -36,7 +36,6 @@ describe('Structured card flow E2E', () => {
         status: 'draft',
         principle: makeTestPrinciple(),
       },
-      '',
     );
     await writeFile(filePath, md);
 
@@ -211,16 +210,14 @@ describe('Structured card flow E2E', () => {
     const sub = join(tc.cardsDir, 'group');
     await mkdir(sub, { recursive: true });
 
-    const md1 = serializeCardMarkdown(
+    const md1 = serializeCard(
       { key: 'group/a', summary: 'a', type: 'brief', status: 'draft', brief: makeTestBrief() },
-      '',
     );
-    const md2 = serializeCardMarkdown(
+    const md2 = serializeCard(
       { key: 'group/b', summary: 'b', type: 'brief', status: 'draft', brief: makeTestBrief() },
-      '',
     );
-    await writeFile(join(sub, 'a.card.md'), md1);
-    await writeFile(join(sub, 'b.card.md'), md2);
+    await writeFile(join(sub, 'a.json'), md1);
+    await writeFile(join(sub, 'b.json'), md2);
 
     const result = await bulkSyncCards(tc.ctx);
     expect(result.synced).toBe(2);

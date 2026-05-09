@@ -1,0 +1,117 @@
+{
+  "key": "card-storage/queries/get-list-search",
+  "summary": "getCard, getCards, listCards, and searchCards form the read entry points for single, batch, filtered, and full-text retrieval.",
+  "status": "draft",
+  "type": "spec",
+  "parent": "card-storage/queries",
+  "codeLinks": [
+    {
+      "kind": "function",
+      "file": "src/ops/query.ts",
+      "symbol": "getCard"
+    },
+    {
+      "kind": "function",
+      "file": "src/ops/query.ts",
+      "symbol": "getCards"
+    },
+    {
+      "kind": "function",
+      "file": "src/ops/query.ts",
+      "symbol": "listCards"
+    },
+    {
+      "kind": "function",
+      "file": "src/ops/query.ts",
+      "symbol": "searchCards"
+    },
+    {
+      "kind": "function",
+      "file": "src/ops/query.ts",
+      "symbol": "listCardRelations"
+    }
+  ],
+  "glossary": [
+    "card-key"
+  ],
+  "spec": {
+    "preconditions": [
+      {
+        "id": "PRE-001",
+        "condition": "Caller supplies a key, a filter object, or a search query string.",
+        "binds": [
+          {
+            "file": "src/ops/query.ts",
+            "symbol": "getCard"
+          },
+          {
+            "file": "src/ops/query.ts",
+            "symbol": "listCards"
+          },
+          {
+            "file": "src/ops/query.ts",
+            "symbol": "searchCards"
+          }
+        ],
+        "derives": "card-storage/queries#G-001"
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "POST-001",
+        "guarantee": "listCards composes filter inputs as conjunction returning the intersection.",
+        "keyword": "MUST",
+        "binds": [
+          {
+            "file": "src/ops/query.ts",
+            "symbol": "listCards"
+          }
+        ],
+        "derives": "card-storage/queries#G-002"
+      },
+      {
+        "id": "POST-002",
+        "guarantee": "searchCards validates FTS query syntax before execution and throws on failure.",
+        "keyword": "SHALL",
+        "binds": [
+          {
+            "file": "src/ops/query.ts",
+            "symbol": "searchCards"
+          }
+        ],
+        "derives": "card-storage/queries#G-003"
+      }
+    ],
+    "invariants": [
+      {
+        "id": "INV-001",
+        "statement": "Read entries return typed result shapes without leaking raw repository rows.",
+        "binds": [
+          {
+            "file": "src/ops/query.ts",
+            "symbol": "getCard"
+          }
+        ],
+        "always_holds": "per-call"
+      }
+    ],
+    "failures": [
+      {
+        "violation": "A getCard target key does not exist.",
+        "behavior": "getCard throws CardNotFoundError.",
+        "exception": {
+          "class": "CardNotFoundError",
+          "file": "src/card/errors.ts"
+        }
+      },
+      {
+        "violation": "searchCards receives a malformed FTS query.",
+        "behavior": "searchCards throws FtsSyntaxError; CLI exit code 2.",
+        "exception": {
+          "class": "FtsSyntaxError",
+          "file": "src/card/errors.ts"
+        }
+      }
+    ]
+  }
+}

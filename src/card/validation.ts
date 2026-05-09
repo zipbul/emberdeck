@@ -41,7 +41,6 @@ export const LIMITS = {
 export interface ValidationInput {
   key?: string;
   summary?: string;
-  body?: string;
   tags?: string[];
   relations?: string[];
   codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
@@ -62,7 +61,7 @@ import { CARD_TYPES, CARD_STATUSES } from './types';
   * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateCardInput(input: ValidationInput): void {
-  const { key, summary, body, tags, relations, codeLinks, boundary, type, status } = input;
+  const { key, summary, tags, relations, codeLinks, boundary, type, status } = input;
 
   // ── type ──
   if (type !== undefined) {
@@ -111,18 +110,6 @@ export function validateCardInput(input: ValidationInput): void {
     if (summary.length > LIMITS.SUMMARY_MAX) {
       throw new CardValidationError(
         `summary exceeds maximum length of ${LIMITS.SUMMARY_MAX} characters (got ${summary.length})`,
-      );
-    }
-  }
-
-  // ── body ─────────────────────────────────────────────────
-  if (body !== undefined) {
-    if (typeof body !== 'string') {
-      throw new CardValidationError(`body must be a string (got ${typeof body})`);
-    }
-    if (body.length > LIMITS.BODY_MAX) {
-      throw new CardValidationError(
-        `body exceeds maximum length of ${LIMITS.BODY_MAX} characters (got ${body.length})`,
       );
     }
   }

@@ -1,0 +1,81 @@
+{
+  "key": "card-lifecycle/status-and-safe-write/safe-write",
+  "summary": "safeWriteOperation runs a forward action with compensations executed in reverse order on failure.",
+  "status": "draft",
+  "type": "spec",
+  "parent": "card-lifecycle/status-and-safe-write",
+  "codeLinks": [
+    {
+      "kind": "function",
+      "file": "src/ops/safe.ts",
+      "symbol": "safeWriteOperation"
+    }
+  ],
+  "glossary": [
+    "activation-guard"
+  ],
+  "spec": {
+    "preconditions": [
+      {
+        "id": "PRE-001",
+        "condition": "Caller passes a forward action and a compensation registration callback.",
+        "binds": [
+          {
+            "file": "src/ops/safe.ts",
+            "symbol": "safeWriteOperation"
+          }
+        ],
+        "derives": "card-lifecycle/status-and-safe-write#G-002"
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "POST-001",
+        "guarantee": "On forward-action throw all registered compensations execute in reverse registration order.",
+        "keyword": "MUST",
+        "binds": [
+          {
+            "file": "src/ops/safe.ts",
+            "symbol": "safeWriteOperation"
+          }
+        ],
+        "derives": "card-lifecycle/status-and-safe-write#G-002"
+      },
+      {
+        "id": "POST-002",
+        "guarantee": "A successful forward action returns its result without invoking compensations.",
+        "keyword": "SHALL",
+        "binds": [
+          {
+            "file": "src/ops/safe.ts",
+            "symbol": "safeWriteOperation"
+          }
+        ],
+        "derives": "card-lifecycle/status-and-safe-write#G-002"
+      }
+    ],
+    "invariants": [
+      {
+        "id": "INV-001",
+        "statement": "A thrown error inside safeWriteOperation results in zero observable side effects.",
+        "binds": [
+          {
+            "file": "src/ops/safe.ts",
+            "symbol": "safeWriteOperation"
+          }
+        ],
+        "always_holds": "per-call"
+      }
+    ],
+    "failures": [
+      {
+        "violation": "A compensation itself throws during rollback.",
+        "behavior": "safeWriteOperation throws CompensationError aggregating the original and compensation failures.",
+        "exception": {
+          "class": "CompensationError",
+          "file": "src/card/errors.ts"
+        }
+      }
+    ]
+  }
+}

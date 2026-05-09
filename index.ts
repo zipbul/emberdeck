@@ -175,7 +175,7 @@ export type {
 
 // ---- Pure utilities ----
 export { normalizeSlug, parseFullKey, buildCardPath } from './src/card/card-key';
-export { parseCardMarkdown, serializeCardMarkdown } from './src/card/markdown';
+export { parseCard, serializeCard } from './src/card/serialize';
 export { validateCardInput, LIMITS } from './src/card/validation';
 export type { ValidationInput } from './src/card/validation';
 

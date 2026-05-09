@@ -17,7 +17,7 @@ export function makeCardRow(overrides: Partial<CardRow> = {}): CardRow {
     namespacesJson: null,
     body: null,
     glossaryJson: '[]',
-    filePath: '.emberdeck/cards/test-card.card.md',
+    filePath: '.emberdeck/cards/test-card.json',
     updatedAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };

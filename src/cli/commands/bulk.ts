@@ -13,7 +13,7 @@ import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
 import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
 import { CliUsageError } from '../usage-error';
-import { parseJsonOrYaml } from '../parse-input';
+import { parseJsonInput } from '../parse-input';
 import { errorMessage } from '../../util/error';
 
 function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
@@ -52,13 +52,13 @@ export function registerBulk(program: Command): void {
   // ── bulk create ──
   bulk
     .command('create')
-    .description('create multiple cards from YAML/JSON file')
-    .requiredOption('--from <file>', 'YAML/JSON file (- for STDIN)')
+    .description('create multiple cards from JSON file')
+    .requiredOption('--from <file>', 'JSON file (- for STDIN)')
     .action(async (opts: { from: string }, cmd) => {
             await run(
         async (rt: CliRuntime) => {
           const text = opts.from === '-' ? await Bun.stdin.text() : await readFile(opts.from, 'utf-8');
-          const parsed = parseJsonOrYaml(text);
+          const parsed = parseJsonInput(text);
           if (!Array.isArray(parsed)) {
             throw new CliUsageError('--from FILE must be an array of card inputs');
           }

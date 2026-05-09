@@ -66,8 +66,7 @@ describe('checkDrift', () => {
       summary: 'Active',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
+            codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
       spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'h-active', 'active');
@@ -111,8 +110,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'Broken link card',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'drift-broken', 'active');
@@ -138,8 +136,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'OK link card',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
+            codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
       spec: makeTestSpec('src/ok.ts', 'okFn'),
     });
     await updateCardStatus(tc.ctx, 'drift-ok', 'active');
@@ -184,8 +181,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'No transition',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'no-trans', 'active');
@@ -210,8 +206,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'Original summary',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'tgt-upd', 'active');
@@ -237,8 +232,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'S',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
+            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
       spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
     await updateCardStatus(tc.ctx, 'skip-file', 'active');

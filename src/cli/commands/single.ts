@@ -34,7 +34,7 @@ export function registerSingle(program: Command): void {
           const projectRoot = opts.projectRoot ? resolve(opts.projectRoot) : cwd;
           const cardsDir = opts.cardsDir ? resolve(opts.cardsDir) : resolve(cwd, '.emberdeck/cards');
           const configPath = resolve(cwd, '.emberdeck.jsonc');
-          const glossaryPath = resolve(dirname(cardsDir), 'glossary.yaml');
+          const glossaryPath = resolve(dirname(cardsDir), 'glossary.json');
           const gitignorePath = resolve(cwd, '.gitignore');
 
           const created: string[] = [];
@@ -58,7 +58,7 @@ export function registerSingle(program: Command): void {
             const config = `// Emberdeck configuration
 // See \`ed --help\` for available commands.
 {
-  // Where card files live (.card.md)
+  // Where card files live (.json)
   "cardsDir": ${JSON.stringify(cardsDirRel)},
 
   // Project root for source code analysis. Set to the directory containing
@@ -82,13 +82,13 @@ export function registerSingle(program: Command): void {
             created.push(relative(cwd, configPath));
           }
 
-          // 3. glossary.yaml
+          // 3. glossary.json
           if (await pathExists(glossaryPath) && !opts.force) {
             skipped.push(relative(cwd, glossaryPath));
           } else {
             await writeFile(
               glossaryPath,
-              '# Project glossary — domain terms shared across cards.\n# Each entry: { word: <term>, definition: <one-line meaning> }\n[]\n',
+              '[]\n',
               'utf-8',
             );
             created.push(relative(cwd, glossaryPath));
@@ -126,14 +126,12 @@ export function registerSingle(program: Command): void {
   program
     .command('analyze')
     .description('full project analysis (drift + coverage + glossary)')
-    .option('--include-body', 'include body of drifted cards')
     .option('--drifted-limit <n>', 'paginate drifted cards (default: all)', parsePositiveInt('--drifted-limit'))
     .option('--drifted-offset <n>', 'drifted cards offset', parsePositiveInt('--drifted-offset'))
-    .action(async (opts: { includeBody?: boolean; driftedLimit?: number; driftedOffset?: number }, cmd) => {
+    .action(async (opts: { driftedLimit?: number; driftedOffset?: number }, cmd) => {
             await run(
         async (rt: CliRuntime) => {
           const result = await analyze(rt.ctx, {
-            includeBody: opts.includeBody,
             limit: opts.driftedLimit,
             offset: opts.driftedOffset,
           });

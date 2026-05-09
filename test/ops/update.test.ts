@@ -25,12 +25,6 @@ describe('updateCard', () => {
     expect(row?.summary).toBe('New summary');
   });
 
-  it('should update body in file when body field is provided', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'upd-body', summary: 'Body test', type: 'spec', body: 'old body' });
-    const result = await updateCard(tc.ctx, 'upd-body', { body: 'new body' });
-    expect(result.card.body).toBe('new body');
-  });
 
   it('should replace tags in DB when tags array is provided', async () => {
     tc = await createTestContext();
@@ -57,37 +51,34 @@ describe('updateCard', () => {
     await createCard(tc.ctx, { key: 'upd-multi', summary: 'Multi', type: 'spec' });
     const result = await updateCard(tc.ctx, 'upd-multi', {
       summary: 'Updated multi',
-      body: 'updated body',
     });
     expect(result.card.frontmatter.summary).toBe('Updated multi');
-    expect(result.card.body).toBe('updated body');
   });
 
   it('should return { filePath, card } with correct shape', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'upd-shape', summary: 'Shape', type: 'spec' });
     const result = await updateCard(tc.ctx, 'upd-shape', { summary: 'Updated shape' });
-    expect(result.filePath).toContain('upd-shape.card.md');
+    expect(result.filePath).toContain('upd-shape.json');
     expect(result.card.frontmatter.key).toBe('upd-shape');
   });
 
   it('rejects empty fields object — wasteful no-op write', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'upd-nop', summary: 'No change', type: 'spec', body: 'preserved' });
+    await createCard(tc.ctx, { key: 'upd-nop', summary: 'No change', type: 'spec' });
     await expect(updateCard(tc.ctx, 'upd-nop', {})).rejects.toThrow(/no fields/);
   });
 
   it('should preserve existing body when body field is not in update fields', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'upd-body-prsv', summary: 'Preserve', type: 'spec', body: 'keep me' });
+    await createCard(tc.ctx, { key: 'upd-body-prsv', summary: 'Preserve', type: 'spec' });
     const result = await updateCard(tc.ctx, 'upd-body-prsv', { summary: 'Changed' });
-    expect(result.card.body).toBe('keep me');
   });
 
   it('should update status in DB when updateCardStatus is called', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'st-card', summary: 'Status', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'st-card', summary: 'Status', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'st-card', 'active');
     const row = tc.ctx.cardRepo.findByKey('st-card');
     expect(row?.status).toBe('active');
@@ -96,7 +87,7 @@ describe('updateCard', () => {
   it('should update status in file frontmatter when updateCardStatus is called', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'st-file', summary: 'Status file', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'st-file', summary: 'Status file', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     const result = await updateCardStatus(tc.ctx, 'st-file', 'active');
     expect(result.card.frontmatter.status).toBe('active');
   });
@@ -112,7 +103,7 @@ describe('updateCard', () => {
 
   it('should throw CardNotFoundError when file exists but frontmatter.key mismatches in updateCard', async () => {
     tc = await createTestContext();
-    const wrongPath = join(tc.ctx.cardsDir, 'mismatch-upd.card.md');
+    const wrongPath = join(tc.ctx.cardsDir, 'mismatch-upd.json');
     await Bun.write(wrongPath, '---\nkey: different-key\nsummary: s\nstatus: draft\ntype: spec\n---\n');
     await expect(
       updateCard(tc.ctx, 'mismatch-upd', { summary: 'X' }),
@@ -121,7 +112,7 @@ describe('updateCard', () => {
 
   it('should throw CardNotFoundError when file exists but frontmatter.key mismatches in updateCardStatus', async () => {
     tc = await createTestContext();
-    const wrongPath = join(tc.ctx.cardsDir, 'mismatch-st.card.md');
+    const wrongPath = join(tc.ctx.cardsDir, 'mismatch-st.json');
     await Bun.write(wrongPath, '---\nkey: different-key\nsummary: s\nstatus: draft\ntype: spec\n---\n');
     await expect(
       updateCardStatus(tc.ctx, 'mismatch-st', 'active'),
@@ -187,7 +178,7 @@ describe('updateCard', () => {
   it('should update DB row and file when updateCardStatus is called while DB row is missing', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'st-no-db', summary: 'No DB', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'st-no-db', summary: 'No DB', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     tc.ctx.cardRepo.deleteByKey('st-no-db');
     const result = await updateCardStatus(tc.ctx, 'st-no-db', 'active');
     expect(result.card.frontmatter.status).toBe('active');
@@ -212,7 +203,7 @@ describe('updateCard', () => {
   it('should reflect latest status after multiple status transitions', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, { key: 'multi-st', summary: 'Status', type: 'brief', parent: '_dom', body: BRIEF_BODY, brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'multi-st', summary: 'Status', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'multi-st', 'active');
     await updateCardStatus(tc.ctx, 'multi-st', 'drifted');
     const row = tc.ctx.cardRepo.findByKey('multi-st');
@@ -231,88 +222,6 @@ describe('updateCard', () => {
   });
 });
 
-describe('updateCard — bodyPatches', () => {
-  let tc: TestContext;
-
-  afterEach(async () => {
-    await tc?.cleanup();
-  });
-
-  it('should apply a single patch to the body', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-single', summary: 'Patch', type: 'spec', body: '## Contracts\n- WHEN A THEN B\n- WHEN C THEN D' });
-    const result = await updateCard(tc.ctx, 'bp-single', {
-      bodyPatches: [{ old: 'WHEN A THEN B', new: 'WHEN A THEN X' }],
-    });
-    expect(result.card.body).toContain('WHEN A THEN X');
-    expect(result.card.body).toContain('WHEN C THEN D');
-  });
-
-  it('should apply multiple patches sequentially', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-multi', summary: 'Multi', type: 'spec', body: 'alpha beta gamma' });
-    const result = await updateCard(tc.ctx, 'bp-multi', {
-      bodyPatches: [
-        { old: 'alpha', new: 'ALPHA' },
-        { old: 'gamma', new: 'GAMMA' },
-      ],
-    });
-    expect(result.card.body).toBe('ALPHA beta GAMMA');
-  });
-
-  it('should throw when old text is not found in body', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-miss', summary: 'Miss', type: 'spec', body: 'hello world' });
-    await expect(
-      updateCard(tc.ctx, 'bp-miss', { bodyPatches: [{ old: 'nonexistent', new: 'x' }] }),
-    ).rejects.toBeInstanceOf(CardValidationError);
-  });
-
-  it('should throw when old text appears more than once', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-dup', summary: 'Dup', type: 'spec', body: 'foo bar foo' });
-    await expect(
-      updateCard(tc.ctx, 'bp-dup', { bodyPatches: [{ old: 'foo', new: 'baz' }] }),
-    ).rejects.toBeInstanceOf(CardValidationError);
-  });
-
-  it('should throw when body and bodyPatches are both provided', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-conflict', summary: 'Conflict', type: 'spec', body: 'text' });
-    await expect(
-      updateCard(tc.ctx, 'bp-conflict', { body: 'new', bodyPatches: [{ old: 'text', new: 'x' }] }),
-    ).rejects.toBeInstanceOf(CardValidationError);
-  });
-
-  it('should persist patched body to DB and file', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-persist', summary: 'Persist', type: 'spec', body: 'old content here' });
-    await updateCard(tc.ctx, 'bp-persist', { bodyPatches: [{ old: 'old content', new: 'new content' }] });
-    const row = tc.ctx.cardRepo.findByKey('bp-persist');
-    expect(row?.body).toBe('new content here');
-  });
-
-  it('should preserve dollar signs in replacement text literally', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-dollar', summary: 'Dollar', type: 'spec', body: 'price is X' });
-    const result = await updateCard(tc.ctx, 'bp-dollar', {
-      bodyPatches: [{ old: 'price is X', new: 'price is $100' }],
-    });
-    expect(result.card.body).toBe('price is $100');
-  });
-
-  it('should allow second patch to target text created by first patch', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bp-chain', summary: 'Chain', type: 'spec', body: 'aaa bbb' });
-    const result = await updateCard(tc.ctx, 'bp-chain', {
-      bodyPatches: [
-        { old: 'aaa', new: 'ccc' },
-        { old: 'ccc bbb', new: 'done' },
-      ],
-    });
-    expect(result.card.body).toBe('done');
-  });
-});
 
 describe('updateCard — codeLinks', () => {
   let tc: TestContext;

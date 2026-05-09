@@ -311,8 +311,8 @@ export interface DomainBody {
 // ── CardFrontmatter ───────────────────────────────────────────
 
 /**
- * YAML frontmatter structure of a `.card.md` file.
- * Type-specific structured bodies live under `principle` / `brief` / `spec` namespace keys.
+ * Top-level structure of a `.json` file.
+ * Type-specific structured bodies live under `principle` / `domain` / `brief` / `spec` namespace keys.
  */
 export interface CardFrontmatter {
   /** Unique card identifier. Must match the file path slug. */
@@ -349,12 +349,11 @@ export interface CardFrontmatter {
 
 /**
  * Complete representation of a card read from a file.
+ * Cards are pure JSON (frontmatter only); there is no separate body section.
  */
 export interface CardFile {
   /** Parsed frontmatter object. */
   frontmatter: CardFrontmatter;
-  /** Optional free-form prose body. Most semantic content lives in frontmatter namespaces. */
-  body: string;
   /** Absolute path to the card file. */
   filePath?: string;
 }

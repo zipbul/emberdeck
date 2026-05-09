@@ -10,19 +10,6 @@ import { ensureReindexed, gildashProjectNames, listAllIndexedFilesWithProject } 
 /** Days of changelog history to retain when pruning at the end of `analyze`. */
 const CHANGELOG_RETENTION_DAYS = 90;
 
-/**
- * Read a card's body via buildCardFromDb so the returned text does NOT include
- * the FTS5-only namespace tail concatenated into row.body at sync time.
- * Returns null if the card cannot be reconstructed.
- */
-function readBodyFromDb(ctx: import('../config').EmberdeckContext, key: string): string | null {
-  try {
-    return buildCardFromDb(ctx, key).body;
-  } catch {
-    return null;
-  }
-}
-
 // ── Types ──
 
 export interface AnalyzeHealth {
@@ -79,7 +66,6 @@ export interface DriftedCardSummary {
   driftType?: DriftType;
   brokenLinks: number;
   totalLinks: number;
-  body?: string | null;
 }
 
 export interface AnalyzeGlossary {
@@ -99,7 +85,6 @@ export interface AnalyzeResult {
 }
 
 export interface AnalyzeOptions {
-  includeBody?: boolean;
   /** Number of drifted cards to skip (default: 0). */
   offset?: number;
   /** Maximum number of drifted cards to return. Omit for all. */
@@ -123,7 +108,6 @@ export async function analyze(
   ctx: EmberdeckContext,
   options?: AnalyzeOptions,
 ): Promise<AnalyzeResult> {
-  const includeBody = options?.includeBody ?? false;
   const offset = options?.offset ?? 0;
   const limit = options?.limit;
 
@@ -149,27 +133,23 @@ export async function analyze(
     if (card.driftType) {
       // Drift detected — always count as drifted
       drifted++;
-      const entry: DriftedCardSummary = {
+      driftedCards.push({
         key: card.key,
         summary: card.summary,
         driftType: card.driftType,
         brokenLinks: card.brokenLinks,
         totalLinks: card.totalLinks,
-      };
-      if (includeBody) entry.body = readBodyFromDb(ctx, card.key);
-      driftedCards.push(entry);
+      });
     } else if (card.status === 'drifted') {
       // No drift detected now, but card was previously marked drifted in DB
       // (e.g., code was fixed but card not re-activated) — still count as drifted
       drifted++;
-      const entry: DriftedCardSummary = {
+      driftedCards.push({
         key: card.key,
         summary: card.summary,
         brokenLinks: card.brokenLinks,
         totalLinks: card.totalLinks,
-      };
-      if (includeBody) entry.body = readBodyFromDb(ctx, card.key);
-      driftedCards.push(entry);
+      });
     } else {
       active++;
     }

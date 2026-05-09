@@ -128,8 +128,7 @@ describe('E2E Scenario 2: Code change flow', () => {
       summary: 'Authentication service',
       type: 'spec',
       parent: '_br',
-      body: SPEC_BODY,
-      codeLinks: [
+            codeLinks: [
         { kind: 'function', file: 'src/auth.ts', symbol: 'login' },
         { kind: 'function', file: 'src/auth.ts', symbol: 'logout' },
       ],
@@ -190,8 +189,7 @@ describe('E2E Scenario 3: Design change flow', () => {
       summary: 'Infrastructure layer',
       type: 'brief',
       parent: '_dom',
-      body: BRIEF_BODY,
-      brief: makeTestBrief(),
+            brief: makeTestBrief(),
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const afterActive = await getCard(tc.ctx, 'infra-layer');
@@ -209,8 +207,7 @@ describe('E2E Scenario 3: Design change flow', () => {
     await updateCard(tc.ctx, 'infra-layer', {
       parent: '_br',
       codeLinks: [{ kind: 'class', file: 'src/infra/base.ts', symbol: 'BaseInfra' }],
-      body: SPEC_BODY,
-      spec: makeTestSpec('src/infra/base.ts', 'BaseInfra'),
+            spec: makeTestSpec('src/infra/base.ts', 'BaseInfra'),
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const reactivated = await getCard(tc.ctx, 'infra-layer');

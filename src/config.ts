@@ -6,7 +6,7 @@ import type { CardRepository, RelationRepository, ClassificationRepository, Code
  * Initialization options passed to `setupEmberdeck()`.
  */
 export interface EmberdeckOptions {
-  /** Absolute path to the directory where .card.md files are stored */
+  /** Absolute path to the directory where .json files are stored */
   cardsDir: string;
   /** Absolute path to the SQLite DB file. ':memory:' is allowed */
   dbPath: string;

@@ -18,24 +18,6 @@ import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json
 import { batchedAllSettled } from '../util/batch';
 
 /**
- * Reverse of the body+namespace concatenation done at write-time
- * (syncCardFromFile / create / update). We store `body \n\n namespaceText`
- * in row.body to feed FTS5; on export we must strip the trailing namespace
- * text or the .card.md file gets corrupted (and grows on every round-trip).
- */
-function stripNamespaceText(storedBody: string, fm: CardFrontmatter): string {
-  const ns = buildSearchableText(fm);
-  if (!ns) return storedBody;
-  // Be permissive about the join whitespace: file round-trips can introduce/remove
-  // a trailing newline before the namespace tail, so match anywhere it ends the body.
-  const idx = storedBody.lastIndexOf(ns);
-  if (idx >= 0 && idx + ns.length === storedBody.length) {
-    return storedBody.slice(0, idx).replace(/\s+$/, '');
-  }
-  return storedBody;
-}
-
-/**
  * Serialize the principle/domain/brief/spec namespace blocks from frontmatter for DB storage.
  * Returns null when the card has no namespace structures (typical for plain markdown cards).
  */
@@ -49,10 +31,10 @@ function serializeNamespaces(fm: CardFrontmatter): string | null {
 }
 
 /**
- * Recursively collect absolute paths of all `*.card.md` files under `targetDir`.
+ * Recursively collect absolute paths of all `*.json` files under `targetDir`.
  */
 async function listCardFiles(targetDir: string): Promise<string[]> {
-  const glob = new Bun.Glob('**/*.card.md');
+  const glob = new Bun.Glob('**/*.json');
   const files: string[] = [];
   for await (const file of glob.scan({ cwd: targetDir, absolute: true })) {
     files.push(file);
@@ -114,11 +96,9 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
   const cardFile = await readCardFile(filePath);
   const key = parseFullKey(cardFile.frontmatter.key);
   const now = new Date().toISOString();
-  // (buildSearchableText imported below; cf. row.body assignment)
 
-  // Concatenate markdown body + searchable namespace text so FTS5 matches namespace content.
+  // Build searchable namespace text for FTS5 (no markdown body — cards are pure JSON).
   const namespaceText = buildSearchableText(cardFile.frontmatter);
-  const fullBody = [cardFile.body, namespaceText].filter((s) => s.trim().length > 0).join('\n\n');
 
   const row: CardRow = {
     key,
@@ -130,7 +110,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
       ? JSON.stringify(cardFile.frontmatter.boundary)
       : null,
     namespacesJson: serializeNamespaces(cardFile.frontmatter),
-    body: fullBody,
+    body: namespaceText,
     glossaryJson: cardFile.frontmatter.glossary
       ? JSON.stringify(cardFile.frontmatter.glossary)
       : '[]',
@@ -153,7 +133,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
 }
 
 /**
- * Scans the entire cardsDir (or dirPath) and bulk-syncs all .card.md files to the DB.
+ * Scans the entire cardsDir (or dirPath) and bulk-syncs all .json files to the DB.
  *
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
  * File reads/writes are executed in bounded parallel batches via `batchedAllSettled`.
@@ -318,7 +298,7 @@ export async function validateCards(
   const orphanFiles = cardFiles.filter((f) => !dbFilePaths.has(f));
   const keyMismatches = dbRows
     .map((r) => {
-      const expectedKey = relative(targetDir, r.filePath).replace(/\.card\.md$/, '');
+      const expectedKey = relative(targetDir, r.filePath).replace(/\.json$/, '');
       return expectedKey !== r.key ? { row: r, expectedKey } : null;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -532,7 +512,7 @@ export async function validateCards(
           warnings.push({
             type: 'glossary-broken',
             cardKey: row.key,
-            message: `Glossary word "${word}" not found in glossary.yaml`,
+            message: `Glossary word "${word}" not found in glossary.json`,
           });
         }
       }
@@ -648,8 +628,7 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     ...(ns.spec ? { spec: ns.spec as CardFrontmatter['spec'] } : {}),
   };
 
-  const cleanBody = stripNamespaceText(row.body ?? '', fm);
-  return { frontmatter: fm, body: cleanBody, filePath: row.filePath };
+  return { frontmatter: fm, filePath: row.filePath };
 }
 
 /** @spec card-storage/persistence/sync */
