@@ -39,10 +39,9 @@ export function registerCheck(program: Command): void {
   check
     .command('coverage [key]')
     .description('code link coverage for one card; --uncovered for project-wide; --suggest for new card scopes')
-    .option('--uncovered', 'list project symbols not covered by any card (exported-only by default)')
-    .option('--include-internal', 'with --uncovered: also count non-exported symbols')
+    .option('--uncovered', 'list project symbols not covered by any card')
     .option('--suggest', 'suggest new card scopes for uncovered areas')
-    .action(async (key: string | undefined, opts: { uncovered?: boolean; includeInternal?: boolean; suggest?: boolean }, cmd) => {
+    .action(async (key: string | undefined, opts: { uncovered?: boolean; suggest?: boolean }, cmd) => {
             await run(
         async (rt: CliRuntime) => {
           if (opts.suggest) {
@@ -61,10 +60,7 @@ export function registerCheck(program: Command): void {
             });
           }
           if (opts.uncovered) {
-            // Default exported-only: internal symbols (private fields, helpers,
-            // constructors) are HOW, not WHAT — counting them violates the
-            // self-review rule. `--include-internal` opts in to full surface.
-            const uc = await getUncoveredSymbols(rt.ctx, { exportedOnly: !opts.includeInternal });
+            const uc = await getUncoveredSymbols(rt.ctx);
             return ok({
               total_symbols: uc.totalSymbols,
               covered_symbols: uc.coveredSymbols,

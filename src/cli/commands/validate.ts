@@ -77,18 +77,12 @@ export function registerValidate(program: Command): void {
           let broken = 0;
 
           const targets = key ? [{ key }] : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec').map((c) => ({ key: c.key }));
-          let internalCount = 0;
-          const internalDetails: Array<{ key: string; file: string; symbol: string }> = [];
           for (const t of targets) {
             const r = await validateCodeLinks(rt.ctx, t.key);
             declared += r.declared;
             resolved += r.valid;
             broken += r.broken.length;
             for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
-            if (r.internalLinks) {
-              internalCount += r.internalLinks.length;
-              for (const il of r.internalLinks) internalDetails.push({ key: t.key, file: il.file, symbol: il.symbol });
-            }
           }
 
           const data = {
@@ -96,7 +90,6 @@ export function registerValidate(program: Command): void {
             resolved,
             broken,
             unresolved: errors.length,
-            ...(internalCount > 0 ? { internal_links: internalCount, internal_details: internalDetails } : {}),
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
