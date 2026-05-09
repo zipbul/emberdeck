@@ -777,7 +777,6 @@ export interface UncoveredSymbol {
   file: string;
   symbol: string;
   kind: string;
-  exportType: string;
 }
 
 export interface UncoveredResult {
@@ -791,7 +790,6 @@ export interface UncoveredResult {
 export interface GetUncoveredSymbolsOptions {
   files?: string[];
   kinds?: string[];
-  exportedOnly?: boolean;
   excludePatterns?: string[];
 }
 
@@ -812,7 +810,6 @@ export async function getUncoveredSymbols(
 
   const files = options?.files;
   const kinds = options?.kinds;
-  const exportedOnly = options?.exportedOnly ?? false;
   const excludePatterns = options?.excludePatterns ?? [];
 
   // Merge ignorePatterns + excludePatterns
@@ -885,8 +882,6 @@ export async function getUncoveredSymbols(
     for (const sym of symbols) {
       // Apply kind filter
       if (kinds && kinds.length > 0 && !kinds.includes(sym.kind)) continue;
-      // Apply export filter
-      if (exportedOnly && !sym.isExported) continue;
 
       totalSymbols++;
 
@@ -902,7 +897,6 @@ export async function getUncoveredSymbols(
         file: symFile,
         symbol: sym.name,
         kind: sym.kind,
-        exportType: sym.isExported ? 'exported' : 'internal',
       });
     }
   }
