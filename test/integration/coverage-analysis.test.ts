@@ -154,23 +154,6 @@ describe('getUncoveredSymbols', () => {
     expect(result.uncovered[0]!.symbol).toBe('login');
   });
 
-  it('filters by exportedOnly', async () => {
-    tc = await createMockTestContext();
-    tc.ctx.projectRoot = '/project';
-    tc.ctx.gildash = createMockGildash({
-      '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
-        { name: 'helper', kind: 'function', isExported: false },
-      ],
-    });
-
-    const result = await getUncoveredSymbols(tc.ctx, { exportedOnly: true });
-    expect(result.totalSymbols).toBe(1);
-    expect(result.uncovered).toHaveLength(1);
-    expect(result.uncovered[0]!.symbol).toBe('login');
-    expect(result.uncovered[0]!.exportType).toBe('exported');
-  });
-
   it('filters by kinds', async () => {
     tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';

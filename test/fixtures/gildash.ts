@@ -32,7 +32,6 @@ export interface MockGildashOverrides {
   getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
   getFileInfo?: (...args: unknown[]) => unknown;
   getDependencies?: (...args: unknown[]) => unknown;
-  getModuleInterface?: ((...args: unknown[]) => unknown) | undefined;
   listIndexedFiles?: (...args: unknown[]) => unknown[];
   reindex?: () => Promise<void>;
 }
@@ -58,7 +57,6 @@ export function mockGildash(overrides: MockGildashOverrides = {}) {
     listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
     getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
     getDependencies: overrides.getDependencies ? mock(overrides.getDependencies) : undefined,
-    getModuleInterface: overrides.getModuleInterface ? mock(overrides.getModuleInterface) : undefined,
     reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
     close: mock(() => Promise.resolve()),
   } as any;

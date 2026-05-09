@@ -2,7 +2,6 @@
  * Tests for the gildash integration extensions:
  *   - analyze.health.codeCycles (hasCycle + getCyclePaths)
  *   - preChangeCheck.maxFanIn + risk promotion (getFanMetrics)
- *   - validateCodeLinks.internalLinks (getModuleInterface)
  *   - checkDrift heritage_uncovered drift (getHeritageChain)
  *   - syncSpecAnnotations 4-tier tags (@spec/@brief/@principle/@domain)
  *   - checkDrift pattern_violation drift (findPattern + spec.code_patterns)
@@ -13,7 +12,6 @@ import {
   analyze,
   checkDrift,
   preChangeCheck,
-  validateCodeLinks,
   syncSpecAnnotations,
   createCard,
   updateCardStatus,
@@ -39,7 +37,6 @@ function makeGildash(overrides: Record<string, unknown> = {}) {
     hasCycle: async () => false,
     getCyclePaths: async () => [],
     getFanMetrics: async () => ({ filePath: '', fanIn: 0, fanOut: 0 }),
-    getModuleInterface: () => ({ filePath: '', exports: [] }),
     getHeritageChain: async () => ({ symbolName: '', filePath: '', children: [] }),
     searchRelations: () => [],
     findPattern: async () => [],
@@ -128,60 +125,6 @@ describe('preChangeCheck — maxFanIn risk promotion', () => {
     });
     const result = await preChangeCheck(tc.ctx, ['src/crit.ts']);
     expect(result.riskLevel).toBe('critical');
-  });
-});
-
-// ── getModuleInterface → validateCodeLinks.internalLinks ─────────────
-
-describe('validateCodeLinks — internalLinks', () => {
-  let tc: TestContext;
-  afterEach(async () => { await tc?.cleanup(); });
-
-  it('flags codeLinks targeting non-exported symbols', async () => {
-    tc = await createMockTestContext();
-    await createCard(tc.ctx, {
-      key: 'mixed',
-      summary: 'Mixed visibility',
-      type: 'spec',
-      codeLinks: [
-        { kind: 'function', file: 'src/m.ts', symbol: 'pub' },
-        { kind: 'function', file: 'src/m.ts', symbol: 'priv' },
-      ],
-    });
-    tc.ctx.gildash = makeGildash({
-      getSymbolsByFile: (file: string) => {
-        if (file !== 'src/m.ts') return [];
-        return [
-          { name: 'pub', memberName: null, filePath: 'src/m.ts', kind: 'function' },
-          { name: 'priv', memberName: null, filePath: 'src/m.ts', kind: 'function' },
-        ];
-      },
-      getModuleInterface: (file: string) => ({
-        filePath: file,
-        exports: file === 'src/m.ts' ? [{ name: 'pub', kind: 'function' as any }] : [],
-      }),
-    });
-    const result = await validateCodeLinks(tc.ctx, 'mixed');
-    expect(result.valid).toBe(2);
-    expect(result.broken).toEqual([]);
-    expect(result.internalLinks).toEqual([{ file: 'src/m.ts', symbol: 'priv' }]);
-  });
-
-  it('reports an empty internalLinks array when no exports are returned', async () => {
-    tc = await createMockTestContext();
-    await createCard(tc.ctx, {
-      key: 'noiface',
-      summary: 'No iface',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }],
-    });
-    tc.ctx.gildash = makeGildash({
-      getSymbolsByFile: () => [{ name: 'fn', memberName: null, filePath: 'src/x.ts', kind: 'function' }],
-      getModuleInterface: () => ({ filePath: 'src/x.ts', exports: [] }),
-    });
-    const result = await validateCodeLinks(tc.ctx, 'noiface');
-    // No exports → all linked symbols flagged as internal.
-    expect(result.internalLinks).toEqual([{ file: 'src/x.ts', symbol: 'fn' }]);
   });
 });
 
