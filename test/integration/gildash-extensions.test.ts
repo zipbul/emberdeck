@@ -589,7 +589,7 @@ describe('monorepo — gildash API routing across projects', () => {
       getSymbolsByFile: (file: string, project?: string) => {
         const p = (project ?? spec.projects[0]) as string;
         const syms = (spec.symbolsByProjectFile?.[p]?.[file] ?? []) as Array<{ name: string; kind: string }>;
-        return syms.map((s, i: number) => ({ ...s, id: i + 1, memberName: null, filePath: file, span: { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }, isExported: true, signature: null, fingerprint: null, detail: {} }));
+        return syms.map((s, i: number) => ({ ...s, id: i + 1, memberName: null, filePath: file, span: { start: { line: 1, column: 0 }, end: { line: 1, column: 0 } }, signature: null, fingerprint: null, detail: {} }));
       },
       searchAnnotations: ({ tag, project }: { tag: string; project?: string }) => {
         const p = (project ?? spec.projects[0]) as string;

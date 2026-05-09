@@ -20,7 +20,6 @@ import { mock } from 'bun:test';
 interface SymbolShape {
   name: string;
   kind: string;
-  isExported?: boolean;
   filePath?: string;
   memberName?: string | null;
 }

@@ -52,14 +52,14 @@ describe('E2E Scenario 1: Onboarding flow', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
-        { name: 'getUsers', kind: 'function', isExported: true },
-        { name: 'getUser', kind: 'function', isExported: true },
+        { name: 'getUsers', kind: 'function' },
+        { name: 'getUser', kind: 'function' },
       ],
       '/project/src/api/handler.ts': [
-        { name: 'handleRequest', kind: 'function', isExported: true },
+        { name: 'handleRequest', kind: 'function' },
       ],
       '/project/src/db/query.ts': [
-        { name: 'runQuery', kind: 'function', isExported: true },
+        { name: 'runQuery', kind: 'function' },
       ],
     });
 
@@ -141,8 +141,8 @@ describe('E2E Scenario 2: Code change flow', () => {
     // Set gildash with symbols present
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
-        { name: 'logout', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
+        { name: 'logout', kind: 'function' },
       ],
     });
 
@@ -313,11 +313,11 @@ describe('E2E Scenario 5: Code → spec flow', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/payment.ts': [
-        { name: 'charge', kind: 'function', isExported: true },
-        { name: 'refund', kind: 'function', isExported: true },
+        { name: 'charge', kind: 'function' },
+        { name: 'refund', kind: 'function' },
       ],
       '/project/src/billing.ts': [
-        { name: 'createInvoice', kind: 'function', isExported: true },
+        { name: 'createInvoice', kind: 'function' },
       ],
     });
 
@@ -348,11 +348,11 @@ describe('E2E Scenario 5: Code → spec flow', () => {
     tc.ctx.gildash = createMockGildash(
       {
         '/project/src/payment.ts': [
-          { name: 'charge', kind: 'function', isExported: true },
-          { name: 'refund', kind: 'function', isExported: true },
+          { name: 'charge', kind: 'function' },
+          { name: 'refund', kind: 'function' },
         ],
         '/project/src/billing.ts': [
-          { name: 'createInvoice', kind: 'function', isExported: true },
+          { name: 'createInvoice', kind: 'function' },
         ],
       },
       {

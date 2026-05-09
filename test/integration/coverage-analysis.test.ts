@@ -51,8 +51,8 @@ describe('getUncoveredSymbols', () => {
     tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
-        { name: 'logout', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
+        { name: 'logout', kind: 'function' },
       ],
     });
     tc.ctx.projectRoot = '/project';
@@ -68,8 +68,8 @@ describe('getUncoveredSymbols', () => {
     tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
-        { name: 'logout', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
+        { name: 'logout', kind: 'function' },
       ],
     });
     tc.ctx.projectRoot = '/project';
@@ -100,7 +100,7 @@ describe('getUncoveredSymbols', () => {
       tc.ctx.projectRoot = tmpRoot;
       tc.ctx.gildash = createMockGildash({
         [tmpRoot + '/src/api/handler.ts']: [
-          { name: 'handle', kind: 'function', isExported: true },
+          { name: 'handle', kind: 'function' },
         ],
       });
 
@@ -119,10 +119,10 @@ describe('getUncoveredSymbols', () => {
     tc.ctx.ignorePatterns = ['src/generated/**'];
     tc.ctx.gildash = createMockGildash({
       '/project/src/generated/types.ts': [
-        { name: 'FooType', kind: 'type', isExported: true },
+        { name: 'FooType', kind: 'type' },
       ],
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
       ],
     });
 
@@ -137,13 +137,13 @@ describe('getUncoveredSymbols', () => {
     tc.ctx.ignorePatterns = ['src/generated/**'];
     tc.ctx.gildash = createMockGildash({
       '/project/src/generated/types.ts': [
-        { name: 'FooType', kind: 'type', isExported: true },
+        { name: 'FooType', kind: 'type' },
       ],
       '/project/src/test/helper.ts': [
-        { name: 'setupTest', kind: 'function', isExported: true },
+        { name: 'setupTest', kind: 'function' },
       ],
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
       ],
     });
 
@@ -159,9 +159,9 @@ describe('getUncoveredSymbols', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
-        { name: 'AuthService', kind: 'class', isExported: true },
-        { name: 'AuthConfig', kind: 'interface', isExported: true },
+        { name: 'login', kind: 'function' },
+        { name: 'AuthService', kind: 'class' },
+        { name: 'AuthConfig', kind: 'interface' },
       ],
     });
 
@@ -175,10 +175,10 @@ describe('getUncoveredSymbols', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
       ],
       '/project/src/db.ts': [
-        { name: 'query', kind: 'function', isExported: true },
+        { name: 'query', kind: 'function' },
       ],
     });
 
@@ -215,10 +215,10 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
-        { name: 'getUsers', kind: 'function', isExported: true },
+        { name: 'getUsers', kind: 'function' },
       ],
       '/project/src/api/handler.ts': [
-        { name: 'handleRequest', kind: 'function', isExported: true },
+        { name: 'handleRequest', kind: 'function' },
       ],
     });
 
@@ -238,10 +238,10 @@ describe('suggestCardScope', () => {
     await createCard(tc.ctx, { key: 'src/api', summary: 'API domain', type: 'domain' });
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/v1/routes.ts': [
-        { name: 'getUsers', kind: 'function', isExported: true },
+        { name: 'getUsers', kind: 'function' },
       ],
       '/project/src/api/v1/handler.ts': [
-        { name: 'handleRequest', kind: 'function', isExported: true },
+        { name: 'handleRequest', kind: 'function' },
       ],
     });
 
@@ -257,7 +257,7 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/utils/hash.ts': [
-        { name: 'sha256', kind: 'function', isExported: true },
+        { name: 'sha256', kind: 'function' },
       ],
     });
 
@@ -272,7 +272,7 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth/login.ts': [
-        { name: 'login', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
       ],
     });
 
@@ -289,10 +289,10 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
-        { name: 'getUsers', kind: 'function', isExported: true },
+        { name: 'getUsers', kind: 'function' },
       ],
       '/project/src/db/query.ts': [
-        { name: 'query', kind: 'function', isExported: true },
+        { name: 'query', kind: 'function' },
       ],
     });
 
@@ -307,10 +307,10 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
-        { name: 'getUsers', kind: 'function', isExported: true },
+        { name: 'getUsers', kind: 'function' },
       ],
       '/project/src/api-v2/routes.ts': [
-        { name: 'getV2Users', kind: 'function', isExported: true },
+        { name: 'getV2Users', kind: 'function' },
       ],
     });
 
@@ -325,10 +325,10 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/deep/nested/dir/file.ts': [
-        { name: 'deepFn', kind: 'function', isExported: true },
+        { name: 'deepFn', kind: 'function' },
       ],
       '/project/src/shallow/file.ts': [
-        { name: 'shallowFn', kind: 'function', isExported: true },
+        { name: 'shallowFn', kind: 'function' },
       ],
     });
 
@@ -344,7 +344,7 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
       ],
     });
 
@@ -363,7 +363,7 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/routes.ts': [
-        { name: 'getUsers', kind: 'function', isExported: true },
+        { name: 'getUsers', kind: 'function' },
       ],
     });
 
@@ -382,7 +382,7 @@ describe('suggestCardScope', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/api/v2/routes.ts': [
-        { name: 'getV2Users', kind: 'function', isExported: true },
+        { name: 'getV2Users', kind: 'function' },
       ],
     });
 
@@ -486,8 +486,8 @@ describe('analyze', () => {
     tc.ctx.projectRoot = '/project';
     tc.ctx.gildash = createMockGildash({
       '/project/src/auth.ts': [
-        { name: 'login', kind: 'function', isExported: true },
-        { name: 'logout', kind: 'function', isExported: true },
+        { name: 'login', kind: 'function' },
+        { name: 'logout', kind: 'function' },
       ],
     });
 
@@ -552,13 +552,13 @@ describe('analyze', () => {
     tc.ctx.projectRoot = '/project';
 
     // Create 30 symbols
-    const symbols: Record<string, Array<{ name: string; kind: string; isExported: boolean }>> = {};
+    const symbols: Record<string, Array<{ name: string; kind: string }>> = {};
     symbols['/project/src/big.ts'] = [];
     for (let i = 0; i < 30; i++) {
       symbols['/project/src/big.ts']!.push({
         name: `fn${i}`,
         kind: 'function',
-        isExported: true,
+        
       });
     }
     tc.ctx.gildash = createMockGildash(symbols);
