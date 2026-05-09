@@ -115,13 +115,6 @@ export interface ValidateCodeLinksResult {
   broken: BrokenLink[];
   /** Links that could not be resolved on draft cards (expected — code not yet written). */
   planned: BrokenLink[];
-  /**
-   * Resolved links that target non-exported (module-internal) symbols.
-   * Informational — links to internal symbols are allowed but flagged so reviewers
-   * can decide whether the documented contract really needs internal coupling.
-   * Populated only when gildash exposes `getModuleInterface`.
-   */
-  internalLinks?: Array<{ file: string; symbol: string }>;
 }
 
 // ---- Helpers ----
@@ -349,24 +342,6 @@ export async function validateCodeLinks(
   const cache = makeSymbolFileCache(ctx)!;
   const broken: BrokenLink[] = [];
   const planned: BrokenLink[] = [];
-  const internalLinks: Array<{ file: string; symbol: string }> = [];
-
-  // Cache module interfaces per file so we don't recompute the export set for
-  // every link in the same file.
-  const interfaceCache = new Map<string, Set<string>>();
-  const getExportNames = (file: string): Set<string> => {
-    let names = interfaceCache.get(file);
-    if (names === undefined) {
-      try {
-        const mod = ctx.gildash.getModuleInterface(file);
-        names = new Set(mod?.exports?.map((e) => e.name) ?? []);
-      } catch {
-        names = new Set();
-      }
-      interfaceCache.set(file, names);
-    }
-    return names;
-  };
 
   let valid = 0;
   let gildashUnavailable = false;
@@ -389,11 +364,6 @@ export async function validateCodeLinks(
       else broken.push(entry);
     } else {
       valid++;
-      // Flag non-exported symbols (informational only — does not affect status).
-      const exports = getExportNames(link.file);
-      if (!exports.has(link.symbol) && !exports.has(found.name)) {
-        internalLinks.push({ file: link.file, symbol: link.symbol });
-      }
     }
   }
 
@@ -431,6 +401,5 @@ export async function validateCodeLinks(
     valid,
     broken,
     planned,
-    ...(internalLinks.length > 0 ? { internalLinks } : {}),
   };
 }
