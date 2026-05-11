@@ -6,22 +6,6 @@ summary: >-
 status: draft
 type: spec
 parent: card-model/schema-and-validation
-codeLinks:
-  - kind: function
-    file: src/card/validation.ts
-    symbol: validateCardInput
-  - kind: function
-    file: src/principle/validate.ts
-    symbol: validatePrincipleCard
-  - kind: function
-    file: src/domain/validate.ts
-    symbol: validateDomainCard
-  - kind: function
-    file: src/brief/validate-refs.ts
-    symbol: validateBriefRefs
-  - kind: function
-    file: src/spec/validate-refs.ts
-    symbol: validateSpecRefs
 glossary:
   - 4-tier
 spec:
@@ -30,9 +14,6 @@ spec:
       condition: >-
         A ValidationInput object is constructed from frontmatter and body before
         validation.
-      binds:
-        - file: src/card/validation.ts
-          symbol: validateCardInput
       derives: card-model/schema-and-validation#G-001
   postconditions:
     - id: POST-001
@@ -40,64 +21,39 @@ spec:
         validateCardInput throws CardValidationError for any invalid
         type-specific field.
       keyword: MUST
-      binds:
-        - file: src/card/validation.ts
-          symbol: validateCardInput
       derives: card-model/schema-and-validation#G-001
     - id: POST-002
       guarantee: >-
         Cross-references on brief and spec bodies resolve to declared list-item
         ids on the same card.
       keyword: SHALL
-      binds:
-        - file: src/brief/validate-refs.ts
-          symbol: validateBriefRefs
-        - file: src/spec/validate-refs.ts
-          symbol: validateSpecRefs
       derives: card-model/schema-and-validation#G-002
   invariants:
     - id: INV-001
       statement: >-
         validateCardInput is invoked before any storage write and throws on
         first violation.
-      binds:
-        - file: src/card/validation.ts
-          symbol: validateCardInput
       always_holds: per-call
     - id: INV-002
       statement: >-
         Type-specific body validators select on the type discriminant
         exclusively.
-      binds:
-        - file: src/principle/validate.ts
-          symbol: validatePrincipleCard
-        - file: src/domain/validate.ts
-          symbol: validateDomainCard
       always_holds: per-call
   failures:
     - violation: A required type-specific field is missing.
       behavior: >-
         validateCardInput throws CardValidationError naming the field path; no
         persistence occurs.
-      exception:
-        class: CardValidationError
-        file: src/card/errors.ts
     - violation: >-
         A brief.policy.governs id does not match any brief.flow id on the same
         card.
       behavior: >-
         validateBriefRefs throws CardValidationError identifying the unresolved
         id.
-      exception:
-        class: CardValidationError
-        file: src/card/errors.ts
     - violation: >-
         A spec.preconditions.binds entry is not declared in codeLinks on the
         same card.
       behavior: >-
         validateSpecRefs throws CardValidationError identifying the unresolved
         bind.
-      exception:
-        class: CardValidationError
-        file: src/card/errors.ts
 ---

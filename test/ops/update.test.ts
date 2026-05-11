@@ -223,41 +223,7 @@ describe('updateCard', () => {
 });
 
 
-describe('updateCard — codeLinks', () => {
-  let tc: TestContext;
-
-  afterEach(async () => {
-    await tc?.cleanup();
-  });
-
-  it('should persist codeLinks to DB when updating card with codeLinks field', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'upd-cl', summary: 'CL', type: 'spec' });
-    await updateCard(tc.ctx, 'upd-cl', { codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
-    const links = tc.ctx.codeLinkRepo.findByCardKey('upd-cl');
-    expect(links).toHaveLength(1);
-    expect(links[0]!.symbol).toBe('myFunc');
-  });
-
-  it('should remove codeLinks from DB when updating with codeLinks: null', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'upd-cl-null', summary: 'CL Null', type: 'spec', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
-    await updateCard(tc.ctx, 'upd-cl-null', { codeLinks: null });
-    expect(tc.ctx.codeLinkRepo.findByCardKey('upd-cl-null')).toHaveLength(0);
-  });
-
-  it('should remove codeLinks from DB when updating with empty codeLinks array', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'upd-cl-empty', summary: 'CL Empty', type: 'spec', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
-    await updateCard(tc.ctx, 'upd-cl-empty', { codeLinks: [] });
-    expect(tc.ctx.codeLinkRepo.findByCardKey('upd-cl-empty')).toHaveLength(0);
-  });
-
-  it('should not modify codeLinks in DB when updating without codeLinks field', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'upd-cl-skip', summary: 'CL Skip', type: 'spec', codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }] });
-    await updateCard(tc.ctx, 'upd-cl-skip', { summary: 'Updated summary' });
-    const links = tc.ctx.codeLinkRepo.findByCardKey('upd-cl-skip');
-    expect(links).toHaveLength(1);
-  });
-});
+// Source bindings (code_link rows) are owned by `ed spec sync` reading
+// `@spec card-key` JSDoc tags from source — not by createCard / updateCard.
+// The card no longer carries a `codeLinks` field, so there is nothing for
+// these update paths to persist or remove.

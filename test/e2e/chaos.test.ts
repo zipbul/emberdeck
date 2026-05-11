@@ -72,10 +72,6 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
       parent: '_br',
       tags: ['auth', 'security'],
       relations: [],
-      codeLinks: [
-        { kind: 'function', file: 'src/auth/token.ts', symbol: 'refreshToken' },
-        { kind: 'class', file: 'src/auth/TokenService.ts', symbol: 'TokenService' },
-      ],
       spec: makeTestSpec('src/auth/token.ts', 'refreshToken'),
     };
 
@@ -86,6 +82,13 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
     // Now create with relations
     createInput.relations = ['user-session', 'api-gateway'];
     const created = await createCard(ctx, createInput);
+    // Source bindings are now populated via `ed spec sync` — for this E2E
+    // we seed them directly so later steps (rename preservation, codeLinks
+    // assertion) have data to verify.
+    ctx.codeLinkRepo.replaceForCard('auth-token', [
+      { kind: 'function', file: 'src/auth/token.ts', symbol: 'refreshToken' },
+      { kind: 'function', file: 'src/auth/token.ts', symbol: 'validate' },
+    ]);
 
     expect(created.fullKey).toBe('auth-token');
     expect(existsSync(created.filePath)).toBe(true);
@@ -95,7 +98,6 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
     expect(created.card.frontmatter.status).toBe('draft');
     expect(created.card.frontmatter.tags).toEqual(['auth', 'security']);
     expect(created.card.frontmatter.relations).toEqual(['user-session', 'api-gateway']);
-    expect(created.card.frontmatter.codeLinks).toHaveLength(2);
 
     // -- Step 2: Update fields --
     const updated = await updateCard(ctx, 'auth-token', {
@@ -281,28 +283,28 @@ describe('Scenario 4: Impact Analysis -- preChangeCheck + regressionGuard', () =
     const { ctx } = tc;
 
     // Build a dependency chain with code links
-    await createCard(ctx, {
-      key: 'impact/base',
-      summary: 'Base module',
-      type: 'spec',
-      codeLinks: [
-        { kind: 'class', file: 'src/base.ts', symbol: 'BaseClass' },
-        { kind: 'function', file: 'src/base.ts', symbol: 'baseHelper' },
-      ],
-    });
+    await createCard(ctx, { key: 'impact/base', summary: 'Base module', type: 'spec' });
+    ctx.codeLinkRepo.replaceForCard('impact/base', [
+      { kind: 'function', file: 'src/base.ts', symbol: 'baseFn' },
+    ]);
     await createCard(ctx, {
       key: 'impact/middle',
       summary: 'Middle module',
       type: 'spec',
       relations: ['impact/base'],
-      codeLinks: [{ kind: 'class', file: 'src/middle.ts', symbol: 'MiddleClass' }],
     });
+    ctx.codeLinkRepo.replaceForCard('impact/middle', [
+      { kind: 'function', file: 'src/middle.ts', symbol: 'middleFn' },
+    ]);
     await createCard(ctx, {
       key: 'impact/top',
       summary: 'Top module',
       type: 'spec',
       relations: ['impact/middle'],
     });
+    ctx.codeLinkRepo.replaceForCard('impact/top', [
+      { kind: 'function', file: 'src/top.ts', symbol: 'topFn' },
+    ]);
 
     // Pre-change check: changing src/base.ts
     const impact = await preChangeCheck(ctx, ['src/base.ts']);

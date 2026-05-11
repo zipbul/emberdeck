@@ -142,10 +142,6 @@ describe('JSON envelope: schema regression across major commands', () => {
     expect(['ok', 'partial', 'error']).toContain(assertEnvelope(r.stdout).status);
   });
 
-  test('ed spec annotate', async () => {
-    const r = await runEd(['spec', 'annotate'], handle.tmp);
-    expect(['ok', 'partial', 'error']).toContain(assertEnvelope(r.stdout).status);
-  });
 
   test('CliUsageError envelope (invalid --type)', async () => {
     const r = await runEd(['card', 'create', 'x', '--type', 'invalid', '--summary', 's'], handle.tmp);

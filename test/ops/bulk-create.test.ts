@@ -33,8 +33,7 @@ describe('bulkCreateCards', () => {
         summary: 'Full card',
         type: 'spec',
         tags: ['tag1'],
-        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }],
-      },
+        },
     ]);
     expect(result.created).toBe(1);
     const row = tc.ctx.cardRepo.findByKey('full-card');

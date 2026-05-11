@@ -123,6 +123,7 @@ describe('Structured card flow E2E', () => {
     spec.preconditions[0]!.derives = 'parent#R-001';
     spec.postconditions[0]!.derives = 'parent#R-001';
 
+    void codeLinks;
     await createCard(tc.ctx, {
       key: 'parent/s1',
       summary: 'spec under parent',
@@ -130,7 +131,6 @@ describe('Structured card flow E2E', () => {
       status: 'active',
       parent: 'parent',
       relations: ['parent'],
-      codeLinks,
       spec,
     });
 
@@ -138,38 +138,7 @@ describe('Structured card flow E2E', () => {
     expect(row?.status).toBe('active');
   });
 
-  it('rejects spec activation when binds reference symbol not in codeLinks', async () => {
-    tc = await createTestContext();
-    await ensure4tierScaffold(tc.ctx);
-    await createCard(tc.ctx, {
-      key: 'parent2',
-      summary: 'parent',
-      type: 'brief',
-      status: 'active',
-      parent: '_dom',
-      brief: makeTestBrief(),
-    });
-
-    const spec = makeTestSpec('src/x.ts', 'wrongSymbol');
-    let threw = false;
-    try {
-      await createCard(tc.ctx, {
-        key: 'parent2/s2',
-        summary: 'spec',
-        type: 'spec',
-        status: 'active',
-        parent: 'parent2',
-        relations: ['parent2'],
-        codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'rightSymbol' }],
-        spec,
-      });
-    } catch (e) {
-      threw = true;
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/binds.*wrongSymbol/);
-    }
-    expect(threw).toBe(true);
-  });
+  // `binds` was removed from spec subitems — source bindings live in code only.
 
   it('FTS5 search finds card by namespace content', async () => {
     tc = await createTestContext();

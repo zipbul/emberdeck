@@ -5,7 +5,6 @@ import type {
   CardFrontmatter,
   CardStatus,
   CardType,
-  CodeLink,
   DomainBody,
   PrincipleBody,
   SpecBody,
@@ -32,7 +31,6 @@ import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
-import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { DrizzleChangelogRepository } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
@@ -94,14 +92,10 @@ export interface UpdateCardFields {
   status?: CardStatus;
   /** Parent card key. null to remove parent. */
   parent?: string | null;
-  /** Boundary glob patterns. */
-  boundary?: string[];
   /** Tags. null or empty array deletes the field. */
   tags?: string[] | null;
   /** Relations list (string[]). null or empty array deletes the field. */
   relations?: string[] | null;
-  /** Code links list. null or empty array deletes the field. */
-  codeLinks?: CodeLink[] | null;
   /** Glossary words declared by this card. */
   glossary?: string[];
   /** principle namespace (only when type=principle). null deletes. */
@@ -158,8 +152,6 @@ export async function updateCard(
     summary: fields.summary,
     tags: fields.tags ?? undefined,
     relations: fields.relations ?? undefined,
-    codeLinks: fields.codeLinks ?? undefined,
-    boundary: fields.boundary,
     type: fields.type,
     status: fields.status,
   });
@@ -187,13 +179,6 @@ export async function updateCard(
           next.parent = fields.parent;
         }
       }
-      if (fields.boundary !== undefined) {
-        if (fields.boundary.length === 0) {
-          delete next.boundary;
-        } else {
-          next.boundary = fields.boundary;
-        }
-      }
       if (fields.tags !== undefined) {
         if (fields.tags === null || fields.tags.length === 0) delete next.tags;
         else next.tags = fields.tags.map((t) => t.toLowerCase());
@@ -204,10 +189,6 @@ export async function updateCard(
           validateRelationTargets(ctx, key, fields.relations);
           next.relations = fields.relations;
         }
-      }
-      if (fields.codeLinks !== undefined) {
-        if (fields.codeLinks === null || fields.codeLinks.length === 0) delete next.codeLinks;
-        else next.codeLinks = fields.codeLinks;
       }
       if (fields.principle !== undefined) {
         if (fields.principle === null) delete next.principle;
@@ -244,12 +225,11 @@ export async function updateCard(
             status: next.status,
             type: fields.type,
             parent: next.parent ?? null,
-            codeLinks: next.codeLinks,
-            boundary: next.boundary,
             principle: next.principle,
             domain: next.domain,
             brief: next.brief,
             spec: next.spec,
+            key,
           },
           fields.type,
         );
@@ -268,16 +248,14 @@ export async function updateCard(
       // Re-run guard when: (a) becoming active, (b) explicitly set to active,
       // or (c) already active and any activation-critical field changed.
       // Critical fields = anything the guard inspects: type / parent /
-      // codeLinks / boundary / principle / domain / brief / spec namespaces.
-      // (glossary is excluded — glossary breakage surfaces via check drift.)
+      // principle / domain / brief / spec namespaces. Source bindings are
+      // refreshed by `ed spec sync`, not by card update.
       const activationFieldsChanged =
         prev.status === 'active' &&
         fields.status === undefined &&
         (
           fields.type !== undefined ||
           fields.parent !== undefined ||
-          fields.codeLinks !== undefined ||
-          fields.boundary !== undefined ||
           fields.principle !== undefined ||
           fields.domain !== undefined ||
           fields.brief !== undefined ||
@@ -287,8 +265,6 @@ export async function updateCard(
         await validateActivationGuard(ctx, {
           type: next.type,
           parent: next.parent ?? null,
-          codeLinks: next.codeLinks,
-          boundary: next.boundary,
           principle: next.principle,
           domain: next.domain,
           brief: next.brief,
@@ -308,7 +284,6 @@ export async function updateCard(
             const cardRepo = new DrizzleCardRepository(d);
             const relationRepo = new DrizzleRelationRepository(d);
             const classRepo = new DrizzleClassificationRepository(d);
-            const codeLinkRepo = new DrizzleCodeLinkRepository(d);
             const changelogRepo = new DrizzleChangelogRepository(d);
 
             const row: CardRow = {
@@ -317,7 +292,7 @@ export async function updateCard(
               status: next.status,
               type: next.type,
               parent: next.parent ?? null,
-              boundaryJson: next.boundary ? JSON.stringify(next.boundary) : null,
+              boundaryJson: null,
               namespacesJson: (() => {
                 const nsObj: Record<string, unknown> = {};
                 if (next.principle) nsObj.principle = next.principle;
@@ -347,9 +322,6 @@ export async function updateCard(
             if (fields.parent !== undefined && fields.parent !== (prev.parent ?? null)) {
               changelogRepo.insert({ cardKey: key, field: 'parent', oldValue: prev.parent ?? null, newValue: fields.parent, changedAt: now, changedBy });
             }
-            if (fields.boundary !== undefined) {
-              changelogRepo.insert({ cardKey: key, field: 'boundary', oldValue: prev.boundary ? JSON.stringify(prev.boundary) : null, newValue: next.boundary ? JSON.stringify(next.boundary) : null, changedAt: now, changedBy });
-            }
             if (fields.relations !== undefined) {
               relationRepo.replaceForCard(key, next.relations ?? []);
               changelogRepo.insert({ cardKey: key, field: 'relations', oldValue: prev.relations ? JSON.stringify(prev.relations) : null, newValue: next.relations ? JSON.stringify(next.relations) : null, changedAt: now, changedBy });
@@ -357,10 +329,6 @@ export async function updateCard(
             if (fields.tags !== undefined) {
               classRepo.replaceTags(key, next.tags ?? []);
               changelogRepo.insert({ cardKey: key, field: 'tags', oldValue: prev.tags ? JSON.stringify(prev.tags) : null, newValue: next.tags ? JSON.stringify(next.tags) : null, changedAt: now, changedBy });
-            }
-            if (fields.codeLinks !== undefined) {
-              codeLinkRepo.replaceForCard(key, next.codeLinks ?? []);
-              changelogRepo.insert({ cardKey: key, field: 'codeLinks', oldValue: prev.codeLinks ? JSON.stringify(prev.codeLinks) : null, newValue: next.codeLinks ? JSON.stringify(next.codeLinks) : null, changedAt: now, changedBy });
             }
             if (fields.glossary !== undefined) {
               changelogRepo.insert({ cardKey: key, field: 'glossary', oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null, newValue: next.glossary ? JSON.stringify(next.glossary) : null, changedAt: now, changedBy });
@@ -409,8 +377,6 @@ export async function updateCardStatus(
         await validateActivationGuard(ctx, {
           type: current.frontmatter.type,
           parent: current.frontmatter.parent ?? null,
-          codeLinks: current.frontmatter.codeLinks,
-          boundary: current.frontmatter.boundary,
           principle: current.frontmatter.principle,
           domain: current.frontmatter.domain,
           brief: current.frontmatter.brief,
@@ -443,9 +409,7 @@ export async function updateCardStatus(
                   status,
                   type: current.frontmatter.type,
                   parent: current.frontmatter.parent ?? null,
-                  boundaryJson: current.frontmatter.boundary
-                    ? JSON.stringify(current.frontmatter.boundary)
-                    : null,
+                  boundaryJson: null,
                   namespacesJson: (() => {
                     const nsObj: Record<string, unknown> = {};
                     if (current.frontmatter.principle) nsObj.principle = current.frontmatter.principle;

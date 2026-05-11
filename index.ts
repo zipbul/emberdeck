@@ -106,13 +106,11 @@ export {
 } from './src/ops/impact';
 export {
   syncSpecAnnotations,
-  writeSpecAnnotations,
   syncSymbolChanges,
   getLinkCoverage,
   getUncoveredSymbols,
   suggestCardScope,
   type SpecSyncResult,
-  type WriteSpecResult,
   type SymbolSyncResult,
   type LinkCoverageResult,
   type UncoveredResult,

@@ -1,146 +1,66 @@
 import { describe, expect, it } from 'bun:test';
 import { validateSpecRefs } from './validate-refs';
 import { CardValidationError } from '../card/errors';
-import type { BriefBody, CardFrontmatter, SpecBody } from '../card/types';
-
-function makeFm(overrides: Partial<CardFrontmatter> = {}): CardFrontmatter {
-  return {
-    key: 'test',
-    summary: 's',
-    status: 'draft',
-    type: 'spec',
-    codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }],
-    ...overrides,
-  };
-}
+import type { BriefBody, SpecBody } from '../card/types';
 
 function makeSpecBody(overrides: Partial<SpecBody> = {}): SpecBody {
   const base: SpecBody = {
     preconditions: [
-      {
-        id: 'PRE-001',
-        condition: 'cond',
-        binds: [{ file: 'src/a.ts', symbol: 'foo' }],
-        derives: 'parent-brief#R-001',
-      },
+      { id: 'PRE-001', condition: 'cond', derives: 'parent-brief#R-001' },
     ],
     postconditions: [
-      {
-        id: 'POST-001',
-        guarantee: 'g',
-        keyword: 'MUST',
-        binds: [{ file: 'src/a.ts', symbol: 'foo' }],
-        derives: 'parent-brief#R-001',
-      },
+      { id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent-brief#R-001' },
     ],
     invariants: [
-      {
-        id: 'INV-001',
-        statement: 's',
-        binds: [{ file: 'src/a.ts', symbol: 'foo' }],
-        always_holds: 'per-call',
-      },
+      { id: 'INV-001', statement: 's', always_holds: 'per-call' },
     ],
-    failures: [
-      {
-        violation: 'v',
-        behavior: 'b',
-        exception: { class: 'E', file: 'src/errors.ts' },
-      },
-    ],
+    failures: [{ violation: 'v', behavior: 'b' }],
   };
   return { ...base, ...overrides };
 }
 
 describe('validateSpecRefs', () => {
-  it('accepts a valid spec body without brief lookup', () => {
-    expect(() => validateSpecRefs(makeSpecBody(), makeFm())).not.toThrow();
+  it('passes a well-formed spec body without briefLookup', () => {
+    expect(() => validateSpecRefs(makeSpecBody())).not.toThrow();
   });
 
-  it('requires at least one precondition', () => {
-    const body = makeSpecBody({ preconditions: [] });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(/preconditions.*at least 1/);
+  it('throws when preconditions are empty', () => {
+    expect(() => validateSpecRefs(makeSpecBody({ preconditions: [] }))).toThrow(
+      CardValidationError,
+    );
   });
 
-  it('requires at least one postcondition', () => {
-    const body = makeSpecBody({ postconditions: [] });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(/postconditions.*at least 1/);
+  it('throws when postconditions are empty', () => {
+    expect(() => validateSpecRefs(makeSpecBody({ postconditions: [] }))).toThrow(
+      CardValidationError,
+    );
   });
 
-  it('requires at least one invariant', () => {
-    const body = makeSpecBody({ invariants: [] });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(/invariants.*at least 1/);
+  it('throws when invariants are empty', () => {
+    expect(() => validateSpecRefs(makeSpecBody({ invariants: [] }))).toThrow(
+      CardValidationError,
+    );
   });
 
-  it('requires at least one failure', () => {
-    const body = makeSpecBody({ failures: [] });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(/failures.*at least 1/);
+  it('throws when failures are empty', () => {
+    expect(() => validateSpecRefs(makeSpecBody({ failures: [] }))).toThrow(
+      CardValidationError,
+    );
   });
 
-  it('rejects binds referencing symbol not in codeLinks', () => {
+  it('rejects malformed derives reference (no #)', () => {
     const body = makeSpecBody({
-      preconditions: [
-        {
-          id: 'PRE-001',
-          condition: 'c',
-          binds: [{ file: 'src/a.ts', symbol: 'unknown' }],
-          derives: 'b#R-001',
-        },
-      ],
+      preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'no-hash-here' }],
     });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(/binds references "src\/a\.ts::unknown"/);
+    expect(() => validateSpecRefs(body)).toThrow(/must follow format/);
   });
 
-  it('rejects binds referencing file not in codeLinks', () => {
-    const body = makeSpecBody({
-      invariants: [
-        {
-          id: 'INV-001',
-          statement: 's',
-          binds: [{ file: 'src/other.ts', symbol: 'foo' }],
-          always_holds: 'per-call',
-        },
-      ],
-    });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(/binds references "src\/other\.ts::foo"/);
-  });
-
-  it('rejects derives without "brief-key#item-id" format', () => {
-    const body = makeSpecBody({
-      preconditions: [
-        {
-          id: 'PRE-001',
-          condition: 'c',
-          binds: [{ file: 'src/a.ts', symbol: 'foo' }],
-          derives: 'R-001-no-hash',
-        },
-      ],
-    });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(/derives.*format/);
-  });
-
-  it('rejects derives referencing unknown brief when lookup provided', () => {
-    const body = makeSpecBody();
-    const lookup = (_key: string): BriefBody | null => null;
-    expect(() => validateSpecRefs(body, makeFm(), lookup)).toThrow(/unknown brief "parent-brief"/);
-  });
-
-  it('rejects derives referencing unknown item in known brief', () => {
-    const body = makeSpecBody({
-      preconditions: [
-        {
-          id: 'PRE-001',
-          condition: 'c',
-          binds: [{ file: 'src/a.ts', symbol: 'foo' }],
-          derives: 'parent-brief#R-999',
-        },
-      ],
-    });
-    const fakeBrief: BriefBody = {
-      context: { problem: 'p', impact: [] },
-      scope: { goals: [{ id: 'G-001', statement: 'g' }], non_goals: [], assumptions: [] },
+  it('verifies derives target existence via briefLookup', () => {
+    const brief: BriefBody = {
+      context: { problem: '', impact: [] },
+      scope: { goals: [], non_goals: [], assumptions: [] },
       flow: [],
-      design: { overview: 'o', components: [], data_flow: [], invariants: [] },
+      design: { overview: '', components: [], data_flow: [], invariants: [] },
       policy: [{ id: 'R-001', subject: 's', keyword: 'MUST', predicate: 'p', governs: [] }],
       external: [],
       compatibility: { guarantees: [] },
@@ -148,19 +68,20 @@ describe('validateSpecRefs', () => {
       criteria: [],
       rationale: {
         alternatives: [
-          { option: 'A', pros: ['p'], cons: ['c'] },
-          { option: 'B', pros: ['p'], cons: ['c'] },
+          { option: 'a', pros: [], cons: [] },
+          { option: 'b', pros: [], cons: [] },
         ],
-        chosen: { option: 'A', reasoning: 'r' },
+        chosen: { option: 'a', reasoning: 'r' },
         addresses: [],
       },
     };
-    const lookup = (_key: string): BriefBody | null => fakeBrief;
-    expect(() => validateSpecRefs(body, makeFm(), lookup)).toThrow(/unknown item "R-999"/);
+    const lookup = (k: string) => (k === 'parent-brief' ? brief : null);
+    expect(() => validateSpecRefs(makeSpecBody(), lookup)).not.toThrow();
   });
 
-  it('throws CardValidationError type on failure', () => {
-    const body = makeSpecBody({ preconditions: [] });
-    expect(() => validateSpecRefs(body, makeFm())).toThrow(CardValidationError);
+  it('rejects derives pointing at an unknown brief', () => {
+    expect(() =>
+      validateSpecRefs(makeSpecBody(), () => null),
+    ).toThrow(/unknown brief/);
   });
 });

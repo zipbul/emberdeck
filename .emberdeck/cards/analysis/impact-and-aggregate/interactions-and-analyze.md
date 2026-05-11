@@ -6,13 +6,6 @@ summary: >-
 status: draft
 type: spec
 parent: analysis/impact-and-aggregate
-codeLinks:
-  - kind: function
-    file: src/ops/context.ts
-    symbol: checkInteractions
-  - kind: function
-    file: src/ops/analyze.ts
-    symbol: analyze
 glossary:
   - drift
 spec:
@@ -21,11 +14,6 @@ spec:
       condition: >-
         Caller passes ≥2 card keys to checkInteractions or no arguments to
         analyze.
-      binds:
-        - file: src/ops/context.ts
-          symbol: checkInteractions
-        - file: src/ops/analyze.ts
-          symbol: analyze
       derives: analysis/impact-and-aggregate#G-003
   postconditions:
     - id: POST-001
@@ -33,32 +21,20 @@ spec:
         checkInteractions reports shared symbols, shared files, and undefined
         relations between input cards.
       keyword: MUST
-      binds:
-        - file: src/ops/context.ts
-          symbol: checkInteractions
       derives: analysis/impact-and-aggregate#G-003
     - id: POST-002
       guarantee: >-
         analyze returns an envelope with health, coverage, drifted, glossary,
         and unlinked_symbols populated in one call.
       keyword: SHALL
-      binds:
-        - file: src/ops/analyze.ts
-          symbol: analyze
       derives: analysis/impact-and-aggregate#G-004
   invariants:
     - id: INV-001
       statement: >-
         analyze read paths share the same gildash snapshot for the duration of
         the call.
-      binds:
-        - file: src/ops/analyze.ts
-          symbol: analyze
       always_holds: per-call
   failures:
     - violation: A target card key in checkInteractions does not exist.
       behavior: checkInteractions throws CardNotFoundError.
-      exception:
-        class: CardNotFoundError
-        file: src/card/errors.ts
 ---

@@ -6,16 +6,6 @@ summary: >-
 status: draft
 type: spec
 parent: code-binding/annotation-roundtrip
-codeLinks:
-  - kind: function
-    file: src/ops/spec-sync.ts
-    symbol: writeSpecAnnotations
-  - kind: function
-    file: src/ops/spec-sync.ts
-    symbol: syncSpecAnnotations
-  - kind: function
-    file: src/ops/spec-sync.ts
-    symbol: syncSymbolChanges
 glossary:
   - codeLink
   - spec-annotation
@@ -25,9 +15,6 @@ spec:
       condition: >-
         Caller has a runtime context with gildash adapter and source files
         writable.
-      binds:
-        - file: src/ops/spec-sync.ts
-          symbol: writeSpecAnnotations
       derives: code-binding/annotation-roundtrip#G-001
   postconditions:
     - id: POST-001
@@ -35,37 +22,22 @@ spec:
         writeSpecAnnotations is additive by default; --prune is required to
         remove orphan annotations.
       keyword: MUST
-      binds:
-        - file: src/ops/spec-sync.ts
-          symbol: writeSpecAnnotations
       derives: code-binding/annotation-roundtrip#G-001
     - id: POST-002
       guarantee: >-
         syncSpecAnnotations reconstructs DB codeLinks from @spec tags found in
         source.
       keyword: SHALL
-      binds:
-        - file: src/ops/spec-sync.ts
-          symbol: syncSpecAnnotations
       derives: code-binding/annotation-roundtrip#G-002
     - id: POST-003
       guarantee: syncSymbolChanges only applies renames or moves reported by gildash.
       keyword: MUST
-      binds:
-        - file: src/ops/spec-sync.ts
-          symbol: syncSymbolChanges
       derives: code-binding/annotation-roundtrip#G-003
   invariants:
     - id: INV-001
       statement: Default writeSpecAnnotations never removes existing annotations.
-      binds:
-        - file: src/ops/spec-sync.ts
-          symbol: writeSpecAnnotations
       always_holds: per-call
   failures:
     - violation: Source file is not writable.
       behavior: writeSpecAnnotations throws an IO error; existing source is unchanged.
-      exception:
-        class: Error
-        file: src/ops/spec-sync.ts
 ---

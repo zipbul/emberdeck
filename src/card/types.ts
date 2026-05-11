@@ -209,17 +209,12 @@ export interface BriefBody {
 }
 
 // ── Spec structured body ──────────────────────────────────────
-
-export interface SpecBindRef {
-  file: string;
-  symbol: string;
-}
+// Binding to source is via `@spec card-key` JSDoc annotations in code.
 
 export interface SpecPrecondition {
   /** ID format: PRE-001 */
   id: string;
   condition: string;
-  binds: SpecBindRef[];
   /** Reference to brief item, e.g. "brief-key#R-001" */
   derives: string;
 }
@@ -229,7 +224,6 @@ export interface SpecPostcondition {
   id: string;
   guarantee: string;
   keyword: 'MUST' | 'SHALL';
-  binds: SpecBindRef[];
   derives: string;
 }
 
@@ -237,37 +231,18 @@ export interface SpecInvariant {
   /** ID format: INV-001 */
   id: string;
   statement: string;
-  binds: SpecBindRef[];
   always_holds: 'per-call' | 'cross-call' | 'cross-process';
 }
 
 export interface SpecFailure {
   violation: string;
   behavior: string;
-  exception: { class: string; file: string };
 }
 
 export interface SpecStateTransition {
   from: string;
   trigger: string;
   to: string;
-  binds: SpecBindRef[];
-}
-
-/**
- * AST pattern (ast-grep syntax) executed by gildash.findPattern during drift
- * detection. `forbidden` patterns must NOT match anywhere in the card's scope;
- * `required` patterns must match at least once.
- */
-export interface SpecCodePattern {
-  /** ID format: PAT-001 */
-  id: string;
-  /** ast-grep pattern string (e.g. `'console.log($$$)'`) */
-  pattern: string;
-  /** Whether the pattern must be absent (`forbidden`) or present (`required`). */
-  rule: 'forbidden' | 'required';
-  /** Optional human-readable explanation of why the pattern is enforced. */
-  description?: string;
 }
 
 export interface SpecBody {
@@ -276,12 +251,6 @@ export interface SpecBody {
   invariants: SpecInvariant[];
   failures: SpecFailure[];
   state_transitions?: SpecStateTransition[];
-  /**
-   * Optional ast-grep patterns checked at drift time. When omitted, the spec
-   * is verified by codeLink resolution alone — patterns add executable
-   * structural constraints on top of the symbol-level contract.
-   */
-  code_patterns?: SpecCodePattern[];
 }
 
 // ── Domain body ─────────────────────────────────────────────
@@ -325,12 +294,8 @@ export interface CardFrontmatter {
   type: CardType;
   /** Parent card key. brief/spec only. */
   parent?: string;
-  /** File/directory glob patterns this card is responsible for. spec only. */
-  boundary?: string[];
   /** List of related card keys. */
   relations?: string[];
-  /** List of source code symbol references. spec only. */
-  codeLinks?: CodeLink[];
   /** List of tags for categorization. Stored as lowercase. */
   tags?: string[];
   /** Glossary words declared by this card. */

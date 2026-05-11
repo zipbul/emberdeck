@@ -6,10 +6,6 @@ summary: >-
 status: draft
 type: spec
 parent: card-lifecycle/mutation-workflows
-codeLinks:
-  - kind: function
-    file: src/ops/create.ts
-    symbol: createCard
 glossary:
   - activation-guard
 spec:
@@ -18,9 +14,6 @@ spec:
       condition: >-
         Caller passes a CreateCardInput with key, type, summary and (for brief
         or spec) parent.
-      binds:
-        - file: src/ops/create.ts
-          symbol: createCard
       derives: card-lifecycle/mutation-workflows#G-001
   postconditions:
     - id: POST-001
@@ -28,38 +21,20 @@ spec:
         On success the card persists to file and DB atomically and a changelog
         row is appended.
       keyword: MUST
-      binds:
-        - file: src/ops/create.ts
-          symbol: createCard
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-002
       guarantee: On parent-not-found or hierarchy violation no file or DB row is written.
       keyword: SHALL
-      binds:
-        - file: src/ops/create.ts
-          symbol: createCard
       derives: card-lifecycle/mutation-workflows#G-002
   invariants:
     - id: INV-001
       statement: createCard validates input through card-model before any storage call.
-      binds:
-        - file: src/ops/create.ts
-          symbol: createCard
       always_holds: per-call
   failures:
     - violation: Input fails validation.
       behavior: createCard throws CardValidationError; no file or DB row written.
-      exception:
-        class: CardValidationError
-        file: src/card/errors.ts
     - violation: Card key already exists.
       behavior: createCard throws CardAlreadyExistsError.
-      exception:
-        class: CardAlreadyExistsError
-        file: src/card/errors.ts
     - violation: Parent key does not exist.
       behavior: createCard throws ParentValidationError.
-      exception:
-        class: ParentValidationError
-        file: src/card/errors.ts
 ---

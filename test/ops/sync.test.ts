@@ -159,54 +159,8 @@ describe('removeCardByFile', () => {
   });
 });
 
-describe('syncCardFromFile — codeLinks', () => {
-  let tc: TestContext;
-
-  afterEach(async () => {
-    await tc?.cleanup();
-  });
-
-  it('should persist codeLinks to DB when syncing a file with codeLinks in frontmatter', async () => {
-    tc = await createTestContext();
-    const content = serializeCard(
-      {
-        key: 'sync-cl',
-        summary: 'CL',
-        status: 'draft',
-        type: 'spec',
-        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
-      },
-    );
-    const filePath = join(tc.cardsDir, 'sync-cl.md');
-    await writeFile(filePath, content, 'utf-8');
-    await syncCardFromFile(tc.ctx, filePath);
-    const links = tc.ctx.codeLinkRepo.findByCardKey('sync-cl');
-    expect(links).toHaveLength(1);
-    expect(links[0]!.symbol).toBe('myFunc');
-  });
-
-  it('should clear codeLinks from DB when syncing same file without codeLinks', async () => {
-    tc = await createTestContext();
-    const filePath = join(tc.cardsDir, 'sync-cl-rm.md');
-    const contentWith = serializeCard(
-      {
-        key: 'sync-cl-rm',
-        summary: 'CL RM',
-        status: 'draft',
-        type: 'spec',
-        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
-      },
-    );
-    await writeFile(filePath, contentWith, 'utf-8');
-    await syncCardFromFile(tc.ctx, filePath);
-    const contentWithout = serializeCard(
-      { key: 'sync-cl-rm', summary: 'CL RM', status: 'draft', type: 'spec' },
-    );
-    await writeFile(filePath, contentWithout, 'utf-8');
-    await syncCardFromFile(tc.ctx, filePath);
-    expect(tc.ctx.codeLinkRepo.findByCardKey('sync-cl-rm')).toHaveLength(0);
-  });
-});
+// code_link rows are populated by `ed spec sync` from source `@spec`
+// annotations — `syncCardFromFile` no longer reads/writes them.
 
 // ---------------------------------------------------------------------------
 // bulkSyncCards
@@ -429,8 +383,7 @@ describe('exportCardToFile', () => {
       type: 'spec',
       tags: ['tag1'],
       relations: ['exp-rt-tgt'],
-      codeLinks: [{ kind: 'function', file: 'src/foo.ts', symbol: 'foo' }],
-    });
+      });
     const exportedPath = await exportCardToFile(tc.ctx, 'exp-rt-src');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCard(text);
@@ -439,7 +392,6 @@ describe('exportCardToFile', () => {
     expect(parsed.frontmatter.summary).toBe('Round-trip source');
     expect(parsed.frontmatter.tags).toContain('tag1');
     expect(parsed.frontmatter.relations).toHaveLength(1);
-    expect(parsed.frontmatter.codeLinks).toHaveLength(1);
   });
 
   it('should include only forward (non-reverse) relations in the exported file', async () => {
@@ -467,21 +419,6 @@ describe('exportCardToFile', () => {
     expect(parsed.frontmatter.tags).toEqual(expect.arrayContaining(['release', 'v2']));
   });
 
-  it('should include codeLinks in the exported file when card has code links', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      key: 'exp-cl',
-      summary: 'CL card',
-      type: 'spec',
-      codeLinks: [{ kind: 'class', file: 'src/bar.ts', symbol: 'Bar' }],
-    });
-    const exportedPath = await exportCardToFile(tc.ctx, 'exp-cl');
-    const text = await Bun.file(exportedPath).text();
-    const parsed = parseCard(text);
-    expect(parsed.frontmatter.codeLinks).toHaveLength(1);
-    expect(parsed.frontmatter.codeLinks![0]!.symbol).toBe('Bar');
-  });
-
   it('should preserve the card body and return the correct file path', async () => {
     tc = await createTestContext();
     const expected = '## Details\n\nSome notes here.';
@@ -501,8 +438,7 @@ describe('exportCardToFile', () => {
       summary: 'NS round-trip',
       type: 'spec',
       spec: makeTestSpec('src/x.ts', 'foo'),
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'foo' }],
-    });
+      });
     const path1 = await exportCardToFile(tc.ctx, 'exp-ns-rt');
     const text1 = await Bun.file(path1).text();
     await syncCardFromFile(tc.ctx, path1);
@@ -575,7 +511,6 @@ describe('exportCardToFile', () => {
     expect(parsed.frontmatter.key).toBe('exp-min');
     expect(parsed.frontmatter.relations).toBeUndefined();
     expect(parsed.frontmatter.tags).toBeUndefined();
-    expect(parsed.frontmatter.codeLinks).toBeUndefined();
   });
 });
 

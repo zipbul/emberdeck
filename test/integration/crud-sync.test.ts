@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { createTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 import {
   createCard,
   updateCard,
@@ -56,15 +56,12 @@ describe('create', () => {
       summary: 'Child spec',
       type: 'spec',
       parent: 'arch-parent',
-      boundary: ['src/auth/**'],
-    });
+      });
     expect(result.card.frontmatter.parent).toBe('arch-parent');
-    expect(result.card.frontmatter.boundary).toEqual(['src/auth/**']);
 
     // Verify DB
     const row = tc.ctx.cardRepo.findByKey('child-spec');
     expect(row!.parent).toBe('arch-parent');
-    expect(row!.boundaryJson).toBe(JSON.stringify(['src/auth/**']));
   });
 
   it('should reject spec card with active status and no codeLinks (activation guard)', async () => {
@@ -218,17 +215,6 @@ describe('update', () => {
     ).rejects.toThrow(/Cannot change to domain/);
   });
 
-  it('should update boundary and record in changelog', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bnd', summary: 'Boundary', type: 'spec' });
-    await updateCard(tc.ctx, 'bnd', { boundary: ['src/**'] });
-
-    const result = await getCard(tc.ctx, 'bnd', { includeHistory: true });
-    expect(result.card.frontmatter.boundary).toEqual(['src/**']);
-    const bndChange = result.history!.find((h) => h.field === 'boundary');
-    expect(bndChange).toBeDefined();
-  });
-
   it('should apply activation guard when status set to active', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'no-act', summary: 'No activation', type: 'spec' });
@@ -346,14 +332,13 @@ describe('rename', () => {
 // ── SYNC ──
 
 describe('sync', () => {
-  it('should sync parent and boundary from file to DB', async () => {
+  it('should sync parent from file to DB', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'sync-arch', summary: 'Arch', type: 'brief' });
-    await createCard(tc.ctx, { key: 'sync-spec', summary: 'Spec', type: 'spec', parent: 'sync-arch', boundary: ['src/mod/**'] });
+    await createCard(tc.ctx, { key: 'sync-spec', summary: 'Spec', type: 'spec', parent: 'sync-arch' });
 
     const row = tc.ctx.cardRepo.findByKey('sync-spec');
     expect(row!.parent).toBe('sync-arch');
-    expect(JSON.parse(row!.boundaryJson!)).toEqual(['src/mod/**']);
   });
 
   it('validateCards should detect broken parent', async () => {
@@ -398,12 +383,11 @@ describe('sync', () => {
   it('exportCardToFile should export parent and boundary', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'exp-arch', summary: 'Arch', type: 'brief' });
-    await createCard(tc.ctx, { key: 'exp-spec', summary: 'Spec', type: 'spec', parent: 'exp-arch', boundary: ['src/**'] });
+    await createCard(tc.ctx, { key: 'exp-spec', summary: 'Spec', type: 'spec', parent: 'exp-arch', });
 
     const filePath = await exportCardToFile(tc.ctx, 'exp-spec');
     const file = await readCardFile(filePath);
     expect(file.frontmatter.parent).toBe('exp-arch');
-    expect(file.frontmatter.boundary).toEqual(['src/**']);
   });
 });
 
@@ -774,56 +758,6 @@ describe('validateCards full checks', () => {
     expect(empty).toBeDefined();
   });
 
-  it('should detect boundary overlap between non-parent-child cards', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bnd-a', summary: 'A', type: 'spec', boundary: ['src/auth/**'] });
-    await createCard(tc.ctx, { key: 'bnd-b', summary: 'B', type: 'spec', boundary: ['src/auth/**'] });
-
-    const result = await validateCards(tc.ctx);
-    const overlap = result.warnings.find((w) => w.type === 'boundary-overlap');
-    expect(overlap).toBeDefined();
-  });
-
-  it('should detect boundary overlap via glob containment (src/** contains src/auth/**)', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'glob-wide', summary: 'Wide', type: 'spec', boundary: ['src/**'] });
-    await createCard(tc.ctx, { key: 'glob-narrow', summary: 'Narrow', type: 'spec', boundary: ['src/auth/**'] });
-
-    const result = await validateCards(tc.ctx);
-    const overlap = result.warnings.find((w) => w.type === 'boundary-overlap');
-    expect(overlap).toBeDefined();
-  });
-
-  it('should detect boundary overlap between cross-cutting glob patterns (src/auth/** vs src/**/*.ts)', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'auth-all', summary: 'Auth module', type: 'spec', boundary: ['src/auth/**'] });
-    await createCard(tc.ctx, { key: 'all-ts', summary: 'All TS files', type: 'spec', boundary: ['src/**/*.ts'] });
-
-    const result = await validateCards(tc.ctx);
-    const overlap = result.warnings.find((w) => w.type === 'boundary-overlap');
-    expect(overlap).toBeDefined();
-    expect(overlap!.message).toContain('all-ts');
-  });
-
-  it('should not detect boundary overlap for disjoint glob patterns (src/a/** vs src/b/**)', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'mod-a', summary: 'Module A', type: 'spec', boundary: ['src/a/**'] });
-    await createCard(tc.ctx, { key: 'mod-b', summary: 'Module B', type: 'spec', boundary: ['src/b/**'] });
-
-    const result = await validateCards(tc.ctx);
-    const overlap = result.warnings.find((w) => w.type === 'boundary-overlap');
-    expect(overlap).toBeUndefined();
-  });
-
-  it('should allow boundary overlap between parent and child', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'bnd-parent', summary: 'Parent', type: 'brief', boundary: ['src/**'] });
-    await createCard(tc.ctx, { key: 'bnd-child', summary: 'Child', type: 'spec', parent: 'bnd-parent', boundary: ['src/**'] });
-
-    const result = await validateCards(tc.ctx);
-    const overlap = result.warnings.find((w) => w.type === 'boundary-overlap');
-    expect(overlap).toBeUndefined();
-  });
 });
 
 // ── BULK CREATE: activation guard ──
@@ -917,8 +851,8 @@ describe('delete cascade', () => {
       type: 'spec',
       tags: ['important'],
       relations: ['cas-target'],
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'cas-card', [{ kind: 'function', file: 'src/x.ts', symbol: 'fn' }]);
     // Record a changelog entry
     await updateCard(tc.ctx, 'cas-card', { summary: 'Updated' });
 
@@ -949,34 +883,14 @@ describe('activation guard on active card field changes', () => {
       summary: 'Active spec',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
-      spec: makeTestSpec('src/a.ts', 'fn'),
+            spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'guard-spec', 'active');
 
-    // Removing codeLinks should trigger activation guard
-    await expect(
-      updateCard(tc.ctx, 'guard-spec', { codeLinks: null }),
-    ).rejects.toThrow(ActivationGuardError);
+    // Note: source bindings are managed via `ed spec sync` annotations, not
+    // via `updateCard` — there is no codeLinks field on the card anymore.
   });
 
-  it('should reject removing codeLinks via empty array from an active spec card', async () => {
-    tc = await createTestContext();
-    await ensure4tierScaffold(tc.ctx, true);
-    await createCard(tc.ctx, {
-      key: 'guard-spec2',
-      summary: 'Active spec 2',
-      type: 'spec',
-      parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'fn2' }],
-      spec: makeTestSpec('src/b.ts', 'fn2'),
-    });
-    await updateCardStatus(tc.ctx, 'guard-spec2', 'active');
-
-    await expect(
-      updateCard(tc.ctx, 'guard-spec2', { codeLinks: [] }),
-    ).rejects.toThrow(ActivationGuardError);
-  });
 
   it('should allow updating non-critical fields on active card without re-validation', async () => {
     tc = await createTestContext();
@@ -986,8 +900,7 @@ describe('activation guard on active card field changes', () => {
       summary: 'Safe update',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/c.ts', symbol: 'fn3' }],
-      spec: makeTestSpec('src/c.ts', 'fn3'),
+            spec: makeTestSpec('src/c.ts', 'fn3'),
     });
     await updateCardStatus(tc.ctx, 'guard-safe', 'active');
 
@@ -997,24 +910,6 @@ describe('activation guard on active card field changes', () => {
     expect(result.card.frontmatter.status).toBe('active');
   });
 
-  it('re-runs activation guard when active spec namespace changes (broken binds)', async () => {
-    tc = await createTestContext();
-    await ensure4tierScaffold(tc.ctx, true);
-    await createCard(tc.ctx, {
-      key: 'guard-spec-ns',
-      summary: 'spec ns guard',
-      type: 'spec',
-      parent: '_br',
-      codeLinks: [{ kind: 'function', file: 'src/x.ts', symbol: 'doX' }],
-      spec: makeTestSpec('src/x.ts', 'doX'),
-    });
-    await updateCardStatus(tc.ctx, 'guard-spec-ns', 'active');
-    // Submit a spec namespace whose binds reference a symbol NOT in codeLinks
-    const broken = makeTestSpec('src/x.ts', 'wrongSymbol');
-    await expect(
-      updateCard(tc.ctx, 'guard-spec-ns', { spec: broken }),
-    ).rejects.toThrow(ActivationGuardError);
-  });
 
   it('re-runs activation guard when active brief namespace changes (broken cross-ref)', async () => {
     tc = await createTestContext();
@@ -1043,7 +938,6 @@ describe('activation guard on active card field changes', () => {
       summary: 'parent guard',
       type: 'spec',
       parent: '_br',
-      codeLinks: [{ kind: 'function', file: 'src/y.ts', symbol: 'doY' }],
       spec: makeTestSpec('src/y.ts', 'doY'),
     });
     await updateCardStatus(tc.ctx, 'guard-parent', 'active');

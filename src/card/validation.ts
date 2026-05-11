@@ -16,22 +16,14 @@ export const LIMITS = {
   SUMMARY_MAX: 300,
   /** Maximum length of body (character count) */
   BODY_MAX: 100_000,
-  /** Maximum item count for array fields (tags, relations, codeLinks) */
+  /** Maximum item count for array fields (tags, relations) */
   ARRAY_MAX: 100,
   /** Maximum length of individual tag items */
   ITEM_MAX: 100,
   /** Maximum length of relations[] items (card keys) */
   RELATION_TARGET_MAX: 200,
-  /** Maximum length of codeLinks[].symbol */
-  CODE_LINK_SYMBOL_MAX: 200,
-  /** Maximum length of codeLinks[].file */
-  CODE_LINK_FILE_MAX: 500,
   /** Maximum length of card key */
   KEY_MAX: 200,
-  /** Maximum number of boundary patterns */
-  BOUNDARY_MAX_PATTERNS: 50,
-  /** Maximum length of each boundary pattern */
-  BOUNDARY_PATTERN_MAX: 500,
 } as const;
 
 /**
@@ -43,8 +35,6 @@ export interface ValidationInput {
   summary?: string;
   tags?: string[];
   relations?: string[];
-  codeLinks?: Array<{ kind: string; file: string; symbol: string }>;
-  boundary?: string[];
   type?: string;
   status?: string;
 }
@@ -61,7 +51,7 @@ import { CARD_TYPES, CARD_STATUSES } from './types';
   * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateCardInput(input: ValidationInput): void {
-  const { key, summary, tags, relations, codeLinks, boundary, type, status } = input;
+  const { key, summary, tags, relations, type, status } = input;
 
   // ── type ──
   if (type !== undefined) {
@@ -151,58 +141,6 @@ export function validateCardInput(input: ValidationInput): void {
       }
     }
     // Self-reference check requires card key context — done at ops layer
-  }
-
-  // ── codeLinks ─────────────────────────────────────────────
-  if (codeLinks !== undefined) {
-    if (codeLinks.length > LIMITS.ARRAY_MAX) {
-      throw new CardValidationError(
-        `codeLinks array exceeds maximum of ${LIMITS.ARRAY_MAX} items (got ${codeLinks.length})`,
-      );
-    }
-    for (const link of codeLinks) {
-      if (link.file.length === 0) {
-        throw new CardValidationError('codeLink file must not be empty');
-      }
-      if (link.symbol.length === 0) {
-        throw new CardValidationError('codeLink symbol must not be empty');
-      }
-      if (link.symbol.length > LIMITS.CODE_LINK_SYMBOL_MAX) {
-        throw new CardValidationError(
-          `codeLink symbol exceeds maximum length of ${LIMITS.CODE_LINK_SYMBOL_MAX} characters`,
-        );
-      }
-      if (link.file.length > LIMITS.CODE_LINK_FILE_MAX) {
-        throw new CardValidationError(
-          `codeLink file path exceeds maximum length of ${LIMITS.CODE_LINK_FILE_MAX} characters`,
-        );
-      }
-    }
-  }
-
-  // ── boundary ──────────────────────────────────────────────
-  if (boundary !== undefined) {
-    if (boundary.length > LIMITS.BOUNDARY_MAX_PATTERNS) {
-      throw new CardValidationError(
-        `boundary array exceeds maximum of ${LIMITS.BOUNDARY_MAX_PATTERNS} patterns (got ${boundary.length})`,
-      );
-    }
-    for (const pattern of boundary) {
-      if (pattern.length === 0) {
-        throw new CardValidationError('boundary pattern must not be empty');
-      }
-      if (pattern.length > LIMITS.BOUNDARY_PATTERN_MAX) {
-        throw new CardValidationError(
-          `boundary pattern exceeds maximum length of ${LIMITS.BOUNDARY_PATTERN_MAX} characters`,
-        );
-      }
-      // Validate glob syntax
-      try {
-        new Bun.Glob(pattern);
-      } catch {
-        throw new CardValidationError(`boundary pattern is not valid glob syntax: "${pattern}"`);
-      }
-    }
   }
 }
 
@@ -352,8 +290,8 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
  *           cross_domain_dependencies targets must exist and be domain cards.
  * - brief: requires `brief` namespace + cross-ref validation passes.
  *          parent MUST exist and be a domain card (4-tier hierarchy).
- * - spec: requires `spec` namespace, codeLinks >= 1 and all resolve; if boundary
- *         present, at least 1 file must match.
+ * - spec: requires `spec` namespace; binding to source is via `@spec card-key`
+ *         JSDoc annotations populated into the code_link table by `ed spec sync`.
  *         parent MUST exist and be a brief or spec card (4-tier hierarchy).
   * @spec card-lifecycle/status-and-safe-write/update-card-status
  */
@@ -362,8 +300,6 @@ export async function validateActivationGuard(
   card: {
     type: CardType;
     parent?: string | null;
-    codeLinks?: Array<{ file: string; symbol: string }>;
-    boundary?: string[];
     principle?: CardFrontmatter['principle'];
     domain?: CardFrontmatter['domain'];
     brief?: BriefBody;
@@ -492,54 +428,37 @@ export async function validateActivationGuard(
     unmet.push('spec card must have `spec` namespace in frontmatter to activate');
   } else {
     try {
-      validateSpecRefs(card.spec, { codeLinks: card.codeLinks } as CardFrontmatter);
+      validateSpecRefs(card.spec);
     } catch (e) {
       unmet.push((e as Error).message);
     }
   }
 
-  const links = card.codeLinks ?? [];
-  if (links.length === 0) {
-    unmet.push('spec card must have at least 1 codeLink');
-  } else {
+  // Binding to source is via `@spec card-key` annotations in code; the
+  // populated DB rows live in the code_link table (kept as a cache of the
+  // annotation scan). Source is the SoT — the card itself does not list links.
+  if (card.key) {
     await ensureReindexed(ctx);
-    // Empty index (no source files yet) is "no information" — skip the
-    // resolution check rather than block activation on missing symbols
-    // when there's nothing to compare against. Matches the boundary check
-    // semantics in checkDrift / analyze.
     const indexedFiles = ctx.gildash.listIndexedFiles();
+    // Empty index = "no information" — neither demand annotations nor try to
+    // resolve. Matches drift-detection semantics elsewhere.
     if (indexedFiles.length > 0) {
-      const cache = makeSymbolFileCache(ctx);
-      for (const link of links) {
-        try {
-          if (!cache.find(link.file, link.symbol)) {
-            unmet.push(`codeLink '${link.file}:${link.symbol}' unresolved`);
-          }
-        } catch {
-          unmet.push(`codeLink '${link.file}:${link.symbol}' unresolved`);
-        }
-      }
-    }
-  }
-
-  if (card.boundary && card.boundary.length > 0) {
-    const files = ctx.gildash.listIndexedFiles();
-    // Treat empty index as "no information" — only assert mismatch when we
-    // have a populated index to compare against.
-    if (files.length > 0) {
-      let anyMatch = false;
-      for (const pattern of card.boundary) {
-        const glob = new Bun.Glob(pattern);
-        for (const f of files) {
-          if (glob.match(f.filePath)) {
-            anyMatch = true;
-            break;
+      const links = ctx.codeLinkRepo.findByCardKey(card.key);
+      if (links.length === 0) {
+        unmet.push(
+          `spec card has no source bindings — add at least one '@spec ${card.key}' JSDoc annotation`,
+        );
+      } else {
+        const cache = makeSymbolFileCache(ctx);
+        for (const link of links) {
+          try {
+            if (!cache.find(link.file, link.symbol)) {
+              unmet.push(`source binding '${link.file}:${link.symbol}' unresolved`);
+            }
+          } catch {
+            unmet.push(`source binding '${link.file}:${link.symbol}' unresolved`);
           }
         }
-        if (anyMatch) break;
-      }
-      if (!anyMatch) {
-        unmet.push(`boundary patterns match no indexed files`);
       }
     }
   }
@@ -560,12 +479,11 @@ export async function validateTypeChangeActivation(
     status: string;
     type: CardType;
     parent?: string | null;
-    codeLinks?: Array<{ file: string; symbol: string }>;
-    boundary?: string[];
     principle?: CardFrontmatter['principle'];
     domain?: CardFrontmatter['domain'];
     brief?: BriefBody;
     spec?: SpecBody;
+    key?: string;
   },
   newType: CardType,
 ): Promise<string> {

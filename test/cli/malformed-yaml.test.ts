@@ -116,23 +116,6 @@ describe('malformed card files: error envelope regression', () => {
     expect(r.exitCode).toBe(2);
   });
 
-  test('card with non-array boundary', async () => {
-    writeCard(tmp, 'bad-boundary', [
-      '---',
-      'key: bad-boundary',
-      'type: spec',
-      'status: draft',
-      'summary: x',
-      'boundary: src/auth/**',  // string, not array
-      '---',
-      '',
-    ].join('\n'));
-    const r = await runCli(['bulk', 'sync'], tmp);
-    expect(r.exitCode).toBe(2);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.errors.length).toBeGreaterThan(0);
-  });
-
   test('card with non-string entries in tags array', async () => {
     writeCard(tmp, 'bad-tags', [
       '---',
@@ -205,24 +188,6 @@ describe('malformed card files: error envelope regression', () => {
       '      keyword: SHOULDNT',  // not in allowed list
       '      predicate: p',
       '      governs: []',
-      '---',
-      '',
-    ].join('\n'));
-    const r = await runCli(['bulk', 'sync'], tmp);
-    expect(r.exitCode).toBe(2);
-  });
-
-  test('card with non-string codeLinks file', async () => {
-    writeCard(tmp, 'bad-codelinks', [
-      '---',
-      'key: bad-codelinks',
-      'type: spec',
-      'status: draft',
-      'summary: x',
-      'codeLinks:',
-      '  - kind: class',
-      '    file: 12345',  // number not string',
-      '    symbol: Foo',
       '---',
       '',
     ].join('\n'));

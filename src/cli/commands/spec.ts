@@ -6,38 +6,12 @@ import { Command } from 'commander';
 import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
-import { writeSpecAnnotations, syncSpecAnnotations, syncSymbolChanges } from '../../ops/spec-sync';
+import { syncSpecAnnotations, syncSymbolChanges } from '../../ops/spec-sync';
 import { CliUsageError } from '../usage-error';
 import { errorMessage } from '../../util/error';
 
 export function registerSpec(program: Command): void {
   const spec = program.command('spec').description('source code ↔ card binding sync');
-
-  // ── spec annotate ──
-  spec
-    .command('annotate [key]')
-    .description('add @spec card-key JSDoc tags into source code (additive only by default; use --prune to also remove orphans)')
-    .option('--prune', 'remove @spec annotations whose card no longer has a matching code link (DESTRUCTIVE — use after card delete or reset)')
-    .action(async (key: string | undefined, opts: { prune?: boolean }, cmd) => {
-            await run(
-        async (rt: CliRuntime) => {
-          const result = await writeSpecAnnotations(rt.ctx, key, { prune: !!opts.prune });
-          const data = {
-            annotated: result.annotated,
-            already_present: result.alreadyPresent,
-            symbol_not_found: result.symbolNotFound,
-            removed: result.removed,
-          };
-          if (result.symbolNotFound > 0) {
-            return partial(data, [
-              { code: 'SYMBOL_NOT_FOUND', message: `${result.symbolNotFound} symbol(s) could not be located` },
-            ]);
-          }
-          return ok(data);
-        },
-        cmd,
-      );
-    });
 
   // ── spec sync ──
   spec

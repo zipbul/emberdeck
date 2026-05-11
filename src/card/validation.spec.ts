@@ -13,9 +13,7 @@ describe('validateCardInput', () => {
         summary: 'Normal summary',
                 tags: ['tag1', 'tag2'],
         relations: ['other-card'],
-        codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'getToken' }],
-        boundary: ['src/auth/**'],
-      }),
+        }),
     ).not.toThrow();
   });
 
@@ -35,9 +33,7 @@ describe('validateCardInput', () => {
         summary: 'Valid summary',
                 tags: [],
         relations: [],
-        codeLinks: [],
-        boundary: [],
-      }),
+        }),
     ).not.toThrow();
   });
 
@@ -135,121 +131,17 @@ describe('validateCardInput', () => {
     ).toThrow(CardValidationError);
   });
 
-  // ── NE-10: codeLinks count over 100 ──
-
-  it('should throw CardValidationError when codeLinks array exceeds 100 items', () => {
-    // Arrange
-    const tooMany = Array(LIMITS.ARRAY_MAX + 1).fill({ kind: 'fn', file: 'a.ts', symbol: 'x' });
-    // Act / Assert
-    expect(() =>
-      validateCardInput({ summary: 'ok', codeLinks: tooMany }),
-    ).toThrow(CardValidationError);
-  });
-
-  // ── NE-11: codeLink symbol over 200 ──
-
-  it('should throw CardValidationError when a codeLink symbol exceeds 200 characters', () => {
-    // Arrange
-    const longSymbol = 's'.repeat(LIMITS.CODE_LINK_SYMBOL_MAX + 1);
-    // Act / Assert
-    expect(() =>
-      validateCardInput({
-        summary: 'ok',
-        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: longSymbol }],
-      }),
-    ).toThrow(CardValidationError);
-  });
-
-  // ── NE-12: codeLink file over 500 ──
-
-  it('should throw CardValidationError when a codeLink file path exceeds 500 characters', () => {
-    // Arrange
-    const longFile = 'f'.repeat(LIMITS.CODE_LINK_FILE_MAX + 1);
-    // Act / Assert
-    expect(() =>
-      validateCardInput({
-        summary: 'ok',
-        codeLinks: [{ kind: 'function', file: longFile, symbol: 'foo' }],
-      }),
-    ).toThrow(CardValidationError);
-  });
-
-  // ── NE-13: codeLink file empty string ──
-
-  it('should throw CardValidationError when a codeLink file is empty string', () => {
-    // Arrange / Act / Assert
-    expect(() =>
-      validateCardInput({
-        summary: 'ok',
-        codeLinks: [{ kind: 'function', file: '', symbol: 'foo' }],
-      }),
-    ).toThrow(CardValidationError);
-  });
-
-  // ── NE-14: codeLink symbol empty string ──
-
-  it('should throw CardValidationError when a codeLink symbol is empty string', () => {
-    // Arrange / Act / Assert
-    expect(() =>
-      validateCardInput({
-        summary: 'ok',
-        codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: '' }],
-      }),
-    ).toThrow(CardValidationError);
-  });
-
-  // ── boundary validation ──
-
-  it('should not throw when boundary patterns are valid globs', () => {
-    // Arrange / Act / Assert
-    expect(() =>
-      validateCardInput({ boundary: ['src/**', 'lib/*.ts'] }),
-    ).not.toThrow();
-  });
-
-  it('should throw CardValidationError when boundary pattern is empty string', () => {
-    // Arrange / Act / Assert
-    expect(() =>
-      validateCardInput({ boundary: [''] }),
-    ).toThrow(CardValidationError);
-  });
-
-  it('should throw CardValidationError when boundary array exceeds 50 patterns', () => {
-    // Arrange
-    const tooMany = Array(LIMITS.BOUNDARY_MAX_PATTERNS + 1).fill('src/**');
-    // Act / Assert
-    expect(() =>
-      validateCardInput({ boundary: tooMany }),
-    ).toThrow(CardValidationError);
-  });
-
-  it('should throw CardValidationError when boundary pattern exceeds 500 characters', () => {
-    // Arrange
-    const longPattern = 'a'.repeat(LIMITS.BOUNDARY_PATTERN_MAX + 1);
-    // Act / Assert
-    expect(() =>
-      validateCardInput({ boundary: [longPattern] }),
-    ).toThrow(CardValidationError);
-  });
-
   // ── ED-1: all fields exactly at max limits ──
 
   it('should not throw when all fields are exactly at their maximum limits', () => {
     // Arrange
     const key = 'k'.repeat(LIMITS.KEY_MAX);                       // 200
     const summary = 'a'.repeat(LIMITS.SUMMARY_MAX);               // 500
-    const body = 'b'.repeat(LIMITS.BODY_MAX);                     // 100000
     const tags = Array(LIMITS.ARRAY_MAX).fill('t'.repeat(LIMITS.ITEM_MAX));       // 100x100
     const relations = Array(LIMITS.ARRAY_MAX).fill('r'.repeat(LIMITS.RELATION_TARGET_MAX)); // 100x200
-    const codeLinks = Array(LIMITS.ARRAY_MAX).fill({
-      kind: 'function',
-      file: 'f'.repeat(LIMITS.CODE_LINK_FILE_MAX),                // 500
-      symbol: 's'.repeat(LIMITS.CODE_LINK_SYMBOL_MAX),            // 200
-    });
-    const boundary = Array(LIMITS.BOUNDARY_MAX_PATTERNS).fill('p'.repeat(LIMITS.BOUNDARY_PATTERN_MAX)); // 50x500
     // Act / Assert
     expect(() =>
-      validateCardInput({ key, summary, tags, relations, codeLinks, boundary }),
+      validateCardInput({ key, summary, tags, relations }),
     ).not.toThrow();
   });
 

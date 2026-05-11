@@ -6,7 +6,7 @@ import {
   preChangeCheck,
   regressionGuard,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('preChangeCheck', () => {
   let tc: TestContext;
@@ -21,8 +21,8 @@ describe('preChangeCheck', () => {
       key: 'direct',
       summary: 'Direct',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'login' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'direct', [{ kind: 'function', file: 'src/auth.ts', symbol: 'login' }]);
 
     const result = await preChangeCheck(tc.ctx, ['src/auth.ts']);
     expect(result.affectedCards).toHaveLength(1);
@@ -36,11 +36,11 @@ describe('preChangeCheck', () => {
       key: 'sym-match',
       summary: 'Match',
       type: 'spec',
-      codeLinks: [
-        { kind: 'function', file: 'src/auth.ts', symbol: 'login' },
-        { kind: 'function', file: 'src/auth.ts', symbol: 'logout' },
-      ],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'sym-match', [
+      { kind: 'function', file: 'src/auth.ts', symbol: 'login' },
+      { kind: 'function', file: 'src/auth.ts', symbol: 'logout' },
+    ]);
 
     const result = await preChangeCheck(tc.ctx, ['src/auth.ts'], ['login']);
     expect(result.affectedCards).toHaveLength(1);
@@ -53,8 +53,8 @@ describe('preChangeCheck', () => {
       key: 'base',
       summary: 'Base',
       type: 'spec',
-      codeLinks: [{ kind: 'class', file: 'src/base.ts', symbol: 'Base' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'base', [{ kind: 'function', file: 'src/base.ts', symbol: 'baseFn' }]);
     await createCard(tc.ctx, {
       key: 'dependent',
       summary: 'Depends on base',
@@ -77,8 +77,8 @@ describe('preChangeCheck', () => {
         key: `multi-${i}`,
         summary: `Card ${i}`,
         type: 'spec',
-        codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: `fn${i}` }],
-      });
+        });
+      setCardCodeLinks(tc.ctx, `multi-${i}`, [{ kind: 'function', file: 'src/shared.ts', symbol: `fn${i}` }]);
     }
 
     const result = await preChangeCheck(tc.ctx, ['src/shared.ts']);
@@ -91,8 +91,8 @@ describe('preChangeCheck', () => {
       key: 'med-risk',
       summary: 'Medium',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/med.ts', symbol: 'fn' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'med-risk', [{ kind: 'function', file: 'src/med.ts', symbol: 'fn' }]);
 
     const result = await preChangeCheck(tc.ctx, ['src/med.ts']);
     expect(result.riskLevel).toBe('medium');
@@ -111,27 +111,11 @@ describe('preChangeCheck', () => {
       key: 'unrelated',
       summary: 'Unrelated',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/other.ts', symbol: 'other' }],
-    });
+      });
 
     const result = await preChangeCheck(tc.ctx, ['src/different.ts']);
     expect(result.affectedCards).toHaveLength(0);
     expect(result.riskLevel).toBe('low');
-  });
-
-  it('should detect cards affected by boundary matching', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      key: 'bnd-card',
-      summary: 'Boundary card',
-      type: 'spec',
-      boundary: ['src/auth/**'],
-    });
-
-    const result = await preChangeCheck(tc.ctx, ['src/auth/login.ts']);
-    const affected = result.affectedCards.find((c) => c.key === 'bnd-card');
-    expect(affected).toBeDefined();
-    expect(affected!.linkType).toBe('boundary');
   });
 
   it('should include newUncoveredFiles for files not matched by any card', async () => {
@@ -140,8 +124,8 @@ describe('preChangeCheck', () => {
       key: 'covered',
       summary: 'Covered',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/covered.ts', symbol: 'fn' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'covered', [{ kind: 'function', file: 'src/covered.ts', symbol: 'fn' }]);
 
     const result = await preChangeCheck(tc.ctx, ['src/covered.ts', 'src/uncovered.ts']);
     expect(result.newUncoveredFiles).toContain('src/uncovered.ts');
@@ -169,8 +153,8 @@ describe('regressionGuard', () => {
       key: 'guard-card',
       summary: 'Guard',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/guarded.ts', symbol: 'fn' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'guard-card', [{ kind: 'function', file: 'src/guarded.ts', symbol: 'fn' }]);
 
     const result = await regressionGuard(tc.ctx, ['src/guarded.ts']);
     expect(result.passOrFail).toBe('pass');
@@ -183,8 +167,8 @@ describe('regressionGuard', () => {
       key: 'drifted-card',
       summary: 'Drifted',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/drift.ts', symbol: 'fn' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'drifted-card', [{ kind: 'function', file: 'src/drift.ts', symbol: 'fn' }]);
     await updateCardStatus(tc.ctx, 'drifted-card', 'drifted');
 
     const result = await regressionGuard(tc.ctx, ['src/drift.ts']);
@@ -210,14 +194,14 @@ describe('regressionGuard', () => {
       key: 'thresh-clean',
       summary: 'Clean',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/t.ts', symbol: 'clean' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'thresh-clean', [{ kind: 'function', file: 'src/t.ts', symbol: 'clean' }]);
     await createCard(tc.ctx, {
       key: 'thresh-dirty',
       summary: 'Dirty',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/t.ts', symbol: 'dirty' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'thresh-dirty', [{ kind: 'function', file: 'src/t.ts', symbol: 'dirty' }]);
     await updateCardStatus(tc.ctx, 'thresh-dirty', 'drifted');
 
     // 1 drifted out of 2 = ratio 0.5. Set threshold to 0.5 → pass (> not >=)
@@ -234,8 +218,8 @@ describe('regressionGuard', () => {
       key: 'thresh2-dirty',
       summary: 'Dirty',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/u.ts', symbol: 'dirty' }],
-    });
+      });
+    setCardCodeLinks(tc.ctx, 'thresh2-dirty', [{ kind: 'function', file: 'src/u.ts', symbol: 'fn' }]);
     await updateCardStatus(tc.ctx, 'thresh2-dirty', 'drifted');
 
     // 1 drifted out of 1 = ratio 1.0. Threshold 0.5 → fail
@@ -253,9 +237,9 @@ describe('regressionGuard', () => {
       summary: 'Drift via driftType',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-      spec: makeTestSpec('src/gone.ts', 'missingFn'),
+            spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
+    setCardCodeLinks(tc.ctx, 'drift-detect', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
     await updateCardStatus(tc.ctx, 'drift-detect', 'active');
 
     // Mock gildash so broken_link drift is detected (symbol not found)

@@ -236,19 +236,11 @@ describe('Phase 2: validate / check / spec / bulk / single', () => {
 
 });
 
-describe('Phase 2: spec annotate / sync partial-status paths', () => {
+describe('Phase 2: spec sync partial-status paths', () => {
   let tmp: string;
   let cleanup: () => void;
   beforeEach(() => { const h = setupTmpProject(); tmp = h.tmp; cleanup = h.cleanup; });
   afterEach(() => { cleanup(); });
-
-  test('spec annotate with no codeLinks → ok (annotated:0, removed:0)', async () => {
-    const r = await runEd(['spec', 'annotate'], tmp);
-    expect(r.exitCode).toBe(0);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('ok');
-    expect(parsed.data.annotated).toBe(0);
-  });
 
   test('spec sync with no annotations in source → ok (zero counts)', async () => {
     const r = await runEd(['spec', 'sync'], tmp);

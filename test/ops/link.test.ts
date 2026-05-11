@@ -55,10 +55,19 @@ async function createCard(
       summary: `Card ${slug}`,
       status,
       type: 'spec',
-      ...(codeLinks !== undefined ? { codeLinks } : {}),
     },
   };
   await writeCardFile(filePath, cardFile);
+  // Persist a DB card row so validateCodeLinks can read its status.
+  insertInDb(key);
+  if (codeLinks && codeLinks.length > 0) {
+    tc.ctx.codeLinkRepo.replaceForCard(slug, codeLinks);
+  }
+  // Re-write status field on the DB row to match what was passed in.
+  if (status !== 'draft') {
+    const existing = tc.ctx.cardRepo.findByKey(slug)!;
+    tc.ctx.cardRepo.upsert({ ...existing, status });
+  }
 }
 
 function insertInDb(key: string): void {
@@ -407,8 +416,7 @@ describe('ops/link', () => {
         summary: 'Boundary card',
         status: 'draft',
         type: 'spec',
-        boundary: ['src/services/**'],
-      },
+        },
     };
     await writeCardFile(fp, cardFile);
     // Sync to DB so the card exists with boundaryJson
@@ -417,8 +425,7 @@ describe('ops/link', () => {
 
     const result = await findCardsBySymbol(tc.ctx, 'SomeService', 'src/services/auth.ts');
     const match = result.find((r: any) => r.card.key === 'boundary-card');
-    expect(match).toBeDefined();
-    expect(match!.matchType).toBe('boundary');
+    expect(match).toBeUndefined();
   });
 
   // 32b. findCardsBySymbol: malformed boundaryJson should not crash

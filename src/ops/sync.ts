@@ -11,7 +11,6 @@ import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/ty
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
-import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
 import { txDb } from '../db/connection';
 import { readGlossary } from '../glossary/io';
 import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json-fields';
@@ -106,9 +105,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     status: cardFile.frontmatter.status,
     type: cardFile.frontmatter.type,
     parent: cardFile.frontmatter.parent ?? null,
-    boundaryJson: cardFile.frontmatter.boundary
-      ? JSON.stringify(cardFile.frontmatter.boundary)
-      : null,
+    boundaryJson: null,
     namespacesJson: serializeNamespaces(cardFile.frontmatter),
     body: namespaceText,
     glossaryJson: cardFile.frontmatter.glossary
@@ -123,12 +120,12 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     const cardRepo = new DrizzleCardRepository(d);
     const relationRepo = new DrizzleRelationRepository(d);
     const classRepo = new DrizzleClassificationRepository(d);
-    const codeLinkRepo = new DrizzleCodeLinkRepository(d);
 
     cardRepo.upsert(row);
     relationRepo.replaceForCard(key, cardFile.frontmatter.relations ?? []);
     classRepo.replaceTags(key, cardFile.frontmatter.tags ?? []);
-    codeLinkRepo.replaceForCard(key, cardFile.frontmatter.codeLinks ?? []);
+    // codeLink rows are populated by `ed spec sync` from source @spec annotations,
+    // not from card content. Card bulk-sync does not touch code_link.
   });
 }
 

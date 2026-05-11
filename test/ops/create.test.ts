@@ -182,29 +182,11 @@ describe('createCard — codeLinks', () => {
     await tc?.cleanup();
   });
 
-  it('should persist codeLinks to DB when creating card with codeLinks', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, {
-      key: 'cr-cl',
-      summary: 'CL',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
-    });
-    const links = tc.ctx.codeLinkRepo.findByCardKey('cr-cl');
-    expect(links).toHaveLength(1);
-    expect(links[0]!.symbol).toBe('myFunc');
-    expect(links[0]!.file).toBe('src/a.ts');
-  });
-
-  it('should not persist any codeLinks when creating card without codeLinks', async () => {
+  // Source bindings (code_link rows) come from `ed spec sync` reading
+  // `@spec card-key` JSDoc tags. createCard never populates code_link.
+  it('does not populate code_link table by itself', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'cr-nocl', summary: 'No CL', type: 'spec' });
     expect(tc.ctx.codeLinkRepo.findByCardKey('cr-nocl')).toHaveLength(0);
-  });
-
-  it('should not persist any codeLinks when creating card with empty codeLinks array', async () => {
-    tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'cr-emptycl', summary: 'Empty CL', type: 'spec', codeLinks: [] });
-    expect(tc.ctx.codeLinkRepo.findByCardKey('cr-emptycl')).toHaveLength(0);
   });
 });

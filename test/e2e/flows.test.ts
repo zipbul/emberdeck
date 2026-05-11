@@ -29,7 +29,7 @@ import {
   syncSpecAnnotations,
   analyze,
 } from '../../index';
-import { createMockTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 
 // ============================================================================
 // Use the shared symbol-map mock factory.
@@ -80,16 +80,14 @@ describe('E2E Scenario 1: Onboarding flow', () => {
         summary: 'API layer',
         type: 'brief',
         parent: 'platform',
-        boundary: ['src/api/**'],
-      },
+        },
       {
         key: 'db-layer',
         summary: 'DB layer',
         type: 'spec',
         parent: 'api-layer',
         relations: ['api-layer'],
-        codeLinks: [{ kind: 'function', file: 'src/db/query.ts', symbol: 'runQuery' }],
-      },
+        },
     ]);
 
     expect(bulk.created).toBe(3);
@@ -128,13 +126,9 @@ describe('E2E Scenario 2: Code change flow', () => {
       summary: 'Authentication service',
       type: 'spec',
       parent: '_br',
-            codeLinks: [
-        { kind: 'function', file: 'src/auth.ts', symbol: 'login' },
-        { kind: 'function', file: 'src/auth.ts', symbol: 'logout' },
-      ],
-      boundary: ['src/auth/**'],
-      spec: makeTestSpec('src/auth.ts', 'login'),
+            spec: makeTestSpec('src/auth.ts', 'login'),
     });
+    setCardCodeLinks(tc.ctx, 'auth-service', [{ kind: 'function', file: 'src/auth.ts', symbol: 'login' }]);
     await updateCardStatus(tc.ctx, 'auth-service', 'active');
 
     // Set gildash with symbols present
@@ -206,8 +200,7 @@ describe('E2E Scenario 3: Design change flow', () => {
     // Use the scaffold's _br as the new parent.
     await updateCard(tc.ctx, 'infra-layer', {
       parent: '_br',
-      codeLinks: [{ kind: 'class', file: 'src/infra/base.ts', symbol: 'BaseInfra' }],
-            spec: makeTestSpec('src/infra/base.ts', 'BaseInfra'),
+      spec: makeTestSpec('src/infra/base.ts', 'BaseInfra'),
     });
     await updateCardStatus(tc.ctx, 'infra-layer', 'active');
     const reactivated = await getCard(tc.ctx, 'infra-layer');
@@ -325,15 +318,11 @@ describe('E2E Scenario 5: Code → spec flow', () => {
     expect(uncovered.uncovered).toHaveLength(3);
 
     // Step 2: createCard linking some symbols
-    await createCard(tc.ctx, {
-      key: 'payment',
-      summary: 'Payment processing',
-      type: 'spec',
-      codeLinks: [
-        { kind: 'function', file: 'src/payment.ts', symbol: 'charge' },
-        { kind: 'function', file: 'src/payment.ts', symbol: 'refund' },
-      ],
-    });
+    await createCard(tc.ctx, { key: 'payment', summary: 'Payment processing', type: 'spec' });
+    setCardCodeLinks(tc.ctx, 'payment', [
+      { kind: 'function', file: 'src/payment.ts', symbol: 'charge' },
+      { kind: 'function', file: 'src/payment.ts', symbol: 'refund' },
+    ]);
 
     // Step 3: validateCodeLinks → declared > 0, valid > 0, broken === 0
     const linkResult = await validateCodeLinks(tc.ctx, 'payment');

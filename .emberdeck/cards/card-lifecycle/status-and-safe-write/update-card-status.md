@@ -6,16 +6,6 @@ summary: >-
 status: draft
 type: spec
 parent: card-lifecycle/status-and-safe-write
-codeLinks:
-  - kind: function
-    file: src/ops/update.ts
-    symbol: updateCardStatus
-  - kind: function
-    file: src/card/validation.ts
-    symbol: validateActivationGuard
-  - kind: function
-    file: src/card/validation.ts
-    symbol: validateTypeChangeActivation
 glossary:
   - activation-guard
 spec:
@@ -24,9 +14,6 @@ spec:
       condition: >-
         Caller passes a card key and target status (draft / active / drifted /
         retired).
-      binds:
-        - file: src/ops/update.ts
-          symbol: updateCardStatus
       derives: card-lifecycle/status-and-safe-write#G-001
   postconditions:
     - id: POST-001
@@ -34,30 +21,18 @@ spec:
         A transition to active runs validateActivationGuard which re-validates
         fields and codeLinks.
       keyword: MUST
-      binds:
-        - file: src/card/validation.ts
-          symbol: validateActivationGuard
       derives: card-lifecycle/status-and-safe-write#G-001
     - id: POST-002
       guarantee: A type change combined with activation re-runs the type-specific guard.
       keyword: SHALL
-      binds:
-        - file: src/card/validation.ts
-          symbol: validateTypeChangeActivation
       derives: card-lifecycle/status-and-safe-write#G-001
   invariants:
     - id: INV-001
       statement: >-
         No card reaches active state with unresolved required fields or broken
         codeLinks.
-      binds:
-        - file: src/ops/update.ts
-          symbol: updateCardStatus
       always_holds: per-call
   failures:
     - violation: Activation guard fails (missing field or unresolved codeLink).
       behavior: updateCardStatus throws ActivationGuardError; status is not changed.
-      exception:
-        class: ActivationGuardError
-        file: src/card/errors.ts
 ---

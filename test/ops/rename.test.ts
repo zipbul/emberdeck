@@ -8,7 +8,7 @@ import {
   CardNotFoundError,
   CardRenameSamePathError,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('renameCard', () => {
   let tc: TestContext;
@@ -221,9 +221,7 @@ describe('renameCard', () => {
   it('should preserve single codeLink under new key when rename succeeds', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'cl-single-old', summary: 'CL single', type: 'spec' });
-    await updateCard(tc.ctx, 'cl-single-old', {
-      codeLinks: [{ kind: 'function', file: 'src/foo.ts', symbol: 'myFn' }],
-    });
+    setCardCodeLinks(tc.ctx, 'cl-single-old', [{ kind: 'function', file: 'src/foo.ts', symbol: 'myFn' }]);
     await renameCard(tc.ctx, 'cl-single-old', 'cl-single-new');
     const oldLinks = tc.ctx.codeLinkRepo.findByCardKey('cl-single-old');
     expect(oldLinks).toHaveLength(0);

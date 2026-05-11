@@ -83,7 +83,7 @@ export function buildSearchableText(fm: CardFrontmatter): string {
     for (const p of s.preconditions) parts.push(p.id, p.condition, p.derives);
     for (const p of s.postconditions) parts.push(p.id, p.guarantee, p.derives);
     for (const i of s.invariants) parts.push(i.id, i.statement, i.always_holds);
-    for (const f of s.failures) parts.push(f.violation, f.behavior, f.exception.class, f.exception.file);
+    for (const f of s.failures) parts.push(f.violation, f.behavior);
     if (s.state_transitions) {
       for (const t of s.state_transitions) parts.push(t.from, t.trigger, t.to);
     }

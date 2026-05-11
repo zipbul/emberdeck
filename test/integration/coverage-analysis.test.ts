@@ -87,32 +87,6 @@ describe('getUncoveredSymbols', () => {
     expect(result.coverageRatio).toBe(0.5);
   });
 
-  it('excludes symbols in boundary-covered files', async () => {
-    tc = await createMockTestContext();
-
-    // Create a real temp directory for boundary scanning
-    const { mkdirSync, writeFileSync, rmSync } = require('node:fs');
-    const tmpRoot = '/tmp/ed-coverage-boundary-' + Date.now();
-    mkdirSync(tmpRoot + '/src/api', { recursive: true });
-    writeFileSync(tmpRoot + '/src/api/handler.ts', 'export function handle() {}');
-
-    try {
-      tc.ctx.projectRoot = tmpRoot;
-      tc.ctx.gildash = createMockGildash({
-        [tmpRoot + '/src/api/handler.ts']: [
-          { name: 'handle', kind: 'function' },
-        ],
-      });
-
-      insertCard(tc, 'api', { boundary: ['src/api/**'] });
-
-      const result = await getUncoveredSymbols(tc.ctx);
-      expect(result.uncovered.filter((s) => s.symbol === 'handle')).toHaveLength(0);
-    } finally {
-      rmSync(tmpRoot, { recursive: true, force: true });
-    }
-  });
-
   it('applies ignorePatterns patterns', async () => {
     tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
@@ -358,25 +332,6 @@ describe('suggestCardScope', () => {
     expect(suggestions).toHaveLength(0);
   });
 
-  it('skips directories covered by existing boundary globs', async () => {
-    tc = await createMockTestContext();
-    tc.ctx.projectRoot = '/project';
-    tc.ctx.gildash = createMockGildash({
-      '/project/src/api/routes.ts': [
-        { name: 'getUsers', kind: 'function' },
-      ],
-    });
-
-    // Card with different key but boundary covering the directory
-    insertCard(tc, 'api-module', { boundary: ['src/api/**'] });
-    // Symbol is uncovered by codeLinks but the boundary glob covers the file
-    // The boundary overlap check in suggestCardScope should skip this directory
-
-    const suggestions = await suggestCardScope(tc.ctx);
-    const apiSuggestion = suggestions.find((s) => s.suggestedKey === 'src/api');
-    expect(apiSuggestion).toBeUndefined();
-  });
-
   it('suggests parent when ancestor card exists', async () => {
     tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
@@ -467,20 +422,6 @@ describe('analyze', () => {
     expect(result.health.drifted).toBe(1);  // 'was-drifted' counted from DB status
   });
 
-  it('detects boundary_inactive drift in driftedCards', async () => {
-    // Real gildash needed: the test asserts boundary_inactive against a populated index.
-    tc = await createTestContext();
-    const { writeFileSync } = require('node:fs');
-    writeFileSync(join(tc.ctx.projectRoot, 'src.ts'), 'export const x = 1;\n');
-    insertCard(tc, 'stale-boundary', { status: 'active', boundary: ['nonexistent/**/*.ts'] });
-
-    const result = await analyze(tc.ctx);
-    expect(result.health.drifted).toBe(1);
-    expect(result.driftedCards).toHaveLength(1);
-    expect(result.driftedCards[0]!.key).toBe('stale-boundary');
-    expect(result.driftedCards[0]!.driftType).toBe('boundary_inactive');
-  });
-
   it('reports coverage when gildash is available', async () => {
     tc = await createMockTestContext();
     tc.ctx.projectRoot = '/project';
@@ -506,16 +447,6 @@ describe('analyze', () => {
     expect(result.coverage.ratio).toBe(0.5);
     expect(result.unlinkedSymbols).toHaveLength(1);
     expect(result.unlinkedSymbols[0]!.symbol).toBe('logout');
-  });
-
-  it('detects stale boundaries against the populated index', async () => {
-    tc = await createTestContext();
-    const { writeFileSync } = require('node:fs');
-    writeFileSync(join(tc.ctx.projectRoot, 'src.ts'), 'export const x = 1;\n');
-    insertCard(tc, 'stale', { boundary: ['nonexistent/dir/**'] });
-
-    const result = await analyze(tc.ctx);
-    expect(result.health.staleBoundary).toBe(1);
   });
 
   it('limits unlinked symbols to top N', async () => {

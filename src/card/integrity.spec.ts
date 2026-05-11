@@ -293,7 +293,7 @@ describe('validateActivationGuard', () => {
 
   it('spec without parent: rejected (4-tier strict)', async () => {
     try {
-      await validateActivationGuard(ctx, { type: 'spec', codeLinks: [{ file: 'a', symbol: 'b' }] });
+      await validateActivationGuard(ctx, { type: 'spec', });
       expect.unreachable('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(ActivationGuardError);
@@ -398,18 +398,8 @@ describe('validateActivationGuard', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('spec type with no codeLinks: throws ActivationGuardError', async () => {
-    setupBrief();
-    try {
-      await validateActivationGuard(ctx, { type: 'spec', parent: '_br', codeLinks: [] });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions).toContain(
-        'spec card must have at least 1 codeLink',
-      );
-    }
-  });
+  // `codeLinks` was removed from card schema — bindings are scanned from
+  // source `@spec` annotations. Activation only demands the spec namespace.
 
   it('spec type with undefined codeLinks: throws ActivationGuardError', async () => {
     setupBrief();
@@ -428,8 +418,6 @@ describe('validateActivationGuard', () => {
       validateActivationGuard(ctx, {
         type: 'spec',
         parent: '_br',
-        codeLinks: [{ file: 'src/a.ts', symbol: 'x' }],
-        boundary: ['src/**'],
         spec: makeTestSpec('src/a.ts', 'x'),
       }),
     ).resolves.toBeUndefined();
@@ -442,7 +430,6 @@ describe('validateActivationGuard', () => {
       validateActivationGuard(ctx, {
         type: 'spec',
         parent: '_br',
-        codeLinks: [{ file: 'src/foo.ts', symbol: 'bar' }],
         spec: makeTestSpec('src/foo.ts', 'bar'),
       }),
     ).resolves.toBeUndefined();
@@ -454,8 +441,7 @@ describe('validateActivationGuard', () => {
       await validateActivationGuard(ctx, {
         type: 'spec',
         parent: '_br',
-        codeLinks: [{ file: 'src/foo.ts', symbol: 'bar' }],
-      });
+        });
       expect.unreachable('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(ActivationGuardError);
@@ -469,8 +455,7 @@ describe('validateActivationGuard', () => {
       await validateActivationGuard(ctx, {
         type: 'spec',
         parent: 'p-dom',
-        codeLinks: [{ file: 'src/a.ts', symbol: 'x' }],
-      });
+        });
       expect.unreachable('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(ActivationGuardError);
@@ -486,7 +471,7 @@ describe('validateTypeChangeActivation', () => {
     // Act
     const result = await validateTypeChangeActivation(
       ctx,
-      { status: 'active', type: 'brief', codeLinks: [] },
+      { status: 'active', type: 'brief', },
       'spec',
     );
 
@@ -503,7 +488,6 @@ describe('validateTypeChangeActivation', () => {
         status: 'active',
         type: 'spec',
         parent: '_dom',
-        codeLinks: [{ file: 'src/a.ts', symbol: 'x' }],
         brief: makeTestBrief(),
       },
       'brief',
@@ -515,7 +499,7 @@ describe('validateTypeChangeActivation', () => {
   it('active spec -> brief: forces draft when brief namespace missing', async () => {
     const result = await validateTypeChangeActivation(
       ctx,
-      { status: 'active', type: 'spec', codeLinks: [{ file: 'src/a.ts', symbol: 'x' }] },
+      { status: 'active', type: 'spec', },
       'brief',
     );
     expect(result).toBe('draft');
@@ -525,7 +509,7 @@ describe('validateTypeChangeActivation', () => {
     // Act
     const result = await validateTypeChangeActivation(
       ctx,
-      { status: 'drifted', type: 'spec', codeLinks: [] },
+      { status: 'drifted', type: 'spec', },
       'brief',
     );
 
@@ -537,7 +521,7 @@ describe('validateTypeChangeActivation', () => {
     // Act
     const result = await validateTypeChangeActivation(
       ctx,
-      { status: 'draft', type: 'spec', codeLinks: [] },
+      { status: 'draft', type: 'spec', },
       'brief',
     );
 

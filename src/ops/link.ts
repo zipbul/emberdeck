@@ -6,8 +6,6 @@ import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { readCardFileOrThrow } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
-import { parseStringArrayJson } from '../card/json-fields';
-import { matchesAnyGlob } from '../util/glob';
 
 /**
  * `searchAnnotations` page-size cap. Gildash default is unbounded; pin to
@@ -196,19 +194,23 @@ export async function resolveCardCodeLinks(
 ): Promise<ResolvedCodeLink[]> {
   await ensureReindexed(ctx);
 
-  const cardFile = await readCard(ctx, fullKey);
-  const codeLinks = cardFile.frontmatter.codeLinks ?? [];
+  const key = parseFullKey(fullKey);
+  // Existence check — emit CardNotFoundError when the card has neither a
+  // file on disk nor a DB row. Keeps the contract symmetric with prior
+  // behavior even though source @spec annotations now feed code_link.
+  await readCard(ctx, fullKey);
+  const codeLinks = ctx.codeLinkRepo.findByCardKey(key);
   if (codeLinks.length === 0) return [];
 
   const cache = makeSymbolFileCache(ctx)!;
   const result: ResolvedCodeLink[] = [];
   for (const link of codeLinks) {
+    const lk: CodeLink = { kind: link.kind, file: link.file, symbol: link.symbol };
     try {
       const found = cache.find(link.file, link.symbol) ?? null;
-      result.push({ link, symbol: found });
+      result.push({ link: lk, symbol: found });
     } catch {
-      // Gildash unavailable — symbol resolution not possible
-      result.push({ link, symbol: null });
+      result.push({ link: lk, symbol: null });
     }
   }
   return result;
@@ -216,12 +218,13 @@ export async function resolveCardCodeLinks(
 
 export interface SymbolMatchResult {
   card: CardRow;
-  matchType: 'codeLink' | 'boundary';
+  matchType: 'codeLink';
 }
 
 /**
- * Returns the list of cards that reference the given symbol name (+ optional file path).
- * Matches via codeLinks first, then via boundary glob patterns.
+ * Returns the list of cards bound (via `@spec` source annotations populated
+ * into code_link) to the given symbol name. Optional file filter narrows the
+ * match. Source bindings are the only SoT — boundary globs no longer exist.
   * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function findCardsBySymbol(
@@ -234,26 +237,12 @@ export async function findCardsBySymbol(
   const seen = new Set<string>();
   const result: SymbolMatchResult[] = [];
 
-  // 1. codeLink-based matches
   const rows = ctx.codeLinkRepo.findBySymbol(symbolName, filePath);
   for (const row of rows) {
     if (seen.has(row.cardKey)) continue;
     seen.add(row.cardKey);
     const card = ctx.cardRepo.findByKey(row.cardKey);
     if (card) result.push({ card, matchType: 'codeLink' });
-  }
-
-  // 2. boundary glob matches (only when filePath is provided)
-  if (filePath) {
-    const allCards = ctx.cardRepo.list();
-    for (const card of allCards) {
-      if (seen.has(card.key)) continue;
-      const boundaries = parseStringArrayJson(card.boundaryJson);
-      if (boundaries.length > 0 && matchesAnyGlob(filePath, boundaries)) {
-        seen.add(card.key);
-        result.push({ card, matchType: 'boundary' });
-      }
-    }
   }
 
   return result;
@@ -332,10 +321,10 @@ export async function validateCodeLinks(
 ): Promise<ValidateCodeLinksResult> {
   await ensureReindexed(ctx);
 
+  const key = parseFullKey(fullKey);
   const cardFile = await readCard(ctx, fullKey);
-  const codeLinks = cardFile.frontmatter.codeLinks ?? [];
-  if (codeLinks.length === 0) return { declared: 0, valid: 0, broken: [], planned: [] };
-
+  const dbLinks = ctx.codeLinkRepo.findByCardKey(key);
+  if (dbLinks.length === 0) return { declared: 0, valid: 0, broken: [], planned: [] };
   const status = cardFile.frontmatter.status;
   const isPlanning = status === 'draft';
 
@@ -345,12 +334,12 @@ export async function validateCodeLinks(
 
   let valid = 0;
   let gildashUnavailable = false;
-  for (const link of codeLinks) {
+  for (const row of dbLinks) {
+    const link: CodeLink = { kind: row.kind, file: row.file, symbol: row.symbol };
     let found: SymbolSearchResult | undefined;
     try {
       found = cache.find(link.file, link.symbol);
     } catch {
-      // Gildash transient failure — do not count as broken link
       gildashUnavailable = true;
       const entry: BrokenLink = { link, reason: 'gildash-unavailable' };
       if (isPlanning) planned.push(entry);
@@ -370,7 +359,6 @@ export async function validateCodeLinks(
   // Auto-transition: active card with broken links → drifted (targeted UPDATE)
   // Skip transition if gildash was unavailable — broken links may be false positives
   if (broken.length > 0 && status === 'active' && !gildashUnavailable) {
-    const key = parseFullKey(fullKey);
     const row = ctx.cardRepo.findByKey(key);
     if (row) {
       const now = new Date().toISOString();
@@ -397,7 +385,7 @@ export async function validateCodeLinks(
   }
 
   return {
-    declared: codeLinks.length,
+    declared: dbLinks.length,
     valid,
     broken,
     planned,

@@ -74,27 +74,15 @@ describe('parseCard', () => {
     expect(result.frontmatter.relations).toEqual([]);
   });
 
-  it('parses boundary glob array', () => {
-    const result = parseCard(makeCard({ boundary: ['src/auth/**', 'lib/*.ts'] }));
-    expect(result.frontmatter.boundary).toEqual(['src/auth/**', 'lib/*.ts']);
-  });
-
-  it('returns undefined boundary when absent', () => {
-    const result = parseCard(makeCard());
-    expect(result.frontmatter.boundary).toBeUndefined();
-  });
-
   it('parses all optional fields together', () => {
     const result = parseCard(makeCard({
       parent: 'p',
       tags: ['t1'],
       relations: ['other'],
-      boundary: ['src/**'],
-    }));
+      }));
     expect(result.frontmatter.tags).toEqual(['t1']);
     expect(result.frontmatter.relations).toEqual(['other']);
     expect(result.frontmatter.parent).toBe('p');
-    expect(result.frontmatter.boundary).toEqual(['src/**']);
   });
 
   it('returns identical result on repeated parse', () => {
@@ -166,84 +154,7 @@ describe('parseCard — errors', () => {
     { relations: [null] },
     { relations: [''] },
     { relations: [{ type: 'depends-on', target: 'other' }] },
-    { boundary: 123 },
-    { boundary: [''] },
   ])('throws on invalid optional field shape: %p', (override) => {
-    expect(() => parseCard(makeCard(override))).toThrow(CardValidationError);
-  });
-});
-
-// ── codeLinks ──────────────────────────────────────────────────────────
-
-describe('parseCard — codeLinks', () => {
-  it('parses single codeLink', () => {
-    const result = parseCard(makeCard({
-      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' }],
-    }));
-    expect(result.frontmatter.codeLinks).toEqual([
-      { kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' },
-    ]);
-  });
-
-  it('parses multiple codeLinks', () => {
-    const links = [
-      { kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' },
-      { kind: 'class', file: 'src/auth/TokenService.ts', symbol: 'TokenService' },
-    ];
-    const result = parseCard(makeCard({ codeLinks: links }));
-    expect(result.frontmatter.codeLinks).toEqual(links);
-  });
-
-  it('preserves codeLinks order', () => {
-    const result = parseCard(makeCard({
-      codeLinks: [
-        { kind: 'function', file: 'src/a.ts', symbol: 'alpha' },
-        { kind: 'class', file: 'src/b.ts', symbol: 'beta' },
-      ],
-    }));
-    expect(result.frontmatter.codeLinks![0]!.symbol).toBe('alpha');
-    expect(result.frontmatter.codeLinks![1]!.symbol).toBe('beta');
-  });
-
-  it('returns undefined when codeLinks absent', () => {
-    const result = parseCard(makeCard());
-    expect(result.frontmatter.codeLinks).toBeUndefined();
-  });
-
-  it('returns undefined when codeLinks is null', () => {
-    const result = parseCard(makeCard({ codeLinks: null }));
-    expect(result.frontmatter.codeLinks).toBeUndefined();
-  });
-
-  it('returns empty array when codeLinks is []', () => {
-    const result = parseCard(makeCard({ codeLinks: [] }));
-    expect(result.frontmatter.codeLinks).toEqual([]);
-  });
-
-  it('parses codeLinks with relations alongside', () => {
-    const result = parseCard(makeCard({
-      relations: ['other'],
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }],
-    }));
-    expect(result.frontmatter.relations).toEqual(['other']);
-    expect(result.frontmatter.codeLinks).toEqual([{ kind: 'function', file: 'src/a.ts', symbol: 'foo' }]);
-  });
-
-  it.each([
-    { codeLinks: 42 },
-    { codeLinks: { kind: 'function' } },
-    { codeLinks: [null] },
-    { codeLinks: [{ kind: '', file: 'src/a.ts', symbol: 'foo' }] },
-    { codeLinks: [{ file: 'src/a.ts', symbol: 'foo' }] },
-    { codeLinks: [{ kind: 'function', file: '', symbol: 'foo' }] },
-    { codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: '' }] },
-    {
-      codeLinks: [
-        { kind: 'function', file: 'src/a.ts', symbol: 'foo' },
-        { kind: '', file: 'src/b.ts', symbol: 'bar' },
-      ],
-    },
-  ])('throws on invalid codeLinks shape: %p', (override) => {
     expect(() => parseCard(makeCard(override))).toThrow(CardValidationError);
   });
 });
@@ -256,22 +167,6 @@ describe('serializeCard', () => {
     const result = serializeCard(fm);
     expect(result.startsWith('---\nkey: k\n')).toBe(true);
     expect(result.endsWith('---\n')).toBe(true);
-  });
-
-  it('emits codeLinks when present', () => {
-    const fm: CardFrontmatter = {
-      key: 'k', summary: 's', status: 'draft', type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' }],
-    };
-    const result = serializeCard(fm);
-    expect(result).toContain('codeLinks:');
-    expect(result).toContain('refreshToken');
-  });
-
-  it('omits codeLinks when absent', () => {
-    const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec' };
-    const result = serializeCard(fm);
-    expect(result).not.toContain('codeLinks');
   });
 
   it('emits tags when present', () => {
@@ -293,8 +188,7 @@ describe('serializeCard', () => {
       tags: ['api', 'v2'],
       relations: ['core/module'],
       parent: 'spec/root',
-      boundary: ['src/api/**'],
-    };
+      };
     const text = serializeCard(original);
     const reparsed = parseCard(text);
     expect(reparsed.frontmatter.key).toBe(original.key);
@@ -304,29 +198,12 @@ describe('serializeCard', () => {
     expect(reparsed.frontmatter.tags).toEqual(original.tags);
     expect(reparsed.frontmatter.relations).toEqual(original.relations);
     expect(reparsed.frontmatter.parent).toBe(original.parent);
-    expect(reparsed.frontmatter.boundary).toEqual(original.boundary);
-  });
-
-  it('round-trip: codeLinks survive', () => {
-    const original: CardFrontmatter = {
-      key: 'auth/token',
-      summary: 'Token spec',
-      status: 'active',
-      type: 'spec',
-      codeLinks: [
-        { kind: 'function', file: 'src/auth/token.ts', symbol: 'refreshToken' },
-        { kind: 'class', file: 'src/auth/TokenService.ts', symbol: 'TokenService' },
-      ],
-    };
-    const reparsed = parseCard(serializeCard(original));
-    expect(reparsed.frontmatter.codeLinks).toEqual(original.codeLinks);
   });
 
   it('round-trip: serialize is idempotent (canonical key ordering)', () => {
     const fm: CardFrontmatter = {
       key: 'k', summary: 's', status: 'draft', type: 'spec',
-      tags: ['t1'], parent: 'p', boundary: ['src/**'],
-    };
+      tags: ['t1'], parent: 'p', };
     const first = serializeCard(fm);
     const second = serializeCard(parseCard(first).frontmatter);
     expect(second).toBe(first);

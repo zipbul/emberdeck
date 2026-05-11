@@ -6,25 +6,6 @@ summary: >-
 status: draft
 type: spec
 parent: card-storage/persistence
-codeLinks:
-  - kind: function
-    file: src/ops/sync.ts
-    symbol: syncCardFromFile
-  - kind: function
-    file: src/ops/sync.ts
-    symbol: bulkSyncCards
-  - kind: function
-    file: src/ops/sync.ts
-    symbol: exportCardToFile
-  - kind: function
-    file: src/ops/sync.ts
-    symbol: removeCardByFile
-  - kind: function
-    file: src/ops/sync.ts
-    symbol: validateCards
-  - kind: function
-    file: src/ops/sync.ts
-    symbol: buildCardFromDb
 glossary:
   - card-key
 spec:
@@ -33,9 +14,6 @@ spec:
       condition: >-
         Caller has a runtime context with cards directory and DB connection
         initialized.
-      binds:
-        - file: src/ops/sync.ts
-          symbol: bulkSyncCards
       derives: card-storage/persistence#G-002
   postconditions:
     - id: POST-001
@@ -43,41 +21,22 @@ spec:
         bulkSyncCards reports orphan files, stale rows, and key mismatches
         without silent overwrite.
       keyword: MUST
-      binds:
-        - file: src/ops/sync.ts
-          symbol: bulkSyncCards
-        - file: src/ops/sync.ts
-          symbol: validateCards
       derives: card-storage/persistence#G-002
     - id: POST-002
       guarantee: >-
         exportCardToFile renders a DB row to canonical markdown matching the
         round-trip contract.
       keyword: SHALL
-      binds:
-        - file: src/ops/sync.ts
-          symbol: exportCardToFile
-        - file: src/ops/sync.ts
-          symbol: buildCardFromDb
       derives: card-storage/persistence#G-003
   invariants:
     - id: INV-001
       statement: >-
         A successful bulk-sync leaves DB content equivalent to the on-disk
         directory.
-      binds:
-        - file: src/ops/sync.ts
-          symbol: bulkSyncCards
       always_holds: cross-call
   failures:
     - violation: A card file's frontmatter key does not match its filename slug.
       behavior: bulkSyncCards emits a key-mismatch warning; the row is not overwritten.
-      exception:
-        class: none
-        file: src/cli/errors.ts
     - violation: A file referenced by removeCardByFile no longer exists.
       behavior: removeCardByFile is idempotent and returns without error.
-      exception:
-        class: none
-        file: src/cli/errors.ts
 ---

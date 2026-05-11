@@ -23,18 +23,15 @@ import type {
   CardFrontmatter,
   CardStatus,
   CardType,
-  CodeLink,
   DomainBody,
   PrincipleBody,
   PrincipleMetric,
-  SpecBindRef,
   SpecBody,
   SpecFailure,
   SpecInvariant,
   SpecPostcondition,
   SpecPrecondition,
   SpecStateTransition,
-  SpecCodePattern,
 } from './types';
 import { CARD_TYPES } from './types';
 import { CardValidationError } from './errors';
@@ -85,19 +82,6 @@ function normalizeTags(value: unknown): string[] | undefined {
   return asStringArray(value, 'tags').map((s) => s.toLowerCase());
 }
 
-function normalizeCodeLinks(value: unknown): CodeLink[] | undefined {
-  if (value == null) return undefined;
-  const arr = asArray(value, 'codeLinks');
-  return arr.map((item) => {
-    const cl = asObj(item, 'codeLinks[]');
-    return {
-      kind: asString(cl.kind, 'codeLinks[].kind'),
-      file: asString(cl.file, 'codeLinks[].file'),
-      symbol: asString(cl.symbol, 'codeLinks[].symbol'),
-    };
-  });
-}
-
 function normalizeCardType(value: unknown): CardType {
   if (typeof value !== 'string' || !CARD_TYPES.includes(value as CardType)) {
     throw new CardValidationError(`Invalid frontmatter field: type (expected one of: ${CARD_TYPES.join(', ')})`);
@@ -113,11 +97,6 @@ function normalizeRelations(value: unknown): string[] | undefined {
 function normalizeGlossary(value: unknown): string[] | undefined {
   if (value == null) return undefined;
   return asStringArray(value, 'glossary');
-}
-
-function normalizeBoundary(value: unknown): string[] | undefined {
-  if (value == null) return undefined;
-  return asStringArray(value, 'boundary');
 }
 
 // ── Principle body normalizers ─────────────────────────────────
@@ -469,17 +448,6 @@ function normalizeBriefBody(value: unknown): BriefBody {
 const VALID_SPEC_KEYWORDS = ['MUST', 'SHALL'];
 const VALID_ALWAYS_HOLDS = ['per-call', 'cross-call', 'cross-process'];
 
-function normalizeBinds(value: unknown, field: string): SpecBindRef[] {
-  const arr = asArray(value, field);
-  return arr.map((item) => {
-    const b = asObj(item, `${field}[]`);
-    return {
-      file: asString(b.file, `${field}[].file`),
-      symbol: asString(b.symbol, `${field}[].symbol`),
-    };
-  });
-}
-
 function normalizeDomainBody(value: unknown): DomainBody {
   const o = asObj(value, 'domain');
   const body: DomainBody = {
@@ -508,7 +476,6 @@ function normalizeSpecBody(value: unknown): SpecBody {
     return {
       id: asString(p.id, 'spec.preconditions[].id'),
       condition: asString(p.condition, 'spec.preconditions[].condition'),
-      binds: normalizeBinds(p.binds, 'spec.preconditions[].binds'),
       derives: asString(p.derives, 'spec.preconditions[].derives'),
     };
   });
@@ -521,7 +488,6 @@ function normalizeSpecBody(value: unknown): SpecBody {
       id: asString(p.id, 'spec.postconditions[].id'),
       guarantee: asString(p.guarantee, 'spec.postconditions[].guarantee'),
       keyword: p.keyword as SpecPostcondition['keyword'],
-      binds: normalizeBinds(p.binds, 'spec.postconditions[].binds'),
       derives: asString(p.derives, 'spec.postconditions[].derives'),
     };
   });
@@ -533,20 +499,14 @@ function normalizeSpecBody(value: unknown): SpecBody {
     return {
       id: asString(i.id, 'spec.invariants[].id'),
       statement: asString(i.statement, 'spec.invariants[].statement'),
-      binds: normalizeBinds(i.binds, 'spec.invariants[].binds'),
       always_holds: i.always_holds as SpecInvariant['always_holds'],
     };
   });
   const failures = asArray(o.failures, 'spec.failures').map((item): SpecFailure => {
     const f = asObj(item, 'spec.failures[]');
-    const ex = asObj(f.exception, 'spec.failures[].exception');
     return {
       violation: asString(f.violation, 'spec.failures[].violation'),
       behavior: asString(f.behavior, 'spec.failures[].behavior'),
-      exception: {
-        class: asString(ex.class, 'spec.failures[].exception.class'),
-        file: asString(ex.file, 'spec.failures[].exception.file'),
-      },
     };
   });
   const body: SpecBody = { preconditions, postconditions, invariants, failures };
@@ -557,28 +517,7 @@ function normalizeSpecBody(value: unknown): SpecBody {
         from: asString(t.from, 'spec.state_transitions[].from'),
         trigger: asString(t.trigger, 'spec.state_transitions[].trigger'),
         to: asString(t.to, 'spec.state_transitions[].to'),
-        binds: normalizeBinds(t.binds, 'spec.state_transitions[].binds'),
       };
-    });
-  }
-  if (o.code_patterns != null) {
-    body.code_patterns = asArray(o.code_patterns, 'spec.code_patterns').map((item): SpecCodePattern => {
-      const p = asObj(item, 'spec.code_patterns[]');
-      const rule = p.rule;
-      if (rule !== 'forbidden' && rule !== 'required') {
-        throw new CardValidationError(
-          `Invalid spec.code_patterns[].rule (expected "forbidden" or "required", got ${JSON.stringify(rule)})`,
-        );
-      }
-      const out: SpecCodePattern = {
-        id: asString(p.id, 'spec.code_patterns[].id'),
-        pattern: asString(p.pattern, 'spec.code_patterns[].pattern'),
-        rule,
-      };
-      if (p.description != null) {
-        out.description = asString(p.description, 'spec.code_patterns[].description');
-      }
-      return out;
     });
   }
   return body;
@@ -609,14 +548,8 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
     out.parent = asString(fm['parent'], 'parent');
   }
 
-  const boundary = normalizeBoundary(fm['boundary']);
-  if (boundary !== undefined) out.boundary = boundary;
-
   const relations = normalizeRelations(fm['relations']);
   if (relations !== undefined) out.relations = relations;
-
-  const codeLinks = normalizeCodeLinks(fm['codeLinks']);
-  if (codeLinks !== undefined) out.codeLinks = codeLinks;
 
   const tags = normalizeTags(fm['tags']);
   if (tags !== undefined) out.tags = tags;
@@ -678,7 +611,7 @@ export function parseCard(text: string): CardFile {
  */
 const SERIALIZE_KEY_ORDER: ReadonlyArray<keyof CardFrontmatter> = [
   'key', 'summary', 'status', 'type',
-  'parent', 'boundary', 'relations', 'codeLinks', 'tags', 'glossary',
+  'parent', 'relations', 'tags', 'glossary',
   'principle', 'domain', 'brief', 'spec',
 ];
 

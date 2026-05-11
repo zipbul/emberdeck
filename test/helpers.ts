@@ -12,9 +12,19 @@ import { DrizzleChangelogRepository } from '../src/db/changelog-repo';
 import { mockGildash } from './fixtures/gildash';
 import type {
   BriefBody,
+  CodeLink,
   PrincipleBody,
   SpecBody,
 } from '../src/card/types';
+
+/**
+ * Populate the code_link table directly for a card key. Source bindings are
+ * the SoT (populated by `ed spec sync` from `@spec card-key` annotations),
+ * but tests can pre-populate via this helper to focus on downstream behavior.
+ */
+export function setCardCodeLinks(ctx: EmberdeckContext, cardKey: string, links: CodeLink[]): void {
+  ctx.codeLinkRepo.replaceForCard(cardKey, links);
+}
 
 export interface TestContext {
   ctx: EmberdeckContext;
@@ -71,21 +81,22 @@ export function makeTestBrief(): BriefBody {
 }
 
 /**
- * Minimal valid `spec` namespace body. Pass codeLinks separately so binds match.
+ * Minimal valid `spec` namespace body for tests.
+ * Binding to source is via `@spec card-key` annotations — not declared here.
  */
-export function makeTestSpec(file: string, symbol: string): SpecBody {
+export function makeTestSpec(_file?: string, _symbol?: string): SpecBody {
   return {
     preconditions: [
-      { id: 'PRE-001', condition: 'c', binds: [{ file, symbol }], derives: 'parent#R-001' },
+      { id: 'PRE-001', condition: 'c', derives: 'parent#R-001' },
     ],
     postconditions: [
-      { id: 'POST-001', guarantee: 'g', keyword: 'MUST', binds: [{ file, symbol }], derives: 'parent#R-001' },
+      { id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent#R-001' },
     ],
     invariants: [
-      { id: 'INV-001', statement: 's', binds: [{ file, symbol }], always_holds: 'per-call' },
+      { id: 'INV-001', statement: 's', always_holds: 'per-call' },
     ],
     failures: [
-      { violation: 'v', behavior: 'b', exception: { class: 'TestError', file: 'src/errors.ts' } },
+      { violation: 'v', behavior: 'b' },
     ],
   };
 }

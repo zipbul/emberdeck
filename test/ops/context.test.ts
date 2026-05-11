@@ -6,7 +6,7 @@ import {
   checkDrift,
   checkInteractions,
 } from '../../index';
-import { createMockTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('checkDrift', () => {
   let tc: TestContext;
@@ -66,8 +66,7 @@ describe('checkDrift', () => {
       summary: 'Active',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'fn' }],
-      spec: makeTestSpec('src/a.ts', 'fn'),
+            spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'h-active', 'active');
     await createCard(tc.ctx, { key: 'h-draft', summary: 'Draft', type: 'spec' });
@@ -84,8 +83,7 @@ describe('checkDrift', () => {
       key: 'draft-skip',
       summary: 'Draft',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-    });
+      });
     // Draft cards are not in the cards array at all
     const result = await checkDrift(tc.ctx, 'draft-skip');
     expect(result.cards).toHaveLength(0);
@@ -110,9 +108,9 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'Broken link card',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-      spec: makeTestSpec('src/gone.ts', 'missingFn'),
+            spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
+    setCardCodeLinks(tc.ctx, 'drift-broken', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
     await updateCardStatus(tc.ctx, 'drift-broken', 'active');
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
@@ -136,8 +134,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'OK link card',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/ok.ts', symbol: 'okFn' }],
-      spec: makeTestSpec('src/ok.ts', 'okFn'),
+            spec: makeTestSpec('src/ok.ts', 'okFn'),
     });
     await updateCardStatus(tc.ctx, 'drift-ok', 'active');
     tc.ctx.gildash = createMockGildash({
@@ -159,8 +156,7 @@ describe('checkDrift with gildash — broken link detection', () => {
       key: 'drift-draft',
       summary: 'Draft card',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-    });
+      });
     // status defaults to 'draft'
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
@@ -181,9 +177,9 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'No transition',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-      spec: makeTestSpec('src/gone.ts', 'missingFn'),
+            spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
+    setCardCodeLinks(tc.ctx, 'no-trans', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
     await updateCardStatus(tc.ctx, 'no-trans', 'active');
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
@@ -206,9 +202,9 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'Original summary',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-      spec: makeTestSpec('src/gone.ts', 'missingFn'),
+            spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
+    setCardCodeLinks(tc.ctx, 'tgt-upd', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
     await updateCardStatus(tc.ctx, 'tgt-upd', 'active');
     // Simulate concurrent summary update directly in DB
     tc.ctx.db.$client.prepare('UPDATE card SET summary = ? WHERE key = ?').run('Concurrent update', 'tgt-upd');
@@ -232,9 +228,9 @@ describe('checkDrift with gildash — broken link detection', () => {
       summary: 'S',
       type: 'spec',
       parent: '_br',
-            codeLinks: [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }],
-      spec: makeTestSpec('src/gone.ts', 'missingFn'),
+            spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
+    setCardCodeLinks(tc.ctx, 'skip-file', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
     await updateCardStatus(tc.ctx, 'skip-file', 'active');
     // Simulate: status already changed to drifted by another op
     tc.ctx.db.$client.prepare('UPDATE card SET status = ? WHERE key = ?').run('drifted', 'skip-file');
@@ -263,18 +259,11 @@ describe('checkInteractions', () => {
 
   it('should detect shared symbols between cards', async () => {
     tc = await createMockTestContext();
-    await createCard(tc.ctx, {
-      key: 'ia',
-      summary: 'Card A',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' }],
-    });
-    await createCard(tc.ctx, {
-      key: 'ib',
-      summary: 'Card B',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' }],
-    });
+    await createCard(tc.ctx, { key: 'ia', summary: 'Card A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'ib', summary: 'Card B', type: 'spec' });
+    const shared = { kind: 'function', file: 'src/shared.ts', symbol: 'sharedFunc' };
+    setCardCodeLinks(tc.ctx, 'ia', [shared]);
+    setCardCodeLinks(tc.ctx, 'ib', [shared]);
 
     const result = await checkInteractions(tc.ctx, ['ia', 'ib']);
     expect(result.interactions).toHaveLength(1);
@@ -284,18 +273,11 @@ describe('checkInteractions', () => {
 
   it('should detect undefined relations when symbols are shared', async () => {
     tc = await createMockTestContext();
-    await createCard(tc.ctx, {
-      key: 'ua',
-      summary: 'A',
-      type: 'spec',
-      codeLinks: [{ kind: 'class', file: 'src/x.ts', symbol: 'X' }],
-    });
-    await createCard(tc.ctx, {
-      key: 'ub',
-      summary: 'B',
-      type: 'spec',
-      codeLinks: [{ kind: 'class', file: 'src/x.ts', symbol: 'X' }],
-    });
+    await createCard(tc.ctx, { key: 'ua', summary: 'A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'ub', summary: 'B', type: 'spec' });
+    const shared = { kind: 'function', file: 'src/u.ts', symbol: 'fn' };
+    setCardCodeLinks(tc.ctx, 'ua', [shared]);
+    setCardCodeLinks(tc.ctx, 'ub', [shared]);
 
     const result = await checkInteractions(tc.ctx, ['ua', 'ub']);
     expect(result.undefinedRelations).toHaveLength(1);
@@ -327,14 +309,12 @@ describe('checkInteractions', () => {
       key: 'na',
       summary: 'A',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'funcA' }],
-    });
+      });
     await createCard(tc.ctx, {
       key: 'nb',
       summary: 'B',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'funcB' }],
-    });
+      });
 
     const result = await checkInteractions(tc.ctx, ['na', 'nb']);
     expect(result.interactions).toHaveLength(0);
@@ -350,18 +330,10 @@ describe('checkInteractions', () => {
 
   it('should detect shared files as potential conflicts', async () => {
     tc = await createMockTestContext();
-    await createCard(tc.ctx, {
-      key: 'fa',
-      summary: 'A',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/common.ts', symbol: 'funcA' }],
-    });
-    await createCard(tc.ctx, {
-      key: 'fb',
-      summary: 'B',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/common.ts', symbol: 'funcB' }],
-    });
+    await createCard(tc.ctx, { key: 'fa', summary: 'A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'fb', summary: 'B', type: 'spec' });
+    setCardCodeLinks(tc.ctx, 'fa', [{ kind: 'function', file: 'src/shared.ts', symbol: 'a' }]);
+    setCardCodeLinks(tc.ctx, 'fb', [{ kind: 'function', file: 'src/shared.ts', symbol: 'b' }]);
 
     const result = await checkInteractions(tc.ctx, ['fa', 'fb']);
     expect(result.interactions).toHaveLength(1);
@@ -370,18 +342,10 @@ describe('checkInteractions', () => {
 
   it('should populate sharedFiles array with exact file paths', async () => {
     tc = await createMockTestContext();
-    await createCard(tc.ctx, {
-      key: 'sf-a',
-      summary: 'A',
-      type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/shared.ts', symbol: 'funcA' }],
-    });
-    await createCard(tc.ctx, {
-      key: 'sf-b',
-      summary: 'B',
-      type: 'spec',
-      codeLinks: [{ kind: 'class', file: 'src/shared.ts', symbol: 'ClassB' }],
-    });
+    await createCard(tc.ctx, { key: 'sf-a', summary: 'A', type: 'spec' });
+    await createCard(tc.ctx, { key: 'sf-b', summary: 'B', type: 'spec' });
+    setCardCodeLinks(tc.ctx, 'sf-a', [{ kind: 'function', file: 'src/shared.ts', symbol: 'a' }]);
+    setCardCodeLinks(tc.ctx, 'sf-b', [{ kind: 'function', file: 'src/shared.ts', symbol: 'b' }]);
 
     const result = await checkInteractions(tc.ctx, ['sf-a', 'sf-b']);
     expect(result.interactions).toHaveLength(1);
@@ -395,14 +359,12 @@ describe('checkInteractions', () => {
       key: 'id-a',
       summary: 'A',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'funcA' }],
-    });
+      });
     await createCard(tc.ctx, {
       key: 'id-b',
       summary: 'B',
       type: 'spec',
-      codeLinks: [{ kind: 'function', file: 'src/b.ts', symbol: 'funcB' }],
-    });
+      });
 
     const result = await checkInteractions(tc.ctx, ['id-a', 'id-b']);
     // No gildash, so no interactions found
