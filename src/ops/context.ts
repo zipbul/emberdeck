@@ -115,10 +115,9 @@ export async function checkDrift(
       }
     }
 
-    // Collect ALL applicable drift types (multi-detection). Empirically a
-    // single card can have broken_link AND pattern_violation simultaneously;
-    // first-match-wins forces a fix-and-recheck cycle. Iteration order here
-    // becomes the priority order surfaced via `driftType` (primary).
+    // Collect drift types (multi-detection). A single card can carry both
+    // broken_link and glossary_broken at once; iteration order here becomes
+    // the priority order surfaced via `driftType` (primary).
     const driftTypesDetected: DriftType[] = [];
     const addDrift = (t: DriftType) => { if (!driftTypesDetected.includes(t)) driftTypesDetected.push(t); };
 

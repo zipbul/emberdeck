@@ -63,12 +63,6 @@ describe('analyze — health.codeCycles', () => {
 
 });
 
-// ── getFanMetrics → preChangeCheck risk promotion ────────────────────
-
-
-// ── getHeritageChain → checkDrift heritage_uncovered ─────────────────
-
-
 // ── searchAnnotations 4-tier ─────────────────────────────────────────
 
 describe('syncSpecAnnotations — 4-tier annotation tags', () => {
@@ -122,15 +116,4 @@ describe('syncSpecAnnotations — 4-tier annotation tags', () => {
     expect(result.created).toBe(1);
   });
 });
-
-// ── findPattern → checkDrift pattern_violation ────────────────────────
-
-// ── multi-detection (driftTypes[]) ───────────────────────────────────
-
-
-// ── auto-transition for new drift types ──────────────────────────────
-
-
-// ── monorepo: per-project routing for all 7 gildash APIs ─────────────
-
 

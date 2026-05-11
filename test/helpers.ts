@@ -144,9 +144,9 @@ export async function ensure4tierScaffold(
 }
 
 /**
- * Default test context. Spins up a real `Gildash.open` against a tmp project
- * so behavior that depends on the real index (boundary checks, reindex
- * caching, etc.) is exercised end-to-end.
+ * Default test context. Spins up a real `Gildash.open` against a tmp
+ * project so behavior that depends on the real index (annotation scan,
+ * reindex caching, etc.) is exercised end-to-end.
  *
  * If your test reassigns `tc.ctx.gildash = mockGildash(...)` immediately, prefer
  * `createMockTestContext()` — it skips the real `Gildash.open` (15-30 ms each)
@@ -157,7 +157,7 @@ export async function createTestContext(): Promise<TestContext> {
   const cardsDir = join(tmpDir, 'cards');
   await mkdir(cardsDir, { recursive: true });
   // Minimum project shape for gildash to recognize and index the project.
-  // Tests that need real-source-vs-boundary behavior add their own files.
+  // Tests that need real source files for binding checks add their own.
   await writeFile(join(tmpDir, 'package.json'), JSON.stringify({ name: 'ed-test', version: '0.0.0' }), 'utf8');
   await writeFile(join(tmpDir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'esnext', module: 'esnext' } }), 'utf8');
 

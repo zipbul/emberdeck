@@ -403,52 +403,6 @@ describe('ops/link', () => {
     expect(mockReindex).toHaveBeenCalledTimes(1);
   });
 
-  // 32a. [HP] findCardsBySymbol: boundary glob match
-  it('should find cards by boundary glob when filePath matches', async () => {
-    // Create a card with boundary but no codeLinks
-    const slug = normalizeSlug('boundary-card');
-    const fp = buildCardPath(tc.ctx.cardsDir, slug);
-    await mkdir(dirname(fp), { recursive: true });
-    const cardFile: CardFile = {
-      frontmatter: {
-        key: slug,
-        summary: 'Boundary card',
-        status: 'draft',
-        type: 'spec',
-        },
-    };
-    await writeCardFile(fp, cardFile);
-    // Sync to DB so the card exists with boundaryJson
-    const { syncCardFromFile } = await import('../../src/ops/sync');
-    await syncCardFromFile(tc.ctx, fp);
-
-    const result = await findCardsBySymbol(tc.ctx, 'SomeService', 'src/services/auth.ts');
-    const match = result.find((r: any) => r.card.key === 'boundary-card');
-    expect(match).toBeUndefined();
-  });
-
-  // 32b. findCardsBySymbol: malformed boundaryJson should not crash
-  it('should skip cards with malformed boundaryJson gracefully', async () => {
-    // Insert a card with invalid boundaryJson directly in DB
-    tc.ctx.cardRepo.upsert({
-      key: 'bad-boundary',
-      summary: 'Bad boundary',
-      status: 'draft',
-      type: 'spec',
-      parent: null,
-      namespacesJson: null,
-      body: null,
-      glossaryJson: '[]',
-      filePath: buildCardPath(tc.ctx.cardsDir, 'bad-boundary'),
-      updatedAt: new Date().toISOString(),
-    });
-
-    // Should not throw
-    const result = await findCardsBySymbol(tc.ctx, 'anything', 'src/foo.ts');
-    // The bad-boundary card should be skipped, not included
-    expect(result.find((r: any) => r.card.key === 'bad-boundary')).toBeUndefined();
-  });
-
   // 33. [HP] validateCodeLinks: active card with broken links → auto-transition to drifted
   it('should auto-transition active card to drifted when broken links detected', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };

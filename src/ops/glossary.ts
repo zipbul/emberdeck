@@ -304,7 +304,8 @@ export interface ResetResult {
 
 /**
  * Reset all emberdeck state: delete all cards (DB + files), clear glossary.yaml.
- * @spec annotations in source are NOT removed — run writeSpecAnnotations after reset to reconcile.
+ * `@spec` annotations in source are NOT removed — re-author or `ed spec sync`
+ * after reset to reconcile the DB code_link cache against source.
   * @spec glossary/lifecycle/remove-rename-reset
  */
 export async function resetEmberdeck(

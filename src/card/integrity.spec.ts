@@ -411,7 +411,7 @@ describe('validateActivationGuard', () => {
     }
   });
 
-  it('spec type with boundary and no gildash: passes (boundary check skipped)', async () => {
+  it('spec type with no gildash index passes (binding check is skipped on empty index)', async () => {
     setupBrief();
     const { makeTestSpec } = await import('../../test/helpers');
     await expect(
