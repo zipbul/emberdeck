@@ -249,10 +249,10 @@ describe('getCardTree', () => {
 });
 
 // ---------------------------------------------------------------------------
-// findCardsBySymbol — boundary matching
+// findCardsBySymbol — code_link cache lookups
 // ---------------------------------------------------------------------------
 
-describe('findCardsBySymbol boundary matching', () => {
+describe('findCardsBySymbol', () => {
   let tc: TestContext;
 
   afterEach(async () => {

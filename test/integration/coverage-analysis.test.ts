@@ -17,7 +17,7 @@ import { mockGildashFromSymbols as createMockGildash } from '../fixtures/gildash
 function insertCard(
   tc: TestContext,
   key: string,
-  opts?: { boundary?: string[]; status?: string; body?: string },
+  opts?: { status?: string; body?: string },
 ): void {
   const row: CardRow = {
     key,
@@ -364,7 +364,7 @@ describe('analyze', () => {
     tc.ctx.gildash = createMockGildash({});
     tc.ctx.projectRoot = '/project';
 
-    // Healthy active card (no code links, no boundary → no drift)
+    // Healthy active card (no code links → no drift)
     insertCard(tc, 'healthy', { status: 'active' });
 
     // Active card with broken links → detected as drifted
@@ -394,7 +394,7 @@ describe('analyze', () => {
       { kind: 'function', file: 'src/gone.ts', symbol: 'missing' },
     ]);
 
-    // Truly healthy active card (no links, no boundary)
+    // Truly healthy active card (no links)
     insertCard(tc, 'truly-healthy', { status: 'active' });
 
     const result = await analyze(tc.ctx);
@@ -409,7 +409,7 @@ describe('analyze', () => {
   it('drifted-in-DB card with no current drift still counts as drifted', async () => {
     tc = await createMockTestContext();
 
-    // Card marked drifted in DB, but has no code links or boundary → no drift detected
+    // Card marked drifted in DB, but has no code links → no drift detected
     insertCard(tc, 'was-drifted', { status: 'drifted' });
 
     // Healthy active card

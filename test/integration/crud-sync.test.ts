@@ -2,11 +2,11 @@
  * CRUD + Sync operation tests.
  *
  * Covers:
- *  - create: parent/boundary, activation guard, relations string[]
+ *  - create: parent, activation guard, relations string[]
  *  - update: parent change, type change + activation re-validation, children hierarchy, changelog
  *  - delete: force=true children orphan, referencing card file update
  *  - rename: referencing file update (relations, parent), bodyReferencesFound, changelog
- *  - sync: parent/boundary reflection, validateCards read-time checks
+ *  - sync: parent reflection, validateCards read-time checks
  *  - bulk-create: topological sort, parent reference
  *  - query: getCard includeHistory, getRelationGraph no relationType
  */
@@ -44,11 +44,11 @@ afterEach(async () => {
 // ── CREATE ──
 
 describe('create', () => {
-  it('should create a card with parent and boundary', async () => {
+  it('should create a card with parent', async () => {
     tc = await createTestContext();
     // Create parent first
     await createCard(tc.ctx, { key: 'arch-parent', summary: 'Parent', type: 'brief' });
-    // Create child with parent and boundary
+    // Create child with parent
     const result = await createCard(tc.ctx, {
       key: 'child-spec',
       summary: 'Child spec',
@@ -378,7 +378,7 @@ describe('sync', () => {
     expect(rework).toBeDefined();
   });
 
-  it('exportCardToFile should export parent and boundary', async () => {
+  it('exportCardToFile should export parent', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'exp-arch', summary: 'Arch', type: 'brief' });
     await createCard(tc.ctx, { key: 'exp-spec', summary: 'Spec', type: 'spec', parent: 'exp-arch', });
