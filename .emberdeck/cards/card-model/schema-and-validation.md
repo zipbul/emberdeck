@@ -13,26 +13,21 @@ brief:
   context:
     problem: >
       Cards arrive from CLI flags, --from YAML files, --patch payloads, and
-      bulk-sync of on-disk
-
-      markdown. Without strict validation the system accepts cards whose parent
-      type violates the
-
-      four-tier rule, whose required fields are missing, or whose internal
-      cross-references
-
-      (covers, governs, verifies, binds, derives) point at items that do not
-      exist on the same card,
-
-      producing downstream drift, broken cards, and corrupted hierarchy.
+      bulk-sync of on-disk markdown. Without strict validation the system
+      accepts cards whose parent type violates the four-tier rule, whose
+      required fields are missing, or whose internal cross-references
+      (covers, governs, verifies, derives) point at items that do not exist
+      on the same card, producing downstream drift, broken cards, and a
+      corrupted hierarchy.
     impact:
       - statement: >-
-          A single invalid card admitted to storage cascades to broken parent
-          chains, broken-link drift, and failed activation guards across the
-          whole card graph.
+          A single invalid card admitted to storage cascades to broken
+          parent chains, broken-link drift, and failed activation guards
+          across the whole card graph.
       - statement: >-
-          Type-specific fields differ (principle has metric, brief has flow plus
-          criteria, spec has codeLinks); a single generic validator is
+          Type-specific fields differ (principle has metric, brief has flow
+          plus criteria, spec has preconditions / postconditions /
+          invariants / failures); a single generic validator is
           insufficient and risks silent acceptance of nonsense.
   scope:
     goals:
@@ -42,7 +37,7 @@ brief:
           any persistence happens.
       - id: G-002
         statement: >-
-          Verify intra-card cross references (covers, governs, verifies, binds,
+          Verify intra-card cross references (covers, governs, verifies,
           derives) resolve to declared list-item ids on the same card.
       - id: G-003
         statement: >-
@@ -51,12 +46,12 @@ brief:
     non_goals:
       - id: NG-001
         statement: >-
-          Validating that codeLink files or symbols actually exist (delegated to
-          code-binding).
+          Validating source bindings (`@spec` annotations live in code, not
+          on the card; that path is owned by code-binding).
       - id: NG-002
         statement: >-
-          Validating glossary word existence in the project glossary (delegated
-          to glossary domain).
+          Validating glossary word existence in the project glossary
+          (delegated to glossary domain).
     assumptions:
       - id: A-001
         statement: >-
@@ -138,8 +133,8 @@ brief:
         interacts_with: []
       - name: spec-refs-validator
         responsibility: >-
-          Resolves spec.preconditions/postconditions/invariants binds against
-          declared codeLinks and derives format.
+          Validates spec body required minimums and the `derives` format
+          (and target existence when a brief lookup is supplied).
         interacts_with: []
     data_flow:
       - from: validateCardInput

@@ -11,14 +11,11 @@ glossary:
 brief:
   context:
     problem: >
-      Promoting a card from draft to active without verifying that all required
-      fields and codeLinks
-
-      resolve admits broken contracts. Any multi-step write (file plus DB plus
-      changelog plus annotations)
-
-      partially failing leaves disk and DB diverged, violating the
-      source-of-truth promise.
+      Promoting a card from draft to active without verifying that all
+      required fields and (for specs) source `@spec` bindings resolve
+      admits broken contracts. Any multi-step write (file plus DB plus
+      changelog) partially failing leaves disk and DB diverged, violating
+      the source-of-truth promise.
     impact:
       - statement: >-
           A draft promoted to active without satisfied invariants instantly
@@ -54,14 +51,16 @@ brief:
         - G-001
     - id: S-H-02
       kind: happy
-      given: A multi-step write involving file plus DB plus annotations.
+      given: A multi-step write involving file plus DB.
       when: All steps succeed.
       then: All artifacts are committed atomically.
       covers:
         - G-002
     - id: S-F-01
       kind: failure
-      given: A draft spec whose codeLinks include a symbol that no longer resolves.
+      given: >-
+        A draft spec whose cached code_link rows include a symbol that no
+        longer resolves in gildash.
       when: updateCardStatus is called with active.
       then: ActivationGuardError is thrown, the card stays draft.
       covers:
@@ -69,10 +68,10 @@ brief:
     - id: S-F-02
       kind: failure
       given: >-
-        A multi-step write where the DB write succeeds but the annotation step
+        A multi-step write where the DB write succeeds but the file write
         throws.
       when: safeWriteOperation runs.
-      then: The DB write is rolled back; no file or annotation change persists.
+      then: The DB write is rolled back; no file change persists.
       covers:
         - G-002
   design:
@@ -101,8 +100,8 @@ brief:
     invariants:
       - id: DI-001
         statement: >-
-          No card reaches active state with unresolved required fields or broken
-          codeLinks.
+          No card reaches active state with unresolved required fields or
+          broken source bindings.
       - id: DI-002
         statement: >-
           Any thrown error inside safeWriteOperation results in zero observable
@@ -112,8 +111,8 @@ brief:
       subject: Status transition to active
       keyword: MUST
       predicate: >-
-        re-run schema validation and codeLink resolution before allowing the
-        transition.
+        re-run schema validation and (for specs) source-binding resolution
+        before allowing the transition.
       governs:
         - S-H-01
         - S-F-01
@@ -152,10 +151,10 @@ brief:
     - id: SC-001
       type: binary
       measure:
-        predicate: A spec with a broken codeLink cannot be transitioned to active.
+        predicate: A spec with a broken source binding cannot be transitioned to active.
         method: >-
-          Integration test that breaks a codeLink target then calls set-status
-          active.
+          Integration test that removes the source `@spec` target symbol
+          then calls set-status active.
       verifies:
         - S-F-01
     - id: SC-002

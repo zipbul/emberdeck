@@ -1,8 +1,8 @@
 ---
 key: analysis/drift-detection
 summary: >-
-  Six drift type detection with optional automatic active-to-drifted status
-  transition.
+  broken_link / glossary_broken drift classification with optional
+  automatic active-to-drifted status transition.
 status: draft
 type: brief
 parent: analysis
@@ -11,16 +11,11 @@ glossary:
 brief:
   context:
     problem: >
-      Cards make claims about code (codeLinks, boundary, code_patterns), about
-      other cards
-
-      (relations, parent), and about the project glossary. Without a single
-      drift query that
-
-      classifies divergence into stable categories, fixes are reactive and
-      inconsistent and CI
-
-      cannot enforce a regression threshold.
+      Cards make claims about code (cached code_link rows that mirror source
+      `@spec` annotations) and about the project glossary. Without a single
+      drift query that classifies divergence into stable categories, fixes
+      are reactive and inconsistent and CI cannot enforce a regression
+      threshold.
     impact:
       - statement: Without classified drift the user does not know which fix to apply.
       - statement: Without auto-transition the active set silently misrepresents reality.
@@ -28,17 +23,14 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Detect six drift types - broken_link, boundary_inactive,
-          symbol_changed, heritage_uncovered, pattern_violation,
-          glossary_broken.
+          Detect the two drift types in scope: `broken_link` (a cached
+          code_link no longer resolves against gildash) and
+          `glossary_broken` (a card declares a glossary word the glossary
+          no longer defines).
       - id: G-002
         statement: >-
-          Automatically transition active cards to drifted when any drift type
-          is detected, unless --no-auto-transition is passed.
-      - id: G-003
-        statement: >-
-          Surface ast-grep pattern errors as patternErrors (not drift) so
-          authoring problems are distinguished from runtime violations.
+          Automatically transition active cards to drifted when any drift
+          type is detected, unless --no-auto-transition is passed.
     non_goals:
       - id: NG-001
         statement: Applying drift fixes (delegated to card-lifecycle).
@@ -47,34 +39,28 @@ brief:
     assumptions:
       - id: A-001
         statement: >-
-          All six drift types listed in project_drift_taxonomy memory are
-          sufficient for the current scope.
-        verification: Inspect project_drift_taxonomy memory entry.
-        reevaluate_when: A new drift type is observed in production usage.
+          The two drift types currently in scope are sufficient — source
+          bindings live entirely in `@spec` annotations so symbol rename
+          and removal both surface as broken_link on the cache.
+        verification: Inspect checkDrift() in src/ops/context.ts.
+        reevaluate_when: A new authoring surface for bindings is added.
   flow:
     - id: S-H-01
       kind: happy
-      given: An active spec whose codeLinks all resolve and whose patterns all hold.
+      given: An active spec whose cached code_link rows all resolve in gildash.
       when: checkDrift runs.
       then: No drift is reported and the card stays active.
       covers:
         - G-001
     - id: S-F-01
       kind: failure
-      given: An active spec whose codeLink target was removed.
+      given: An active spec whose cached code_link target was removed from source.
       when: checkDrift runs without --no-auto-transition.
       then: broken_link drift is reported and the card transitions to drifted.
       covers:
         - G-001
         - G-002
     - id: S-F-02
-      kind: failure
-      given: An active spec whose ast-grep pattern has invalid syntax.
-      when: checkDrift runs.
-      then: A patternError is reported separately from drift; no auto-transition.
-      covers:
-        - G-003
-    - id: S-F-03
       kind: failure
       given: A CI invocation with --no-auto-transition.
       when: drift is detected on multiple cards.
@@ -83,18 +69,17 @@ brief:
         - G-002
   design:
     overview: >
-      checkDrift composes per-type detectors that read from card-storage and
-      code-binding. The
-
-      primary driftType is reported on each card alongside the full driftTypes
-      array. Auto-transition
-
-      is gated by the --no-auto-transition flag (always on in CI).
+      checkDrift reads each card's cached code_link rows plus its declared
+      glossary, queries gildash to verify each link, queries the glossary
+      to verify each word, and classifies divergence. The primary
+      driftType is reported on each card alongside the full driftTypes
+      array. Auto-transition is gated by --no-auto-transition (always on
+      in CI).
     components:
       - name: checkDrift
         responsibility: >-
-          Run all six detectors per card, classify primary type, optionally
-          auto-transition.
+          Detect broken_link and glossary_broken per card, classify primary
+          type, optionally auto-transition.
         interacts_with:
           - card-lifecycle
       - name: per-type-detectors
@@ -108,17 +93,13 @@ brief:
     invariants:
       - id: DI-001
         statement: >-
-          patternErrors and drift are reported as separate fields and never
-          merged.
-      - id: DI-002
-        statement: >-
           --no-auto-transition disables every status mutation while still
           producing the same drift report.
   policy:
     - id: R-001
       subject: Every detector
       keyword: MUST
-      predicate: produce a stable driftType from the documented six.
+      predicate: produce one of the documented driftTypes.
       governs:
         - S-F-01
     - id: R-002
@@ -126,22 +107,13 @@ brief:
       keyword: SHALL
       predicate: not transition status when --no-auto-transition is passed.
       governs:
-        - S-F-03
-    - id: R-003
-      subject: ast-grep pattern errors
-      keyword: MUST
-      predicate: be reported as patternErrors not drift.
-      governs:
         - S-F-02
   external:
     - id: C-001
-      statement: >-
-        Drift taxonomy and gildash API per type are documented in project
-        memory.
+      statement: Drift taxonomy is co-located with the detector in src/ops/context.ts.
       reference:
-        title: project_drift_taxonomy memory entry
-        locator: >-
-          /home/revil/.claude/projects/-home-revil-projects-zipbul-emberdeck/memory/project_drift_taxonomy.md
+        title: src/ops/context.ts
+        locator: src/ops/context.ts
   compatibility:
     guarantees:
       - subject: DriftType enum
@@ -160,7 +132,9 @@ brief:
     - id: SC-001
       type: binary
       measure:
-        predicate: A removed codeLink target produces broken_link on the next checkDrift.
+        predicate: >-
+          A removed source `@spec` target produces broken_link on the next
+          checkDrift after `ed spec sync`.
         method: Integration test mutating source then running checkDrift.
       verifies:
         - S-F-01
@@ -169,13 +143,6 @@ brief:
       measure:
         predicate: '--no-auto-transition leaves status unchanged on detected drift.'
         method: CLI integration test.
-      verifies:
-        - S-F-03
-    - id: SC-003
-      type: binary
-      measure:
-        predicate: An ast-grep syntax error appears as patternError not drift.
-        method: Integration test with a malformed pattern.
       verifies:
         - S-F-02
   rationale:
@@ -192,8 +159,8 @@ brief:
         cons:
           - Breaks CI workflows that need to report without mutating state.
     chosen:
-      option: Six classified drift types plus opt-out flag for CI.
-      reasoning: Matches the taxonomy decision and lets CI behave non-destructively.
+      option: Classified drift types plus opt-out flag for CI.
+      reasoning: Lets CI behave non-destructively while keeping authoring loops fast.
     addresses:
       - KL-001
       - KL-002

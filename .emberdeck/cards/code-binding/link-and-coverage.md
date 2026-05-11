@@ -1,61 +1,51 @@
 ---
 key: code-binding/link-and-coverage
 summary: >-
-  Resolve spec codeLinks against the gildash code index, evaluate boundary, and
-  surface symbols not bound to any card.
+  Resolve cached code_link rows against the gildash index and surface
+  symbols that no card covers.
 status: draft
 type: brief
 parent: code-binding
 glossary:
   - codeLink
-  - boundary
   - gildash
 brief:
   context:
     problem: >
-      Spec cards declare codeLinks pointing at file plus symbol; boundary globs
-      scope where pattern
-
-      checks apply. Without delegating symbol facts to a single source (gildash)
-      and a single
-
-      resolution path, every consumer (drift, coverage, validate links)
-      re-implements the lookup,
-
-      producing inconsistent broken-link results and divergent coverage metrics.
+      Source `@spec` annotations are the binding source of truth; they
+      populate the DB code_link cache via spec sync. Without a single
+      resolution path that consumes that cache, every reader (drift,
+      coverage, validate links) re-implements the gildash lookup, producing
+      inconsistent broken-link counts and divergent coverage views.
     impact:
       - statement: >-
           Inconsistent link resolution gives different drift answers across
           commands, eroding trust in the analyze output.
       - statement: >-
-          Without a coverage view of indexed symbols vs. spec codeLinks,
-          important contracts go uncovered with no visibility.
+          Without a coverage view of indexed symbols versus the code_link
+          cache, important contracts go uncovered with no visibility.
   scope:
     goals:
       - id: G-001
         statement: >-
-          Resolve every codeLink against gildash producing valid, broken, or
-          unresolved classification.
+          Resolve every cached code_link row against gildash producing a
+          valid / broken / unresolved classification.
       - id: G-002
         statement: >-
-          Evaluate boundary globs to scope code-pattern application and detect
-          boundary_inactive drift.
-      - id: G-003
-        statement: >-
-          Surface symbols not bound to any card via codeLinks or boundary so
+          Surface symbols not bound to any card via the code_link cache so
           unowned design knowledge is visible.
     non_goals:
       - id: NG-001
         statement: Drift status transitions (delegated to analysis).
       - id: NG-002
         statement: >-
-          Maintaining @spec annotations in source files (delegated to
-          code-binding/annotation-roundtrip).
+          Maintaining the source `@spec` annotations themselves (delegated
+          to code-binding/annotation-roundtrip).
     assumptions:
       - id: A-001
         statement: >-
-          gildash is pinned to a stable version and watch mode is disabled per
-          project policy.
+          gildash is pinned to a stable version and watch mode is disabled
+          per project policy.
         verification: >-
           Inspect package.json for the pinned gildash version and
           project_gildash_integration_policy memory.
@@ -64,29 +54,24 @@ brief:
     - id: S-H-01
       kind: happy
       given: >-
-        A spec card with three codeLinks all of which point at currently indexed
-        symbols.
+        A spec card whose code_link cache has three rows, all of which point
+        at currently indexed symbols.
       when: validateCodeLinks runs.
       then: All three resolve as valid; broken count is zero.
       covers:
         - G-001
     - id: S-H-02
       kind: happy
-      given: A repository with one hundred indexed symbols and specs covering eighty.
+      given: A repository with one hundred indexed symbols and cards covering eighty.
       when: getUncoveredSymbols runs.
       then: Twenty symbols are reported as uncovered.
       covers:
-        - G-003
+        - G-002
     - id: S-F-01
       kind: failure
-      given: A spec card whose boundary glob matches no current files.
-      when: validateCodeLinks runs.
-      then: A boundary_inactive signal is reported alongside link results.
-      covers:
-        - G-002
-    - id: S-F-02
-      kind: failure
-      given: A codeLink pointing at a symbol that has been removed from source.
+      given: >-
+        A cached code_link points at a symbol that has been removed from
+        source.
       when: validateCodeLinks runs.
       then: >-
         The link is reported broken with the offending file plus symbol
@@ -96,24 +81,19 @@ brief:
     - id: S-H-03
       kind: happy
       given: >-
-        A private (non-exported) function exists with no codeLink and outside
-        any boundary glob.
+        A private (non-exported) function exists with no `@spec` annotation
+        anywhere in source.
       when: getUncoveredSymbols runs.
       then: The private function appears in the uncovered list.
       covers:
-        - G-003
+        - G-002
   design:
     overview: >
       ensureReindexed maintains a fresh gildash snapshot. resolveCardCodeLinks
-      walks codeLinks
-
-      and queries gildash for symbol existence, returning a discriminated union
-      (valid / broken).
-
-      validateCodeLinks aggregates per-card results plus boundary inactivity.
-      getLinkCoverage and
-
-      getUncoveredSymbols compute coverage from the same source.
+      reads the card's cache rows and queries gildash for symbol existence,
+      returning a discriminated union (valid / broken). validateCodeLinks
+      aggregates per-card results. getLinkCoverage and getUncoveredSymbols
+      compute coverage from the same cache.
     components:
       - name: ensureReindexed
         responsibility: Trigger a gildash refresh when needed before any link query.
@@ -121,21 +101,21 @@ brief:
           - resolveCardCodeLinks
           - getUncoveredSymbols
       - name: resolveCardCodeLinks
-        responsibility: Resolve each codeLink against gildash returning per-link status.
+        responsibility: >-
+          Resolve each cached code_link row against gildash returning
+          per-link status.
         interacts_with:
           - validateCodeLinks
       - name: validateCodeLinks
-        responsibility: >-
-          Aggregate link statuses plus boundary inactivity into a per-card
-          report.
+        responsibility: Aggregate link statuses into a per-card report.
         interacts_with: []
       - name: getLinkCoverage
         responsibility: Compute covered vs. total symbol counts for a single card.
         interacts_with: []
       - name: getUncoveredSymbols
         responsibility: >-
-          List symbols across the project that no card covers via codeLinks or
-          boundary.
+          List symbols across the project that no card's code_link cache
+          covers.
         interacts_with: []
     data_flow: []
     invariants:
@@ -145,8 +125,8 @@ brief:
           snapshot.
       - id: DI-002
         statement: >-
-          Card binding (codeLinks or boundary glob) is the sole inclusion test
-          for coverage classification. Caller-supplied filters (kinds, files,
+          The code_link cache is the sole inclusion test for coverage
+          classification. Caller-supplied filters (kinds, files,
           excludePatterns) and project ignorePatterns may further reduce the
           result, but symbol visibility is never consulted.
   policy:
@@ -159,21 +139,20 @@ brief:
         - S-H-02
         - S-H-03
         - S-F-01
-        - S-F-02
     - id: R-002
       subject: getUncoveredSymbols and suggestCardScope
       keyword: MUST
       predicate: >-
-        derive inclusion from card binding; symbol visibility MUST NOT influence
-        the result.
+        derive inclusion from the code_link cache; symbol visibility MUST
+        NOT influence the result.
       governs:
         - S-H-02
         - S-H-03
   external:
     - id: C-001
       statement: >-
-        gildash adopted APIs and deliberately-not-adopted APIs are listed in the
-        project memory and treated as the integration contract.
+        gildash adopted APIs and deliberately-not-adopted APIs are listed in
+        the project memory and treated as the integration contract.
       reference:
         title: project_gildash_integration_policy memory entry
         locator: >-
@@ -186,18 +165,18 @@ brief:
   limits:
     - id: KL-002
       statement: >-
-        Link resolution is per-snapshot; concurrent source edits during a query
-        may produce stale results.
+        Link resolution is per-snapshot; concurrent source edits during a
+        query may produce stale results.
   criteria:
     - id: SC-001
       type: binary
       measure:
         predicate: >-
-          Removing a symbol that a spec codeLink points at produces a broken
-          link result on the very next validateCodeLinks call.
+          Removing a symbol that a cached code_link points at produces a
+          broken link result on the very next validateCodeLinks call.
         method: Integration test that mutates source then queries.
       verifies:
-        - S-F-02
+        - S-F-01
     - id: SC-002
       type: binary
       measure:
@@ -205,8 +184,8 @@ brief:
           A private function not bound to any card appears in the uncovered
           output.
         method: >-
-          Integration test fixture exposing a private symbol with no codeLink
-          and no boundary match; assert it appears in result.uncovered.
+          Integration test fixture exposing a private symbol with no `@spec`
+          annotation; assert it appears in result.uncovered.
       verifies:
         - S-H-03
   rationale:
@@ -218,7 +197,7 @@ brief:
           - >-
             Duplicates gildash work; conflicts with single-source-of-truth
             policy.
-      - option: Resolve codeLinks via raw filesystem grep.
+      - option: Resolve code_link rows via raw filesystem grep.
         pros:
           - Simple.
         cons:

@@ -181,8 +181,9 @@ brief:
   limits:
     - id: KL-001
       statement: >-
-        Rename cascade only updates references stored in the DB; codeLink @spec
-        annotations in source files are reconciled separately by spec annotate.
+        Rename cascade only updates references stored in the DB; source
+        `@spec` annotations in code remain authored by humans and are
+        reconciled into the cache by `ed spec sync` on the next run.
     - id: KL-002
       statement: >-
         bulkCreateCards is serial; concurrent bulk operations are not supported

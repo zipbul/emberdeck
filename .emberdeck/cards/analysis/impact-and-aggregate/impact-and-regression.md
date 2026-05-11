@@ -18,8 +18,8 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        preChangeCheck returns risk_level (low / medium / high / critical) and
-        per-card linkType (direct / boundary / transitive).
+        preChangeCheck returns risk_level (low / medium / high / critical)
+        and per-card linkType (direct / transitive).
       keyword: MUST
       derives: analysis/impact-and-aggregate#G-001
     - id: POST-002

@@ -1,45 +1,33 @@
 ---
 key: code-binding
 summary: >-
-  codeLinks resolution, gildash delegation, spec annotation round-trip, and
-  coverage measurement.
+  Source @spec annotation scanning, DB code_link reconciliation, symbol
+  rename/move tracking, and coverage measurement.
 status: draft
 type: domain
 glossary:
   - codeLink
-  - boundary
   - gildash
   - spec-annotation
 domain:
   overview: >
-    Owns the bridge between cards and source code. Resolves spec codeLinks
-    against the gildash code
-
-    index, evaluates boundary globs to scope code-pattern checks, and maintains
-    the round-trip between
-
-    database codeLinks and the @spec JSDoc annotations injected into source
-    files. Also produces
-
-    coverage views (which symbols are covered by which spec, which are
-    uncovered) and
-
-    suggestion output for proposing new card scope.
+    Owns the bridge between cards and source code. Source is the binding
+    source of truth: every `/** @spec card-key */` JSDoc annotation in code
+    populates one row in the DB `code_link` cache via `ed spec sync`. Cards
+    themselves carry no binding fields. This domain reconciles that cache,
+    tracks rename/move changes to keep `code_link` rows pointing at the
+    live symbol, and produces coverage views (which symbols are covered by
+    which card, which are uncovered) plus scope suggestions for new cards.
   scope: >
-    IN: codeLink resolution, broken-link detection, boundary glob evaluation,
-    spec annotate
+    IN: scanning source `@spec` annotations into DB code_link rows, broken
+    link detection against the gildash index, rename/move symbol tracking,
+    getLinkCoverage, getUncoveredSymbols, suggestCardScope, gildash adapter
+    usage policy.
 
-    (additive plus prune), spec sync from source, sync-symbols on rename or
-    move, getLinkCoverage,
-
-    getUncoveredSymbols, suggestCardScope, gildash adapter usage policy.
-
-
-    OUT: drift classification (delegated to analysis), card mutations (delegated
-    to card-lifecycle),
-
-    CLI output formatting.
+    OUT: drift classification (delegated to analysis), card mutations
+    (delegated to card-lifecycle), CLI output formatting, writing
+    annotations back into source files (the source is authored manually).
   cross_domain_dependencies:
     - domain: card-storage
-      relationship: reads codeLinks and writes back changelog entries through repositories.
+      relationship: writes DB code_link rows that mirror the source annotation set.
 ---

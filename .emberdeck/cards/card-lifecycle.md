@@ -19,8 +19,8 @@ domain:
     at write time, runs the activation guard when promoting a card to active,
     and wraps multi-step
 
-    writes (file plus DB plus annotations) in a rollback-capable safe-write
-    boundary so partial failures
+    writes (file plus DB) in a rollback-capable safe-write boundary so
+    partial failures
 
     cannot leave the system in an inconsistent state.
   scope: >

@@ -1,45 +1,44 @@
 ---
 key: code-binding/link-and-coverage/coverage
 summary: >-
-  getLinkCoverage, getUncoveredSymbols, and suggestCardScope produce coverage
-  metrics over indexed project symbols.
+  getLinkCoverage, getUncoveredSymbols, and suggestCardScope produce
+  coverage metrics from the code_link cache.
 status: draft
 type: spec
 parent: code-binding/link-and-coverage
 glossary:
   - codeLink
-  - boundary
 spec:
   preconditions:
     - id: PRE-001
       condition: Caller invokes coverage with --uncovered or --suggest mode.
-      derives: code-binding/link-and-coverage#G-003
+      derives: code-binding/link-and-coverage#G-002
   postconditions:
     - id: POST-001
       guarantee: >-
-        getUncoveredSymbols returns gildash-indexed symbols that are not bound
-        by any card's codeLinks or boundary glob, narrowed by caller-supplied
+        getUncoveredSymbols returns gildash-indexed symbols that are not
+        bound by any card's code_link cache, narrowed by caller-supplied
         kinds/files/excludePatterns and project ignorePatterns.
       keyword: MUST
-      derives: code-binding/link-and-coverage#G-003
+      derives: code-binding/link-and-coverage#G-002
     - id: POST-002
       guarantee: >-
-        suggestCardScope produces card suggestions with type, files, symbols,
-        and reason.
+        suggestCardScope produces card suggestions with type, files,
+        symbols, and reason.
       keyword: SHALL
-      derives: code-binding/link-and-coverage#G-003
+      derives: code-binding/link-and-coverage#G-002
     - id: POST-003
       guarantee: >-
         Each uncovered entry contains only {file, symbol, kind} fields; no
         visibility metadata is exposed.
       keyword: MUST
-      derives: code-binding/link-and-coverage#G-003
+      derives: code-binding/link-and-coverage#G-002
     - id: POST-004
       guarantee: >-
-        coverageRatio is null when no symbols are indexed; otherwise it equals
-        coveredSymbols divided by totalSymbols.
+        coverageRatio is null when no symbols are indexed; otherwise it
+        equals coveredSymbols divided by totalSymbols.
       keyword: MUST
-      derives: code-binding/link-and-coverage#G-003
+      derives: code-binding/link-and-coverage#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -55,8 +54,8 @@ spec:
   failures:
     - violation: '--uncovered and --suggest are both omitted.'
       behavior: CLI throws CliUsageError; exit 2.
-    - violation: An invalid boundary glob pattern is supplied via card.boundaryJson.
+    - violation: gildash returns an empty index (project not yet built).
       behavior: >-
-        The invalid pattern is silently skipped; other patterns and the
-        uncovered computation are unaffected.
+        getUncoveredSymbols reports totalSymbols=0 and coverageRatio=null;
+        suggestCardScope produces no suggestions.
 ---

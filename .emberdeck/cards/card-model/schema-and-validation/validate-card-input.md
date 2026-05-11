@@ -51,9 +51,9 @@ spec:
         validateBriefRefs throws CardValidationError identifying the unresolved
         id.
     - violation: >-
-        A spec.preconditions.binds entry is not declared in codeLinks on the
-        same card.
+        A spec.preconditions.derives reference does not follow the
+        `brief-key#item-id` format.
       behavior: >-
-        validateSpecRefs throws CardValidationError identifying the unresolved
-        bind.
+        validateSpecRefs throws CardValidationError identifying the
+        malformed reference.
 ---

@@ -18,8 +18,8 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        A transition to active runs validateActivationGuard which re-validates
-        fields and codeLinks.
+        A transition to active runs validateActivationGuard which
+        re-validates fields and (for specs) source bindings.
       keyword: MUST
       derives: card-lifecycle/status-and-safe-write#G-001
     - id: POST-002
@@ -29,10 +29,10 @@ spec:
   invariants:
     - id: INV-001
       statement: >-
-        No card reaches active state with unresolved required fields or broken
-        codeLinks.
+        No card reaches active state with unresolved required fields or
+        broken source bindings.
       always_holds: per-call
   failures:
-    - violation: Activation guard fails (missing field or unresolved codeLink).
+    - violation: Activation guard fails (missing field or unresolved source binding).
       behavior: updateCardStatus throws ActivationGuardError; status is not changed.
 ---

@@ -16,7 +16,7 @@ domain:
     (principle, domain, brief, spec), their required and optional fields, the
     cross-reference rules
 
-    that bind list items together (covers, governs, verifies, binds, derives),
+    that bind list items together (covers, governs, verifies, derives),
     and the on-disk
 
     markdown frontmatter representation. This is the grammar of cards: any

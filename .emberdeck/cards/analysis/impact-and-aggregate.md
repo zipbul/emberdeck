@@ -11,16 +11,11 @@ glossary:
 brief:
   context:
     problem: >
-      Before changing files the user wants to know what cards are affected and
-      at what risk level.
-
-      After a batch of changes CI needs to fail when drifted ratio crosses a
-      threshold. When two
-
-      cards reference the same code symbol the user wants to see the conflict
-      explicitly. None of
-
-      these can be answered by per-card drift alone.
+      Before changing files the user wants to know what cards are affected
+      and at what risk level. After a batch of changes CI needs to fail
+      when the drifted ratio crosses a threshold. When two cards reference
+      the same code symbol the user wants to see the conflict explicitly.
+      None of these can be answered by per-card drift alone.
     impact:
       - statement: Without preChangeCheck the user proceeds blind to scope of impact.
       - statement: Without regression threshold CI cannot gate merges on health.
@@ -87,25 +82,19 @@ brief:
         - G-002
     - id: S-F-02
       kind: failure
-      given: Two specs with overlapping codeLinks pointing at the same symbol.
+      given: Two specs whose code_link caches both reference the same symbol.
       when: checkInteractions runs over both keys.
       then: A shared-symbol conflict entry is reported with the offending symbol.
       covers:
         - G-003
   design:
     overview: >
-      preChangeCheck walks files plus boundary plus codeLinks to compute
-      affected_cards and an
-
-      aggregate risk_level (low / medium / high / critical). regressionGuard
-      uses card-storage
-
-      counts plus a project threshold. checkInteractions diffs codeLinks plus
-      boundary plus imports
-
-      across input keys for shared elements. analyze composes the four read
-      sources into one
-
+      preChangeCheck walks the input files and the DB code_link cache to
+      compute affected_cards and an aggregate risk_level
+      (low / medium / high / critical). regressionGuard uses card-storage
+      counts plus a project threshold. checkInteractions diffs the
+      code_link cache across input keys for shared symbols, shared files,
+      and imports. analyze composes the four read sources into one
       aggregate envelope.
     components:
       - name: preChangeCheck
@@ -142,9 +131,7 @@ brief:
     - id: R-001
       subject: preChangeCheck
       keyword: MUST
-      predicate: >-
-        classify each affected card with linkType (direct / boundary /
-        transitive).
+      predicate: classify each affected card with linkType (direct / transitive).
       governs:
         - S-H-01
     - id: R-002
@@ -188,7 +175,7 @@ brief:
       type: binary
       measure:
         predicate: checkInteractions detects a shared symbol across two specs.
-        method: Integration test with two specs sharing a codeLink target.
+        method: Integration test with two specs whose code_link caches share a target.
       verifies:
         - S-F-02
     - id: SC-003
