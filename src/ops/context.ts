@@ -1,4 +1,3 @@
-import { errorMessage } from '../util/error';
 import type { EmberdeckContext } from '../config';
 import type { CodeLinkRow, RelationRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
@@ -6,68 +5,24 @@ import { getRelationGraph } from './query';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { readGlossary } from '../glossary/io';
-import { ensureReindexed, gildashProjectNames, makeSymbolFileCache, listAllIndexedFilesWithProject } from './link';
+import { ensureReindexed, gildashProjectNames, makeSymbolFileCache } from './link';
 import { parseStringArrayJson } from '../card/json-fields';
-import { matchesAnyGlob } from '../util/glob';
 
 
 // ── check_drift ──
 
-export type DriftType =
-  | 'broken_link'
-  | 'boundary_inactive'
-  | 'symbol_changed'
-  | 'glossary_broken'
-  | 'heritage_uncovered'
-  | 'pattern_violation';
-
-export interface SymbolChangeDetail {
-  changeType: string;
-  symbolName: string;
-  filePath: string;
-}
+export type DriftType = 'broken_link' | 'glossary_broken';
 
 export interface DriftCard {
   key: string;
   summary: string;
   status: 'active' | 'drifted';
-  /**
-   * Primary drift type (first match in detection priority order). Kept as a
-   * single field for backward compatibility with consumers that read one type.
-   */
+  /** Primary drift type. */
   driftType?: DriftType;
-  /**
-   * All drift types detected for this card (verified empirically with typeorm:
-   * a single card can simultaneously have broken_link AND pattern_violation
-   * etc.). Includes `driftType` as the first entry. New consumers should
-   * iterate this; legacy consumers can keep reading `driftType`.
-   */
+  /** All drift types detected for this card (includes `driftType` first). */
   driftTypes?: DriftType[];
   brokenLinks: number;
   totalLinks: number;
-  /** Symbol changes detected in boundary files (only when symbol_changed in driftTypes). */
-  symbolChanges?: SymbolChangeDetail[];
-  /**
-   * Subclasses of a linked class that are not covered by any spec card.
-   * Populated only when heritage_uncovered in driftTypes.
-   */
-  uncoveredSubclasses?: Array<{ file: string; symbol: string }>;
-  /**
-   * Pattern violations detected via spec.code_patterns + gildash.findPattern.
-   * Populated only when pattern_violation in driftTypes.
-   */
-  patternViolations?: Array<{
-    id: string;
-    rule: 'forbidden' | 'required';
-    /** Number of matches found ('forbidden': >0 ⇒ violation; 'required': 0 ⇒ violation). */
-    matches: number;
-  }>;
-  /**
-   * Patterns that failed to execute (gildash threw — typically malformed
-   * ast-grep syntax). Listed separately so authors know to fix the pattern,
-   * not the code. NOT counted as drift.
-   */
-  patternErrors?: Array<{ id: string; message: string }>;
 }
 
 export interface DriftHealth {
@@ -87,20 +42,12 @@ export interface CheckDriftOptions {
   autoTransition?: boolean;
 }
 
-interface SymbolChangeInfo {
-  changeType: string;
-  symbolName: string;
-  filePath: string;
-  changedAt: string;
-}
-
 /**
  * Detect drift for cards in scope.
  *
  * For each non-draft card, determines whether it is drifted by checking:
- *   1. broken_link — code links that no longer resolve
- *   2. boundary_inactive — boundary globs that match no files
- *   3. symbol_changed — symbols in boundary files changed after card was last updated
+ *   1. broken_link — code links that no longer resolve (source @spec annotations)
+ *   2. glossary_broken — declared glossary words no longer in glossary.yaml
  *
  * When autoTransition=true (default), active cards found drifted are
  * automatically transitioned to 'drifted' status (DB + file).
@@ -133,30 +80,8 @@ export async function checkDrift(
   // assume the index reflects the on-disk source state at this moment.
   await ensureReindexed(ctx);
 
-  // Collect symbol changes for symbol_changed detection (single gildash call)
-  const symbolChangesByFile = await collectSymbolChanges(ctx, targetKeys);
-
-  // Index of files known to gildash (used for boundary_inactive checks below).
-  // Lazy-initialized once per call so we don't pay listIndexedFiles cost when
-  // no card needs the check.
-  let indexedFilePaths: Set<string> | null = null;
-  const getIndexedFilePaths = (): Set<string> => {
-    if (indexedFilePaths === null) {
-      indexedFilePaths = new Set(listAllIndexedFilesWithProject(ctx).map((f) => f.filePath));
-    }
-    return indexedFilePaths;
-  };
-
   // Shared per-file symbol cache for broken_link detection.
   const symbolCache = makeSymbolFileCache(ctx);
-
-  // Build a set of (file:symbol) covered by *any* card's codeLinks. Used by
-  // heritage_uncovered detection — a subclass of a linked class is "covered"
-  // if some other card already links to it. Single bulk read avoids N×findByCardKey.
-  const allCoveredSymbols = new Set<string>();
-  for (const link of ctx.codeLinkRepo.findAll()) {
-    allCoveredSymbols.add(`${link.file}:${link.symbol}`);
-  }
 
   const driftCards: DriftCard[] = [];
   let healthActive = 0;
@@ -199,162 +124,6 @@ export async function checkDrift(
 
     if (brokenLinks > 0) {
       addDrift('broken_link');
-    }
-
-    // boundary_inactive: boundary globs match no files.
-    // Prefer the gildash index (consistent with other queries, respects
-    // ignorePatterns); fall back to scanning projectRoot when gildash is absent.
-    // An empty index is treated as "no information" rather than "no matches"
-    // — boundary_inactive only fires when we have a populated source of truth.
-    if (row.status === 'active') {
-      const boundary = parseStringArrayJson(row.boundaryJson);
-      if (boundary.length > 0) {
-        const indexedFiles = getIndexedFilePaths();
-        // Empty index is treated as "no information" — boundary_inactive only
-        // fires against a populated index.
-        if (indexedFiles.size > 0) {
-          let anyMatch = false;
-          for (const filePath of indexedFiles) {
-            if (matchesAnyGlob(filePath, boundary)) { anyMatch = true; break; }
-          }
-          if (!anyMatch) addDrift('boundary_inactive');
-        }
-      }
-    }
-
-    // symbol_changed: symbols in boundary files changed after card's updatedAt
-    let detectedSymbolChanges: SymbolChangeDetail[] | undefined;
-    if (row.status === 'active' && symbolChangesByFile) {
-      const boundary = parseStringArrayJson(row.boundaryJson);
-      if (boundary.length > 0) {
-        const cardUpdatedAt = row.updatedAt;
-        const collected: SymbolChangeDetail[] = [];
-        for (const [filePath, changes] of symbolChangesByFile) {
-          if (matchesAnyGlob(filePath, boundary)) {
-            for (const change of changes) {
-              if (change.changedAt > cardUpdatedAt) {
-                collected.push({
-                  changeType: change.changeType,
-                  symbolName: change.symbolName,
-                  filePath: change.filePath,
-                });
-              }
-            }
-          }
-        }
-        if (collected.length > 0) {
-          addDrift('symbol_changed');
-          detectedSymbolChanges = collected;
-        }
-      }
-    }
-
-    // heritage_uncovered: a card links to a class whose subclasses are not
-    // covered by any spec card. gildash's `getHeritageChain` walks UP the
-    // inheritance (returns ancestors, not descendants) — to find subclasses we
-    // query the `extends` relation graph and filter by dst = our linked class.
-    let uncoveredSubclasses: Array<{ file: string; symbol: string }> | undefined;
-    if (row.status === 'active') {
-      const collected: Array<{ file: string; symbol: string }> = [];
-      const seen = new Set<string>();
-      for (const link of links) {
-        const sym = symbolCache.find(link.file, link.symbol);
-        if (!sym || sym.kind !== 'class') continue;
-        try {
-          // Aggregate extends relations across all projects (monorepo support).
-          const relations = [];
-          for (const project of gildashProjectNames(ctx)) {
-            try {
-              const r = ctx.gildash.searchRelations({ type: 'extends', dstFilePath: link.file, project });
-              relations.push(...r);
-            } catch {
-              // skip project on failure
-            }
-          }
-          for (const rel of relations) {
-            if (!rel.srcSymbolName || !rel.srcFilePath) continue;
-            if (rel.dstSymbolName !== link.symbol && rel.dstSymbolName !== sym.name) continue;
-            const subKey = `${rel.srcFilePath}:${rel.srcSymbolName}`;
-            if (seen.has(subKey)) continue;
-            seen.add(subKey);
-            if (!allCoveredSymbols.has(subKey)) {
-              collected.push({ file: rel.srcFilePath, symbol: rel.srcSymbolName });
-            }
-          }
-        } catch {
-          // best-effort; heritage is informational
-        }
-      }
-      if (collected.length > 0) {
-        addDrift('heritage_uncovered');
-        uncoveredSubclasses = collected;
-      }
-    }
-
-    // pattern_violation: spec.code_patterns runs through gildash.findPattern.
-    // 'forbidden' patterns fail when matches exist; 'required' patterns fail
-    // when zero matches. Boundary files limit the search scope when present.
-    let patternViolations: DriftCard['patternViolations'];
-    let patternErrors: DriftCard['patternErrors'];
-    if (row.status === 'active' && row.namespacesJson) {
-      const patterns = parseSpecCodePatterns(row.namespacesJson);
-      if (patterns.length > 0) {
-        // Scope pattern search to this card's boundary when set — a card's
-        // patterns are its own contract, not a project-wide rule. A spec for
-        // `src/auth/**` shouldn't flag `console.log` in `src/ui/`.
-        const boundary = parseStringArrayJson(row.boundaryJson);
-        let scopedFiles: string[] | undefined;
-        if (boundary.length > 0) {
-          const indexedFiles = getIndexedFilePaths();
-          if (indexedFiles.size > 0) {
-            scopedFiles = [];
-            for (const pattern of boundary) {
-              try {
-                const glob = new Bun.Glob(pattern);
-                for (const f of indexedFiles) if (glob.match(f)) scopedFiles.push(f);
-              } catch { /* skip invalid */ }
-            }
-          }
-        }
-        const collected: NonNullable<DriftCard['patternViolations']> = [];
-        const patternErrCollected: NonNullable<DriftCard['patternErrors']> = [];
-        for (const p of patterns) {
-          // findPattern aggregates across all projects (monorepo support).
-          // Track whether ANY project succeeded — if all threw, it's a
-          // pattern engine error (typically malformed ast-grep syntax),
-          // distinct from "code doesn't match the pattern".
-          let count = 0;
-          let anySucceeded = false;
-          let lastError: unknown;
-          for (const project of gildashProjectNames(ctx)) {
-            try {
-              const matches = await ctx.gildash.findPattern(p.pattern, { project, filePaths: scopedFiles });
-              count += matches.length;
-              anySucceeded = true;
-            } catch (e) {
-              lastError = e;
-            }
-          }
-          if (!anySucceeded) {
-            patternErrCollected.push({
-              id: p.id,
-              message: lastError ? errorMessage(lastError) : 'pattern engine error',
-            });
-            continue;
-          }
-          const violated =
-            (p.rule === 'forbidden' && count > 0) ||
-            (p.rule === 'required' && count === 0);
-          if (violated) collected.push({ id: p.id, rule: p.rule, matches: count });
-        }
-        if (collected.length > 0) {
-          addDrift('pattern_violation');
-          patternViolations = collected;
-        }
-        if (patternErrCollected.length > 0) {
-          patternErrors = patternErrCollected;
-        }
-      }
     }
 
     // glossary_broken: card declares glossary words not in glossary.yaml
@@ -416,10 +185,6 @@ export async function checkDrift(
       ...(driftTypesDetected.length > 0 ? { driftTypes: driftTypesDetected } : {}),
       brokenLinks,
       totalLinks,
-      ...(detectedSymbolChanges ? { symbolChanges: detectedSymbolChanges } : {}),
-      ...(uncoveredSubclasses ? { uncoveredSubclasses } : {}),
-      ...(patternViolations ? { patternViolations } : {}),
-      ...(patternErrors ? { patternErrors } : {}),
     });
   }
 
@@ -432,81 +197,6 @@ export async function checkDrift(
       draft: healthDraft,
     },
   };
-}
-
-// ── check_drift helpers ──
-
-
-
-interface SpecCodePatternRow {
-  id: string;
-  pattern: string;
-  rule: 'forbidden' | 'required';
-}
-
-function parseSpecCodePatterns(namespacesJson: string): SpecCodePatternRow[] {
-  try {
-    const ns = JSON.parse(namespacesJson) as { spec?: { code_patterns?: SpecCodePatternRow[] } };
-    const list = ns?.spec?.code_patterns;
-    if (!Array.isArray(list)) return [];
-    return list.filter(
-      (p): p is SpecCodePatternRow =>
-        !!p && typeof p.id === 'string' && typeof p.pattern === 'string' &&
-        (p.rule === 'forbidden' || p.rule === 'required'),
-    );
-  } catch {
-    return [];
-  }
-}
-
-async function collectSymbolChanges(
-  ctx: EmberdeckContext,
-  targetKeys: string[],
-): Promise<Map<string, SymbolChangeInfo[]> | null> {
-  // Find oldest updatedAt among active cards with boundary
-  let oldestUpdatedAt: string | null = null;
-  for (const key of targetKeys) {
-    const row = ctx.cardRepo.findByKey(key);
-    if (!row || row.status !== 'active') continue;
-    const boundary = parseStringArrayJson(row.boundaryJson);
-    if (boundary.length === 0) continue;
-    if (!oldestUpdatedAt || row.updatedAt < oldestUpdatedAt) {
-      oldestUpdatedAt = row.updatedAt;
-    }
-  }
-
-  if (!oldestUpdatedAt) return null;
-
-  try {
-    // Aggregate symbol changes across all projects (monorepo support).
-    const changes = [];
-    for (const project of gildashProjectNames(ctx)) {
-      try {
-        const c = ctx.gildash.getSymbolChanges(oldestUpdatedAt, {
-          changeTypes: ['added', 'modified', 'removed', 'renamed', 'moved'],
-          project,
-        });
-        changes.push(...c);
-      } catch {
-        // skip project on failure
-      }
-    }
-    const map = new Map<string, SymbolChangeInfo[]>();
-    for (const change of changes) {
-      const file = change.filePath;
-      const existing = map.get(file) ?? [];
-      existing.push({
-        changeType: change.changeType,
-        symbolName: change.symbolName,
-        filePath: change.filePath,
-        changedAt: change.changedAt,
-      });
-      map.set(file, existing);
-    }
-    return map;
-  } catch {
-    return null;
-  }
 }
 
 // ── check_interactions ──
@@ -578,26 +268,11 @@ export async function checkInteractions(
     relationsByKey.set(key, ctx.relationRepo.findByCardKey(key));
   }
 
-  // Build file sets for import dependency detection (codeLink files + boundary
-  // files). Boundary expansion is done against gildash's indexed file list so
-  // results are consistent with other gildash queries (and respect ignorePatterns).
-  const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
+  // Build file sets for import dependency detection (codeLink files only —
+  // boundary globs were removed; bindings come from `@spec` annotations).
   const cardFilesSets = new Map<string, Set<string>>();
   for (const key of keys) {
     const files = new Set((linkMap.get(key) ?? new Map()).keys());
-    if (indexedFiles.length > 0) {
-      const row = ctx.cardRepo.findByKey(key);
-      for (const pattern of parseStringArrayJson(row?.boundaryJson)) {
-        try {
-          const glob = new Bun.Glob(pattern);
-          for (const file of indexedFiles) {
-            if (glob.match(file)) files.add(file);
-          }
-        } catch {
-          // skip invalid boundary
-        }
-      }
-    }
     cardFilesSets.set(key, files);
   }
 

@@ -1,9 +1,7 @@
 import type { EmberdeckContext } from '../config';
-import type { CardRow } from '../db/repository';
 import { getRelationGraph } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
-import { parseStringArrayJson } from '../card/json-fields';
 import { matchesAnyGlob } from '../util/glob';
 import { SymbolFileCache, expandAffectedFiles, makeSymbolFileCache, gildashProjectNames } from './link';
 
@@ -12,7 +10,7 @@ import { SymbolFileCache, expandAffectedFiles, makeSymbolFileCache, gildashProje
 export interface AffectedCard {
   key: string;
   summary: string;
-  linkType: 'direct' | 'boundary' | 'transitive';
+  linkType: 'direct' | 'transitive';
   affectedLinks: number;
   via?: string;
   linkStatus?: { valid: number; broken: number };
@@ -38,11 +36,10 @@ export interface PreChangeResult {
 /**
  * Analyze the impact of changing specific files/symbols before making changes.
  *
- * 1. Find cards with direct code links to the given files/symbols.
- * 2. Find cards whose boundary patterns match the given files.
- * 3. BFS backward to find cards that transitively depend on affected cards.
- * 4. Identify files not covered by any card.
- * 5. Calculate risk level and suggest actions.
+ * 1. Find cards with direct code links (DB code_link table) to the given files/symbols.
+ * 2. BFS backward to find cards that transitively depend on affected cards.
+ * 3. Identify files not covered by any card.
+ * 4. Calculate risk level and suggest actions.
   * @spec analysis/impact-and-aggregate/impact-and-regression
  */
 export async function preChangeCheck(
@@ -70,19 +67,6 @@ export async function preChangeCheck(
     }
   }
 
-  // Find cards affected by boundary matching
-  const boundaryCards = new Map<string, CardRow>();
-  const allCards = ctx.cardRepo.list();
-  for (const card of allCards) {
-    if (directCards.has(card.key)) continue; // Already a direct match
-    const boundary = parseStringArrayJson(card.boundaryJson);
-    if (boundary.length === 0) continue;
-
-    if (files.some((f) => matchesAnyGlob(f, boundary))) {
-      boundaryCards.set(card.key, card);
-    }
-  }
-
   const affectedCards: AffectedCard[] = [];
   const primaryKeys = new Set<string>();
 
@@ -96,19 +80,6 @@ export async function preChangeCheck(
       summary: row?.summary ?? '',
       linkType: 'direct',
       affectedLinks: count,
-      ...(linkStatus ? { linkStatus } : {}),
-    });
-  }
-
-  // Add boundary cards
-  for (const [key, card] of boundaryCards) {
-    primaryKeys.add(key);
-    const linkStatus = computeLinkStatus(ctx, key, sharedCache);
-    affectedCards.push({
-      key,
-      summary: card.summary,
-      linkType: 'boundary',
-      affectedLinks: 0,
       ...(linkStatus ? { linkStatus } : {}),
     });
   }
@@ -137,13 +108,6 @@ export async function preChangeCheck(
   const coveredFiles = new Set<string>();
   for (const link of ctx.codeLinkRepo.findAll()) {
     coveredFiles.add(link.file);
-  }
-  for (const card of allCards) {
-    const boundary = parseStringArrayJson(card.boundaryJson);
-    if (boundary.length === 0) continue;
-    for (const file of files) {
-      if (matchesAnyGlob(file, boundary)) coveredFiles.add(file);
-    }
   }
 
   const newUncoveredFiles: string[] = [];
@@ -216,8 +180,6 @@ export async function preChangeCheck(
   for (const card of affectedCards) {
     if (card.linkType === 'direct') {
       suggestedActions.push(`Review card "${card.key}" — ${card.affectedLinks} code link(s) affected.`);
-    } else if (card.linkType === 'boundary') {
-      suggestedActions.push(`Review card "${card.key}" — file is within its boundary scope.`);
     } else if (card.linkType === 'transitive') {
       suggestedActions.push(`Check transitive dependency: ${card.key} (via ${card.via}).`);
     }

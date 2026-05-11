@@ -9,9 +9,9 @@ description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로�
 3. 모든 카드 생성/갱신 전 `<self_review>` 통과.
 4. `glossary.yaml` 에 항목 ≥1 시 신규 카드의 `glossary` 필드 필수 (주요 토픽만).
 5. 4-tier strict: `principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용.
-6. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 12 의 ignorePatterns 에 명시 추가 (rule 6 우선).
+6. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 11 의 ignorePatterns 에 명시 추가 (rule 6 우선).
 7. `--patch` 는 namespace 전체 교체 (merge X). 누락 필수 필드 시 `VALIDATION_ERROR`. 부분 업데이트가 필요하면 카드 파일 직접 편집 후 `ed bulk sync`.
-8. `ed spec annotate` 는 기본 additive (DB 카드의 codeLink 대로 source 에 `@spec` 추가). orphan 제거는 `--prune` 플래그 명시 시에만 (card delete / reset 후 정리용).
+8. **source ↔ card binding 은 source 가 SoT.** spec 카드의 source 결합은 코드의 `/** @spec card-key */` JSDoc 어노테이션으로만 표현. 카드는 codeLinks/boundary 필드를 갖지 않으며, `ed spec sync` 가 어노테이션을 스캔해 DB code_link 테이블을 채운다.
 </rules>
 
 <route>
@@ -27,7 +27,7 @@ description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로�
 </route>
 
 <workflow name="onboarding">
-1. `ed analyze` → 현 상태. `ed spec annotate` → reconcile (멱등).
+1. `ed analyze` → 현 상태. `ed spec sync` → 소스 `@spec` 어노테이션 → DB code_link 재구성 (멱등).
 2. 소스 우선순위 순 읽기: 진입점 → 코어 도메인 → 인프라 → 테스트. 모노레포에서 sample/example/fixture 후순위. 컨텍스트 한도까지. `ed analyze` 의 `unlinked_symbols` 가 우선순위 신호. 각 파일 single-file 테스트 적용. cross-module 만 카드화 후보로 수집.
 3. cross-module 발견을 사용자에게 audit 으로 보여줌. 각 발견의 도메인 분류.
 4. domain outline 사용자 확인 (key, summary, scope IN/OUT).
@@ -35,15 +35,15 @@ description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로�
 6. glossary 제안 (`<glossary_proposal>` 템플릿) → 확인 → `ed glossary define`.
 7. domain 카드 생성 (`type: domain`).
 8. brief 카드 생성 (`type: brief`, `parent: <domain>`, brief namespace).
-9. spec 카드 생성 (`type: spec`, `parent: <brief|spec>`, codeLinks, spec namespace). invariant 가 코드 패턴(예: forbidden console.log)이면 `spec.code_patterns` 추가.
+9. spec 카드 생성 (`type: spec`, `parent: <brief|spec>`, spec namespace). 소스 결합은 카드 작성 후 소스에 `/** @spec <card-key> */` JSDoc 직접 추가.
 10. 카드 일괄 검토:
     - 각 domain ≥1 brief 자식
     - 각 brief 의 Scope "Covers" 무관 항목 ≥3 → sibling brief 분리
-    - production 파일 함수 중 spec codeLinks 미커버 시 추가 검토
+    - production 파일 함수 중 `@spec` 어노테이션 미커버 시 추가 검토
     - glossary 용어와 brief 토픽 양방향 정합
 11. GATE: `ed validate cards` (warnings 0)
-12. GATE: `ed check coverage --uncovered`. 카드에 binding 안 된 symbol 발견 시 spec 추가 또는 명시적 ignorePatterns 갱신.
-13. `ed spec annotate` → 모든 codeLinks 에 `@spec card-key` 주입
+12. GATE: `ed check coverage --uncovered`. 카드에 binding 안 된 symbol 발견 시 소스에 `@spec` 추가 또는 명시적 ignorePatterns 갱신.
+13. `ed spec sync` → 소스 어노테이션 → DB code_link 동기화. GATE: `ed validate links` (broken 0).
 </workflow>
 
 <workflow name="glossary-backfill">
@@ -60,12 +60,12 @@ description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로�
    - high: 영향 카드 보여주고 확인
    - medium/low: 진행
 2. 영향 카드 `ed card get`. 직접: 본문, transitive: summary.
-3. 카드 없는 영역: 도메인 식별 → brief 생성 → spec 생성 (필요 시 `code_patterns`). 각 카드 전 `<card_analysis>` + `<self_review>`.
+3. 카드 없는 영역: 도메인 식별 → brief 생성 → spec 생성. 각 카드 전 `<card_analysis>` + `<self_review>`. spec 작성 후 소스에 `/** @spec <key> */` 추가.
 4. 카드 제약 안에서 코드 작성.
 5. 새 도메인 개념: `<glossary_proposal>` → `ed glossary define` → 영향 카드 `--glossary` 갱신.
-6. 기존 spec 스코프 확장 시: spec 본문/glossary 갱신 + `<self_review>`.
-7. GATE: `ed validate links` (broken 0)
-8. `ed spec annotate` → 신규/변경 codeLinks 주입
+6. 기존 spec 스코프 확장 시: spec 본문/glossary 갱신 + `<self_review>` + 소스 `@spec` 어노테이션 추가.
+7. `ed spec sync` → 어노테이션 → DB code_link 동기화.
+8. GATE: `ed validate links` (broken 0)
 </workflow>
 
 <glossary_rules>
@@ -100,16 +100,15 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed card context KEY [--depth N]` | relations + parent BFS | X |
 | `ed card relations KEY` | 직접 forward+reverse | X |
 | `ed validate cards` | 정합성 (계층/orphan/glossary/chain 등). partial → exit 2 | X |
-| `ed validate links [KEY]` | codeLinks resolve 검증 | X |
+| `ed validate links [KEY]` | DB code_link resolve 검증 (소스 어노테이션 기반) | X |
 | `ed validate` | cards + links 종합 | X |
-| `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | 6종 drift 다중 검출. 기본 active→drifted 자동 전이. CI 는 `--no-auto-transition`. | 예 (status 변경) |
+| `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | broken_link / glossary_broken 검출. 기본 active→drifted 자동 전이. CI 는 `--no-auto-transition`. | 예 (status 변경) |
 | `ed check coverage <KEY>` 또는 `ed check coverage --uncovered\|--suggest` | KEY 위치인자 또는 모드 플래그 둘 중 하나 필수. `--uncovered` 는 카드 binding 안 된 symbol 전체 반환 | X |
 | `ed check impact <files...> [--symbol N]` | 변경 전 영향 분석 | X |
 | `ed check regression <files...>` | drifted 비율 vs threshold. fail 시 exit 2 | X |
 | `ed check interactions <keys...>` | shared symbol/file/import + 충돌 | X |
-| `ed spec annotate [KEY] [--prune]` | 기본 additive — DB codeLink → source `@spec` JSDoc 추가만. `--prune` 명시 시 orphan(매칭 codeLink 사라진 어노테이션) 제거 | 예 (`--prune` 시) |
-| `ed spec sync` | 소스 `@spec` → DB codeLinks 재구성 | X |
-| `ed spec sync-symbols [--since TS]` | renamed/moved 심볼 적용 | X |
+| `ed spec sync` | 소스 `@spec` JSDoc 어노테이션 → DB code_link 재구성. 사실상 멱등. | X |
+| `ed spec sync-symbols [--since TS]` | renamed/moved 심볼 적용 (DB code_link 갱신) | X |
 | `ed bulk create --from FILE` | YAML/JSON 배열 일괄 생성. partial → exit 2 | 예 |
 | `ed bulk sync [PATH]` | 카드 파일 → DB. partial → exit 2 | X |
 | `ed analyze` | health/coverage/drift/glossary 종합 | X |
@@ -170,29 +169,28 @@ cross-ref 자동 검증: `flow.covers→goals`, `policy.governs→flow`, `criter
 | 필드 | 필수 | 설명 |
 |------|:---:|------|
 | `key` `type: spec` `parent` `status` `summary` | ✓ | parent 는 brief\|spec |
-| `codeLinks` | ✓ | `[{kind, file, symbol}]`, ≥1, active 시 모두 resolve |
-| `spec.preconditions` | ✓ | `[{id: PRE-001, condition, binds: [{file, symbol}], derives: "brief-key#item-id"}]`, ≥1 |
-| `spec.postconditions` | ✓ | `[{id: POST-001, guarantee, keyword: MUST\|SHALL, binds, derives}]`, ≥1 |
-| `spec.invariants` | ✓ | `[{id: INV-001, statement, binds, always_holds: per-call\|cross-call\|cross-process}]`, ≥1 |
-| `spec.failures` | ✓ | `[{violation, behavior, exception: {class, file}}]`, ≥1. 비-throwing failure (return null / error code) 는 `exception: {class: "none", file: ""}` |
-| `spec.state_transitions` | | `[{from, trigger, to, binds}]` |
-| `spec.code_patterns` | | `[{id: PAT-001, pattern: "ast-grep", rule: forbidden\|required, description?}]`. boundary 안에서만 매칭. mass-flip 주의 — N 카드에 같은 패턴 추가 시 N 카드 일괄 drifted 자동 전이 |
-| `boundary` | | `["src/auth/**"]` glob 배열 |
+| `spec.preconditions` | ✓ | `[{id: PRE-001, condition, derives: "brief-key#item-id"}]`, ≥1 |
+| `spec.postconditions` | ✓ | `[{id: POST-001, guarantee, keyword: MUST\|SHALL, derives}]`, ≥1 |
+| `spec.invariants` | ✓ | `[{id: INV-001, statement, always_holds: per-call\|cross-call\|cross-process}]`, ≥1 |
+| `spec.failures` | ✓ | `[{violation, behavior}]`, ≥1 |
+| `spec.state_transitions` | | `[{from, trigger, to}]` |
 | `relations` | | brief 키 배열. parent 가 이미 brief 면 불필요 |
 
-cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 brief 항목.
+cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 brief 항목.
+
+**소스 결합**: 카드 자체에는 codeLinks/boundary 필드가 없다. 결합 의도를 표현하려면 소스 코드에 `/** @spec <card-key> */` JSDoc 주석을 함수/클래스/변수 선언 바로 위에 둔다. `ed spec sync` 가 어노테이션을 스캔해 DB code_link 테이블을 채운다. 활성화 가드는 인덱스된 파일이 ≥1 일 때 해당 카드를 가리키는 `@spec` 어노테이션이 ≥1 존재하고 모두 resolve 함을 요구한다.
 
 </card_fields>
 
 <card_splitting>
 **분리 트리거 (하나라도 true)**:
 1. 변경 독립성: contract A 가 drift 해도 B valid
-2. 다른 codeLink 파일
+2. 다른 소스 파일에 결합 (`@spec` 어노테이션이 분리된 파일 셋에 위치)
 3. summary 가 무관한 두 능력을 "and"
 
 **합침 조건 (모두 true)**:
 1. 같은 작업의 입력 케이스 차이만 (예: force=true vs force=false)
-2. 같은 codeLink 셋 공유
+2. 같은 소스 결합 셋 공유
 3. A drift → B 도 반드시 drift
 
 **brief 분해 신호** (sibling brief 분리, 같은 domain 아래):
@@ -230,9 +228,8 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
 - contract 가 WHAT (행동), HOW X
 - failure 표가 모든 에러 타입 커버
 - 분리 체크 (contract/file 단위)
-- codeLinks 모두 실제 존재
+- 카드 작성 직후 소스에 `@spec <key>` 어노테이션 ≥1 추가 (active 카드는 어노테이션 ≥1 필수)
 - parent=brief|spec
-- invariant 가 코드 패턴이면 `code_patterns` 추가
 </self_review>
 
 <card_analysis>
@@ -282,20 +279,14 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
 `ed validate links` broken:
 1. rename → `ed spec sync-symbols`
 2. moved → 같은 명령
-3. 제거됨 → 카드 갱신/삭제
+3. 어노테이션이 제거됨 → `ed spec sync` 로 DB 정리
 
 `ed check drift` driftType 별:
 
 | driftType | 해결 |
 |-----------|------|
-| broken_link | `ed spec sync-symbols` 또는 `--patch` 로 codeLink 갱신 |
-| boundary_inactive | boundary 패턴 수정 또는 카드 retired |
-| symbol_changed | (`symbolChanges[]`) 검토 → 카드 갱신 또는 `set-status active` 로 updatedAt 갱신 |
-| heritage_uncovered | (`uncoveredSubclasses[]`) 서브클래스 spec 생성 또는 부모 codeLinks 추가 |
-| pattern_violation | (`patternViolations[]`) 코드 수정 또는 패턴 조정 |
+| broken_link | 소스의 `@spec` 어노테이션 위치 갱신 → `ed spec sync-symbols` 또는 `ed spec sync` |
 | glossary_broken | `ed glossary define` 또는 `--glossary <새 목록>` |
-
-`patternErrors[]` (drift 아님): ast-grep 패턴 문법 오류 → 패턴 수정.
 
 </error_recovery>
 
@@ -307,13 +298,9 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
   "health":{"total":N,"active":N,"drifted":N,"draft":N},
   "cards":[{
     "key":"...",
-    "driftType":"...",       // 조건부: drift 시 primary
-    "driftTypes":["...",...],// 조건부: 전체
-    "brokenLinks":N,"totalLinks":N,
-    "patternViolations":[{"id":"...","rule":"forbidden|required","matches":N}],
-    "patternErrors":[{"id":"...","message":"..."}],
-    "uncoveredSubclasses":[{"file":"...","symbol":"..."}],
-    "symbolChanges":[...]
+    "driftType":"broken_link|glossary_broken",  // 조건부: drift 시
+    "driftTypes":["...",...],                   // 조건부: 전체
+    "brokenLinks":N,"totalLinks":N
   }]
 }}
 ```
@@ -323,7 +310,7 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
 {"data":{
   "risk_level":"low|medium|high|critical",
   "affected_count":N,
-  "affected_cards":[{"key":"...","linkType":"direct|boundary|transitive","affectedLinks":N,"linkStatus":{"valid":N,"broken":N}}],
+  "affected_cards":[{"key":"...","linkType":"direct|transitive","affectedLinks":N,"linkStatus":{"valid":N,"broken":N}}],
   "new_uncovered_files":[...],
   "suggested_actions":[...],
   "max_fan_in":N           // 조건부: > 0
@@ -333,9 +320,7 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
 `ed validate links`:
 ```json
 {"data":{
-  "declared":N,"resolved":N,"broken":N,"unresolved":N,
-  "internal_links":N,      // 조건부: > 0 (비-export 심볼 링크)
-  "internal_details":[{"key":"...","file":"...","symbol":"..."}]
+  "declared":N,"resolved":N,"broken":N,"unresolved":N
 }}
 ```
 
@@ -367,7 +352,7 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
 `ed analyze`:
 ```json
 {"data":{
-  "health":{"total":N,"active":N,"drifted":N,"draft":N,"brokenLinks":N,"staleBoundary":N,
+  "health":{"total":N,"active":N,"drifted":N,"draft":N,"brokenLinks":N,
     "codeStats":{"files":N,"symbols":N},          // 조건부: gildash 활성
     "codeCycles":{"count":N,"samples":[["a.ts","b.ts"]]}  // 조건부
   },
@@ -382,7 +367,7 @@ cross-ref 자동: 모든 `binds` 는 카드 codeLinks 에 존재, 모든 `derive
 
 <monorepo>
 gildash 발견한 모든 sub-project 자동 집계 (모든 gildash 쿼리에 라우팅 적용). `--project-root` 는 모노레포 루트 지정.
-codeLinks `file` 은 모노레포 루트 기준 상대 경로 (예: `packages/common/...`).
+DB code_link `file` 은 모노레포 루트 기준 상대 경로 (예: `packages/common/...`).
 파일/심볼 자동 dedup.
 </monorepo>
 
@@ -391,5 +376,6 @@ codeLinks `file` 은 모노레포 루트 기준 상대 경로 (예: `packages/co
 2. 카드 생성/갱신 전 `<self_review>`. 예외 없음.
 3. single-file 테스트.
 4. 4-tier strict.
-5. `ed` 직접 호출 — 서브에이전트 사용 시 카드 컨텍스트 손실.
+5. spec 카드의 source 결합은 카드 필드가 아니라 코드의 `@spec` JSDoc 어노테이션으로만 표현.
+6. `ed` 직접 호출 — 서브에이전트 사용 시 카드 컨텍스트 손실.
 </critical>

@@ -70,17 +70,6 @@ export class ActivationGuardError extends Error {
 }
 
 /**
- * Thrown when boundary validation fails.
- * Covers: invalid glob syntax, empty patterns, limit exceeded.
- */
-export class BoundaryValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'BoundaryValidationError';
-  }
-}
-
-/**
  * Thrown when a filesystem operation fails after a successful DB transaction, and the
  * compensation (rollback) also fails. Contains both `originalError` and `compensationError`,
  * so both should be logged. This state risks database-filesystem inconsistency and may

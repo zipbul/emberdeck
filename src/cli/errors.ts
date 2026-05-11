@@ -11,7 +11,6 @@ import {
   CardRenameSamePathError,
   ParentValidationError,
   ActivationGuardError,
-  BoundaryValidationError,
   CompensationError,
   FtsSyntaxError,
 } from '../card/errors';
@@ -31,7 +30,6 @@ const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
   [CardKeyError, 'INVALID_CARD_KEY'],
   [CardValidationError, 'VALIDATION_ERROR'],
   [ParentValidationError, 'PARENT_VALIDATION_ERROR'],
-  [BoundaryValidationError, 'BOUNDARY_VALIDATION_ERROR'],
   [GildashInitError, 'GILDASH_INIT_FAILED'],
   [CardRenameSamePathError, 'RENAME_SAME_PATH'],
   [GlossaryParseError, 'GLOSSARY_PARSE_ERROR'],

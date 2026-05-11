@@ -18,7 +18,6 @@ export interface AnalyzeHealth {
   drifted: number;
   draft: number;
   brokenLinks: number;
-  staleBoundary: number;
   /** Code-side architectural warnings (populated when gildash is available). */
   codeCycles?: {
     /** Number of distinct cycles detected in the import graph. */
@@ -155,27 +154,10 @@ export async function analyze(
     }
   }
 
-  // 3. Stale boundary count: boundary globs that match no indexed files.
-  // Empty index is treated as "no information" — staleBoundary only counts
-  // against a populated index, consistent with checkDrift's boundary_inactive.
-  let staleBoundary = 0;
+  // Gildash reindex before symbol coverage queries below.
   await ensureReindexed(ctx);
-  const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
-  if (indexedFiles.length > 0) {
-    for (const card of allCards) {
-      const boundary = parseStringArrayJson(card.boundaryJson);
-      if (boundary.length === 0) continue;
-      let anyMatch = false;
-      try {
-        anyMatch = indexedFiles.some((f) => matchesAnyGlob(f, boundary));
-      } catch {
-        // invalid glob — count as stale
-      }
-      if (!anyMatch) staleBoundary++;
-    }
-  }
 
-  // 4. Symbol coverage
+  // 3. Symbol coverage
   const uncoveredResult = await getUncoveredSymbols(ctx);
   const coverage: AnalyzeCoverage = {
     totalSymbols: uncoveredResult.totalSymbols,
@@ -268,7 +250,6 @@ export async function analyze(
       drifted,
       draft,
       brokenLinks: totalBrokenLinks,
-      staleBoundary,
       ...(codeStats ? { codeStats } : {}),
       ...(codeCycles ? { codeCycles } : {}),
     },

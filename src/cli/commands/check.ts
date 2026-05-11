@@ -17,7 +17,7 @@ export function registerCheck(program: Command): void {
   // ── check drift ──
   check
     .command('drift [key]')
-    .description('detect drift (broken_link / boundary_inactive / symbol_changed / glossary_broken / heritage_uncovered / pattern_violation)')
+    .description('detect drift (broken_link / glossary_broken)')
     .option('--no-auto-transition', 'do not auto-mark active→drifted')
     .action(async (key: string | undefined, opts: { autoTransition?: boolean }, cmd) => {
             await run(
@@ -89,7 +89,7 @@ export function registerCheck(program: Command): void {
   // ── check impact ──
   check
     .command('impact <files...>')
-    .description('pre-change impact analysis (direct / boundary / transitive)')
+    .description('pre-change impact analysis (direct / transitive)')
     .option('--symbol <names...>', 'optional: restrict to specific symbols')
     .action(async (files: string[], opts: { symbol?: string[] }, cmd) => {
             await run(

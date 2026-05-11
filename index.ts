@@ -24,7 +24,6 @@ export {
   CardRenameSamePathError,
   ParentValidationError,
   ActivationGuardError,
-  BoundaryValidationError,
   CompensationError,
   FtsSyntaxError,
 } from './src/card/errors';
@@ -88,7 +87,6 @@ export {
   type DriftCard,
   type DriftHealth,
   type DriftType,
-  type SymbolChangeDetail,
   type CheckDriftOptions,
   type InteractionResult,
   type CardInteraction,

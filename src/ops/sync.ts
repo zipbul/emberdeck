@@ -194,90 +194,9 @@ export async function bulkSyncCards(
 }
 
 /**
- * Generate synthetic sample paths from a glob pattern for overlap testing.
- * Since Bun.Glob.match expects a concrete path (not another pattern),
- * we create plausible paths that would match the pattern and cross-test them.
- */
-function generateSamplePaths(pattern: string): string[] {
-  const samples = new Set<string>();
-
-  const defaultExts = ['.ts', '.js', '.tsx', '.json'];
-
-  // Extract extension constraint from pattern (e.g. *.ts -> .ts)
-  const extMatch = pattern.match(/\*\.([a-zA-Z0-9]+)$/);
-  const patternExt = extMatch ? '.' + extMatch[1] : null;
-  const extensions = patternExt ? [patternExt] : defaultExts;
-
-  // Get the static (non-glob) prefix
-  const segments = pattern.split('/');
-  const prefixParts: string[] = [];
-  for (const seg of segments) {
-    if (seg.includes('*') || seg.includes('?') || seg.includes('[') || seg.includes('{')) break;
-    prefixParts.push(seg);
-  }
-  const prefix = prefixParts.join('/');
-
-  const depths = ['', 'd1/', 'd1/d2/', 'd1/d2/d3/'];
-
-  for (const ext of extensions) {
-    for (const depth of depths) {
-      let p = pattern;
-      p = p.replace(/\*\*\//g, depth);
-      p = p.replace(/\*\*/g, depth ? depth.slice(0, -1) : 'x');
-      p = p.replace(/\*\.([a-zA-Z0-9]+)/g, 'sample.$1');
-      p = p.replace(/\*/g, 'sample');
-      p = p.replace(/\/\//g, '/').replace(/\/$/, '');
-
-      if (p) samples.add(p);
-
-      // For patterns ending with **, append concrete file names
-      if (pattern.endsWith('**') || pattern.endsWith('**/')) {
-        const withExt = p + (p.endsWith('/') ? '' : '/') + 'file' + ext;
-        samples.add(withExt.replace(/\/\//g, '/'));
-        if (p && !p.includes('.')) {
-          samples.add(p + ext);
-        }
-      }
-    }
-  }
-
-  // Add depth-varied samples under the prefix for ** patterns
-  if (prefix && pattern.includes('**')) {
-    for (const ext of extensions) {
-      samples.add(prefix + '/file' + ext);
-      samples.add(prefix + '/sub/file' + ext);
-      samples.add(prefix + '/sub/deep/file' + ext);
-    }
-  }
-
-  return [...samples];
-}
-
-/**
- * Check whether two glob patterns potentially overlap (i.e., a path could exist
- * that matches both). Uses sample-based heuristic: generates concrete paths from
- * each pattern and tests them against the other.
- */
-function globPatternsOverlap(pa: string, pb: string): boolean {
-  const samplesA = generateSamplePaths(pa);
-  const samplesB = generateSamplePaths(pb);
-
-  const globA = new Bun.Glob(pa);
-  const globB = new Bun.Glob(pb);
-
-  for (const s of samplesA) {
-    if (globB.match(s)) return true;
-  }
-  for (const s of samplesB) {
-    if (globA.match(s)) return true;
-  }
-
-  return false;
-}
-
-/**
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
- * Performs read-only structural validation including hierarchy, relations, and boundary checks.
+ * Performs read-only structural validation: hierarchy, relations, glossary,
+ * orphans, key mismatches, content drift.
   * @spec card-storage/persistence/sync
  */
 export async function validateCards(
@@ -425,49 +344,6 @@ export async function validateCards(
     }
   }
 
-  // Boundary overlap: two cards with overlapping boundaries (parent-child allowed)
-  // Detects overlaps by checking if any pattern from one card matches any pattern from the other
-  // (glob A matches path B, or glob B matches path A, or identical patterns).
-  const cardsWithBoundary = dbRows.filter((r) => r.boundaryJson);
-  for (let i = 0; i < cardsWithBoundary.length; i++) {
-    for (let j = i + 1; j < cardsWithBoundary.length; j++) {
-      const a = cardsWithBoundary[i]!;
-      const b = cardsWithBoundary[j]!;
-
-      // Skip parent-child pairs
-      if (a.parent === b.key || b.parent === a.key) continue;
-
-      const aBoundary = parseStringArrayJson(a.boundaryJson);
-      const bBoundary = parseStringArrayJson(b.boundaryJson);
-      if (aBoundary.length === 0 || bBoundary.length === 0) continue;
-
-      const overlapping: string[] = [];
-      for (const pa of aBoundary) {
-        for (const pb of bBoundary) {
-          if (pa === pb) {
-            overlapping.push(pa);
-          } else {
-            try {
-              if (globPatternsOverlap(pa, pb)) {
-                overlapping.push(`${pa} ∩ ${pb}`);
-              }
-            } catch {
-              // Invalid glob — skip
-            }
-          }
-        }
-      }
-
-      if (overlapping.length > 0) {
-        warnings.push({
-          type: 'boundary-overlap',
-          cardKey: a.key,
-          message: `Boundary overlaps with "${b.key}": ${overlapping.join(', ')}`,
-        });
-      }
-    }
-  }
-
   // Content mismatch: DB and file frontmatter diverged
   for (const row of dbRows) {
     if (!fileSet.has(row.filePath)) continue;
@@ -601,9 +477,6 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     .map((r) => r.dstCardKey);
 
   const tags = ctx.classificationRepo.findTagsByCard(key);
-  const codeLinks = ctx.codeLinkRepo
-    .findByCardKey(key)
-    .map((r) => ({ kind: r.kind, file: r.file, symbol: r.symbol }));
 
   const glossary = parseStringArrayJson(row.glossaryJson);
 
@@ -614,10 +487,8 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     status: row.status as CardStatus,
     type: row.type as CardType,
     ...(row.parent ? { parent: row.parent } : {}),
-    ...((() => { const b = parseStringArrayJson(row.boundaryJson); return b.length > 0 ? { boundary: b } : {}; })()),
     ...(relations.length ? { relations } : {}),
     ...(tags.length ? { tags } : {}),
-    ...(codeLinks.length ? { codeLinks } : {}),
     ...(glossary.length > 0 ? { glossary } : {}),
     ...(ns.principle ? { principle: ns.principle as CardFrontmatter['principle'] } : {}),
     ...(ns.domain ? { domain: ns.domain as CardFrontmatter['domain'] } : {}),

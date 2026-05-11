@@ -6,7 +6,6 @@ import {
   CardRenameSamePathError,
   ParentValidationError,
   ActivationGuardError,
-  BoundaryValidationError,
 } from './errors';
 
 // ── CardValidationError ──────────────────────────────────────────────────────
@@ -176,22 +175,4 @@ describe('ActivationGuardError', () => {
   });
 });
 
-// ── BoundaryValidationError ──────────────────────────────────────────────────
-
-describe('BoundaryValidationError', () => {
-  it('should set message, name, and be instanceof Error when constructed', () => {
-    // Arrange / Act
-    const err = new BoundaryValidationError('invalid glob');
-    // Assert
-    expect(err.message).toBe('invalid glob');
-    expect(err.name).toBe('BoundaryValidationError');
-    expect(err).toBeInstanceOf(Error);
-    expect(err).toBeInstanceOf(BoundaryValidationError);
-  });
-
-  it('should be catchable as BoundaryValidationError when thrown', () => {
-    // Arrange / Act / Assert
-    expect(() => { throw new BoundaryValidationError('bad pattern'); }).toThrow(BoundaryValidationError);
-  });
-});
 

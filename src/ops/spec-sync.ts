@@ -302,22 +302,6 @@ export async function getLinkCoverage(
     return { declared: 0, resolved: 0, broken: 0, coverage: 1, unreferenced: [] };
   }
 
-  // Collect boundary-covered files for this card. Boundary expansion is done
-  // against the gildash index aggregated across ALL projects (monorepo support).
-  const indexedFiles = listAllIndexedFilesWithProject(ctx).map((f) => f.filePath);
-  const boundaryFiles = new Set<string>();
-  const row = ctx.cardRepo.findByKey(fullKey);
-  for (const pattern of parseStringArrayJson(row?.boundaryJson)) {
-    try {
-      const glob = new Bun.Glob(pattern);
-      for (const file of indexedFiles) {
-        if (glob.match(file)) boundaryFiles.add(file);
-      }
-    } catch {
-      // skip invalid boundary
-    }
-  }
-
   const coverageCache = makeSymbolFileCache(ctx)!;
   let resolved = 0;
   let broken = 0;
@@ -336,14 +320,11 @@ export async function getLinkCoverage(
     }
   }
 
-  // Find unreferenced symbols in linked files
-  // Symbols in boundary-matched files are considered covered (excluded from unreferenced)
+  // Find unreferenced symbols in linked files (boundary globs were removed —
+  // coverage is determined purely by code_link rows).
   const unreferenced: LinkCoverageResult['unreferenced'] = [];
   for (const file of linkedFiles) {
     if (matchesAnyGlob(file, ctx.ignorePatterns)) continue;
-
-    // Symbols in boundary-covered files are considered covered
-    if (boundaryFiles.has(file)) continue;
 
     const fileSymbols = coverageCache.get(file);
     for (const sym of fileSymbols) {
@@ -389,11 +370,11 @@ export interface GetUncoveredSymbolsOptions {
 }
 
 /**
- * Find symbols not linked to any card via codeLinks or boundary.
+ * Find symbols not linked to any card via codeLinks.
  *
  * Returns all gildash-indexed symbols that are not covered by any card's
- * codeLinks or boundary globs. Applies ignorePatterns + excludePatterns
- * to filter out files that should be excluded.
+ * codeLinks (populated from source `@spec` annotations). Applies
+ * ignorePatterns + excludePatterns to filter out files.
   * @spec code-binding/link-and-coverage/coverage
  */
 export async function getUncoveredSymbols(
@@ -417,7 +398,6 @@ export async function getUncoveredSymbols(
   for (const link of ctx.codeLinkRepo.findAll()) {
     coveredKeys.add(`${link.file}:${link.symbol}`);
   }
-  const allCards = ctx.cardRepo.list();
 
   // 2. Indexed files aggregated across all gildash projects (monorepo support).
   // Carry project attribution so per-file getSymbolsByFile queries below route
@@ -437,22 +417,7 @@ export async function getUncoveredSymbols(
   const fileToProject = new Map<string, string | undefined>();
   for (const f of indexedWithProject) fileToProject.set(f.filePath, f.project);
 
-  // 3. Collect boundary-covered files (matched against the gildash index).
-  const boundaryFiles = new Set<string>();
-  for (const card of allCards) {
-    for (const pattern of parseStringArrayJson(card.boundaryJson)) {
-      try {
-        const glob = new Bun.Glob(pattern);
-        for (const file of indexedFilePaths) {
-          if (glob.match(file)) boundaryFiles.add(file);
-        }
-      } catch {
-        // skip invalid boundary
-      }
-    }
-  }
-
-  // 4. Determine target files (caller-provided or all indexed)
+  // 3. Determine target files (caller-provided or all indexed)
   let targetFiles: string[] = files ?? indexedFilePaths;
 
   // 5. Filter out ignored files
@@ -485,8 +450,6 @@ export async function getUncoveredSymbols(
       // Check if covered by codeLink (qualified or unqualified name).
       if (coveredKeys.has(`${symFile}:${sym.name}`)) continue;
       if (sym.memberName && coveredKeys.has(`${symFile}:${sym.memberName}`)) continue;
-      // Check if covered by boundary
-      if (boundaryFiles.has(symFile)) continue;
 
       uncovered.push({
         file: symFile,
@@ -515,7 +478,6 @@ export interface CardSuggestion {
   type: 'domain' | 'brief' | 'spec';
   parent?: string;
   files: string[];
-  boundary: string[];
   symbols: Array<{ file: string; symbol: string; kind: string }>;
   reason: string;
   /** Glossary words from the project glossary that appear in this scope's symbols/paths. */
@@ -582,14 +544,6 @@ export async function suggestCardScope(
     allCards.map((c) => [c.key, c.type as CardType]),
   );
 
-  // Build existing boundary globs for overlap check
-  const existingBoundaryGlobs: Bun.Glob[] = [];
-  for (const card of allCards) {
-    for (const pattern of parseStringArrayJson(card.boundaryJson)) {
-      existingBoundaryGlobs.push(new Bun.Glob(pattern));
-    }
-  }
-
   const suggestions: CardSuggestion[] = [];
 
   for (const [dir, symbols] of uncoveredByDir) {
@@ -602,20 +556,6 @@ export async function suggestCardScope(
 
     // Skip if a card with this key already exists
     if (existingKeys.has(suggestedKey)) continue;
-
-    // Skip if this directory is already covered by an existing boundary glob
-    // (check a representative file from the dir against all boundary patterns)
-    const sampleFile = symbols[0]?.file;
-    if (sampleFile) {
-      let covered = false;
-      for (const glob of existingBoundaryGlobs) {
-        if (glob.match(sampleFile)) {
-          covered = true;
-          break;
-        }
-      }
-      if (covered) continue;
-    }
 
     // Collect unique files in this directory
     const files = [...new Set(symbols.map((s) => s.file))];
@@ -661,7 +601,6 @@ export async function suggestCardScope(
       type: suggestedType,
       ...(parent ? { parent } : {}),
       files,
-      boundary: [dir + '/**'],
       symbols: symbols.map((s) => ({ file: s.file, symbol: s.symbol, kind: s.kind })),
       reason:
         suggestedType === 'spec'

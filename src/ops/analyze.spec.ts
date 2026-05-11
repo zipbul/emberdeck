@@ -49,7 +49,6 @@ describe('analyze', () => {
     expect(result.health.drifted).toBe(0);
     expect(result.health.draft).toBe(0);
     expect(result.health.brokenLinks).toBe(0);
-    expect(result.health.staleBoundary).toBe(0);
     expect(result.driftedCards).toEqual([]);
     expect(result.driftedCardsTotal).toBe(0);
   });
@@ -145,23 +144,4 @@ describe('analyze', () => {
     expect(result.health.drifted).toBe(1);
   });
 
-  it('counts staleBoundary when boundary matches no indexed files', async () => {
-    ctx.cardRepo.upsert(makeCard({
-      key: 'stale-boundary',
-      status: 'active',
-      boundaryJson: JSON.stringify(['nonexistent-dir/**/*.ts']),
-      filePath: 'cards/stale-boundary.md',
-    }));
-    ctx.cardRepo.upsert(makeCard({
-      key: 'no-boundary',
-      status: 'active',
-      boundaryJson: null,
-      namespacesJson: null,
-      filePath: 'cards/no-boundary.md',
-    }));
-
-    const result = await analyze(ctx);
-
-    expect(result.health.staleBoundary).toBe(1);
-  });
 });
