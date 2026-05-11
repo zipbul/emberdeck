@@ -15,17 +15,12 @@ describe('Phase 2 polish: bulk create partial-success', () => {
   afterEach(() => { cleanup(); });
 
   test('mixed success/failure in bulk → status=partial', async () => {
-    // First card good, second card uses bad parent → fail
-    const yaml = `- key: ok-card
-  type: brief
-  summary: OK card
-- key: bad-parent
-  type: brief
-  summary: bad
-  parent: nonexistent-parent
-`;
-    writeFileSync(join(tmp, 'mix.yaml'), yaml);
-    const r = await runEd(['bulk', 'create', '--from', 'mix.yaml'], tmp);
+    const json = JSON.stringify([
+      { key: 'ok-card', type: 'brief', summary: 'OK card' },
+      { key: 'bad-parent', type: 'brief', summary: 'bad', parent: 'nonexistent-parent' },
+    ]);
+    writeFileSync(join(tmp, 'mix.json'), json);
+    const r = await runEd(['bulk', 'create', '--from', 'mix.json'], tmp);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('partial');
     expect(parsed.data.created).toBe(1);
@@ -35,64 +30,48 @@ describe('Phase 2 polish: bulk create partial-success', () => {
   });
 
   test('all success → status=ok', async () => {
-    const yaml = `- key: a-card
-  type: brief
-  summary: A
-- key: b-card
-  type: brief
-  summary: B
-`;
-    writeFileSync(join(tmp, 'all.yaml'), yaml);
-    const r = await runEd(['bulk', 'create', '--from', 'all.yaml'], tmp);
+    const json = JSON.stringify([
+      { key: 'a-card', type: 'brief', summary: 'A' },
+      { key: 'b-card', type: 'brief', summary: 'B' },
+    ]);
+    writeFileSync(join(tmp, 'all.json'), json);
+    const r = await runEd(['bulk', 'create', '--from', 'all.json'], tmp);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('ok');
     expect(parsed.data.created).toBe(2);
   });
 
   test('all failure → status=partial (per CLI_PLAN §3.6) + exit 2 (CI gate)', async () => {
-    const yaml = `- key: bad1
-  type: brief
-  summary: X
-  parent: nonexistent
-- key: bad2
-  type: brief
-  summary: Y
-  parent: nonexistent
-`;
-    writeFileSync(join(tmp, 'all-bad.yaml'), yaml);
-    const r = await runEd(['bulk', 'create', '--from', 'all-bad.yaml'], tmp);
+    const json = JSON.stringify([
+      { key: 'bad1', type: 'brief', summary: 'X', parent: 'nonexistent' },
+      { key: 'bad2', type: 'brief', summary: 'Y', parent: 'nonexistent' },
+    ]);
+    writeFileSync(join(tmp, 'all-bad.json'), json);
+    const r = await runEd(['bulk', 'create', '--from', 'all-bad.json'], tmp);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('partial');
     expect(parsed.data.created).toBe(0);
     expect(parsed.data.failed).toBe(2);
-    // partial-success in bulk → exit 2 (CI gate signal, NOT exit 0)
     expect(r.exitCode).toBe(2);
   });
 
   test('partial mixed → exit 2 (gate signal)', async () => {
-    const yaml = `- key: ok-card
-  type: brief
-  summary: OK
-- key: bad-parent
-  type: brief
-  summary: bad
-  parent: nonexistent
-`;
-    writeFileSync(join(tmp, 'mix2.yaml'), yaml);
-    const r = await runEd(['bulk', 'create', '--from', 'mix2.yaml'], tmp);
+    const json = JSON.stringify([
+      { key: 'ok-card', type: 'brief', summary: 'OK' },
+      { key: 'bad-parent', type: 'brief', summary: 'bad', parent: 'nonexistent' },
+    ]);
+    writeFileSync(join(tmp, 'mix2.json'), json);
+    const r = await runEd(['bulk', 'create', '--from', 'mix2.json'], tmp);
     expect(r.exitCode).toBe(2);
   });
 
   test('all success → exit 0', async () => {
-    const yaml = `- key: c1
-  type: brief
-  summary: c1
-- key: c2
-  type: brief
-  summary: c2
-`;
-    writeFileSync(join(tmp, 'good.yaml'), yaml);
-    const r = await runEd(['bulk', 'create', '--from', 'good.yaml'], tmp);
+    const json = JSON.stringify([
+      { key: 'c1', type: 'brief', summary: 'c1' },
+      { key: 'c2', type: 'brief', summary: 'c2' },
+    ]);
+    writeFileSync(join(tmp, 'good.json'), json);
+    const r = await runEd(['bulk', 'create', '--from', 'good.json'], tmp);
     expect(r.exitCode).toBe(0);
   });
 });
@@ -342,13 +321,10 @@ describe('Phase 2 polish: enum validation at CLI layer', () => {
     expect(JSON.parse(r.stdout).error.message).toContain('invalid --type');
   });
 
-  test('bulk create with invalid type in YAML → rejected, no corruption', async () => {
-    const yaml = `- key: bad-bulk
-  type: banana
-  summary: x
-`;
-    writeFileSync(join(tmp, 'bad.yaml'), yaml);
-    const r = await runEd(['bulk', 'create', '--from', 'bad.yaml'], tmp);
+  test('bulk create with invalid type in JSON → rejected, no corruption', async () => {
+    const json = JSON.stringify([{ key: 'bad-bulk', type: 'banana', summary: 'x' }]);
+    writeFileSync(join(tmp, 'bad.json'), json);
+    const r = await runEd(['bulk', 'create', '--from', 'bad.json'], tmp);
     expect(r.exitCode).toBe(2); // partial
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('partial');

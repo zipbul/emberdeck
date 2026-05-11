@@ -57,7 +57,7 @@ function setupGlobFixture(): string {
 
 function writeCard(tmp: string, key: string, frontmatter: string): void {
   writeFileSync(
-    join(tmp, '.emberdeck/cards', `${key}.json`),
+    join(tmp, '.emberdeck/cards', `${key}.md`),
     `---\n${frontmatter}\n---\n`,
   );
 }

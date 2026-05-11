@@ -251,11 +251,11 @@ describe('parseCard — codeLinks', () => {
 // ── serializeCard ──────────────────────────────────────────────────────
 
 describe('serializeCard', () => {
-  it('emits canonical JSON with 2-space indent', () => {
+  it('emits markdown frontmatter wrapped in --- delimiters', () => {
     const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec' };
     const result = serializeCard(fm);
-    expect(result.startsWith('{\n  "key": "k"')).toBe(true);
-    expect(result.endsWith('\n')).toBe(true);
+    expect(result.startsWith('---\nkey: k\n')).toBe(true);
+    expect(result.endsWith('---\n')).toBe(true);
   });
 
   it('emits codeLinks when present', () => {
@@ -264,14 +264,14 @@ describe('serializeCard', () => {
       codeLinks: [{ kind: 'function', file: 'src/auth.ts', symbol: 'refreshToken' }],
     };
     const result = serializeCard(fm);
-    expect(result).toContain('"codeLinks"');
-    expect(result).toContain('"refreshToken"');
+    expect(result).toContain('codeLinks:');
+    expect(result).toContain('refreshToken');
   });
 
   it('omits codeLinks when absent', () => {
     const fm: CardFrontmatter = { key: 'k', summary: 's', status: 'draft', type: 'spec' };
     const result = serializeCard(fm);
-    expect(result).not.toContain('"codeLinks"');
+    expect(result).not.toContain('codeLinks');
   });
 
   it('emits tags when present', () => {
@@ -279,8 +279,9 @@ describe('serializeCard', () => {
       key: 'k', summary: 's', status: 'draft', type: 'spec', tags: ['t1', 't2'],
     };
     const result = serializeCard(fm);
-    expect(result).toContain('"t1"');
-    expect(result).toContain('"t2"');
+    expect(result).toContain('tags:');
+    expect(result).toContain('- t1');
+    expect(result).toContain('- t2');
   });
 
   it('round-trip: parse(serialize(x)) preserves all fields', () => {

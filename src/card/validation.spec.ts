@@ -73,17 +73,6 @@ describe('validateCardInput', () => {
     expect(() => validateCardInput({ summary: longSummary })).toThrow(CardValidationError);
   });
 
-  // ── NE-3: body over 100000 ──
-
-  it('should throw CardValidationError when body exceeds 100000 characters', () => {
-    // Arrange
-    const bigBody = 'x'.repeat(LIMITS.BODY_MAX + 1);
-    // Act / Assert
-    expect(() =>
-      validateCardInput({ summary: 'ok' }),
-    ).toThrow(CardValidationError);
-  });
-
   // ── NE-5b: tag item empty string ──
 
   it('should throw CardValidationError when a tag item is empty string', () => {

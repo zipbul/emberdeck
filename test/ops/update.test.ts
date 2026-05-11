@@ -59,7 +59,7 @@ describe('updateCard', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'upd-shape', summary: 'Shape', type: 'spec' });
     const result = await updateCard(tc.ctx, 'upd-shape', { summary: 'Updated shape' });
-    expect(result.filePath).toContain('upd-shape.json');
+    expect(result.filePath).toContain('upd-shape.md');
     expect(result.card.frontmatter.key).toBe('upd-shape');
   });
 

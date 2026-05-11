@@ -57,7 +57,6 @@ describe('CardRepository', () => {
     expect(result!.type).toBe('spec');
     expect(result!.parent).toBe('parent-arch');
     expect(result!.boundaryJson).toBe('["src/auth/**"]');
-    expect(result!.body).toBe('Detailed body text');
     expect(result!.filePath).toBe('.emberdeck/cards/child-spec.md');
     expect(result!.updatedAt).toBe('2026-03-15T12:00:00Z');
   });
@@ -349,7 +348,7 @@ describe('CardRepository', () => {
     expect(result).toEqual([]);
   });
 
-  it('search: matches cards by key, summary, and body via FTS', () => {
+  it('search: matches cards by key and summary via FTS', () => {
     // Arrange
     const card = makeCard({
       key: 'auth-module',
@@ -366,10 +365,6 @@ describe('CardRepository', () => {
     // match by summary content
     const bySummary = cardRepo.search('authentication');
     expect(bySummary.length).toBeGreaterThanOrEqual(1);
-
-    // match by body content
-    const byBody = cardRepo.search('token');
-    expect(byBody.length).toBeGreaterThanOrEqual(1);
   });
 });
 

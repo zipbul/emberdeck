@@ -39,7 +39,7 @@ describe('renameCard', () => {
     expect(tc.ctx.cardRepo.findByKey('db-old')).toBeNull();
     const newRow = tc.ctx.cardRepo.findByKey('db-new');
     expect(newRow).not.toBeNull();
-    expect(newRow?.filePath).toContain('db-new.json');
+    expect(newRow?.filePath).toContain('db-new.md');
   });
 
   it('should restore forward relations under new key after rename', async () => {
@@ -72,7 +72,7 @@ describe('renameCard', () => {
     const result = await renameCard(tc.ctx, 'rnm-shape', 'rnm-shape-new');
     expect(result.oldFilePath).toBe(oldPath);
     expect(result.newFullKey).toBe('rnm-shape-new');
-    expect(result.newFilePath).toContain('rnm-shape-new.json');
+    expect(result.newFilePath).toContain('rnm-shape-new.md');
   });
 
   it('should create nested subdirectory automatically when renaming to nested key', async () => {
@@ -80,7 +80,7 @@ describe('renameCard', () => {
     await createCard(tc.ctx, { key: 'flat-slug', summary: 'Flat', type: 'spec' });
     const result = await renameCard(tc.ctx, 'flat-slug', 'nested/renamed');
     expect(existsSync(result.newFilePath)).toBe(true);
-    expect(result.newFilePath).toContain('nested/renamed.json');
+    expect(result.newFilePath).toContain('nested/renamed.md');
   });
 
   it('should create bidirectional reverse relation entries under new key after rename', async () => {

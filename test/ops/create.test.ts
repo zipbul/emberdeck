@@ -60,14 +60,14 @@ describe('createCard', () => {
     tc = await createTestContext();
     const result = await createCard(tc.ctx, { key: 'a/b', summary: 'Nested', type: 'spec' });
     expect(existsSync(result.filePath)).toBe(true);
-    expect(result.filePath).toContain('a/b.json');
+    expect(result.filePath).toContain('a/b.md');
   });
 
   it('should return correct { filePath, fullKey, card } shape', async () => {
     tc = await createTestContext();
     const result = await createCard(tc.ctx, { key: 'shape-card', summary: 'Shape', type: 'spec' });
     expect(result.fullKey).toBe('shape-card');
-    expect(result.filePath).toContain('shape-card.json');
+    expect(result.filePath).toContain('shape-card.md');
     expect(result.card.frontmatter.key).toBe('shape-card');
   });
 
@@ -158,7 +158,7 @@ describe('createCard', () => {
     await createCard(tc.ctx, { key: 're-create', summary: 'First', type: 'spec' });
     tc.ctx.cardRepo.deleteByKey('re-create');
     const { rm } = await import('node:fs/promises');
-    const filePath = `${tc.cardsDir}/re-create.json`;
+    const filePath = `${tc.cardsDir}/re-create.md`;
     await rm(filePath, { force: true });
     const result = await createCard(tc.ctx, { key: 're-create', summary: 'Second', type: 'spec' });
     expect(existsSync(result.filePath)).toBe(true);

@@ -74,7 +74,7 @@ describe('writeCardFile', () => {
 
   // NE: reject when directory does not exist
   it('should reject when target directory does not exist', async () => {
-    await expect(writeCardFile('/nonexistent/dir/k.json', CARD_FIXTURE)).rejects.toThrow();
+    await expect(writeCardFile('/nonexistent/dir/k.md', CARD_FIXTURE)).rejects.toThrow();
   });
 });
 

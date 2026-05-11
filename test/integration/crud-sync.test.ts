@@ -559,8 +559,8 @@ describe('sync duplicate key', () => {
   it('bulkSyncCards should detect duplicate keys across files', async () => {
     tc = await createTestContext();
     // Write two files with the same key
-    const file1 = join(tc.cardsDir, 'dup1.json');
-    const file2 = join(tc.cardsDir, 'dup2.json');
+    const file1 = join(tc.cardsDir, 'dup1.md');
+    const file2 = join(tc.cardsDir, 'dup2.md');
     const fm = { key: 'dup-key', summary: 'Dup', status: 'draft' as const, type: 'spec' as const };
     const content = serializeCard(fm);
     await writeFile(file1, content);

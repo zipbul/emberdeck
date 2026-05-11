@@ -1,16 +1,17 @@
 import { describe, it, expect, mock, spyOn } from 'bun:test';
+import jsyaml from 'js-yaml';
 import { readCardFile } from '../../src/fs/reader';
 
 // ---- Fixtures ----
 // parseCard/serializeCard are pure functions (no I/O) — real impl used.
 // Only Bun.file (I/O) is spied on.
 
-const VALID_CARD_JSON = JSON.stringify({
+const VALID_CARD_YAML = `---\n${jsyaml.dump({
   key: 'test/card',
   summary: 'A test card',
   status: 'draft',
   type: 'spec',
-}, null, 2);
+})}---\n`;
 
 // ---- Tests ----
 
@@ -19,7 +20,7 @@ describe('readCardFile', () => {
   it('should return CardFile when Bun.file().text() and parseCard succeed', async () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_JSON),
+      text: mock(async () => VALID_CARD_YAML),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
     const result = await readCardFile('/cards/test/card.md');
@@ -33,7 +34,7 @@ describe('readCardFile', () => {
     // Arrange
     const filePath = '/cards/test/card.md';
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_JSON),
+      text: mock(async () => VALID_CARD_YAML),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
     const result = await readCardFile(filePath);
@@ -46,7 +47,7 @@ describe('readCardFile', () => {
     // Arrange
     const filePath = '/cards/test/card.md';
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_JSON),
+      text: mock(async () => VALID_CARD_YAML),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
     await readCardFile(filePath);
@@ -81,7 +82,7 @@ describe('readCardFile', () => {
   it('should call Bun.file with empty string when filePath is empty string', async () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_JSON),
+      text: mock(async () => VALID_CARD_YAML),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
     await readCardFile('');
@@ -94,7 +95,7 @@ describe('readCardFile', () => {
   it('should call Bun.file with single-char filePath when "a" given', async () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_JSON),
+      text: mock(async () => VALID_CARD_YAML),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
     await readCardFile('a');
@@ -107,7 +108,7 @@ describe('readCardFile', () => {
   it('should return same result when called twice with same mocked output', async () => {
     // Arrange
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_JSON),
+      text: mock(async () => VALID_CARD_YAML),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
     const first = await readCardFile('/cards/x.md');

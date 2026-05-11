@@ -99,7 +99,7 @@ describe('symlink handling e2e', () => {
   test('directory symlink in cards tree: contents discovered if Bun.Glob follows', async () => {
     const realDir = join(tmp, 'real-dir');
     mkdirSync(realDir, { recursive: true });
-    writeFileSync(join(realDir, 'inside.json'), validCardContent('linked-dir/inside'));
+    writeFileSync(join(realDir, 'inside.md'), validCardContent('linked-dir/inside'));
     symlinkSync(realDir, join(tmp, '.emberdeck/cards/linked-dir'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);

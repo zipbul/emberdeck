@@ -27,7 +27,7 @@ afterEach(async () => {
 describe('Structured card flow E2E', () => {
   it('creates principle via file write + sync, then activates', async () => {
     tc = await createTestContext();
-    const filePath = join(tc.cardsDir, 'pr.json');
+    const filePath = join(tc.cardsDir, 'pr.md');
     const md = serializeCard(
       {
         key: 'pr',
@@ -216,8 +216,8 @@ describe('Structured card flow E2E', () => {
     const md2 = serializeCard(
       { key: 'group/b', summary: 'b', type: 'brief', status: 'draft', brief: makeTestBrief() },
     );
-    await writeFile(join(sub, 'a.json'), md1);
-    await writeFile(join(sub, 'b.json'), md2);
+    await writeFile(join(sub, 'a.md'), md1);
+    await writeFile(join(sub, 'b.md'), md2);
 
     const result = await bulkSyncCards(tc.ctx);
     expect(result.synced).toBe(2);

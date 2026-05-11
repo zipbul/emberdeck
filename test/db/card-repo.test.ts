@@ -151,8 +151,8 @@ describe('DrizzleCardRepository', () => {
   });
 
   it('should return matching card when body contains the search query', () => {
-    // Arrange
-    repo.upsert(makeRow({ key: 'fts/body', summary: 'unrelated', filePath: '/fts/body.json' }));
+    // Arrange — body column now stores searchable namespace text (set by syncCardFromFile/updateCard).
+    repo.upsert(makeRow({ key: 'fts/body', summary: 'unrelated', filePath: '/fts/body.md', body: 'refresh token logic' }));
     // Act
     const result = repo.search('refresh');
     // Assert

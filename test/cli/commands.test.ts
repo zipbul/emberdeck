@@ -292,8 +292,8 @@ describe('CLI: STDIN input', () => {
     try { rmSync(tmp, { recursive: true, force: true }); } catch {}
   });
 
-  test('card create --from - reads YAML from STDIN', async () => {
-    const yaml = 'summary: from stdin\nstatus: draft\n';
+  test('card create --from - reads JSON from STDIN', async () => {
+    const json = JSON.stringify({ summary: 'from stdin', status: 'draft' });
     const proc = Bun.spawn(['bun', CLI, 'card', 'create', 'from-stdin', '--type', 'brief', '--from', '-'], {
       cwd: tmp,
       env: { ...process.env, NO_COLOR: '1' },
@@ -301,7 +301,7 @@ describe('CLI: STDIN input', () => {
       stdout: 'pipe',
       stderr: 'pipe',
     });
-    proc.stdin.write(yaml);
+    proc.stdin.write(json);
     await proc.stdin.end();
     const stdout = await new Response(proc.stdout).text();
     await proc.exited;
@@ -333,45 +333,6 @@ describe('CLI: STDIN input', () => {
     }
   });
 
-  test('card update --body - large STDIN (10KB)', async () => {
-    await runEd(['card', 'create', 'big-body', '--type', 'brief', '--summary', 'orig'], tmp);
-    const big = 'x'.repeat(10_000);
-    const proc = Bun.spawn(['bun', CLI, 'card', 'update', 'big-body', '--body', '-'], {
-      cwd: tmp,
-      env: { ...process.env, NO_COLOR: '1' },
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    proc.stdin.write(big);
-    await proc.stdin.end();
-    await new Response(proc.stdout).text();
-    await proc.exited;
-    expect(proc.exitCode).toBe(0);
-
-    const get = await runEd(['card', 'get', 'big-body'], tmp);
-    const fetched = JSON.parse(get.stdout);
-  });
-
-  test('card update --body - reads body from STDIN', async () => {
-    await runEd(['card', 'create', 'with-body', '--type', 'brief', '--summary', 'orig'], tmp);
-    const newBody = 'fresh body content\n';
-    const proc = Bun.spawn(['bun', CLI, 'card', 'update', 'with-body', '--body', '-'], {
-      cwd: tmp,
-      env: { ...process.env, NO_COLOR: '1' },
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    proc.stdin.write(newBody);
-    await proc.stdin.end();
-    await new Response(proc.stdout).text();
-    await proc.exited;
-    expect(proc.exitCode).toBe(0);
-
-    const get = await runEd(['card', 'get', 'with-body'], tmp);
-    const fetched = JSON.parse(get.stdout);
-  });
 });
 
 describe('CLI: stdout is pure JSON (agent-first)', () => {

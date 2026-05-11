@@ -246,8 +246,8 @@ describe('Scenario 3: File Sync Chaos -- external edits + re-sync', () => {
     await unlink(filePathB);
 
     // Add a new file externally
-    const newFilePath = join(cardsDir, 'sync-c.json');
-    await writeFile(newFilePath, '---\nkey: sync-c\nsummary: Card C (external)\nstatus: draft\ntype: spec\n---\nNew card body', 'utf-8');
+    const newFilePath = join(cardsDir, 'sync-c.md');
+    await writeFile(newFilePath, '---\nkey: sync-c\nsummary: Card C (external)\nstatus: draft\ntype: spec\n---\n', 'utf-8');
 
     // Validate to detect issues
     const validation = await validateCards(ctx);

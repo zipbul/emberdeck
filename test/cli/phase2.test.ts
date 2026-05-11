@@ -131,9 +131,9 @@ describe('Phase 2: glossary', () => {
   });
 
   test('glossary define --from FILE', async () => {
-    const yaml = '- word: filew-word\n  definition: from yaml file\n';
-    writeFileSync(join(tmp, 'gl.yaml'), yaml);
-    const r = await runEd(['glossary', 'define', '--from', 'gl.yaml'], tmp);
+    const json = JSON.stringify([{ word: 'filew-word', definition: 'from json file' }]);
+    writeFileSync(join(tmp, 'gl.json'), json);
+    const r = await runEd(['glossary', 'define', '--from', 'gl.json'], tmp);
     expect(r.exitCode).toBe(0);
     expect(JSON.parse(r.stdout).data.created).toBe(1);
   });
@@ -201,16 +201,13 @@ describe('Phase 2: validate / check / spec / bulk / single', () => {
     expect(parsed.data.health.total).toBe(0);
   });
 
-  test('bulk create from YAML file', async () => {
-    const yaml = `- key: card-x
-  type: brief
-  summary: bulk x
-- key: card-y
-  type: brief
-  summary: bulk y
-`;
-    writeFileSync(join(tmp, 'cards.yaml'), yaml);
-    const r = await runEd(['bulk', 'create', '--from', 'cards.yaml'], tmp);
+  test('bulk create from JSON file', async () => {
+    const json = JSON.stringify([
+      { key: 'card-x', type: 'brief', summary: 'bulk x' },
+      { key: 'card-y', type: 'brief', summary: 'bulk y' },
+    ]);
+    writeFileSync(join(tmp, 'cards.json'), json);
+    const r = await runEd(['bulk', 'create', '--from', 'cards.json'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.data.created).toBe(2);

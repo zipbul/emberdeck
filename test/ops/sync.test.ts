@@ -21,7 +21,7 @@ async function writeTestCardFile(cardsDir: string, slug: string, summary: string
   const content = serializeCard(
     { key: slug, summary, status: 'draft', type: 'spec' },
   );
-  const filePath = join(cardsDir, `${slug}.json`);
+  const filePath = join(cardsDir, `${slug}.md`);
   await writeFile(filePath, content, 'utf-8');
   return filePath;
 }
@@ -63,7 +63,7 @@ describe('syncCardFromFile', () => {
         relations: ['sync-rel-dst'],
       },
     );
-    const filePath = join(tc.cardsDir, 'sync-rel-src.json');
+    const filePath = join(tc.cardsDir, 'sync-rel-src.md');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
     const rows = tc.ctx.relationRepo.findByCardKey('sync-rel-src');
@@ -81,7 +81,7 @@ describe('syncCardFromFile', () => {
         tags: ['tag1'],
       },
     );
-    const filePath = join(tc.cardsDir, 'sync-cls.json');
+    const filePath = join(tc.cardsDir, 'sync-cls.md');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
     expect(tc.ctx.classificationRepo.findTagsByCard('sync-cls')).toContain('tag1');
@@ -91,7 +91,7 @@ describe('syncCardFromFile', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'sync-norel-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'sync-norel-dst', summary: 'Dst', type: 'spec' });
-    const filePathWithRel = join(tc.cardsDir, 'sync-norel-src.json');
+    const filePathWithRel = join(tc.cardsDir, 'sync-norel-src.md');
     const contentWith = serializeCard(
       {
         key: 'sync-norel-src',
@@ -114,9 +114,9 @@ describe('syncCardFromFile', () => {
   it('should reflect latest values after syncing same file twice', async () => {
     tc = await createTestContext();
     await writeTestCardFile(tc.cardsDir, 'sync-twice', 'First sync');
-    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.json'));
+    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.md'));
     await writeTestCardFile(tc.cardsDir, 'sync-twice', 'Second sync');
-    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.json'));
+    await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.md'));
     const row = tc.ctx.cardRepo.findByKey('sync-twice');
     expect(row?.summary).toBe('Second sync');
   });
@@ -132,7 +132,7 @@ describe('syncCardFromFile', () => {
 
   it('should propagate error when card file has invalid YAML frontmatter', async () => {
     tc = await createTestContext();
-    const filePath = join(tc.cardsDir, 'bad-yaml.json');
+    const filePath = join(tc.cardsDir, 'bad-yaml.md');
     await writeFile(filePath, '---\nNOT VALID YAML: [[\n---\nbody', 'utf-8');
     expect(syncCardFromFile(tc.ctx, filePath)).rejects.toThrow();
   });
@@ -154,7 +154,7 @@ describe('removeCardByFile', () => {
 
   it('should do nothing when no card matches the given filePath', async () => {
     tc = await createTestContext();
-    const unknownPath = join(tc.cardsDir, 'unknown.json');
+    const unknownPath = join(tc.cardsDir, 'unknown.md');
     expect(() => removeCardByFile(tc.ctx, unknownPath)).not.toThrow();
   });
 });
@@ -177,7 +177,7 @@ describe('syncCardFromFile — codeLinks', () => {
         codeLinks: [{ kind: 'function', file: 'src/a.ts', symbol: 'myFunc' }],
       },
     );
-    const filePath = join(tc.cardsDir, 'sync-cl.json');
+    const filePath = join(tc.cardsDir, 'sync-cl.md');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
     const links = tc.ctx.codeLinkRepo.findByCardKey('sync-cl');
@@ -187,7 +187,7 @@ describe('syncCardFromFile — codeLinks', () => {
 
   it('should clear codeLinks from DB when syncing same file without codeLinks', async () => {
     tc = await createTestContext();
-    const filePath = join(tc.cardsDir, 'sync-cl-rm.json');
+    const filePath = join(tc.cardsDir, 'sync-cl-rm.md');
     const contentWith = serializeCard(
       {
         key: 'sync-cl-rm',
@@ -249,7 +249,7 @@ describe('bulkSyncCards', () => {
 
   it('should collect failing file in errors and continue processing remaining files', async () => {
     tc = await createTestContext();
-    await writeFile(join(tc.cardsDir, 'bad.json'), 'NOT VALID FRONTMATTER AT ALL', 'utf-8');
+    await writeFile(join(tc.cardsDir, 'bad.md'), 'NOT VALID FRONTMATTER AT ALL', 'utf-8');
     await writeTestCardFile(tc.cardsDir, 'bulk-good', 'Good');
     const result = await bulkSyncCards(tc.ctx);
     expect(result.errors.length).toBeGreaterThanOrEqual(1);
@@ -315,7 +315,7 @@ describe('validateCards', () => {
 
   it('should report file as orphan when no corresponding DB row exists', async () => {
     tc = await createTestContext();
-    const orphanPath = join(tc.cardsDir, 'orphan.json');
+    const orphanPath = join(tc.cardsDir, 'orphan.md');
     await writeFile(
       orphanPath,
       serializeCard({ key: 'orphan', summary: 'O', status: 'draft', type: 'spec' }),
@@ -595,7 +595,7 @@ describe('syncCardFromFile — type', () => {
     const content = serializeCard(
       { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'brief' },
     );
-    const filePath = join(tc.cardsDir, 'sync-type.json');
+    const filePath = join(tc.cardsDir, 'sync-type.md');
     await writeFile(filePath, content, 'utf-8');
     await syncCardFromFile(tc.ctx, filePath);
 
