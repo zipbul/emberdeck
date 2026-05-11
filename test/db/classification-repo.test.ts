@@ -35,7 +35,7 @@ function insertCard(key: string): void {
     namespacesJson: null,
     body: null,
     glossaryJson: '[]',
-    filePath: `/cards/${key}.json`,
+    filePath: `/cards/${key}.md`,
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
   cardRepo.upsert(row);

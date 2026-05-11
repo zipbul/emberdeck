@@ -270,7 +270,7 @@ describe('findCardsBySymbol boundary matching', () => {
       namespacesJson: null,
       body: null,
       glossaryJson: '[]',
-      filePath: `cards/${key}.json`,
+      filePath: `cards/${key}.md`,
       updatedAt: new Date().toISOString(),
     };
     tc.ctx.cardRepo.upsert(row);

@@ -52,8 +52,8 @@ describe('CLI flag overrides matrix', () => {
       tmp,
     );
     expect(r.exitCode).toBe(0);
-    expect(existsSync(join(tmp, 'alt-cards/p.json'))).toBe(true);
-    expect(existsSync(join(tmp, 'default-cards/p.json'))).toBe(false);
+    expect(existsSync(join(tmp, 'alt-cards/p.md'))).toBe(true);
+    expect(existsSync(join(tmp, 'default-cards/p.md'))).toBe(false);
   });
 
   test('--dir overrides cardsDir from config', async () => {
@@ -70,8 +70,8 @@ describe('CLI flag overrides matrix', () => {
       tmp,
     );
     expect(r.exitCode).toBe(0);
-    expect(existsSync(join(tmp, 'cli-cards/p.json'))).toBe(true);
-    expect(existsSync(join(tmp, 'config-cards/p.json'))).toBe(false);
+    expect(existsSync(join(tmp, 'cli-cards/p.md'))).toBe(true);
+    expect(existsSync(join(tmp, 'config-cards/p.md'))).toBe(false);
   });
 
   test('--db-path overrides dbPath from config', async () => {
@@ -129,7 +129,7 @@ describe('CLI flag overrides matrix', () => {
       tmp,
     );
     expect(r.exitCode).toBe(0);
-    expect(existsSync(join(tmp, 'cli-cards/p.json'))).toBe(true);
+    expect(existsSync(join(tmp, 'cli-cards/p.md'))).toBe(true);
     expect(existsSync(join(tmp, '.emberdeck/cli.db'))).toBe(true);
     expect(existsSync(join(tmp, '.emberdeck/config.db'))).toBe(false);
   });

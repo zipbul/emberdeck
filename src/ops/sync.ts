@@ -34,7 +34,7 @@ function serializeNamespaces(fm: CardFrontmatter): string | null {
  * Recursively collect absolute paths of all `*.json` files under `targetDir`.
  */
 async function listCardFiles(targetDir: string): Promise<string[]> {
-  const glob = new Bun.Glob('**/*.json');
+  const glob = new Bun.Glob('**/*.md');
   const files: string[] = [];
   for await (const file of glob.scan({ cwd: targetDir, absolute: true })) {
     files.push(file);
@@ -298,7 +298,7 @@ export async function validateCards(
   const orphanFiles = cardFiles.filter((f) => !dbFilePaths.has(f));
   const keyMismatches = dbRows
     .map((r) => {
-      const expectedKey = relative(targetDir, r.filePath).replace(/\.json$/, '');
+      const expectedKey = relative(targetDir, r.filePath).replace(/\.md$/, '');
       return expectedKey !== r.key ? { row: r, expectedKey } : null;
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -512,7 +512,7 @@ export async function validateCards(
           warnings.push({
             type: 'glossary-broken',
             cardKey: row.key,
-            message: `Glossary word "${word}" not found in glossary.json`,
+            message: `Glossary word "${word}" not found in glossary.yaml`,
           });
         }
       }

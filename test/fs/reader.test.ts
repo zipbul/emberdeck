@@ -22,7 +22,7 @@ describe('readCardFile', () => {
       text: mock(async () => VALID_CARD_JSON),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
-    const result = await readCardFile('/cards/test/card.json');
+    const result = await readCardFile('/cards/test/card.md');
     // Assert
     expect(result.frontmatter.key).toBe('test/card');
     expect(result.frontmatter.summary).toBe('A test card');
@@ -31,7 +31,7 @@ describe('readCardFile', () => {
 
   it('should set filePath field to given argument when parsing succeeds', async () => {
     // Arrange
-    const filePath = '/cards/test/card.json';
+    const filePath = '/cards/test/card.md';
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_CARD_JSON),
     } as unknown as ReturnType<typeof Bun.file>);
@@ -44,7 +44,7 @@ describe('readCardFile', () => {
 
   it('should call Bun.file with given filePath once when invoked', async () => {
     // Arrange
-    const filePath = '/cards/test/card.json';
+    const filePath = '/cards/test/card.md';
     const fileSpy = spyOn(Bun, 'file').mockReturnValue({
       text: mock(async () => VALID_CARD_JSON),
     } as unknown as ReturnType<typeof Bun.file>);
@@ -64,7 +64,7 @@ describe('readCardFile', () => {
       text: mock(async () => { throw error; }),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act / Assert
-    await expect(readCardFile('/cards/missing.json')).rejects.toThrow('read error');
+    await expect(readCardFile('/cards/missing.md')).rejects.toThrow('read error');
     fileSpy.mockRestore();
   });
 
@@ -74,7 +74,7 @@ describe('readCardFile', () => {
       text: mock(async () => 'no frontmatter at all'),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act / Assert
-    await expect(readCardFile('/cards/bad.json')).rejects.toThrow();
+    await expect(readCardFile('/cards/bad.md')).rejects.toThrow();
     fileSpy.mockRestore();
   });
 
@@ -110,8 +110,8 @@ describe('readCardFile', () => {
       text: mock(async () => VALID_CARD_JSON),
     } as unknown as ReturnType<typeof Bun.file>);
     // Act
-    const first = await readCardFile('/cards/x.json');
-    const second = await readCardFile('/cards/x.json');
+    const first = await readCardFile('/cards/x.md');
+    const second = await readCardFile('/cards/x.md');
     // Assert
     expect(first.frontmatter).toEqual(second.frontmatter);
     fileSpy.mockRestore();

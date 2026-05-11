@@ -30,7 +30,7 @@ describe('CardRepository', () => {
     const parent = makeCard({
       key: 'parent-arch',
       type: 'brief',
-      filePath: '.emberdeck/cards/parent-arch.json',
+      filePath: '.emberdeck/cards/parent-arch.md',
     });
     cardRepo.upsert(parent);
 
@@ -41,7 +41,7 @@ describe('CardRepository', () => {
       type: 'spec',
       parent: 'parent-arch',
       boundaryJson: '["src/auth/**"]',
-            filePath: '.emberdeck/cards/child-spec.json',
+            filePath: '.emberdeck/cards/child-spec.md',
       updatedAt: '2026-03-15T12:00:00Z',
     });
 
@@ -58,7 +58,7 @@ describe('CardRepository', () => {
     expect(result!.parent).toBe('parent-arch');
     expect(result!.boundaryJson).toBe('["src/auth/**"]');
     expect(result!.body).toBe('Detailed body text');
-    expect(result!.filePath).toBe('.emberdeck/cards/child-spec.json');
+    expect(result!.filePath).toBe('.emberdeck/cards/child-spec.md');
     expect(result!.updatedAt).toBe('2026-03-15T12:00:00Z');
   });
 
@@ -67,12 +67,12 @@ describe('CardRepository', () => {
     const archA = makeCard({
       key: 'arch-a',
       type: 'brief',
-      filePath: '.emberdeck/cards/arch-a.json',
+      filePath: '.emberdeck/cards/arch-a.md',
     });
     const archB = makeCard({
       key: 'arch-b',
       type: 'brief',
-      filePath: '.emberdeck/cards/arch-b.json',
+      filePath: '.emberdeck/cards/arch-b.md',
     });
     cardRepo.upsert(archA);
     cardRepo.upsert(archB);
@@ -81,7 +81,7 @@ describe('CardRepository', () => {
       key: 'my-spec',
       parent: 'arch-a',
       boundaryJson: '["src/old/**"]',
-      filePath: '.emberdeck/cards/my-spec.json',
+      filePath: '.emberdeck/cards/my-spec.md',
     });
     cardRepo.upsert(card);
 
@@ -91,7 +91,7 @@ describe('CardRepository', () => {
         key: 'my-spec',
         parent: 'arch-b',
         boundaryJson: '["src/new/**"]',
-        filePath: '.emberdeck/cards/my-spec.json',
+        filePath: '.emberdeck/cards/my-spec.md',
         updatedAt: '2026-03-20T00:00:00Z',
       }),
     );
@@ -108,16 +108,16 @@ describe('CardRepository', () => {
     const parent = makeCard({
       key: 'parent-card',
       type: 'brief',
-      filePath: '.emberdeck/cards/parent-card.json',
+      filePath: '.emberdeck/cards/parent-card.md',
     });
     const child = makeCard({
       key: 'child-card',
       parent: 'parent-card',
-      filePath: '.emberdeck/cards/child-card.json',
+      filePath: '.emberdeck/cards/child-card.md',
     });
     const unrelated = makeCard({
       key: 'unrelated',
-      filePath: '.emberdeck/cards/unrelated.json',
+      filePath: '.emberdeck/cards/unrelated.md',
     });
     cardRepo.upsert(parent);
     cardRepo.upsert(child);
@@ -135,11 +135,11 @@ describe('CardRepository', () => {
     // Arrange
     const card = makeCard({
       key: 'tagged-card',
-      filePath: '.emberdeck/cards/tagged-card.json',
+      filePath: '.emberdeck/cards/tagged-card.md',
     });
     const untagged = makeCard({
       key: 'untagged-card',
-      filePath: '.emberdeck/cards/untagged-card.json',
+      filePath: '.emberdeck/cards/untagged-card.md',
     });
     cardRepo.upsert(card);
     cardRepo.upsert(untagged);
@@ -159,12 +159,12 @@ describe('CardRepository', () => {
       key: 'root-card',
       type: 'brief',
       parent: null,
-      filePath: '.emberdeck/cards/root-card.json',
+      filePath: '.emberdeck/cards/root-card.md',
     });
     const child = makeCard({
       key: 'child-card',
       parent: 'root-card',
-      filePath: '.emberdeck/cards/child-card.json',
+      filePath: '.emberdeck/cards/child-card.md',
     });
     cardRepo.upsert(root);
     cardRepo.upsert(child);
@@ -182,12 +182,12 @@ describe('CardRepository', () => {
     const old = makeCard({
       key: 'old-card',
       updatedAt: '2026-01-01T00:00:00Z',
-      filePath: '.emberdeck/cards/old-card.json',
+      filePath: '.emberdeck/cards/old-card.md',
     });
     const recent = makeCard({
       key: 'recent-card',
       updatedAt: '2026-03-15T00:00:00Z',
-      filePath: '.emberdeck/cards/recent-card.json',
+      filePath: '.emberdeck/cards/recent-card.md',
     });
     cardRepo.upsert(old);
     cardRepo.upsert(recent);
@@ -205,12 +205,12 @@ describe('CardRepository', () => {
     const earlier = makeCard({
       key: 'earlier',
       updatedAt: '2026-01-01T00:00:00Z',
-      filePath: '.emberdeck/cards/earlier.json',
+      filePath: '.emberdeck/cards/earlier.md',
     });
     const later = makeCard({
       key: 'later',
       updatedAt: '2026-06-01T00:00:00Z',
-      filePath: '.emberdeck/cards/later.json',
+      filePath: '.emberdeck/cards/later.md',
     });
     cardRepo.upsert(earlier);
     cardRepo.upsert(later);
@@ -226,10 +226,10 @@ describe('CardRepository', () => {
 
   it('list with tag + parent combined filter: returns only matching cards', () => {
     // Arrange
-    const arch = makeCard({ key: 'arch', type: 'brief', filePath: '.emberdeck/cards/arch.json' });
-    const childA = makeCard({ key: 'child-a', parent: 'arch', filePath: '.emberdeck/cards/child-a.json' });
-    const childB = makeCard({ key: 'child-b', parent: 'arch', filePath: '.emberdeck/cards/child-b.json' });
-    const other = makeCard({ key: 'other', parent: null, filePath: '.emberdeck/cards/other.json' });
+    const arch = makeCard({ key: 'arch', type: 'brief', filePath: '.emberdeck/cards/arch.md' });
+    const childA = makeCard({ key: 'child-a', parent: 'arch', filePath: '.emberdeck/cards/child-a.md' });
+    const childB = makeCard({ key: 'child-b', parent: 'arch', filePath: '.emberdeck/cards/child-b.md' });
+    const other = makeCard({ key: 'other', parent: null, filePath: '.emberdeck/cards/other.md' });
     cardRepo.upsert(arch);
     cardRepo.upsert(childA);
     cardRepo.upsert(childB);
@@ -267,17 +267,17 @@ describe('CardRepository', () => {
     const parent = makeCard({
       key: 'parent',
       type: 'brief',
-      filePath: '.emberdeck/cards/parent.json',
+      filePath: '.emberdeck/cards/parent.md',
     });
     const childA = makeCard({
       key: 'child-a',
       parent: 'parent',
-      filePath: '.emberdeck/cards/child-a.json',
+      filePath: '.emberdeck/cards/child-a.md',
     });
     const childB = makeCard({
       key: 'child-b',
       parent: 'parent',
-      filePath: '.emberdeck/cards/child-b.json',
+      filePath: '.emberdeck/cards/child-b.md',
     });
     cardRepo.upsert(parent);
     cardRepo.upsert(childA);
@@ -310,19 +310,19 @@ describe('CardRepository', () => {
       key: 'grandparent',
       type: 'brief',
       parent: null,
-      filePath: '.emberdeck/cards/grandparent.json',
+      filePath: '.emberdeck/cards/grandparent.md',
     });
     const parent = makeCard({
       key: 'parent',
       type: 'brief',
       parent: 'grandparent',
-      filePath: '.emberdeck/cards/parent.json',
+      filePath: '.emberdeck/cards/parent.md',
     });
     const child = makeCard({
       key: 'child',
       type: 'spec',
       parent: 'parent',
-      filePath: '.emberdeck/cards/child.json',
+      filePath: '.emberdeck/cards/child.md',
     });
     cardRepo.upsert(grandparent);
     cardRepo.upsert(parent);
@@ -354,7 +354,7 @@ describe('CardRepository', () => {
     const card = makeCard({
       key: 'auth-module',
       summary: 'Authentication module design',
-            filePath: '.emberdeck/cards/auth-module.json',
+            filePath: '.emberdeck/cards/auth-module.md',
     });
     cardRepo.upsert(card);
 
@@ -380,11 +380,11 @@ describe('RelationRepository', () => {
     // Arrange
     const cardA = makeCard({
       key: 'card-a',
-      filePath: '.emberdeck/cards/card-a.json',
+      filePath: '.emberdeck/cards/card-a.md',
     });
     const cardB = makeCard({
       key: 'card-b',
-      filePath: '.emberdeck/cards/card-b.json',
+      filePath: '.emberdeck/cards/card-b.md',
     });
     cardRepo.upsert(cardA);
     cardRepo.upsert(cardB);
@@ -405,9 +405,9 @@ describe('RelationRepository', () => {
 
   it('replaceForCard: replaces existing relations with new targets', () => {
     // Arrange
-    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.json' });
-    const cardB = makeCard({ key: 'card-b', filePath: '.emberdeck/cards/card-b.json' });
-    const cardC = makeCard({ key: 'card-c', filePath: '.emberdeck/cards/card-c.json' });
+    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.md' });
+    const cardB = makeCard({ key: 'card-b', filePath: '.emberdeck/cards/card-b.md' });
+    const cardC = makeCard({ key: 'card-c', filePath: '.emberdeck/cards/card-c.md' });
     cardRepo.upsert(cardA);
     cardRepo.upsert(cardB);
     cardRepo.upsert(cardC);
@@ -429,8 +429,8 @@ describe('RelationRepository', () => {
 
   it('replaceForCard with empty array: clears all relations', () => {
     // Arrange
-    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.json' });
-    const cardB = makeCard({ key: 'card-b', filePath: '.emberdeck/cards/card-b.json' });
+    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.md' });
+    const cardB = makeCard({ key: 'card-b', filePath: '.emberdeck/cards/card-b.md' });
     cardRepo.upsert(cardA);
     cardRepo.upsert(cardB);
     relationRepo.replaceForCard('card-a', ['card-b']);
@@ -445,7 +445,7 @@ describe('RelationRepository', () => {
 
   it('replaceForCard: silently skips when target card does not exist (FK violation)', () => {
     // Arrange
-    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.json' });
+    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.md' });
     cardRepo.upsert(cardA);
 
     // Act — target 'ghost' does not exist
@@ -458,8 +458,8 @@ describe('RelationRepository', () => {
 
   it('findByCardKey: returns RelationRow with id, srcCardKey, dstCardKey, isReverse', () => {
     // Arrange
-    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.json' });
-    const cardB = makeCard({ key: 'card-b', filePath: '.emberdeck/cards/card-b.json' });
+    const cardA = makeCard({ key: 'card-a', filePath: '.emberdeck/cards/card-a.md' });
+    const cardB = makeCard({ key: 'card-b', filePath: '.emberdeck/cards/card-b.md' });
     cardRepo.upsert(cardA);
     cardRepo.upsert(cardB);
     relationRepo.replaceForCard('card-a', ['card-b']);
@@ -484,7 +484,7 @@ describe('RelationRepository', () => {
 describe('ClassificationRepository', () => {
   it('replaceTags + findTagsByCard: round-trips tags correctly', () => {
     // Arrange
-    const card = makeCard({ key: 'tagged', filePath: '.emberdeck/cards/tagged.json' });
+    const card = makeCard({ key: 'tagged', filePath: '.emberdeck/cards/tagged.md' });
     cardRepo.upsert(card);
 
     // Act
@@ -502,7 +502,7 @@ describe('ClassificationRepository', () => {
 
   it('pruneOrphans: removes tags not linked to any card', () => {
     // Arrange
-    const card = makeCard({ key: 'temp', filePath: '.emberdeck/cards/temp.json' });
+    const card = makeCard({ key: 'temp', filePath: '.emberdeck/cards/temp.md' });
     cardRepo.upsert(card);
     classificationRepo.replaceTags('temp', ['orphan-tag']);
 

@@ -135,7 +135,7 @@ export async function createCard(
       }
 
       // Glossary validation (M1, M2, M3)
-      // Progressive enforcement: required only when glossary.json has entries
+      // Progressive enforcement: required only when glossary.yaml has entries
       const glossaryEntries = readGlossary(ctx);
       if (glossaryEntries.length > 0 && (!input.glossary || input.glossary.length === 0)) {
         throw new GlossaryValidationError('glossary field is required when project glossary exists');

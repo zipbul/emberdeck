@@ -55,7 +55,7 @@ describe('symlink handling e2e', () => {
     const realPath = join(tmp, 'real-card.md');
     writeFileSync(realPath, validCardContent('symlinked'));
     // Symlink inside cards dir points to real file.
-    symlinkSync(realPath, join(tmp, '.emberdeck/cards/symlinked.json'));
+    symlinkSync(realPath, join(tmp, '.emberdeck/cards/symlinked.md'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);
     expect(sync.exitCode).toBe(0);
@@ -66,8 +66,8 @@ describe('symlink handling e2e', () => {
   });
 
   test('broken symlink → bulk sync handles cleanly, good cards still synced', async () => {
-    symlinkSync('/nonexistent/path', join(tmp, '.emberdeck/cards/broken.json'));
-    writeFileSync(join(tmp, '.emberdeck/cards/good.json'), validCardContent('good'));
+    symlinkSync('/nonexistent/path', join(tmp, '.emberdeck/cards/broken.md'));
+    writeFileSync(join(tmp, '.emberdeck/cards/good.md'), validCardContent('good'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);
     // Either skipped (exit 0) or reported as partial (exit 2). Both acceptable —
@@ -85,7 +85,7 @@ describe('symlink handling e2e', () => {
     try {
       const remotePath = join(otherTmp, 'remote.md');
       writeFileSync(remotePath, validCardContent('remote'));
-      symlinkSync(remotePath, join(tmp, '.emberdeck/cards/remote.json'));
+      symlinkSync(remotePath, join(tmp, '.emberdeck/cards/remote.md'));
 
       const sync = await runCli(['bulk', 'sync'], tmp);
       expect(sync.exitCode).toBe(0);

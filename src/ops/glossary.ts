@@ -161,9 +161,9 @@ export interface RenameGlossaryResult {
  * Updates the glossary file and all card glossary fields that reference the old word.
  * Card bodies are NOT updated (manual).
  *
- * Uses safeWriteOperation pattern: glossary.json write first, DB transaction second.
- * If glossary.json write fails -> nothing changed.
- * If DB transaction fails -> compensate by reverting glossary.json.
+ * Uses safeWriteOperation pattern: glossary.yaml write first, DB transaction second.
+ * If glossary.yaml write fails -> nothing changed.
+ * If DB transaction fails -> compensate by reverting glossary.yaml.
   * @spec glossary/lifecycle/remove-rename-reset
  */
 export async function renameGlossary(
@@ -202,7 +202,7 @@ export async function renameGlossary(
     // Collect affected cards before any mutation
     const affectedCards = cardsContainingGlossaryWord(ctx, oldWord);
 
-    // Write glossary.json FIRST (file before DB — if this fails, nothing changed)
+    // Write glossary.yaml FIRST (file before DB — if this fails, nothing changed)
     const originalEntries = entries.map((e) => ({ ...e }));
     oldEntry.word = newWord;
     if (definition !== undefined) oldEntry.definition = definition;
@@ -239,7 +239,7 @@ export async function renameGlossary(
         });
       }
     } catch (dbErr) {
-      // DB failed — revert glossary.json
+      // DB failed — revert glossary.yaml
       writeGlossary(ctx, originalEntries);
       throw dbErr;
     }
@@ -303,7 +303,7 @@ export interface ResetResult {
 }
 
 /**
- * Reset all emberdeck state: delete all cards (DB + files), clear glossary.json.
+ * Reset all emberdeck state: delete all cards (DB + files), clear glossary.yaml.
  * @spec annotations in source are NOT removed — run writeSpecAnnotations after reset to reconcile.
   * @spec glossary/lifecycle/remove-rename-reset
  */

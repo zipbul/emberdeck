@@ -32,10 +32,12 @@
     "drizzle:migrate": "bunx drizzle-kit migrate --config drizzle.config.ts"
   },
   "dependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@zipbul/gildash": "0.26.1",
     "@zipbul/result": "^0.0.3",
     "commander": "^14.0.3",
     "drizzle-orm": "^0.45.1",
+    "js-yaml": "^4.1.1",
     "typescript": "^5.9.3"
   },
   "devDependencies": {

@@ -24,7 +24,7 @@ afterEach(() => {
 
 // ---- Helpers ----
 
-function insertCard(key: string, filePath = `/cards/${key}.json`): void {
+function insertCard(key: string, filePath = `/cards/${key}.md`): void {
   const row: CardRow = {
     key,
     summary: `Card ${key}`,

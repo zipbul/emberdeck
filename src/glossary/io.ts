@@ -1,3 +1,4 @@
+import jsyaml from 'js-yaml';
 import { errorMessage } from '../util/error';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -43,11 +44,11 @@ export class GlossaryValidationError extends Error {
 // ── File path ────────────────────────────────────────────────────────────
 
 /**
- * Returns the path to glossary.json.
+ * Returns the path to glossary.yaml.
  * Located in the .emberdeck/ directory (parent of cardsDir).
  */
 export function glossaryFilePath(ctx: EmberdeckContext): string {
-  return join(dirname(ctx.cardsDir), 'glossary.json');
+  return join(dirname(ctx.cardsDir), 'glossary.yaml');
 }
 
 // ── Read ─────────────────────────────────────────────────────────────────
@@ -68,26 +69,26 @@ export function readGlossary(ctx: EmberdeckContext): GlossaryEntry[] {
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = jsyaml.load(content);
   } catch (err) {
     throw new GlossaryParseError(
-      `Failed to parse glossary.json: ${errorMessage(err)}`,
+      `Failed to parse glossary.yaml: ${errorMessage(err)}`,
     );
   }
 
   if (!Array.isArray(parsed)) {
-    throw new GlossaryParseError('glossary.json must be a JSON array');
+    throw new GlossaryParseError('glossary.yaml must be a YAML array');
   }
 
   const entries: GlossaryEntry[] = [];
   for (let i = 0; i < parsed.length; i++) {
     const item = parsed[i];
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      throw new GlossaryParseError(`glossary.json entry [${i}] must be an object with word and definition`);
+      throw new GlossaryParseError(`glossary.yaml entry [${i}] must be an object with word and definition`);
     }
     const obj = item as Record<string, unknown>;
     if (typeof obj.word !== 'string' || typeof obj.definition !== 'string') {
-      throw new GlossaryParseError(`glossary.json entry [${i}] must have string word and definition`);
+      throw new GlossaryParseError(`glossary.yaml entry [${i}] must have string word and definition`);
     }
     entries.push({ word: obj.word, definition: obj.definition });
   }
@@ -98,7 +99,7 @@ export function readGlossary(ctx: EmberdeckContext): GlossaryEntry[] {
 // ── Write ────────────────────────────────────────────────────────────────
 
 /**
- * Write glossary entries to glossary.json.
+ * Write glossary entries to glossary.yaml.
  * Entries are sorted alphabetically by word for deterministic git diffs.
  * Uses tmp file + rename for atomic replacement (prevents truncation on
  * interrupted writes — half-written glossary is worse than a failed write).
@@ -110,10 +111,10 @@ export function writeGlossary(ctx: EmberdeckContext, entries: GlossaryEntry[]): 
   const sorted = entries.length > 0
     ? [...entries].sort((a, b) => a.word.localeCompare(b.word))
     : [];
-  const json = sorted.length === 0 ? '' : JSON.stringify(sorted, null, 2) + '\n';
+  const yaml = sorted.length === 0 ? '' : jsyaml.dump(sorted, { lineWidth: 80, noRefs: true });
 
   const tmpPath = path + '.tmp.' + Math.random().toString(36).slice(2, 10);
-  writeFileSync(tmpPath, json, 'utf-8');
+  writeFileSync(tmpPath, yaml, 'utf-8');
   try {
     renameSync(tmpPath, path);
   } catch (err) {

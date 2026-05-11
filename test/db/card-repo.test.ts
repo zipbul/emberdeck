@@ -17,7 +17,7 @@ function makeRow(overrides: Partial<CardRow> = {}): CardRow {
     namespacesJson: null,
     body: null,
     glossaryJson: '[]',
-    filePath: '/cards/test/card.json',
+    filePath: '/cards/test/card.md',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
@@ -53,8 +53,8 @@ describe('DrizzleCardRepository', () => {
 
   it('should return only the matching CardRow when two cards exist and second key is queried', () => {
     // Arrange
-    repo.upsert(makeRow({ key: 'a/one', summary: 'One', filePath: '/cards/one.json' }));
-    repo.upsert(makeRow({ key: 'a/two', summary: 'Two', filePath: '/cards/two.json' }));
+    repo.upsert(makeRow({ key: 'a/one', summary: 'One', filePath: '/cards/one.md' }));
+    repo.upsert(makeRow({ key: 'a/two', summary: 'Two', filePath: '/cards/two.md' }));
     // Act
     const result = repo.findByKey('a/two');
     // Assert
@@ -64,7 +64,7 @@ describe('DrizzleCardRepository', () => {
 
   it('should return CardRow when findByFilePath is called with an existing filePath', () => {
     // Arrange
-    const fp = '/cards/x/y.json';
+    const fp = '/cards/x/y.md';
     repo.upsert(makeRow({ key: 'x/y', filePath: fp }));
     // Act
     const result = repo.findByFilePath(fp);

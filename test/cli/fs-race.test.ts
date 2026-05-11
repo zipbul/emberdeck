@@ -46,7 +46,7 @@ describe('external FS modification e2e', () => {
   afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
 
   test('external delete of card file → validate flags stale-db-row', async () => {
-    unlinkSync(join(tmp, '.emberdeck/cards/seed.json'));
+    unlinkSync(join(tmp, '.emberdeck/cards/seed.md'));
     const r = await runCli(['validate', 'cards'], tmp);
     expect(r.exitCode).toBe(2);  // partial
     const parsed = JSON.parse(r.stdout);
@@ -56,7 +56,7 @@ describe('external FS modification e2e', () => {
 
   test('external write of new card file → validate flags orphan-file until sync', async () => {
     writeFileSync(
-      join(tmp, '.emberdeck/cards/orphan.json'),
+      join(tmp, '.emberdeck/cards/orphan.md'),
       [
         '---',
         'key: orphan',
@@ -80,7 +80,7 @@ describe('external FS modification e2e', () => {
   });
 
   test('external rewrite of summary → validate flags content-mismatch', async () => {
-    const path = join(tmp, '.emberdeck/cards/seed.json');
+    const path = join(tmp, '.emberdeck/cards/seed.md');
     const text = readFileSync(path, 'utf-8');
     const modified = text.replace('summary: original', 'summary: tampered');
     writeFileSync(path, modified);
@@ -91,7 +91,7 @@ describe('external FS modification e2e', () => {
   });
 
   test('external rewrite then bulk sync reconciles DB', async () => {
-    const path = join(tmp, '.emberdeck/cards/seed.json');
+    const path = join(tmp, '.emberdeck/cards/seed.md');
     const text = readFileSync(path, 'utf-8');
     writeFileSync(path, text.replace('summary: original', 'summary: external-update'));
     await runCli(['bulk', 'sync'], tmp);
@@ -102,7 +102,7 @@ describe('external FS modification e2e', () => {
 
   test('external delete during analyze run → analyze still produces valid envelope', async () => {
     // Race: delete file just before analyze. analyze tolerates missing files.
-    unlinkSync(join(tmp, '.emberdeck/cards/seed.json'));
+    unlinkSync(join(tmp, '.emberdeck/cards/seed.md'));
     const r = await runCli(['analyze'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);

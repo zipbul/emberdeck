@@ -10,7 +10,7 @@ import { serializeCard } from '../../src/card/serialize';
 
 const CARD_FIXTURE: CardFile = {
   frontmatter: { key: 'k', summary: 's', status: 'draft', type: 'spec' },
-  filePath: '/cards/k.json',
+  filePath: '/cards/k.md',
 };
 
 const EXPECTED_SERIALIZED = serializeCard(CARD_FIXTURE.frontmatter);

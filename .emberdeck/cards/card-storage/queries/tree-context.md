@@ -1,0 +1,67 @@
+---
+key: card-storage/queries/tree-context
+summary: >-
+  getCardTree, getCardContext, and getRelationGraph implement bounded traversals
+  over the parent and relation graph.
+status: draft
+type: spec
+parent: card-storage/queries
+codeLinks:
+  - kind: function
+    file: src/ops/query.ts
+    symbol: getCardTree
+  - kind: function
+    file: src/ops/query.ts
+    symbol: getCardContext
+  - kind: function
+    file: src/ops/query.ts
+    symbol: getRelationGraph
+glossary:
+  - card-key
+spec:
+  preconditions:
+    - id: PRE-001
+      condition: >-
+        Caller passes a card key and optional depth (default 3 per project
+        decisions).
+      binds:
+        - file: src/ops/query.ts
+          symbol: getCardTree
+        - file: src/ops/query.ts
+          symbol: getCardContext
+      derives: card-storage/queries#G-001
+  postconditions:
+    - id: POST-001
+      guarantee: >-
+        getCardTree returns parent-child hierarchy capped at the requested
+        depth.
+      keyword: MUST
+      binds:
+        - file: src/ops/query.ts
+          symbol: getCardTree
+      derives: card-storage/queries#G-001
+    - id: POST-002
+      guarantee: >-
+        getCardContext returns parent BFS plus relation neighborhood capped at
+        depth.
+      keyword: SHALL
+      binds:
+        - file: src/ops/query.ts
+          symbol: getCardContext
+      derives: card-storage/queries#G-001
+  invariants:
+    - id: INV-001
+      statement: Tree and context traversals never exceed the depth ceiling.
+      binds:
+        - file: src/ops/query.ts
+          symbol: getCardTree
+        - file: src/ops/query.ts
+          symbol: getCardContext
+      always_holds: per-call
+  failures:
+    - violation: Root key does not exist.
+      behavior: Functions throw CardNotFoundError.
+      exception:
+        class: CardNotFoundError
+        file: src/card/errors.ts
+---

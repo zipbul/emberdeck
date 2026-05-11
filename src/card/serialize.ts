@@ -1,3 +1,4 @@
+import jsyaml from 'js-yaml';
 import { errorMessage } from '../util/error';
 import type {
   BriefAssumption,
@@ -640,19 +641,28 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
   return out;
 }
 
+const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
+
 /** @spec card-model/round-trip/parse-and-serialize */
 export function parseCard(text: string): CardFile {
+  const m = FRONTMATTER_RE.exec(text);
+  if (!m) {
+    throw new CardValidationError('Missing YAML frontmatter (expected `---` delimiters)');
+  }
   let doc: unknown;
   try {
-    doc = JSON.parse(text);
+    doc = jsyaml.load(m[1] ?? '');
   } catch (err) {
     throw new CardValidationError(
-      `JSON parse error: ${errorMessage(err)}`,
+      `YAML parse error: ${errorMessage(err)}`,
     );
   }
 
   if (Array.isArray(doc)) {
     throw new CardValidationError('Invalid card file: top-level array is not allowed');
+  }
+  if (!doc || typeof doc !== 'object') {
+    throw new CardValidationError('Invalid card file: frontmatter must be a YAML mapping');
   }
 
   const frontmatter = coerceFrontmatter(doc);
@@ -679,5 +689,6 @@ export function serializeCard(frontmatter: CardFrontmatter): string {
     const v = frontmatter[k];
     if (v !== undefined) ordered[k] = v;
   }
-  return JSON.stringify(ordered, null, 2) + '\n';
+  const yaml = jsyaml.dump(ordered, { lineWidth: 80, noRefs: true });
+  return `---\n${yaml}---\n`;
 }

@@ -1,0 +1,187 @@
+---
+key: card-storage/queries
+summary: >-
+  Read surface for cards including get, list with filters, full-text search,
+  tree, context, and relation graph.
+status: draft
+type: brief
+parent: card-storage
+glossary:
+  - card-key
+brief:
+  context:
+    problem: >
+      Cards are read in many shapes: by exact key, by filter (type, status, tag,
+      glossary, symbol),
+
+      by free text, by parent-child tree, by neighborhood context, and as a
+      relation graph. Without
+
+      a unified read surface every caller would re-implement joins and
+      pagination, drifting from a
+
+      single source of truth.
+    impact:
+      - statement: >-
+          Inconsistent read surfaces produce subtly different results across the
+          CLI, causing user confusion.
+      - statement: >-
+          Search performance degrades quickly without an explicit index
+          strategy.
+  scope:
+    goals:
+      - id: G-001
+        statement: >-
+          Provide getCard, listCards, searchCards, getCardTree, getCardContext,
+          listCardRelations, getRelationGraph as the only read entry points.
+      - id: G-002
+        statement: >-
+          Filters compose orthogonally so combined filters return the
+          intersection.
+      - id: G-003
+        statement: Search rejects malformed queries with a clear error.
+    non_goals:
+      - id: NG-001
+        statement: Real-time push notifications.
+      - id: NG-002
+        statement: Cross-project federation.
+    assumptions:
+      - id: A-001
+        statement: Full-text search uses the SQLite FTS5 extension.
+        verification: Check schema.ts for fts5 table declaration.
+        reevaluate_when: A platform without FTS5 must be supported.
+  flow:
+    - id: S-H-01
+      kind: happy
+      given: A list call with type=brief and status=active.
+      when: listCards runs.
+      then: A paginated list of brief active cards is returned with has_more flag.
+      covers:
+        - G-001
+        - G-002
+    - id: S-H-02
+      kind: happy
+      given: A search call with a valid FTS query string.
+      when: searchCards runs.
+      then: A ranked list of matching cards is returned.
+      covers:
+        - G-001
+    - id: S-F-01
+      kind: failure
+      given: A search call with malformed FTS syntax.
+      when: searchCards runs.
+      then: An FtsSyntaxError is thrown with exit code 2.
+      covers:
+        - G-003
+  design:
+    overview: >
+      Each read returns a typed result shape. listCards composes WHERE clauses
+      from independent
+
+      filter inputs. searchCards delegates to FTS5 with explicit syntax
+      validation up front.
+
+      getCardTree and getCardContext recurse through parent and relation tables
+      with a configurable
+
+      depth ceiling (default 3 per project decisions).
+    components:
+      - name: getCard
+        responsibility: Single-card lookup with optional history.
+        interacts_with:
+          - getCardContext
+      - name: listCards
+        responsibility: Filtered list with composable predicates and pagination.
+        interacts_with: []
+      - name: searchCards
+        responsibility: FTS5-backed search with explicit syntax check.
+        interacts_with: []
+      - name: getCardTree
+        responsibility: Parent-child traversal capped at depth.
+        interacts_with: []
+      - name: getCardContext
+        responsibility: Neighborhood traversal (parent BFS plus relations) capped at depth.
+        interacts_with:
+          - getCard
+      - name: getRelationGraph
+        responsibility: Forward and reverse relations for a card.
+        interacts_with: []
+    data_flow: []
+    invariants:
+      - id: DI-001
+        statement: Filter composition is intersection (AND), never union.
+      - id: DI-002
+        statement: Tree and context traversals respect a depth ceiling to bound work.
+  policy:
+    - id: R-001
+      subject: searchCards
+      keyword: MUST
+      predicate: >-
+        validate FTS syntax before query execution and throw FtsSyntaxError on
+        failure.
+      governs:
+        - S-F-01
+    - id: R-002
+      subject: listCards filter composition
+      keyword: SHALL
+      predicate: behave as conjunction across orthogonal filters.
+      governs:
+        - S-H-01
+  external:
+    - id: C-001
+      statement: BFS depth ceiling default of 3 follows the project roadmap decision.
+      reference:
+        title: project_roadmap_decisions memory entry
+        locator: >-
+          /home/revil/.claude/projects/-home-revil-projects-zipbul-emberdeck/memory/project_roadmap_decisions.md
+  compatibility:
+    guarantees:
+      - subject: Read entry points public signatures
+        version_range: 1.x
+        breaks_if: A required filter is added without a default.
+  limits:
+    - id: KL-001
+      statement: >-
+        searchCards relevance ranking depends on FTS5 default tokenizer;
+        locale-specific tokenization is not configured.
+    - id: KL-002
+      statement: >-
+        getRelationGraph returns one hop only; multi-hop is the responsibility
+        of getCardContext.
+  criteria:
+    - id: SC-001
+      type: binary
+      measure:
+        predicate: Combined type and status filters return intersection.
+        method: Integration test that asserts filter composition behavior.
+      verifies:
+        - S-H-01
+    - id: SC-002
+      type: binary
+      measure:
+        predicate: Malformed FTS query exits 2 with FtsSyntaxError.
+        method: CLI-level test invoking ed card search with a broken query.
+      verifies:
+        - S-F-01
+  rationale:
+    alternatives:
+      - option: Single getCards multi-purpose entry point.
+        pros:
+          - Fewer functions.
+        cons:
+          - Result type cannot be tightened per use case
+          - forcing every caller to handle a union.
+      - option: External search engine (Meilisearch).
+        pros:
+          - Better relevance.
+        cons:
+          - Adds a server dependency.
+    chosen:
+      option: Narrow read entry points backed by SQLite plus FTS5.
+      reasoning: >-
+        Matches single-user CLI deployment, keeps result shapes precise per use
+        case.
+    addresses:
+      - KL-001
+      - KL-002
+---

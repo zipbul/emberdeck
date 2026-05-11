@@ -40,12 +40,12 @@ describe('Glossary', () => {
   // ── Glossary I/O ──────────────────────────────────────────────────────
 
   describe('I/O', () => {
-    it('should return empty array when glossary.json does not exist', async () => {
+    it('should return empty array when glossary.yaml does not exist', async () => {
       tc = await createTestContext();
       expect(readGlossary(tc.ctx)).toEqual([]);
     });
 
-    it('should return empty array when glossary.json is empty', async () => {
+    it('should return empty array when glossary.yaml is empty', async () => {
       tc = await createTestContext();
       writeFileSync(glossaryFilePath(tc.ctx), '', 'utf-8');
       expect(readGlossary(tc.ctx)).toEqual([]);
@@ -63,7 +63,7 @@ describe('Glossary', () => {
       expect(() => readGlossary(tc.ctx)).toThrow(GlossaryParseError);
     });
 
-    it('should create glossary.json on first define_glossary call', async () => {
+    it('should create glossary.yaml on first define_glossary call', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'A unit of work' }] });
       expect(existsSync(glossaryFilePath(tc.ctx))).toBe(true);
@@ -306,21 +306,21 @@ describe('Glossary', () => {
   // ── Card glossary validation (M1, M2, M3) ─────────────────────────────
 
   describe('Card validation', () => {
-    it('M1: should reject create_card without glossary when glossary.json exists', async () => {
+    it('M1: should reject create_card without glossary when glossary.yaml exists', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' }))
         .toThrow(/glossary field is required/);
     });
 
-    it('M1: should reject create_card with empty glossary when glossary.json exists', async () => {
+    it('M1: should reject create_card with empty glossary when glossary.yaml exists', async () => {
       tc = await createTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: [] }))
         .toThrow(/glossary field is required/);
     });
 
-    it('should allow create_card without glossary when no glossary.json', async () => {
+    it('should allow create_card without glossary when no glossary.yaml', async () => {
       tc = await createTestContext();
       const r = await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       expect(r.fullKey).toBe('c');

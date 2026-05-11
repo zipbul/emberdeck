@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'bun:test';
+import jsyaml from 'js-yaml';
 import { parseCard, serializeCard } from './serialize';
 import { CardValidationError } from './errors';
 import type { CardFrontmatter } from './types';
@@ -14,7 +15,7 @@ function makeCard(overrides: Partial<Record<string, unknown>> = {}): string {
   for (const k of Object.keys(fm)) {
     if (fm[k] === undefined) delete fm[k];
   }
-  return JSON.stringify(fm, null, 2);
+  return `---\n${jsyaml.dump(fm)}---\n`;
 }
 
 // ── parseCard — required and common fields ─────────────────────────────
@@ -107,20 +108,24 @@ describe('parseCard', () => {
 // ── parseCard — error paths ────────────────────────────────────────────
 
 describe('parseCard — errors', () => {
-  it('throws on empty input', () => {
+  it('throws on empty input (no frontmatter delimiters)', () => {
     expect(() => parseCard('')).toThrow(CardValidationError);
   });
 
-  it('throws on invalid JSON', () => {
-    expect(() => parseCard('{not json')).toThrow(CardValidationError);
+  it('throws on missing closing delimiter', () => {
+    expect(() => parseCard('---\nkey: x\n')).toThrow(CardValidationError);
   });
 
-  it('throws on top-level array', () => {
-    expect(() => parseCard('[]')).toThrow(CardValidationError);
+  it('throws on invalid YAML inside frontmatter', () => {
+    expect(() => parseCard('---\nkey: [unclosed\n---\n')).toThrow(CardValidationError);
+  });
+
+  it('throws on top-level YAML array', () => {
+    expect(() => parseCard('---\n- a\n- b\n---\n')).toThrow(CardValidationError);
   });
 
   it('throws on top-level scalar', () => {
-    expect(() => parseCard('"just a string"')).toThrow(CardValidationError);
+    expect(() => parseCard('---\njust a string\n---\n')).toThrow(CardValidationError);
   });
 
   it.each([

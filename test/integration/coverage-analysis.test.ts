@@ -30,7 +30,7 @@ function insertCard(
     namespacesJson: null,
     body: opts?.body ?? null,
     glossaryJson: '[]',
-    filePath: `cards/${key}.json`,
+    filePath: `cards/${key}.md`,
     updatedAt: new Date().toISOString(),
   };
   tc.ctx.cardRepo.upsert(row);

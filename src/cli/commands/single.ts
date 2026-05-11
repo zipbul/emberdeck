@@ -34,7 +34,7 @@ export function registerSingle(program: Command): void {
           const projectRoot = opts.projectRoot ? resolve(opts.projectRoot) : cwd;
           const cardsDir = opts.cardsDir ? resolve(opts.cardsDir) : resolve(cwd, '.emberdeck/cards');
           const configPath = resolve(cwd, '.emberdeck.jsonc');
-          const glossaryPath = resolve(dirname(cardsDir), 'glossary.json');
+          const glossaryPath = resolve(dirname(cardsDir), 'glossary.yaml');
           const gitignorePath = resolve(cwd, '.gitignore');
 
           const created: string[] = [];
@@ -82,7 +82,7 @@ export function registerSingle(program: Command): void {
             created.push(relative(cwd, configPath));
           }
 
-          // 3. glossary.json
+          // 3. glossary.yaml
           if (await pathExists(glossaryPath) && !opts.force) {
             skipped.push(relative(cwd, glossaryPath));
           } else {
