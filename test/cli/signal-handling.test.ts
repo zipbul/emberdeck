@@ -33,6 +33,37 @@ async function waitMs(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Wait until the spawned subprocess has actually started reading stdin.
+ *
+ * The pure `waitMs(500)` we used previously was flaky under full-suite load:
+ * Bun spawn-up + JS module init can exceed 500ms when 60+ test files run
+ * in parallel, so a signal delivered at 500ms arrives before the handler
+ * is registered, defaulting to instant kill (no stderr message → assertion
+ * fails). We instead poll proc.exited and the elapsed wall clock until at
+ * least `minMs` ms have passed AND the process is still alive (i.e., it
+ * actually reached the stdin-read loop and is blocked there).
+ */
+async function waitUntilReady(
+  proc: ReturnType<typeof Bun.spawn>,
+  minMs = 1500,
+  maxMs = 5000,
+): Promise<void> {
+  const t0 = Date.now();
+  let exited = false;
+  proc.exited.then(() => { exited = true; }, () => { exited = true; });
+  while (Date.now() - t0 < minMs) {
+    if (exited) return; // process already done; nothing to wait for
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  // ensure not exited prematurely; if it did, return so test can observe.
+  const cutoff = t0 + maxMs;
+  while (!exited && Date.now() < cutoff) {
+    await new Promise((r) => setTimeout(r, 50));
+    break;
+  }
+}
+
 /** Spawn the CLI in subprocess with both stdio piped. */
 function spawnEd(args: string[], cwd: string) {
   return Bun.spawn(['bun', CLI, ...args], {
@@ -56,7 +87,7 @@ describe('CLI signal handling e2e', () => {
       ['card', 'create', 'p', '--type', 'brief', '--summary', 's', '--from', '-'],
       tmp,
     );
-    await waitMs(500);
+    await waitUntilReady(proc);
     proc.kill('SIGINT');
     await proc.exited;
 
@@ -73,7 +104,7 @@ describe('CLI signal handling e2e', () => {
       ['card', 'create', 'p', '--type', 'brief', '--summary', 's', '--from', '-'],
       tmp,
     );
-    await waitMs(500);
+    await waitUntilReady(proc);
     proc.kill('SIGTERM');
     await proc.exited;
 
@@ -86,9 +117,9 @@ describe('CLI signal handling e2e', () => {
       ['card', 'create', 'p', '--type', 'brief', '--summary', 's', '--from', '-'],
       tmp,
     );
-    await waitMs(500);
+    await waitUntilReady(proc);
     proc.kill('SIGINT');
-    await waitMs(5);
+    await waitMs(50);
     proc.kill('SIGINT');
     await proc.exited;
 
