@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5041df9f-8a09-484a-827c-ee3f6a0a2687",
-  "prevId": "aae6e861-1587-4271-8faa-437c593f9aed",
+  "id": "d53109a2-093e-42ee-986d-132802067167",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "card": {
       "name": "card",
@@ -42,8 +42,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "boundary_json": {
-          "name": "boundary_json",
+        "namespaces_json": {
+          "name": "namespaces_json",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1774310400000,
+      "when": 1778490251578,
       "tag": "0000_init",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1774915200000,
-      "tag": "0001_glossary",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1777219789966,
-      "tag": "0002_new_ender_wiggin",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1777222242849,
-      "tag": "0003_majestic_starhawk",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1777248000000,
-      "tag": "0004_namespaces_json",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1790000000000,
-      "tag": "0005_drop_boundary_json",
       "breakpoints": true
     }
   ]

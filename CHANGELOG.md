@@ -9,7 +9,7 @@
 - **Drift detection:** the `DriftType` union shrank from six to two — `broken_link` and `glossary_broken`. `boundary_inactive`, `symbol_changed`, `heritage_uncovered`, `pattern_violation` and their related `DriftCard` fields (`symbolChanges`, `uncoveredSubclasses`, `patternViolations`, `patternErrors`) are gone.
 - **`preChangeCheck`:** `AffectedCard.linkType` no longer carries `'boundary'`; the union is now `'direct' | 'transitive'`.
 - **`AnalyzeHealth`:** `staleBoundary` field removed.
-- **DB schema (migration 0005):** `card.boundary_json` column dropped via `ALTER TABLE card DROP COLUMN boundary_json`. Existing DBs are migrated automatically on next `ed` invocation.
+- **DB schema:** the drizzle migration history was collapsed into a single `0000_init.sql` reflecting the current schema (no `boundary_json`, no historical incremental files). No production users exist yet, so preserving the upgrade path was not worth the carrying cost.
 - **Errors:** `BoundaryValidationError` class removed and dropped from the CLI error-code map.
 - **Validation:** `validateCardInput`'s `boundary` / `codeLinks` parameters and the `LIMITS.BOUNDARY_*` / `LIMITS.CODE_LINK_*` constants are gone.
 
