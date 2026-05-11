@@ -29,7 +29,7 @@ import {
   syncSpecAnnotations,
   analyze,
 } from '../../index';
-import { createMockTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 
 // ============================================================================
 // Use the shared symbol-map mock factory.

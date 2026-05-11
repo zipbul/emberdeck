@@ -25,7 +25,7 @@ afterEach(() => {
 // ── CardRepository ──────────────────────────────────────────────────────────
 
 describe('CardRepository', () => {
-  it('upsert + findByKey: insert a card with parent and boundaryJson, read back all fields', () => {
+  it('upsert + findByKey: insert a card with parent, read back all fields', () => {
     // Arrange
     const parent = makeCard({
       key: 'parent-arch',
@@ -40,7 +40,6 @@ describe('CardRepository', () => {
       status: 'active',
       type: 'spec',
       parent: 'parent-arch',
-      boundaryJson: '["src/auth/**"]',
             filePath: '.emberdeck/cards/child-spec.md',
       updatedAt: '2026-03-15T12:00:00Z',
     });
@@ -56,12 +55,11 @@ describe('CardRepository', () => {
     expect(result!.status).toBe('active');
     expect(result!.type).toBe('spec');
     expect(result!.parent).toBe('parent-arch');
-    expect(result!.boundaryJson).toBe('["src/auth/**"]');
     expect(result!.filePath).toBe('.emberdeck/cards/child-spec.md');
     expect(result!.updatedAt).toBe('2026-03-15T12:00:00Z');
   });
 
-  it('upsert update: modify parent and boundaryJson on existing card', () => {
+  it('upsert update: modify parent on existing card', () => {
     // Arrange
     const archA = makeCard({
       key: 'arch-a',
@@ -79,7 +77,6 @@ describe('CardRepository', () => {
     const card = makeCard({
       key: 'my-spec',
       parent: 'arch-a',
-      boundaryJson: '["src/old/**"]',
       filePath: '.emberdeck/cards/my-spec.md',
     });
     cardRepo.upsert(card);
@@ -89,7 +86,6 @@ describe('CardRepository', () => {
       makeCard({
         key: 'my-spec',
         parent: 'arch-b',
-        boundaryJson: '["src/new/**"]',
         filePath: '.emberdeck/cards/my-spec.md',
         updatedAt: '2026-03-20T00:00:00Z',
       }),
@@ -98,7 +94,6 @@ describe('CardRepository', () => {
 
     // Assert
     expect(result!.parent).toBe('arch-b');
-    expect(result!.boundaryJson).toBe('["src/new/**"]');
     expect(result!.updatedAt).toBe('2026-03-20T00:00:00Z');
   });
 
@@ -522,12 +517,16 @@ describe('DB schema', () => {
     expect(() => db.$client.prepare('SELECT * FROM keyword').all()).toThrow();
   });
 
-  it('card table has parent and boundary_json columns', () => {
+  it('card table has parent column', () => {
     // Act — should not throw
-    const rows = db.$client.prepare('SELECT parent, boundary_json FROM card').all();
+    const rows = db.$client.prepare('SELECT parent FROM card').all();
 
     // Assert
     expect(Array.isArray(rows)).toBe(true);
+  });
+
+  it('card table no longer carries boundary_json', () => {
+    expect(() => db.$client.prepare('SELECT boundary_json FROM card').all()).toThrow();
   });
 
   it('card_relation table has no type column', () => {

@@ -16,7 +16,6 @@ export const card = sqliteTable(
     status: text('status').notNull(),
     type: text('type').notNull(),
     parent: text('parent'),
-    boundaryJson: text('boundary_json'),
     namespacesJson: text('namespaces_json'),
     body: text('body'),
     glossaryJson: text('glossary_json').notNull().default('[]'),

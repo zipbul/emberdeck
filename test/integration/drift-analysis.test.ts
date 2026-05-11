@@ -1,27 +1,11 @@
 /**
- * Drift detection, impact analysis, spec-sync, and interaction tests.
- *
- * Covers: boundary_inactive, symbol_changed, linkStatus,
- * importDependencies with gildash, markerMissing, linkMissing.
+ * preChangeCheck ignorePatterns + validateCodeLinks CLI batch tests.
  */
 import { describe, it, expect, afterEach } from 'bun:test';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { mockGildash as createMockGildash } from '../fixtures/gildash';
 
-import {
-  createCard,
-  updateCardStatus,
-  checkDrift,
-  checkInteractions,
-  preChangeCheck,
-  syncSpecAnnotations,
-} from '../../index';
-import { createMockTestContext, createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
-
-// ════════════════════════════════════════
-// 1. checkDrift — boundary_inactive
-// ════════════════════════════════════════
+import { createCard, preChangeCheck } from '../../index';
+import { createMockTestContext, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('preChangeCheck — ignorePatterns', () => {
   let tc: TestContext;

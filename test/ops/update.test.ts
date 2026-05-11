@@ -4,9 +4,8 @@ import { join } from 'node:path';
 import { createCard, updateCard, updateCardStatus } from '../../index';
 import {
   CardNotFoundError,
-  CardValidationError,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, BRIEF_BODY, makeTestBrief, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
 describe('updateCard', () => {
   let tc: TestContext;
@@ -72,7 +71,7 @@ describe('updateCard', () => {
   it('should preserve existing body when body field is not in update fields', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'upd-body-prsv', summary: 'Preserve', type: 'spec' });
-    const result = await updateCard(tc.ctx, 'upd-body-prsv', { summary: 'Changed' });
+    await updateCard(tc.ctx, 'upd-body-prsv', { summary: 'Changed' });
   });
 
   it('should update status in DB when updateCardStatus is called', async () => {

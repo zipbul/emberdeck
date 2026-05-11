@@ -259,14 +259,13 @@ describe('findCardsBySymbol boundary matching', () => {
     await tc?.cleanup();
   });
 
-  function insertCard(key: string, opts?: { boundary?: string[] }): void {
+  function insertCard(key: string): void {
     const row: CardRow = {
       key,
       summary: `Card ${key}`,
       status: 'active',
       type: 'spec',
       parent: null,
-      boundaryJson: opts?.boundary ? JSON.stringify(opts.boundary) : null,
       namespacesJson: null,
       body: null,
       glossaryJson: '[]',

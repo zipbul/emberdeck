@@ -185,7 +185,6 @@ export async function createCard(
               status,
               type: input.type,
               parent: input.parent ?? null,
-              boundaryJson: null,
               namespacesJson: (() => {
                 const ns: Record<string, unknown> = {};
                 if (frontmatter.principle) ns.principle = frontmatter.principle;

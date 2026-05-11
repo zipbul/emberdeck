@@ -15,7 +15,7 @@ import {
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
-import { createTestContext, BRIEF_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, makeTestSpec, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string) {
   const content = serializeCard(
@@ -421,7 +421,6 @@ describe('exportCardToFile', () => {
 
   it('should preserve the card body and return the correct file path', async () => {
     tc = await createTestContext();
-    const expected = '## Details\n\nSome notes here.';
     const { filePath } = await createCard(tc.ctx, {
       key: 'exp-body',
       summary: 'Body card',

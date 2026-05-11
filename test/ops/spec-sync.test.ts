@@ -6,9 +6,6 @@
  */
 import { describe, it, expect, afterEach, mock } from 'bun:test';
 
-import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-
 import {
   createCard,
   syncSpecAnnotations,

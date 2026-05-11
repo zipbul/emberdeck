@@ -1,5 +1,4 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { join } from 'node:path';
 
 import {
   createCard,
@@ -8,7 +7,7 @@ import {
   analyze,
   type CardRow,
 } from '../../index';
-import { createMockTestContext, createTestContext, type TestContext } from '../helpers';
+import { createMockTestContext, type TestContext } from '../helpers';
 import { mockGildashFromSymbols as createMockGildash } from '../fixtures/gildash';
 
 // ---------------------------------------------------------------------------
@@ -26,7 +25,6 @@ function insertCard(
     status: opts?.status ?? 'active',
     type: 'spec',
     parent: null,
-    boundaryJson: opts?.boundary ? JSON.stringify(opts.boundary) : null,
     namespacesJson: null,
     body: opts?.body ?? null,
     glossaryJson: '[]',

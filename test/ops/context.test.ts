@@ -6,7 +6,7 @@ import {
   checkDrift,
   checkInteractions,
 } from '../../index';
-import { createMockTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('checkDrift', () => {
   let tc: TestContext;

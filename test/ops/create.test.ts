@@ -5,7 +5,6 @@ import { createCard } from '../../index';
 import {
   CardAlreadyExistsError,
   CardKeyError,
-  CardValidationError,
 } from '../../index';
 import { createTestContext, type TestContext } from '../helpers';
 
@@ -25,9 +24,10 @@ describe('createCard', () => {
     expect(tc.ctx.cardRepo.findByKey('my-card')).not.toBeNull();
   });
 
+
   it('should save provided body to file when body is given', async () => {
     tc = await createTestContext();
-    const result = await createCard(tc.ctx, {
+    await createCard(tc.ctx, {
       key: 'with-body',
       summary: 'With body',
       type: 'spec',
@@ -105,7 +105,7 @@ describe('createCard', () => {
 
   it("should default body to empty string when body is undefined", async () => {
     tc = await createTestContext();
-    const result = await createCard(tc.ctx, { key: 'no-body', summary: 'No body', type: 'spec' });
+    await createCard(tc.ctx, { key: 'no-body', summary: 'No body', type: 'spec' });
   });
 
   it('should omit tags field from frontmatter when tags is empty array', async () => {

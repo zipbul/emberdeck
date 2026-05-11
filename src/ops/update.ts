@@ -292,7 +292,6 @@ export async function updateCard(
               status: next.status,
               type: next.type,
               parent: next.parent ?? null,
-              boundaryJson: null,
               namespacesJson: (() => {
                 const nsObj: Record<string, unknown> = {};
                 if (next.principle) nsObj.principle = next.principle;
@@ -409,7 +408,6 @@ export async function updateCardStatus(
                   status,
                   type: current.frontmatter.type,
                   parent: current.frontmatter.parent ?? null,
-                  boundaryJson: null,
                   namespacesJson: (() => {
                     const nsObj: Record<string, unknown> = {};
                     if (current.frontmatter.principle) nsObj.principle = current.frontmatter.principle;

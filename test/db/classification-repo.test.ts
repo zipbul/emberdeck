@@ -31,7 +31,6 @@ function insertCard(key: string): void {
     status: 'draft',
     type: 'spec',
     parent: null,
-    boundaryJson: null,
     namespacesJson: null,
     body: null,
     glossaryJson: '[]',

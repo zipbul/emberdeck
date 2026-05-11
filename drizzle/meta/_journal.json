@@ -36,6 +36,13 @@
       "when": 1777248000000,
       "tag": "0004_namespaces_json",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790000000000,
+      "tag": "0005_drop_boundary_json",
+      "breakpoints": true
     }
   ]
 }

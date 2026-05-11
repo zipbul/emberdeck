@@ -105,7 +105,6 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     status: cardFile.frontmatter.status,
     type: cardFile.frontmatter.type,
     parent: cardFile.frontmatter.parent ?? null,
-    boundaryJson: null,
     namespacesJson: serializeNamespaces(cardFile.frontmatter),
     body: namespaceText,
     glossaryJson: cardFile.frontmatter.glossary

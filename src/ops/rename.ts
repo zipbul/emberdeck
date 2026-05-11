@@ -63,8 +63,6 @@ export async function renameCard(
 
   if (oldFilePath === newFilePath) throw new CardRenameSamePathError();
 
-  // Lock both keys (sorted alphabetically to prevent deadlocks)
-  const [firstKey, secondKey] = [oldKey, newFullKey].sort() as [string, string];
   return (async () => {
         if (!(await Bun.file(oldFilePath).exists())) throw new CardNotFoundError(oldKey);
         if (await Bun.file(newFilePath).exists()) throw new CardAlreadyExistsError(newFullKey);

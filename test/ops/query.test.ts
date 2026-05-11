@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, mock } from 'bun:test';
+import { describe, it, expect, afterEach } from 'bun:test';
 
 import {
   createCard,
@@ -13,7 +13,7 @@ import {
 } from '../../index';
 import { CardKeyError, CardNotFoundError } from '../../index';
 import { getCardContext } from '../../src/ops/query';
-import { createTestContext, ensure4tierScaffold, BRIEF_BODY, makeTestBrief, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
 describe('getCard', () => {
   let tc: TestContext;

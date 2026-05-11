@@ -8,8 +8,8 @@
  */
 import { describe, it, expect, afterEach } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile, unlink, mkdir } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import {
   createCard,
@@ -21,10 +21,8 @@ import {
   getCard,
   listCards,
   searchCards,
-  listCardRelations,
   getCardContext,
   getRelationGraph,
-  syncCardFromFile,
   bulkSyncCards,
   validateCards,
   exportCardToFile,
@@ -33,23 +31,13 @@ import {
   preChangeCheck,
   regressionGuard,
   buildCardPath,
-  LIMITS,
   type CreateCardInput,
-  type CodeLink,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, SPEC_BODY, makeTestSpec, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, makeTestSpec, type TestContext } from '../helpers';
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-function makeCodeLinks(count: number): CodeLink[] {
-  return Array.from({ length: count }, (_, i) => ({
-    kind: 'function',
-    file: `src/module-${i}.ts`,
-    symbol: `handler${i}`,
-  }));
-}
 
 // ============================================================================
 // SCENARIO 1: Full Lifecycle -- Single Card Through Every Operation

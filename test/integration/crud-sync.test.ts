@@ -13,10 +13,9 @@
 
 import { describe, it, expect, afterEach } from 'bun:test';
 import { join } from 'node:path';
-import { writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { writeFile } from 'node:fs/promises';
 
-import { createTestContext, ensure4tierScaffold, BRIEF_BODY, SPEC_BODY, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 import {
   createCard,
   updateCard,
@@ -30,7 +29,6 @@ import {
   getRelationGraph,
   validateCards,
   exportCardToFile,
-  syncCardFromFile,
   bulkSyncCards,
   ActivationGuardError,
 } from '../../index';
@@ -295,7 +293,7 @@ describe('rename', () => {
     await createCard(tc.ctx, { key: 'rename-target', summary: 'Target', type: 'spec' });
     await createCard(tc.ctx, { key: 'rename-referrer', summary: 'Referrer', type: 'spec', relations: ['rename-target'] });
 
-    const result = await renameCard(tc.ctx, 'rename-target', 'renamed-target');
+    await renameCard(tc.ctx, 'rename-target', 'renamed-target');
 
     // Check referrer's file has updated relation
     const refPath = tc.ctx.cardRepo.findByKey('rename-referrer')!.filePath;
@@ -510,7 +508,6 @@ describe('query', () => {
 
   it('listCards should filter by updatedSince', async () => {
     tc = await createTestContext();
-    const before = new Date().toISOString();
     await createCard(tc.ctx, { key: 'old-card', summary: 'Old', type: 'spec' });
     // Wait a tiny bit so timestamp differs
     await new Promise((r) => setTimeout(r, 10));

@@ -1,7 +1,7 @@
 /**
  * Safe parser for JSON-typed string-array columns on the card row
- * (boundaryJson, glossaryJson). Returns [] on null/empty/parse-failure —
- * these columns come from user-authored .json files.
+ * (currently `glossaryJson`). Returns [] on null/empty/parse-failure —
+ * these columns come from user-authored card files.
  */
 export function parseStringArrayJson(json: string | null | undefined): string[] {
   if (!json) return [];

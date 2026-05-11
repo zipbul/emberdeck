@@ -28,7 +28,7 @@ import {
   parseCard,
   serializeCard,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, BRIEF_BODY, makeTestBrief, type TestContext } from '../helpers';
+import { createTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
 describe('Glossary', () => {
   let tc: TestContext;

@@ -94,7 +94,6 @@ for (let i = 0; i < CARD_COUNT; i++) {
     status: i % 10 === 0 ? 'draft' : i % 5 === 0 ? 'drifted' : 'active',
     type,
     parent,
-    boundaryJson: null,
     namespacesJson: null,
     body: `Body content for card ${i}. This simulates a real card body with contracts and design rationale.`,
     glossaryJson: '[]',

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 import { existsSync } from 'node:fs';
 
-import { createCard, renameCard, updateCard, updateCardStatus } from '../../index';
+import { createCard, renameCard, updateCard } from '../../index';
 import {
   CardAlreadyExistsError,
   CardKeyError,

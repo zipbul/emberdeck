@@ -1,26 +1,18 @@
 /**
  * Tests for the gildash integration extensions:
  *   - analyze.health.codeCycles (hasCycle + getCyclePaths)
- *   - preChangeCheck.maxFanIn + risk promotion (getFanMetrics)
- *   - checkDrift heritage_uncovered drift (getHeritageChain)
  *   - syncSpecAnnotations 4-tier tags (@spec/@brief/@principle/@domain)
- *   - checkDrift pattern_violation drift (findPattern + spec.code_patterns)
  */
 import { describe, it, expect, afterEach } from 'bun:test';
 
 import {
   analyze,
-  checkDrift,
-  preChangeCheck,
   syncSpecAnnotations,
   createCard,
-  updateCardStatus,
 } from '../../index';
 import {
   createMockTestContext,
   ensure4tierScaffold,
-  SPEC_BODY,
-  makeTestSpec,
   type TestContext,
 } from '../helpers';
 

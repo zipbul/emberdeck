@@ -13,7 +13,6 @@ function makeRow(overrides: Partial<CardRow> = {}): CardRow {
     status: 'draft',
     type: 'spec',
     parent: null,
-    boundaryJson: null,
     namespacesJson: null,
     body: null,
     glossaryJson: '[]',

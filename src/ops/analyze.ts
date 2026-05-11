@@ -2,9 +2,7 @@ import type { EmberdeckContext } from '../config';
 import { checkDrift, type DriftType } from './context';
 import { getUncoveredSymbols } from './spec-sync';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
-import { buildCardFromDb } from './sync';
 import { parseStringArrayJson } from '../card/json-fields';
-import { matchesAnyGlob } from '../util/glob';
 import { ensureReindexed, gildashProjectNames, listAllIndexedFilesWithProject } from './link';
 
 /** Days of changelog history to retain when pruning at the end of `analyze`. */

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { createEmberdeckDb, closeDb } from '../../src/db/connection';
 import { DrizzleCardRepository } from '../../src/db/card-repo';
 import { DrizzleRelationRepository } from '../../src/db/relation-repo';
@@ -31,7 +31,6 @@ function insertCard(key: string, filePath = `/cards/${key}.md`): void {
     status: 'draft',
     type: 'spec',
     parent: null,
-    boundaryJson: null,
     namespacesJson: null,
     body: null,
     glossaryJson: '[]',
