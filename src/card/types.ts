@@ -4,11 +4,10 @@
  * - `draft` — Card authoring in progress or intentional rework.
  * - `active` — In effect. For brief/spec, code is structurally aligned.
  * - `drifted` — Code has diverged (brief/spec only). Not applicable to principle.
- * - `retired` — Principle no longer in effect, kept for historical reference (principle only).
  */
-export type CardStatus = 'draft' | 'active' | 'drifted' | 'retired';
+export type CardStatus = 'draft' | 'active' | 'drifted';
 
-export const CARD_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted', 'retired'];
+export const CARD_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted'];
 
 /**
  * Card type — strict 4-tier hierarchy (principle/domain/brief/spec).

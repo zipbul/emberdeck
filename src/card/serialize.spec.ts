@@ -29,7 +29,7 @@ describe('parseCard', () => {
     expect(result.frontmatter.type).toBe('spec');
   });
 
-  it.each(['draft', 'active', 'drifted', 'retired'])('accepts status=%s', (status) => {
+  it.each(['draft', 'active', 'drifted'])('accepts status=%s', (status) => {
     const result = parseCard(makeCard({ status }));
     expect(result.frontmatter.status).toBe(status);
   });

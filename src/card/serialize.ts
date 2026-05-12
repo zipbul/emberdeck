@@ -37,7 +37,7 @@ import { CARD_TYPES } from './types';
 import { CardValidationError } from './errors';
 
 function isCardStatus(value: unknown): value is CardStatus {
-  return value === 'draft' || value === 'active' || value === 'drifted' || value === 'retired';
+  return value === 'draft' || value === 'active' || value === 'drifted';
 }
 
 function asString(value: unknown, field: string): string {

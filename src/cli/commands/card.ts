@@ -119,7 +119,7 @@ export function registerCard(program: Command): void {
     .command('list')
     .description('list cards. --symbol filters cards linking that symbol; --glossary filters cards declaring that term')
     .option('--type <type>', 'filter by type (principle|domain|brief|spec)')
-    .option('--status <status>', 'filter by status (draft|active|drifted|retired)')
+    .option('--status <status>', 'filter by status (draft|active|drifted)')
     .option('--parent <key>', 'filter by parent card key')
     .option('--tag <tag>', 'filter by tag')
     .option('--symbol <name>', 'cards bound to this code symbol')
@@ -421,7 +421,7 @@ export function registerCard(program: Command): void {
 
   card
     .command('set-status <key> <status>')
-    .description('change card status (draft|active|drifted|retired)')
+    .description('change card status (draft|active|drifted)')
     .option('--reason <text>', 'reason recorded in changelog')
     .option('--reason-from <file|->', 'read reason from file or STDIN')
     .action(async (key: string, status: string, opts: { reason?: string; reasonFrom?: string }, cmd) => {

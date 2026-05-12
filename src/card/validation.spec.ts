@@ -164,7 +164,7 @@ describe('validateCardInput', () => {
   });
 
   it('should accept valid card statuses', () => {
-    for (const s of ['draft', 'active', 'drifted', 'retired'] as const) {
+    for (const s of ['draft', 'active', 'drifted'] as const) {
       expect(() => validateCardInput({ status: s })).not.toThrow();
     }
   });
