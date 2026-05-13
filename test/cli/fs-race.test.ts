@@ -116,6 +116,16 @@ describe('external FS modification e2e', () => {
     expect(parsed.errors.some((e: { code: string }) => e.code === 'VALIDATION_FAILED')).toBe(true);
   });
 
+  test('ed validate links <typo-key> → CARD_NOT_FOUND error, not swallowed by TOCTOU catch', async () => {
+    // The per-target try/catch was added for TOCTOU races during fan-out;
+    // it must NOT swallow a user-typo on an explicit key. Explicit invalid
+    // key should surface as CARD_NOT_FOUND (exit 4), not partial-success.
+    const r = await runCli(['validate', 'links', 'definitely-not-a-real-key'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('error');
+    expect(parsed.error?.code).toBe('CARD_NOT_FOUND');
+  });
+
   test('ed validate links with an unreadable spec file → partial envelope, not INTERNAL_ERROR', async () => {
     // Same TOCTOU window for the `validate links` subcommand. The brief seed
     // alone has no spec children so we add one before flipping permissions.

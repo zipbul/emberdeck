@@ -335,6 +335,7 @@ envelope `errors[]` 코드 (`ed validate` / `ed validate links` 한정):
   "declared":N,"resolved":N,"broken":N,"unresolved":N
 }}
 ```
+`unresolved` = `errors.length`. partial 모드에서 BROKEN_LINK 와 VALIDATION_FAILED 를 모두 포함하므로 `unresolved > broken` 일 수 있음.
 
 `ed card list`:
 ```json

@@ -12,6 +12,7 @@ import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { validateCards, ensureCardsSynced } from '../../ops/sync';
 import { validateCodeLinks } from '../../ops/link';
+import { CardNotFoundError } from '../../card/errors';
 
 export function registerValidate(program: Command): void {
   const validate = program.command('validate').description('integrity gates');
@@ -103,7 +104,27 @@ export function registerValidate(program: Command): void {
           let resolved = 0;
           let broken = 0;
 
-          const targets = key ? [{ key }] : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec').map((c) => ({ key: c.key }));
+          // Explicit-key path: a user typo must surface as CARD_NOT_FOUND
+          // (exit 4), not get swallowed by the per-target catch below. The
+          // catch is intentionally scoped to the fan-out path where typos
+          // cannot happen and TOCTOU is the only realistic failure mode.
+          if (key) {
+            const row = rt.ctx.cardRepo.findByKey(key);
+            if (!row) throw new CardNotFoundError(key);
+          }
+          // For the fan-out path, mirror the aggregate's KEY_MISMATCH skip:
+          // those cards cannot be link-validated (readCard would throw
+          // CARD_NOT_FOUND) and are already reported elsewhere when the user
+          // runs `ed validate cards`.
+          const cardList = rt.ctx.cardRepo.list();
+          let mismatchedKeys = new Set<string>();
+          if (!key) {
+            const cardsResult = await validateCards(rt.ctx);
+            mismatchedKeys = new Set(cardsResult.keyMismatches.map((km) => km.row.key));
+          }
+          const targets = key
+            ? [cardList.find((c) => c.key === key)!]
+            : cardList.filter((c) => c.type === 'spec' && !mismatchedKeys.has(c.key));
           for (const t of targets) {
             // Per-card try/catch: a single TOCTOU race (file deleted /
             // permission change between auto-sync and link validation) must
@@ -116,8 +137,7 @@ export function registerValidate(program: Command): void {
               for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
             } catch (e) {
               const message = e instanceof Error ? e.message : String(e);
-              const row = rt.ctx.cardRepo.findByKey(t.key);
-              errors.push({ code: 'VALIDATION_FAILED', message: `link validation failed for ${t.key}: ${message}`, key: t.key, ...(row ? { details: { file_path: row.filePath } } : {}) });
+              errors.push({ code: 'VALIDATION_FAILED', message: `link validation failed for ${t.key}: ${message}`, key: t.key, details: { file_path: t.filePath } });
             }
           }
 

@@ -92,6 +92,15 @@ spec:
         present in the DB; this handles flat layouts, nested layouts, and
         arbitrary spec-of-spec recursion uniformly.
       always_holds: per-call
+    - id: INV-007
+      statement: >-
+        (key, filePath) is a bijection on the card table. Each card key maps
+        to exactly one file_path and each file_path to exactly one key.
+        Although the schema does not enforce UNIQUE on file_path, syncCardFromFile
+        and writeCardFile maintain this contract, and downstream tooling
+        (mergeCardSyncWarnings in cli-surface/command-routing-and-envelope/runner-and-output)
+        relies on file_path uniqueness as a dedup key.
+      always_holds: cross-call
     - id: INV-006
       statement: >-
         ensureCardsSynced runs at CLI runner entry on every command, including
