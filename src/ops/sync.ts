@@ -364,6 +364,27 @@ export async function bulkSyncCards(
 }
 
 /**
+ * Cheap key-mismatch detection. Subset of validateCards that only reports
+ * cards whose frontmatter key differs from the path-derived slug. Used by
+ * `ed validate links` to skip mismatched cards without paying the full
+ * validateCards cost (content-mismatch reads, relation walks, glossary).
+ * @spec card-storage/persistence/sync
+ */
+export function detectKeyMismatches(
+  ctx: EmberdeckContext,
+  dirPath?: string,
+): Array<{ row: CardRow; expectedKey: string }> {
+  const targetDir = dirPath ?? ctx.cardsDir;
+  return ctx.cardRepo
+    .list()
+    .map((r) => {
+      const expectedKey = relative(targetDir, r.filePath).replace(/\.md$/, '');
+      return expectedKey !== r.key ? { row: r, expectedKey } : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+}
+
+/**
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
  * Performs read-only structural validation: hierarchy, relations, glossary,
  * orphans, key mismatches, content drift.

@@ -299,6 +299,7 @@ envelope `errors[]` 코드 (`ed validate` / `ed validate links` 한정):
 | code | 의미 | 해결 |
 |------|------|------|
 | `VALIDATION_FAILED` | 한 카드의 link 검증 중 I/O / 파싱 에러 (주로 TOCTOU — auto-sync 직후 파일 권한 변경 또는 삭제). 다른 카드 검증은 정상 진행, exit 2 (partial). | `details.file_path` 확인 → 파일 권한 / 존재 복구 → 재실행 |
+| `KEY_MISMATCH_SKIPPED` (`ed validate links` fan-out) | 카드 frontmatter `key` 가 파일 슬러그와 달라서 link 검증이 그 카드만 건너뛰어짐. 나머지는 정상 진행. | `ed validate cards` 로 KEY_MISMATCH 상세 확인 → 파일명 또는 frontmatter key 정정 |
 
 </error_recovery>
 

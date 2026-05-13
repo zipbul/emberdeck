@@ -126,6 +126,32 @@ describe('external FS modification e2e', () => {
     expect(parsed.error?.code).toBe('CARD_NOT_FOUND');
   });
 
+  test('ed validate links (fan-out) with KEY_MISMATCH card → emits KEY_MISMATCH_SKIPPED, does not crash', async () => {
+    // Set up a valid spec card, then rename its file on disk so the slug
+    // disagrees with the frontmatter key. validateCodeLinks would throw
+    // CARD_NOT_FOUND for this card; the fan-out must skip it AND emit a
+    // KEY_MISMATCH_SKIPPED row so the user sees the silently-excluded spec.
+    await runCli(['card', 'create', 'spec-x', '--type', 'spec', '--parent', 'seed', '--summary', 's'], tmp);
+    const orig = join(tmp, '.emberdeck/cards/spec-x.md');
+    const renamed = join(tmp, '.emberdeck/cards/wrong-slug.md');
+    writeFileSync(renamed, readFileSync(orig, 'utf-8'));
+    unlinkSync(orig);
+    const r = await runCli(['validate', 'links'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error?.code).toBeUndefined();
+    expect(parsed.errors.some((e: { code: string; key: string }) =>
+      e.code === 'KEY_MISMATCH_SKIPPED' && e.key === 'spec-x')).toBe(true);
+  });
+
+  test('ed validate links <good-key> → ok envelope (smoke)', async () => {
+    await runCli(['card', 'create', 'spec-ok', '--type', 'spec', '--parent', 'seed', '--summary', 's'], tmp);
+    const r = await runCli(['validate', 'links', 'spec-ok'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('ok');
+    expect(parsed.data.declared).toBe(0);
+    expect(parsed.data.broken).toBe(0);
+  });
+
   test('ed validate links with an unreadable spec file → partial envelope, not INTERNAL_ERROR', async () => {
     // Same TOCTOU window for the `validate links` subcommand. The brief seed
     // alone has no spec children so we add one before flipping permissions.

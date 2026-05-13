@@ -94,12 +94,13 @@ spec:
       always_holds: per-call
     - id: INV-007
       statement: >-
-        (key, filePath) is a bijection on the card table. Each card key maps
-        to exactly one file_path and each file_path to exactly one key.
-        Although the schema does not enforce UNIQUE on file_path, syncCardFromFile
-        and writeCardFile maintain this contract, and downstream tooling
-        (mergeCardSyncWarnings in cli-surface/command-routing-and-envelope/runner-and-output)
-        relies on file_path uniqueness as a dedup key.
+        (key, filePath) is a bijection on the card table. The PRIMARY KEY on
+        card.key plus the upsert-only write pattern in syncCardFromFile and
+        writeCardFile guarantee each key maps to exactly one filePath at every
+        transaction boundary. The schema does not enforce UNIQUE on file_path,
+        but the bijection holds because every write resolves to a single key
+        and overwrites the prior row atomically. Downstream dedup tooling
+        (mergeCardSyncWarnings) relies on this invariant.
       always_holds: cross-call
     - id: INV-006
       statement: >-

@@ -10,7 +10,7 @@ import { Command } from 'commander';
 import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
-import { validateCards, ensureCardsSynced } from '../../ops/sync';
+import { validateCards, ensureCardsSynced, detectKeyMismatches } from '../../ops/sync';
 import { validateCodeLinks } from '../../ops/link';
 import { CardNotFoundError } from '../../card/errors';
 
@@ -108,23 +108,38 @@ export function registerValidate(program: Command): void {
           // (exit 4), not get swallowed by the per-target catch below. The
           // catch is intentionally scoped to the fan-out path where typos
           // cannot happen and TOCTOU is the only realistic failure mode.
+          let explicitRow: ReturnType<typeof rt.ctx.cardRepo.findByKey> = null;
           if (key) {
-            const row = rt.ctx.cardRepo.findByKey(key);
-            if (!row) throw new CardNotFoundError(key);
+            explicitRow = rt.ctx.cardRepo.findByKey(key);
+            if (!explicitRow) throw new CardNotFoundError(key);
           }
-          // For the fan-out path, mirror the aggregate's KEY_MISMATCH skip:
-          // those cards cannot be link-validated (readCard would throw
-          // CARD_NOT_FOUND) and are already reported elsewhere when the user
-          // runs `ed validate cards`.
-          const cardList = rt.ctx.cardRepo.list();
+          // Fan-out path: skip KEY_MISMATCH cards (readCard would throw
+          // CARD_NOT_FOUND for them) but emit one error per skip so the user
+          // is not silently misled into thinking every spec validated.
+          // detectKeyMismatches is a cheap subset of validateCards (no file
+          // reads, no relation walk) suitable for this filter.
           let mismatchedKeys = new Set<string>();
           if (!key) {
-            const cardsResult = await validateCards(rt.ctx);
-            mismatchedKeys = new Set(cardsResult.keyMismatches.map((km) => km.row.key));
+            try {
+              for (const km of detectKeyMismatches(rt.ctx)) {
+                mismatchedKeys.add(km.row.key);
+                errors.push({
+                  code: 'KEY_MISMATCH_SKIPPED',
+                  message: `link validation skipped: card key '${km.row.key}' does not match path-derived '${km.expectedKey}' (run \`ed validate cards\`)`,
+                  key: km.row.key,
+                  details: { file_path: km.row.filePath },
+                });
+              }
+            } catch (e) {
+              // Defensive: the cheap helper has no I/O today but if cardsDir
+              // vanishes mid-run we still produce a coherent envelope.
+              const message = e instanceof Error ? e.message : String(e);
+              errors.push({ code: 'VALIDATION_FAILED', message: `key-mismatch detection failed: ${message}` });
+            }
           }
-          const targets = key
-            ? [cardList.find((c) => c.key === key)!]
-            : cardList.filter((c) => c.type === 'spec' && !mismatchedKeys.has(c.key));
+          const targets = explicitRow
+            ? [explicitRow]
+            : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec' && !mismatchedKeys.has(c.key));
           for (const t of targets) {
             // Per-card try/catch: a single TOCTOU race (file deleted /
             // permission change between auto-sync and link validation) must
