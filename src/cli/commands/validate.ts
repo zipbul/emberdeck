@@ -105,11 +105,20 @@ export function registerValidate(program: Command): void {
 
           const targets = key ? [{ key }] : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec').map((c) => ({ key: c.key }));
           for (const t of targets) {
-            const r = await validateCodeLinks(rt.ctx, t.key);
-            declared += r.declared;
-            resolved += r.valid;
-            broken += r.broken.length;
-            for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
+            // Per-card try/catch: a single TOCTOU race (file deleted /
+            // permission change between auto-sync and link validation) must
+            // not abort the entire envelope. Mirrors the aggregate path.
+            try {
+              const r = await validateCodeLinks(rt.ctx, t.key);
+              declared += r.declared;
+              resolved += r.valid;
+              broken += r.broken.length;
+              for (const b of r.broken) errors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: t.key });
+            } catch (e) {
+              const message = e instanceof Error ? e.message : String(e);
+              const row = rt.ctx.cardRepo.findByKey(t.key);
+              errors.push({ code: 'VALIDATION_FAILED', message: `link validation failed for ${t.key}: ${message}`, key: t.key, ...(row ? { details: { file_path: row.filePath } } : {}) });
+            }
           }
 
           const data = {

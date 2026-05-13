@@ -52,10 +52,10 @@ describe('cli/commands per-file error contract', () => {
       }
     }
 
-    if (violations.length > 0) {
-      const msg = violations.map((v) => `\n  ${v.file}: missing details.file_path near\n    ${v.codeNear.replace(/\n/g, '\n    ')}`).join('\n');
-      throw new Error(`runner-and-output INV-003 violations:${msg}`);
-    }
-    expect(violations).toHaveLength(0);
+    const msg = violations.length === 0
+      ? ''
+      : 'runner-and-output INV-003 violations:' + violations.map((v) =>
+          `\n  ${v.file}: missing details.file_path near\n    ${v.codeNear.replace(/\n/g, '\n    ')}`).join('');
+    expect(violations, msg).toHaveLength(0);
   });
 });

@@ -102,10 +102,33 @@ describe('external FS modification e2e', () => {
     // capture the I/O error as VALIDATION_FAILED and preserve all other
     // envelope content, not crash the whole command to INTERNAL_ERROR.
     const { chmodSync } = await import('node:fs');
-    chmodSync(join(tmp, '.emberdeck/cards/seed.md'), 0o000);
-    const r = await runCli(['validate'], tmp);
-    // Restore so afterEach can clean up the tmp dir without errors.
-    try { chmodSync(join(tmp, '.emberdeck/cards/seed.md'), 0o644); } catch {}
+    const seedPath = join(tmp, '.emberdeck/cards/seed.md');
+    let r: RunResult;
+    try {
+      chmodSync(seedPath, 0o000);
+      r = await runCli(['validate'], tmp);
+    } finally {
+      try { chmodSync(seedPath, 0o644); } catch {}
+    }
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error?.code).not.toBe('INTERNAL_ERROR');
+    expect(parsed.status).not.toBe('error');
+    expect(parsed.errors.some((e: { code: string }) => e.code === 'VALIDATION_FAILED')).toBe(true);
+  });
+
+  test('ed validate links with an unreadable spec file → partial envelope, not INTERNAL_ERROR', async () => {
+    // Same TOCTOU window for the `validate links` subcommand. The brief seed
+    // alone has no spec children so we add one before flipping permissions.
+    await runCli(['card', 'create', 'spec-x', '--type', 'spec', '--parent', 'seed', '--summary', 's'], tmp);
+    const { chmodSync } = await import('node:fs');
+    const specPath = join(tmp, '.emberdeck/cards/spec-x.md');
+    let r: RunResult;
+    try {
+      chmodSync(specPath, 0o000);
+      r = await runCli(['validate', 'links'], tmp);
+    } finally {
+      try { chmodSync(specPath, 0o644); } catch {}
+    }
     const parsed = JSON.parse(r.stdout);
     expect(parsed.error?.code).not.toBe('INTERNAL_ERROR');
     expect(parsed.status).not.toBe('error');

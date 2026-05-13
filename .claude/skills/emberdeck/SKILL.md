@@ -294,6 +294,12 @@ envelope `warnings[]` 코드:
 |------|------|------|
 | `CARD_SYNC_FAILED` | 모든 명령 진입 직전 자동 file→DB sync 가 특정 파일을 처리 못 함 (parse error 등). 명령 자체는 진행, exit code 무영향. 같은 파일이 명령 errors[]에 `details.file_path` 로 보고되면 중복 방지 차원에서 표시되지 않음. | message 의 file_path 확인 → 해당 카드 파일 수정 또는 제거 → 다음 명령에서 자동 재시도 |
 
+envelope `errors[]` 코드 (`ed validate` / `ed validate links` 한정):
+
+| code | 의미 | 해결 |
+|------|------|------|
+| `VALIDATION_FAILED` | 한 카드의 link 검증 중 I/O / 파싱 에러 (주로 TOCTOU — auto-sync 직후 파일 권한 변경 또는 삭제). 다른 카드 검증은 정상 진행, exit 2 (partial). | `details.file_path` 확인 → 파일 권한 / 존재 복구 → 재실행 |
+
 </error_recovery>
 
 <response_shapes>

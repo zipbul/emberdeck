@@ -24,6 +24,11 @@ export const card = sqliteTable(
   },
   (table) => [
     index('idx_card_status').on(table.status),
+    // file_path is functionally unique (each card file ↔ one row), but the
+    // unique constraint is enforced only at the application layer via the
+    // (key → file_path) bijection in syncCardFromFile / writeCardFile. Tools
+    // that rely on file_path as a dedup key (e.g. mergeCardSyncWarnings in
+    // src/cli/runner.ts) assume this invariant.
     index('idx_card_file_path').on(table.filePath),
     index('idx_card_type').on(table.type),
     index('idx_card_parent').on(table.parent),
