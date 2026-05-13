@@ -146,18 +146,18 @@ describe('E2E Scenario 2: Code change flow', () => {
     // Step 2: Remove symbols from mock (simulate code deletion)
     tc.ctx.gildash = createMockGildash({});
 
-    // Step 3: checkDrift with autoTransition → active→drifted
-    const drift = await checkDrift(tc.ctx, undefined, { autoTransition: true });
+    // Step 3: checkDrift detects drift (read-only — status remains 'active')
+    const drift = await checkDrift(tc.ctx, undefined);
     const driftCard = drift.cards.find((c) => c.key === 'auth-service');
     expect(driftCard).toBeDefined();
-    expect(driftCard!.status).toBe('drifted');
+    expect(driftCard!.status).toBe('active');
     expect(driftCard!.driftType).toBe('broken_link');
 
-    // Verify DB status changed
+    // DB status is untouched by checkDrift
     const row = tc.ctx.cardRepo.findByKey('auth-service');
-    expect(row!.status).toBe('drifted');
+    expect(row!.status).toBe('active');
 
-    // Step 4: regressionGuard → fail
+    // Step 4: regressionGuard → fail (drift is counted via driftType regardless of DB status)
     const guard = await regressionGuard(tc.ctx, ['src/auth.ts']);
     expect(guard.passOrFail).toBe('fail');
   });

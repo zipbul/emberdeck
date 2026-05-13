@@ -71,7 +71,7 @@ describe('checkDrift', () => {
     await updateCardStatus(tc.ctx, 'h-active', 'active');
     await createCard(tc.ctx, { key: 'h-draft', summary: 'Draft', type: 'spec' });
 
-    const result = await checkDrift(tc.ctx, undefined, { autoTransition: false });
+    const result = await checkDrift(tc.ctx, undefined);
     expect(result.health.active).toBe(1);
     // 4-tier: scaffolding adds 2 draft cards (_dom, _br) on top of 'h-draft'.
     expect(result.health.draft).toBe(3);
@@ -123,7 +123,8 @@ describe('checkDrift with gildash — broken link detection', () => {
     expect(card).toBeDefined();
     expect(card!.brokenLinks).toBe(1);
     expect(card!.driftType).toBe('broken_link');
-    expect(card!.status).toBe('drifted');
+    // checkDrift is read-only: DB status remains 'active', drift surfaced via driftType
+    expect(card!.status).toBe('active');
   });
 
   it('should report zero broken links when searchSymbols finds the symbol', async () => {
@@ -169,83 +170,33 @@ describe('checkDrift with gildash — broken link detection', () => {
     expect(result.cards).toHaveLength(0);
   });
 
-  it('should respect autoTransition=false', async () => {
+  it('should never mutate DB status — drift surfaced via driftType only', async () => {
     tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
-      key: 'no-trans',
-      summary: 'No transition',
+      key: 'no-mutate',
+      summary: 'Read-only check',
       type: 'spec',
       parent: '_br',
             spec: makeTestSpec('src/gone.ts', 'missingFn'),
     });
-    setCardCodeLinks(tc.ctx, 'no-trans', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
-    await updateCardStatus(tc.ctx, 'no-trans', 'active');
+    setCardCodeLinks(tc.ctx, 'no-mutate', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
+    await updateCardStatus(tc.ctx, 'no-mutate', 'active');
     tc.ctx.gildash = createMockGildash({
       searchSymbols: () => [],
+      getFileInfo: () => null,
     });
 
-    const result = await checkDrift(tc.ctx, 'no-trans', { autoTransition: false });
-    const card = result.cards.find((c) => c.key === 'no-trans');
+    const result = await checkDrift(tc.ctx, 'no-mutate');
+    const card = result.cards.find((c) => c.key === 'no-mutate');
     expect(card).toBeDefined();
     expect(card!.driftType).toBe('broken_link');
-    // Status NOT transitioned because autoTransition=false
     expect(card!.status).toBe('active');
-  });
-
-  // D-3: targeted UPDATE preserves concurrent changes
-  it('should only update status field when auto-transitioning — not overwrite summary', async () => {
-    tc = await createMockTestContext();
-    await ensure4tierScaffold(tc.ctx, true);
-    await createCard(tc.ctx, {
-      key: 'tgt-upd',
-      summary: 'Original summary',
-      type: 'spec',
-      parent: '_br',
-            spec: makeTestSpec('src/gone.ts', 'missingFn'),
-    });
-    setCardCodeLinks(tc.ctx, 'tgt-upd', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
-    await updateCardStatus(tc.ctx, 'tgt-upd', 'active');
-    // Simulate concurrent summary update directly in DB
-    tc.ctx.db.$client.prepare('UPDATE card SET summary = ? WHERE key = ?').run('Concurrent update', 'tgt-upd');
-    tc.ctx.gildash = createMockGildash({
-      searchSymbols: () => [],
-      getFileInfo: () => null,
-    });
-
-    await checkDrift(tc.ctx, 'tgt-upd');
-    const row = tc.ctx.cardRepo.findByKey('tgt-upd');
-    expect(row!.status).toBe('drifted');
-    // Summary should NOT be overwritten by old snapshot
-    expect(row!.summary).toBe('Concurrent update');
-  });
-
-  it('should skip file write when DB status was already changed by concurrent op', async () => {
-    tc = await createMockTestContext();
-    await ensure4tierScaffold(tc.ctx, true);
-    await createCard(tc.ctx, {
-      key: 'skip-file',
-      summary: 'S',
-      type: 'spec',
-      parent: '_br',
-            spec: makeTestSpec('src/gone.ts', 'missingFn'),
-    });
-    setCardCodeLinks(tc.ctx, 'skip-file', [{ kind: 'function', file: 'src/gone.ts', symbol: 'missingFn' }]);
-    await updateCardStatus(tc.ctx, 'skip-file', 'active');
-    // Simulate: status already changed to drifted by another op
-    tc.ctx.db.$client.prepare('UPDATE card SET status = ? WHERE key = ?').run('drifted', 'skip-file');
-    tc.ctx.gildash = createMockGildash({
-      searchSymbols: () => [],
-      getFileInfo: () => null,
-    });
-
-    const result = await checkDrift(tc.ctx, 'skip-file');
-    const card = result.cards.find((c) => c.key === 'skip-file');
-    // Drift is still detected and reported
-    expect(card!.driftType).toBe('broken_link');
-    // File should still have original status (not modified by skipped transition)
+    // DB row + file remain unchanged
+    const row = tc.ctx.cardRepo.findByKey('no-mutate');
+    expect(row!.status).toBe('active');
     const { readCardFile } = await import('../../src/fs/reader');
-    const cardFile = await readCardFile(tc.ctx.cardRepo.findByKey('skip-file')!.filePath);
+    const cardFile = await readCardFile(row!.filePath);
     expect(cardFile.frontmatter.status).toBe('active');
   });
 });

@@ -10,7 +10,7 @@ import { Command } from 'commander';
 import { run } from '../runner';
 import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
-import { validateCards } from '../../ops/sync';
+import { validateCards, ensureCardsSynced } from '../../ops/sync';
 import { validateCodeLinks } from '../../ops/link';
 
 export function registerValidate(program: Command): void {
@@ -27,21 +27,38 @@ export function registerValidate(program: Command): void {
             message: w.message,
             ...(w.cardKey ? { key: w.cardKey } : {}),
           }));
-          for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key });
-          for (const orphan of cardsResult.orphanFiles) cardErrors.push({ code: 'ORPHAN_FILE', message: `file has no indexed card: ${orphan}` });
+          // Build a map of sync failures so orphan-file errors can include the
+          // underlying parse error (otherwise the runner's CARD_SYNC_FAILED
+          // dedup hides the root cause).
+          const syncFailuresByPath = new Map((await ensureCardsSynced(rt.ctx)).map((f) => [f.filePath, f.error]));
+          for (const stale of cardsResult.staleDbRows) cardErrors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key, details: { file_path: stale.filePath } });
+          for (const orphan of cardsResult.orphanFiles) {
+            const syncErr = syncFailuresByPath.get(orphan);
+            const msg = syncErr
+              ? `file has no indexed card: ${orphan} — sync failed: ${syncErr}`
+              : `file has no indexed card: ${orphan}`;
+            cardErrors.push({ code: 'ORPHAN_FILE', message: msg, details: { file_path: orphan } });
+          }
           for (const km of cardsResult.keyMismatches) {
             cardErrors.push({
               code: 'KEY_MISMATCH',
               message: `card key '${km.row.key}' does not match path-derived '${km.expectedKey}'`,
               key: km.row.key,
+              details: { file_path: km.row.filePath },
             });
           }
 
+          // Skip cards whose DB key disagrees with the path-derived key — those
+          // are reported as KEY_MISMATCH above, and validateCodeLinks would
+          // throw CARD_NOT_FOUND because readCard expects the frontmatter key
+          // to match the on-disk slug.
+          const mismatchedKeys = new Set(cardsResult.keyMismatches.map((km) => km.row.key));
           const allCards = rt.ctx.cardRepo.list();
           const linkErrors: CliMessage[] = [];
           let linkDeclared = 0;
           let linkBroken = 0;
           for (const c of allCards) {
+            if (mismatchedKeys.has(c.key)) continue;
             const r = await validateCodeLinks(rt.ctx, c.key);
             linkDeclared += r.declared;
             linkBroken += r.broken.length;
@@ -114,17 +131,23 @@ export function registerValidate(program: Command): void {
             message: w.message,
             ...(w.cardKey ? { key: w.cardKey } : {}),
           }));
+          const syncFailuresByPath2 = new Map((await ensureCardsSynced(rt.ctx)).map((f) => [f.filePath, f.error]));
           for (const stale of result.staleDbRows) {
-            errors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key });
+            errors.push({ code: 'STALE_DB_ROW', message: `indexed card has no file: ${stale.filePath}`, key: stale.key, details: { file_path: stale.filePath } });
           }
           for (const orphan of result.orphanFiles) {
-            errors.push({ code: 'ORPHAN_FILE', message: `file has no indexed card: ${orphan}` });
+            const syncErr = syncFailuresByPath2.get(orphan);
+            const msg = syncErr
+              ? `file has no indexed card: ${orphan} — sync failed: ${syncErr}`
+              : `file has no indexed card: ${orphan}`;
+            errors.push({ code: 'ORPHAN_FILE', message: msg, details: { file_path: orphan } });
           }
           for (const km of result.keyMismatches) {
             errors.push({
               code: 'KEY_MISMATCH',
               message: `card key '${km.row.key}' does not match path-derived '${km.expectedKey}'`,
               key: km.row.key,
+              details: { file_path: km.row.filePath },
             });
           }
 

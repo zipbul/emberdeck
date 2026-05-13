@@ -403,18 +403,19 @@ describe('ops/link', () => {
     expect(mockReindex).toHaveBeenCalledTimes(1);
   });
 
-  // 33. [HP] validateCodeLinks: active card with broken links → auto-transition to drifted
-  it('should auto-transition active card to drifted when broken links detected', async () => {
+  // 33. [HP] validateCodeLinks is read-only: never mutates card status
+  it('should NOT mutate status when broken links detected on active card', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
-    await createCard('auto/trans', [link], 'active');
-    insertInDb('auto/trans');
+    await createCard('no/mutate', [link], 'active');
+    insertInDb('no/mutate');
     tc.ctx.cardRepo.upsert({
-      ...tc.ctx.cardRepo.findByKey('auto/trans')!,
+      ...tc.ctx.cardRepo.findByKey('no/mutate')!,
       status: 'active',
     });
     mockSearchSymbols.mockReturnValue([]);
-    await validateCodeLinks(tc.ctx, 'auto/trans');
-    const row = tc.ctx.cardRepo.findByKey('auto/trans');
-    expect(row?.status).toBe('drifted');
+    const result = await validateCodeLinks(tc.ctx, 'no/mutate');
+    expect(result.broken.length).toBe(1);
+    const row = tc.ctx.cardRepo.findByKey('no/mutate');
+    expect(row?.status).toBe('active');
   });
 });

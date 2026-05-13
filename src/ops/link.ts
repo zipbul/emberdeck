@@ -5,7 +5,6 @@ import type { CodeLink } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { readCardFileOrThrow } from '../fs/reader';
-import { writeCardFile } from '../fs/writer';
 
 /**
  * `searchAnnotations` page-size cap. Gildash default is unbounded; pin to
@@ -311,8 +310,8 @@ export async function findAffectedCards(
  * Validates that all of a card's codeLinks exist in the current symbol index.
  * Returns declared/valid/broken counts for unambiguous interpretation.
  *
- * When broken links are detected on an active card, the card is automatically
- * transitioned to 'drifted' status (DB + file).
+ * Read-only: detects broken links but never mutates card status. Use
+ * `ed card set-status <key> drifted` to transition explicitly.
   * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function validateCodeLinks(
@@ -333,14 +332,12 @@ export async function validateCodeLinks(
   const planned: BrokenLink[] = [];
 
   let valid = 0;
-  let gildashUnavailable = false;
   for (const row of dbLinks) {
     const link: CodeLink = { kind: row.kind, file: row.file, symbol: row.symbol };
     let found: SymbolSearchResult | undefined;
     try {
       found = cache.find(link.file, link.symbol);
     } catch {
-      gildashUnavailable = true;
       const entry: BrokenLink = { link, reason: 'gildash-unavailable' };
       if (isPlanning) planned.push(entry);
       else broken.push(entry);
@@ -353,34 +350,6 @@ export async function validateCodeLinks(
       else broken.push(entry);
     } else {
       valid++;
-    }
-  }
-
-  // Auto-transition: active card with broken links → drifted (targeted UPDATE)
-  // Skip transition if gildash was unavailable — broken links may be false positives
-  if (broken.length > 0 && status === 'active' && !gildashUnavailable) {
-    const row = ctx.cardRepo.findByKey(key);
-    if (row) {
-      const now = new Date().toISOString();
-      try {
-        const changed = ctx.db.$client
-          .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ? AND status = ?')
-          .run('drifted', now, key, 'active');
-        if (changed.changes > 0) {
-          try {
-            cardFile.frontmatter.status = 'drifted';
-            const filePath = buildCardPath(ctx.cardsDir, key);
-            await writeCardFile(filePath, cardFile);
-          } catch {
-            // File write failed — revert DB
-            ctx.db.$client
-              .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ?')
-              .run(row.status, row.updatedAt, key);
-          }
-        }
-      } catch {
-        // Transition failed — DB reverted to previous state
-      }
     }
   }
 

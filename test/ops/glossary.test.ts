@@ -392,18 +392,20 @@ describe('Glossary', () => {
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief(), glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
-      const result = await checkDrift(tc.ctx, 'c', { autoTransition: false });
+      const result = await checkDrift(tc.ctx, 'c');
       expect(result.cards.find(c => c.key === 'c')?.driftType).toBe('glossary_broken');
     });
 
-    it('should auto-transition active card to drifted', async () => {
+    it('should NOT mutate active card status — read-only', async () => {
       tc = await createTestContext();
       await ensure4tierScaffold(tc.ctx);
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief(), glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
-      const result = await checkDrift(tc.ctx, 'c', { autoTransition: true });
-      expect(result.cards.find(c => c.key === 'c')?.status).toBe('drifted');
+      const result = await checkDrift(tc.ctx, 'c');
+      const card = result.cards.find(c => c.key === 'c');
+      expect(card?.driftType).toBe('glossary_broken');
+      expect(card?.status).toBe('active');
     });
 
     it('should skip draft cards', async () => {
@@ -411,7 +413,7 @@ describe('Glossary', () => {
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
-      const result = await checkDrift(tc.ctx, 'c', { autoTransition: false });
+      const result = await checkDrift(tc.ctx, 'c');
       // Draft cards are excluded from drift analysis
       expect(result.cards.find(c => c.key === 'c')).toBeUndefined();
     });

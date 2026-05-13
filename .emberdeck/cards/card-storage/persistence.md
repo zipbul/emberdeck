@@ -10,14 +10,13 @@ glossary:
   - card-key
 brief:
   context:
-    problem: >
-      Cards must round-trip between markdown files (user-editable source of
-      truth) and SQLite
-
-      (queryable index). Without a synchronization contract files and DB diverge
-      silently, breaking
-
-      list, search, drift detection, and integrity validation.
+    problem: >-
+      Card files (.emberdeck/cards/**.md) are the user-editable source of truth;
+      SQLite is a derived cache that makes list/search/drift queries O(1)
+      instead of O(N file scans). For the cache to be safe to read, it must
+      always reflect the files at the moment a command starts — otherwise reads
+      return lies whenever a user edits a card file externally (IDE, git
+      checkout, scripted edit) without first running a manual sync.
     impact:
       - statement: >-
           A stale DB row that no longer matches the file produces incorrect
@@ -25,6 +24,9 @@ brief:
       - statement: >-
           An orphan file that never made it to the DB hides cards from
           validation and drift checks.
+      - statement: >-
+          Requiring users to remember `ed bulk sync` before every read turns the
+          SSOT principle into a footgun.
   scope:
     goals:
       - id: G-001
@@ -39,11 +41,20 @@ brief:
         statement: >-
           Provide single-card export that materializes a DB row back to its
           on-disk form.
+      - id: G-004
+        statement: >-
+          Guarantee that the DB cache reflects card files at the start of every
+          CLI invocation via an automatic file-to-DB sync, so command logic can
+          read DB freely without separate freshness checks.
     non_goals:
       - id: NG-001
         statement: Mutation business logic (delegated to card-lifecycle).
       - id: NG-002
         statement: Code-link resolution against gildash (delegated to code-binding).
+      - id: NG-003
+        statement: >-
+          Real-time file watching. Freshness is guaranteed at command start, not
+          for the entire process lifetime.
     assumptions:
       - id: A-001
         statement: >-
@@ -68,6 +79,29 @@ brief:
       then: A canonical markdown file is written matching the round-trip contract.
       covers:
         - G-003
+    - id: S-H-03
+      kind: happy
+      given: >-
+        A card file edited externally (IDE save, git checkout) between two CLI
+        invocations.
+      when: The next CLI command starts (any subcommand).
+      then: >-
+        ensureCardsSynced absorbs the change into the DB before command logic
+        runs; the command observes the new file content with no manual `ed bulk
+        sync` required.
+      covers:
+        - G-004
+    - id: S-H-04
+      kind: happy
+      given: >-
+        A repository write through CardRepository.upsert followed by a read
+        through CardRepository.findByKey.
+      when: Both calls run within the same context.
+      then: >-
+        The read returns the row exactly as written, with all JSON-encoded body
+        fields decoded via the shared json-fields helper.
+      covers:
+        - G-001
     - id: S-F-01
       kind: failure
       given: A card file whose filename slug differs from the frontmatter key.
@@ -76,20 +110,15 @@ brief:
       covers:
         - G-002
   design:
-    overview: >
+    overview: >-
       The schema models cards plus relations plus classifications plus code
-      links plus changelog as
-
-      separate tables. Repositories expose narrow interfaces (CardRepository,
-      RelationRepository,
-
-      ClassificationRepository, CodeLinkRepository, ChangelogRepository) used by
-      ops/ and queries.
-
+      links plus changelog as separate tables. Repositories expose narrow
+      interfaces (CardRepository, RelationRepository, ClassificationRepository,
+      CodeLinkRepository, ChangelogRepository) used by ops/ and queries.
       bulkSyncCards walks the cards directory, parses each file via card-model,
-      and reconciles the
-
-      resulting set against existing rows.
+      and reconciles the resulting set against existing rows. ensureCardsSynced
+      runs once per CLI invocation at runner entry to make external edits
+      invisible to subsequent reads.
     components:
       - name: schema
         responsibility: Declares tables, indexes, and migrations including FTS5 search index.
@@ -110,15 +139,28 @@ brief:
         interacts_with:
           - CardRepository
           - schema
+      - name: ensureCardsSynced
+        responsibility: >-
+          Per-context idempotent file-to-DB sync invoked once at CLI command
+          entry. Deletes DB rows whose filePath is missing on disk, then upserts
+          every existing card file. Errors on individual files are swallowed;
+          validateCards remains the surface that reports them via ORPHAN_FILE.
+        interacts_with:
+          - CardRepository
+          - schema
       - name: exportCardToFile
         responsibility: Render a DB-backed CardFile to canonical markdown on disk.
         interacts_with:
           - CardRepository
     data_flow:
+      - from: ensureCardsSynced
+        to: CardRepository
+        payload: Parsed CardFile objects keyed by slug.
+        trigger: CLI runner entry (every command, once per invocation).
       - from: bulkSyncCards
         to: CardRepository
         payload: Parsed CardFile objects keyed by slug.
-        trigger: User-invoked ed bulk sync.
+        trigger: User-invoked ed bulk sync (explicit; reports duplicates).
       - from: CardRepository
         to: exportCardToFile
         payload: CardRow plus joined sub-tables.
@@ -130,6 +172,15 @@ brief:
           directory.
       - id: DI-002
         statement: Repository writes never bypass the schema migrations.
+      - id: DI-003
+        statement: >-
+          After ensureCardsSynced returns for a given context, every subsequent
+          read on that context observes a DB state consistent with the card
+          files captured at the moment of sync.
+      - id: DI-004
+        statement: >-
+          Card files are the source of truth; the DB is a cache. On any
+          discrepancy detected during sync, files win.
   policy:
     - id: R-001
       subject: bulkSyncCards
@@ -146,6 +197,24 @@ brief:
       governs:
         - S-H-01
         - S-H-02
+        - S-H-04
+    - id: R-003
+      subject: The CLI runner
+      keyword: MUST
+      predicate: >-
+        invoke ensureCardsSynced after buildRuntime and before delegating to the
+        command function, so every command observes a DB consistent with the
+        on-disk files at command start.
+      governs:
+        - S-H-03
+    - id: R-004
+      subject: ensureCardsSynced
+      keyword: MUST
+      predicate: >-
+        tolerate a missing cardsDir as a no-op so `ed init` and post-`ed reset`
+        runs do not fail at the sync step.
+      governs:
+        - S-H-03
   external:
     - id: C-001
       statement: >-
@@ -187,6 +256,33 @@ brief:
         method: Integration test placing a renamed file alongside its original DB row.
       verifies:
         - S-F-01
+    - id: SC-003
+      type: binary
+      measure:
+        predicate: >-
+          External file edits, additions, and deletions are reflected on the
+          next CLI invocation without manual `ed bulk sync`.
+        method: e2e (test/cli/fs-race.test.ts) covers all three cases.
+      verifies:
+        - S-H-03
+    - id: SC-004
+      type: binary
+      measure:
+        predicate: >-
+          exportCardToFile produces output that re-parses to a structurally
+          equivalent CardFile (round-trip).
+        method: Snapshot/round-trip integration test in test/ops/sync.test.ts.
+      verifies:
+        - S-H-02
+    - id: SC-005
+      type: binary
+      measure:
+        predicate: >-
+          CardRepository.upsert followed by findByKey returns a CardRow whose
+          JSON body fields decode back to the values that were written.
+        method: Repository unit test using a temp DB.
+      verifies:
+        - S-H-04
   rationale:
     alternatives:
       - option: File-only storage with on-the-fly indexing.
@@ -203,10 +299,13 @@ brief:
             Adds a server dependency that conflicts with the single-user CLI
             deployment model.
     chosen:
-      option: Embedded SQLite with WAL plus repository layer plus bulk-sync.
+      option: >-
+        Embedded SQLite with WAL plus repository layer plus bulk-sync plus
+        auto-sync at CLI entry.
       reasoning: >-
         Matches single-user CLI scale, supports FTS5 for search, gives us
-        transactional writes.
+        transactional writes, and keeps file-as-SSOT contract invisible to read
+        commands.
     addresses:
       - KL-001
       - KL-002

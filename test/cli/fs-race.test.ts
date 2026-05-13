@@ -1,8 +1,8 @@
 /**
  * External-process FS race e2e: simulate another tool editing/deleting card
- * files between ed operations. Validates that ed detects divergence
- * (validateCards content-mismatch / orphan-file / stale-db-row) and emits
- * structured warnings rather than silently corrupting state.
+ * files between ed operations. Card files are SSOT; the CLI auto-syncs file→DB
+ * at the start of every invocation, so external edits are silently absorbed
+ * and `ed validate` reports a clean state without requiring `ed bulk sync`.
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
@@ -45,16 +45,60 @@ describe('external FS modification e2e', () => {
   });
   afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
 
-  test('external delete of card file → validate flags stale-db-row', async () => {
+  test('external delete of card file → auto-absorbed, validate clean', async () => {
     unlinkSync(join(tmp, '.emberdeck/cards/seed.md'));
     const r = await runCli(['validate', 'cards'], tmp);
-    expect(r.exitCode).toBe(2);  // partial
+    expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
-    expect(parsed.errors.some((e: { code: string }) => e.code === 'STALE_DB_ROW')).toBe(true);
+    expect(parsed.status).toBe('ok');
+    // Auto-sync removed the stale DB row; nothing to flag.
+    expect(parsed.errors.some((e: { code: string }) => e.code === 'STALE_DB_ROW')).toBe(false);
   });
 
-  test('external write of new card file → validate flags orphan-file until sync', async () => {
+  test('malformed card file + validate cards → reported once (no CARD_SYNC_FAILED + ORPHAN_FILE double-up)', async () => {
+    writeFileSync(join(tmp, '.emberdeck/cards/broken.md'), 'NOT VALID YAML AT ALL', 'utf-8');
+    const r = await runCli(['validate', 'cards'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    const orphanForBroken = parsed.errors.filter((e: { code: string; message: string }) =>
+      e.code === 'ORPHAN_FILE' && e.message.includes('broken.md'));
+    const warnForBroken = (parsed.warnings ?? []).filter((w: { code: string; message: string }) =>
+      w.code === 'CARD_SYNC_FAILED' && w.message.includes('broken.md'));
+    // The broken file shows up exactly once — as ORPHAN_FILE in errors[];
+    // the CARD_SYNC_FAILED warning is suppressed via details.file_path dedup.
+    expect(orphanForBroken).toHaveLength(1);
+    expect(warnForBroken).toHaveLength(0);
+  });
+
+  test('broken file + thrown command → CARD_SYNC_FAILED warning preserved on catch path', async () => {
+    // Auto-sync produces a failure (broken yaml), AND the command itself
+    // throws (asking for a non-existent card). The runner's catch path must
+    // still surface the CARD_SYNC_FAILED warning so the user sees both
+    // problems, not just the thrown error.
+    writeFileSync(join(tmp, '.emberdeck/cards/broken.md'), 'BROKEN YAML', 'utf-8');
+    const r = await runCli(['card', 'get', 'nonexistent'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error?.code).toBe('CARD_NOT_FOUND');
+    expect(parsed.warnings.some((w: { code: string; message: string }) =>
+      w.code === 'CARD_SYNC_FAILED' && w.message.includes('broken.md'))).toBe(true);
+  });
+
+  test('KEY_MISMATCH + ed validate (aggregate) → reports KEY_MISMATCH without throwing CARD_NOT_FOUND', async () => {
+    // Rename a synced card's file so the on-disk slug no longer matches the frontmatter key.
+    const oldPath = join(tmp, '.emberdeck/cards/seed.md');
+    const newPath = join(tmp, '.emberdeck/cards/renamed-slug.md');
+    writeFileSync(newPath, readFileSync(oldPath, 'utf-8'));
+    unlinkSync(oldPath);
+    const r = await runCli(['validate'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    // Should NOT bail out with CARD_NOT_FOUND — the aggregate validate must
+    // skip mismatched cards during validateCodeLinks and still surface
+    // KEY_MISMATCH (and ORPHAN_FILE) in errors[].
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.status).not.toBe('error');
+    expect(parsed.errors.some((e: { code: string }) => e.code === 'KEY_MISMATCH' || e.code === 'ORPHAN_FILE')).toBe(true);
+  });
+
+  test('external write of new card file → auto-absorbed, no ORPHAN_FILE warning', async () => {
     writeFileSync(
       join(tmp, '.emberdeck/cards/orphan.md'),
       [
@@ -68,26 +112,25 @@ describe('external FS modification e2e', () => {
       ].join('\n'),
     );
     const r = await runCli(['validate', 'cards'], tmp);
-    expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.errors.some((e: { code: string }) => e.code === 'ORPHAN_FILE')).toBe(true);
-    // After bulk sync the orphan is reconciled — at minimum the orphan-file
-    // warning disappears.
-    await runCli(['bulk', 'sync'], tmp);
-    const r2 = await runCli(['validate', 'cards'], tmp);
-    const parsed2 = JSON.parse(r2.stdout);
-    expect(parsed2.errors.some((e: { code: string }) => e.code === 'ORPHAN_FILE')).toBe(false);
+    expect(parsed.errors.some((e: { code: string }) => e.code === 'ORPHAN_FILE')).toBe(false);
+    // The card is now queryable via DB without a manual `bulk sync`.
+    const get = await runCli(['card', 'get', 'orphan'], tmp);
+    expect(get.exitCode).toBe(0);
+    expect(JSON.parse(get.stdout).data.summary).toBe('external');
   });
 
-  test('external rewrite of summary → validate flags content-mismatch', async () => {
+  test('external rewrite of summary → auto-absorbed, no CONTENT_MISMATCH warning', async () => {
     const path = join(tmp, '.emberdeck/cards/seed.md');
     const text = readFileSync(path, 'utf-8');
     const modified = text.replace('summary: original', 'summary: tampered');
     writeFileSync(path, modified);
     const r = await runCli(['validate', 'cards'], tmp);
-    expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.errors.some((e: { code: string }) => e.code === 'CONTENT_MISMATCH')).toBe(true);
+    expect(parsed.errors.some((e: { code: string }) => e.code === 'CONTENT_MISMATCH')).toBe(false);
+    // DB has been updated to match the file.
+    const get = await runCli(['card', 'get', 'seed'], tmp);
+    expect(JSON.parse(get.stdout).data.summary).toBe('tampered');
   });
 
   test('external rewrite then bulk sync reconciles DB', async () => {

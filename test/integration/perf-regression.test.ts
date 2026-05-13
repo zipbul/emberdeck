@@ -14,6 +14,7 @@ import { createCard } from '../../src/ops/create';
 import { listCards, getCardContext } from '../../src/ops/query';
 import { analyze } from '../../src/ops/analyze';
 import { checkDrift } from '../../src/ops/context';
+import { ensureCardsSynced } from '../../src/ops/sync';
 
 let ctx: EmberdeckContext;
 let cleanup: () => Promise<void>;
@@ -75,7 +76,7 @@ describe('performance regression guard', () => {
 
   it(`checkDrift on ${N_CARDS} cards completes under 5s`, async () => {
     const start = Date.now();
-    const result = await checkDrift(ctx, undefined, { autoTransition: false });
+    const result = await checkDrift(ctx, undefined);
     const elapsed = Date.now() - start;
     // checkDrift skips draft → result.cards may be 0 but health.draft = 100
     expect(result.health.draft).toBe(N_CARDS);
@@ -88,5 +89,24 @@ describe('performance regression guard', () => {
     const elapsed = Date.now() - start;
     expect(ctxResult.card.frontmatter.key).toBe('domain-0');
     expect(elapsed).toBeLessThan(200);
+  });
+
+  it(`ensureCardsSynced on ${N_CARDS} files completes under 5s on a fresh context`, async () => {
+    // Use the same cards directory but a fresh context so the WeakMap cache misses.
+    const freshCtx = await setupEmberdeck({
+      cardsDir: ctx.cardsDir,
+      dbPath: ':memory:',
+      projectRoot: ctx.projectRoot,
+    });
+    try {
+      const start = Date.now();
+      const failures = await ensureCardsSynced(freshCtx);
+      const elapsed = Date.now() - start;
+      expect(failures).toHaveLength(0);
+      expect(elapsed).toBeLessThan(5_000);
+      expect(freshCtx.cardRepo.list().length).toBe(N_CARDS);
+    } finally {
+      await teardownEmberdeck(freshCtx);
+    }
   });
 });

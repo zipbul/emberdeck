@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import type { EmberdeckContext } from '../config';
 import { setupEmberdeck, teardownEmberdeck } from '../setup';
 import { analyze } from './analyze';
+import { checkDrift } from './context';
 import { makeCardRow as makeCard } from '../../test/fixtures/card-row';
 
 const tmpDirs: string[] = [];
@@ -142,6 +143,45 @@ describe('analyze', () => {
     expect(result.driftedCardsTotal).toBe(1);
     expect(result.driftedCards).toHaveLength(0);
     expect(result.health.drifted).toBe(1);
+  });
+
+  it('analyze.health agrees numerically with checkDrift.health on the same fixture', async () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'draft1', status: 'draft', filePath: 'cards/draft1.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'draft2', status: 'draft', filePath: 'cards/draft2.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'active1', status: 'active', filePath: 'cards/active1.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'active2', status: 'active', filePath: 'cards/active2.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'drifted1', status: 'drifted', filePath: 'cards/drifted1.md' }));
+
+    const a = await analyze(ctx);
+    const d = await checkDrift(ctx);
+
+    expect(a.health.total).toBe(d.health.total);
+    expect(a.health.draft).toBe(d.health.draft);
+    expect(a.health.active).toBe(d.health.active);
+    expect(a.health.drifted).toBe(d.health.drifted);
+  });
+
+  // Divergent-case agreement: an active card with a broken code_link should
+  // count as drifted in BOTH analyze and checkDrift via the driftType path,
+  // even though DB status remains 'active'.
+  it('analyze.health agrees with checkDrift.health when driftType diverges from status', async () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'live-drift', status: 'active', filePath: 'cards/live-drift.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'clean', status: 'active', filePath: 'cards/clean.md' }));
+    // Plant a code_link to a symbol gildash will not find → broken_link driftType.
+    ctx.codeLinkRepo.replaceForCard('live-drift', [
+      { kind: 'function', file: 'missing.ts', symbol: 'gone' },
+    ]);
+
+    const a = await analyze(ctx);
+    const d = await checkDrift(ctx);
+
+    expect(a.health.total).toBe(d.health.total);
+    expect(a.health.active).toBe(d.health.active);
+    expect(a.health.drifted).toBe(d.health.drifted);
+    // Sanity: the broken-link card surfaces as drifted (via driftType) despite
+    // its DB status='active'. analyze.driftedCardsTotal mirrors checkDrift's drifted count.
+    expect(d.health.drifted).toBe(1);
+    expect(a.health.drifted).toBe(1);
   });
 
 });

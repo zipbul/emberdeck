@@ -2,8 +2,6 @@ import type { EmberdeckContext } from '../config';
 import type { CodeLinkRow, RelationRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { getRelationGraph } from './query';
-import { readCardFile } from '../fs/reader';
-import { writeCardFile } from '../fs/writer';
 import { readGlossary } from '../glossary/io';
 import { ensureReindexed, gildashProjectNames, makeSymbolFileCache } from './link';
 import { parseStringArrayJson } from '../card/json-fields';
@@ -39,7 +37,6 @@ export interface DriftResult {
 
 export interface CheckDriftOptions {
   maxDepth?: number;
-  autoTransition?: boolean;
 }
 
 /**
@@ -49,8 +46,8 @@ export interface CheckDriftOptions {
  *   1. broken_link — code links that no longer resolve (source @spec annotations)
  *   2. glossary_broken — declared glossary words no longer in glossary.yaml
  *
- * When autoTransition=true (default), active cards found drifted are
- * automatically transitioned to 'drifted' status (DB + file).
+ * Read-only: reports detected drift via `driftType` / `driftTypes` but never
+ * mutates card status. Use `ed card set-status <key> drifted` to transition.
  * Draft cards are excluded from drift analysis.
   * @spec analysis/drift-detection/check-drift
  */
@@ -60,7 +57,6 @@ export async function checkDrift(
   options?: CheckDriftOptions,
 ): Promise<DriftResult> {
   const maxDepth = options?.maxDepth ?? 3;
-  const autoTransition = options?.autoTransition ?? true;
 
   // Determine target cards
   let targetKeys: string[];
@@ -103,14 +99,13 @@ export async function checkDrift(
     let brokenLinks = 0;
 
     // Check code link health via gildash (per-file symbol cache).
-    // If gildash throws (transient failure), skip drift detection for this card.
-    let gildashUnavailable = false;
+    // If gildash throws (transient failure), the link is not counted as broken.
     if (links.length > 0) {
       for (const link of links) {
         try {
           if (!symbolCache.find(link.file, link.symbol)) brokenLinks++;
         } catch {
-          gildashUnavailable = true;
+          // transient gildash failure — skip this link
         }
       }
     }
@@ -141,45 +136,16 @@ export async function checkDrift(
     }
 
     const driftType: DriftType | undefined = driftTypesDetected[0];
-
     const currentStatus = row.status as 'active' | 'drifted';
-    // Skip auto-transition if gildash was unavailable — broken links may be false positives
-    const shouldTransition = !!driftType && currentStatus === 'active' && autoTransition && !gildashUnavailable;
-    let finalStatus: 'active' | 'drifted' = currentStatus;
 
-    // Perform auto-transition (targeted UPDATE + file, compensate on file failure)
-    if (shouldTransition) {
-      const now = new Date().toISOString();
-      try {
-        const changed = ctx.db.$client
-          .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ? AND status = ?')
-          .run('drifted', now, key, 'active');
-        if (changed.changes > 0) {
-          try {
-            const cardFile = await readCardFile(row.filePath);
-            cardFile.frontmatter.status = 'drifted';
-            await writeCardFile(row.filePath, cardFile);
-            finalStatus = 'drifted';
-          } catch {
-            // File write failed — revert DB
-            ctx.db.$client
-              .prepare('UPDATE card SET status = ?, updated_at = ? WHERE key = ?')
-              .run(row.status, row.updatedAt, key);
-          }
-        }
-      } catch {
-        // Transition failed — DB reverted to previous state.
-        // driftType is still reported so the caller knows drift was detected.
-      }
-    }
-
-    if (finalStatus === 'active') healthActive++;
-    else healthDrifted++;
+    // Health partition (DI-003): drifted = live driftType OR DB status='drifted'.
+    if (driftType || currentStatus === 'drifted') healthDrifted++;
+    else healthActive++;
 
     driftCards.push({
       key,
       summary: row.summary,
-      status: finalStatus,
+      status: currentStatus,
       ...(driftType ? { driftType } : {}),
       ...(driftTypesDetected.length > 0 ? { driftTypes: driftTypesDetected } : {}),
       brokenLinks,

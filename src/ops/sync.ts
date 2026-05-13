@@ -86,6 +86,165 @@ export interface CardValidationResult {
 }
 
 /**
+ * Per-context cache: card files have already been synced to DB this invocation.
+ * Mirrors `ensureReindexed` pattern — first call performs file→DB sync,
+ * subsequent calls within the same CLI invocation are no-ops.
+ */
+const cardsSyncedContexts = new WeakMap<EmberdeckContext, CardSyncFailure[]>();
+
+export interface CardSyncFailure {
+  filePath: string;
+  error: string;
+}
+
+/**
+ * Guarantee DB reflects card files before reading from DB.
+ *
+ * Card files (.emberdeck/cards/**.md) are the SSOT; DB is a derived cache.
+ * Read operations (check/validate/analyze/list/get/...) must call this before
+ * querying the DB, otherwise externally edited card files would be invisible.
+ *
+ * On first call per context:
+ *   - Removes DB rows whose filePath is no longer on disk (deleted files)
+ *   - Upserts every existing card file via `syncCardFromFile`
+ * Per-file failures are captured into the returned array (so the CLI runner
+ * can surface them as envelope warnings); they do not abort the remaining files.
+ * @spec card-storage/persistence/sync
+ */
+export async function ensureCardsSynced(ctx: EmberdeckContext): Promise<CardSyncFailure[]> {
+  const cached = cardsSyncedContexts.get(ctx);
+  if (cached) return [...cached];
+
+  const failures: CardSyncFailure[] = [];
+  cardsSyncedContexts.set(ctx, failures);
+
+  // cardsDir may not exist yet during `ed init` or after `ed reset`. Nothing to sync.
+  let cardFiles: string[];
+  try {
+    cardFiles = await listCardFiles(ctx.cardsDir);
+  } catch {
+    return failures;
+  }
+  const fileSet = new Set(cardFiles);
+
+  for (const row of ctx.cardRepo.list()) {
+    if (!fileSet.has(row.filePath)) {
+      ctx.cardRepo.deleteByKey(row.key);
+    }
+  }
+
+  for await (const { filePath, error } of upsertCardsInTierOrder(ctx, cardFiles)) {
+    failures.push({ filePath, error });
+  }
+
+  return failures;
+}
+
+/**
+ * Upsert card files in parent-before-child order via topological sort on the
+ * parent → key edges declared in frontmatter. Pre-existing DB keys seed the
+ * "already-inserted" set so incremental syncs work without re-walking.
+ *
+ * Robust against any on-disk layout (flat or nested) and any depth of spec
+ * recursion. Shared by ensureCardsSynced and bulkSyncCards.
+ *
+ * `prereadFiles` is an optional Map of already-parsed CardFile values keyed
+ * by filePath, so callers that already read the file (e.g. bulkSyncCards for
+ * duplicate detection) can avoid a redundant disk read.
+ *
+ * Yields one entry per failed file (read failure or upsert failure). Per-file
+ * failures do not abort the loop.
+ * @spec card-storage/persistence/sync
+ */
+async function* upsertCardsInTierOrder(
+  ctx: EmberdeckContext,
+  cardFiles: string[],
+  prereadFiles?: ReadonlyMap<string, CardFile>,
+): AsyncGenerator<{ filePath: string; error: string }> {
+  type Parsed = { key: string; parent: string | null };
+  const parsed = new Map<string, Parsed>();
+  const toRead = prereadFiles
+    ? cardFiles.filter((f) => !prereadFiles.has(f))
+    : cardFiles;
+  if (prereadFiles) {
+    for (const f of cardFiles) {
+      const pre = prereadFiles.get(f);
+      if (pre) parsed.set(f, { key: pre.frontmatter.key, parent: pre.frontmatter.parent ?? null });
+    }
+  }
+  for await (const { item: filePath, result } of batchedAllSettled(toRead, 20, readCardFile)) {
+    if (result.status === 'rejected') {
+      const err = result.reason;
+      yield { filePath, error: err instanceof Error ? err.message : String(err) };
+      continue;
+    }
+    parsed.set(filePath, {
+      key: result.value.frontmatter.key,
+      parent: result.value.frontmatter.parent ?? null,
+    });
+  }
+
+  // Topological sort: emit files whose parent is null OR already in the
+  // "satisfied" set (DB rows already present OR queued earlier in this run).
+  const satisfied = new Set<string>(ctx.cardRepo.list().map((r) => r.key));
+  const remaining = new Map(parsed);
+  const ordered: string[] = [];
+  const unsatisfiable = new Map<string, string>(); // filePath → missing parent key
+  while (remaining.size > 0) {
+    const wave: string[] = [];
+    for (const [filePath, info] of remaining) {
+      if (info.parent === null || satisfied.has(info.parent)) wave.push(filePath);
+    }
+    if (wave.length === 0) {
+      // Missing-parent or cycle. Record the missing parent so we can emit a
+      // friendly error instead of letting SQLite surface a raw FK violation.
+      for (const [filePath, info] of remaining) {
+        if (info.parent !== null) unsatisfiable.set(filePath, info.parent);
+      }
+      break;
+    }
+    for (const filePath of wave) {
+      ordered.push(filePath);
+      satisfied.add(remaining.get(filePath)!.key);
+      remaining.delete(filePath);
+    }
+  }
+  // Emit a friendly error per unsatisfiable file BEFORE attempting any upsert,
+  // so the raw SQLite "FOREIGN KEY constraint failed" never reaches the user.
+  for (const [filePath, missingParent] of unsatisfiable) {
+    yield { filePath, error: `parent card "${missingParent}" not found (neither in the DB nor in the current sync batch)` };
+  }
+
+  // Upsert wave-by-wave; within a wave there are no parent dependencies so
+  // bounded parallelism is safe.
+  let waveStart = 0;
+  while (waveStart < ordered.length) {
+    // Find the end of the current wave: a contiguous run whose parents are
+    // all in the satisfied-before-wave set. We rebuild waves from `parsed`
+    // to keep parallelism while preserving correctness.
+    const waveSatisfied = new Set<string>(ctx.cardRepo.list().map((r) => r.key));
+    for (let i = 0; i < waveStart; i++) {
+      const p = parsed.get(ordered[i]!);
+      if (p) waveSatisfied.add(p.key);
+    }
+    let waveEnd = waveStart;
+    while (waveEnd < ordered.length) {
+      const info = parsed.get(ordered[waveEnd]!);
+      if (info && info.parent !== null && !waveSatisfied.has(info.parent)) break;
+      waveEnd++;
+    }
+    const wave = ordered.slice(waveStart, waveEnd === waveStart ? waveStart + 1 : waveEnd);
+    for await (const { item: filePath, result } of batchedAllSettled(wave, 20, (f) => syncCardFromFile(ctx, f))) {
+      if (result.status === 'rejected') {
+        const err = result.reason;
+        yield { filePath, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    waveStart += wave.length;
+  }
+}
+
+/**
  * Syncs an externally modified card file to the DB.
  * Invoked by CLI sync commands (`ed sync`) and as the compensation step
  * for failed file writes in create/update operations.
@@ -150,11 +309,17 @@ export async function bulkSyncCards(
   const keyToFile = new Map<string, string>();
   const duplicates = new Map<string, string[]>();
   const errors: BulkSyncResult['errors'] = [];
+  const readFailures = new Set<string>();
+  // Cache parsed CardFiles to avoid the second disk read inside the shared
+  // tier-ordered upsert helper.
+  const prereadFiles = new Map<string, CardFile>();
   for await (const { item: filePath, result } of batchedAllSettled(cardFiles, 20, readCardFile)) {
     if (result.status === 'rejected') {
       errors.push({ filePath, error: result.reason });
+      readFailures.add(filePath);
       continue;
     }
+    prereadFiles.set(filePath, result.value);
     const key = result.value.frontmatter.key;
     if (keyToFile.has(key)) {
       const existing = duplicates.get(key) ?? [keyToFile.get(key)!];
@@ -181,14 +346,20 @@ export async function bulkSyncCards(
     for (const f of files) duplicateFiles.add(f);
   }
 
-  let synced = 0;
-  const safeFiles = cardFiles.filter((f) => !duplicateFiles.has(f));
+  // Exclude both duplicate-key files AND files that already failed to read;
+  // either path already emitted an error[] entry above, so we must not
+  // re-attempt upsert (would double-report the same root cause).
+  const safeFiles = cardFiles.filter((f) => !duplicateFiles.has(f) && !readFailures.has(f));
+  const failedFiles = new Set<string>();
 
-  for await (const { item: filePath, result } of batchedAllSettled(safeFiles, 20, (f) => syncCardFromFile(ctx, f))) {
-    if (result.status === 'fulfilled') synced++;
-    else errors.push({ filePath, error: result.reason });
+  // Tier-ordered upsert via topological sort on parent → key edges; honors the
+  // card.parent FK on any layout (flat / nested / arbitrary spec recursion).
+  for await (const { filePath, error } of upsertCardsInTierOrder(ctx, safeFiles, prereadFiles)) {
+    errors.push({ filePath, error: new Error(error) });
+    failedFiles.add(filePath);
   }
 
+  const synced = safeFiles.length - failedFiles.size;
   return { synced, errors };
 }
 

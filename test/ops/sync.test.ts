@@ -237,6 +237,46 @@ describe('bulkSyncCards', () => {
     expect(r2.synced).toBe(1);
     expect(listCards(tc.ctx).filter((r) => r.key === 'bulk-2x')).toHaveLength(1);
   });
+
+  // Cold-DB FK ordering regression: a parent+child pair dropped onto disk
+  // before any DB rows exist must sync without FK violations on the child.
+  it('should sync a parent/child pair in dependency order on a cold DB (flat layout)', async () => {
+    tc = await createTestContext();
+    const dom = serializeCard({ key: 'd', summary: 'd', status: 'draft', type: 'domain' });
+    const br = serializeCard({ key: 'b', summary: 'b', status: 'draft', type: 'brief', parent: 'd' });
+    await writeFile(join(tc.cardsDir, 'd.md'), dom, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'b.md'), br, 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.errors).toHaveLength(0);
+    expect(result.synced).toBe(2);
+    expect(tc.ctx.cardRepo.findByKey('d')).not.toBeNull();
+    const brief = tc.ctx.cardRepo.findByKey('b');
+    expect(brief).not.toBeNull();
+    expect(brief?.parent).toBe('d');
+  });
+
+  // Nested-spec FK ordering regression: spec → spec parent chain on a flat
+  // layout must topo-sort even when (tier_rank, path_depth) collide.
+  it('should sync a nested spec chain (s1 → s2 → s3) in dependency order on a cold DB (flat layout)', async () => {
+    tc = await createTestContext();
+    const dom = serializeCard({ key: 'd', summary: 'd', status: 'draft', type: 'domain' });
+    const br = serializeCard({ key: 'b', summary: 'b', status: 'draft', type: 'brief', parent: 'd' });
+    const s1 = serializeCard({ key: 's1', summary: 's1', status: 'draft', type: 'spec', parent: 'b' });
+    const s2 = serializeCard({ key: 's2', summary: 's2', status: 'draft', type: 'spec', parent: 's1' });
+    const s3 = serializeCard({ key: 's3', summary: 's3', status: 'draft', type: 'spec', parent: 's2' });
+    // Intentionally write in reverse order so directory listing cannot save us.
+    await writeFile(join(tc.cardsDir, 's3.md'), s3, 'utf-8');
+    await writeFile(join(tc.cardsDir, 's2.md'), s2, 'utf-8');
+    await writeFile(join(tc.cardsDir, 's1.md'), s1, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'b.md'), br, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'd.md'), dom, 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.errors).toHaveLength(0);
+    expect(result.synced).toBe(5);
+    expect(tc.ctx.cardRepo.findByKey('s3')?.parent).toBe('s2');
+    expect(tc.ctx.cardRepo.findByKey('s2')?.parent).toBe('s1');
+    expect(tc.ctx.cardRepo.findByKey('s1')?.parent).toBe('b');
+  });
 });
 
 // ---------------------------------------------------------------------------

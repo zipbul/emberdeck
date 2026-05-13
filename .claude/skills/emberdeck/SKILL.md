@@ -102,7 +102,7 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed validate cards` | 정합성 (계층/orphan/glossary/chain 등). partial → exit 2 | X |
 | `ed validate links [KEY]` | DB code_link resolve 검증 (소스 어노테이션 기반) | X |
 | `ed validate` | cards + links 종합 | X |
-| `ed check drift [KEY] [--max-depth N] [--no-auto-transition]` | broken_link / glossary_broken 검출. 기본 active→drifted 자동 전이. CI 는 `--no-auto-transition`. | 예 (status 변경) |
+| `ed check drift [KEY] [--max-depth N]` | broken_link / glossary_broken 검출. 읽기 전용 — status 는 변경하지 않음. 명시적 전이는 `ed card set-status <KEY> drifted`. | X |
 | `ed check coverage <KEY>` 또는 `ed check coverage --uncovered\|--suggest` | KEY 위치인자 또는 모드 플래그 둘 중 하나 필수. `--uncovered` 는 카드 binding 안 된 symbol 전체 반환 | X |
 | `ed check impact <files...> [--symbol N]` | 변경 전 영향 분석 | X |
 | `ed check regression <files...>` | drifted 비율 vs threshold. fail 시 exit 2 | X |
@@ -287,6 +287,12 @@ cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 bri
 |-----------|------|
 | broken_link | 소스의 `@spec` 어노테이션 위치 갱신 → `ed spec sync-symbols` 또는 `ed spec sync` |
 | glossary_broken | `ed glossary define` 또는 `--glossary <새 목록>` |
+
+envelope `warnings[]` 코드:
+
+| code | 의미 | 해결 |
+|------|------|------|
+| `CARD_SYNC_FAILED` | 모든 명령 진입 직전 자동 file→DB sync 가 특정 파일을 처리 못 함 (parse error 등). 명령 자체는 진행, exit code 무영향. 같은 파일이 명령 errors[]에 `details.file_path` 로 보고되면 중복 방지 차원에서 표시되지 않음. | message 의 file_path 확인 → 해당 카드 파일 수정 또는 제거 → 다음 명령에서 자동 재시도 |
 
 </error_recovery>
 

@@ -229,7 +229,7 @@ describe('regressionGuard', () => {
     expect(result.driftedRatio).toBe(1);
   });
 
-  it('should detect drift via driftType even when autoTransition is false (status stays active)', async () => {
+  it('should detect drift via driftType while DB status stays active (checkDrift is read-only)', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
@@ -257,7 +257,7 @@ describe('regressionGuard', () => {
     const card = result.affectedCards.find((c) => c.key === 'drift-detect');
     expect(card).toBeDefined();
     expect(card!.driftType).toBe('broken_link');
-    // DB status stays active (autoTransition=false inside regressionGuard)
+    // DB status stays active — checkDrift never mutates status
     expect(card!.status).toBe('active');
     // But regressionGuard should count it as drifted and fail
     expect(result.driftedRatio).toBeGreaterThan(0);

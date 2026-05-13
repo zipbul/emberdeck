@@ -42,18 +42,18 @@ function collectTrackedAnnotations(ctx: EmberdeckContext) {
   return out;
 }
 
-// ── @spec/@brief/@principle/@domain annotation sync ──
+// ── annotation sync (@\spec / @\brief / @\principle / @\domain) ──
 
 export interface SpecSyncResult {
-  /** Number of code links auto-created from @spec annotations. */
+  /** Number of code links auto-created from @\spec annotations. */
   created: number;
-  /** Number of @spec annotations that matched an existing code link (skipped). */
+  /** Number of @\spec annotations that matched an existing code link (skipped). */
   alreadyLinked: number;
   /** Annotations that could not be linked (no card found for the spec key). */
   unmatched: Array<{ cardKey: string; file: string; symbol: string }>;
-  /** Code links that exist but have no corresponding @spec annotation in source. */
+  /** Code links that exist but have no corresponding @\spec annotation in source. */
   markerMissing: Array<{ cardKey: string; file: string; symbol: string }>;
-  /** @spec annotations found but code link not registered (subset of created, informational). */
+  /** Annotations found but code link not registered (subset of created, informational). */
   linkMissing: Array<{ cardKey: string; file: string; symbol: string }>;
 }
 

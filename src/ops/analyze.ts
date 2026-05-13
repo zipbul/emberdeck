@@ -108,8 +108,8 @@ export async function analyze(
   const offset = options?.offset ?? 0;
   const limit = options?.limit;
 
-  // 1. Drift detection (autoTransition=false to keep it read-only)
-  const driftResult = await checkDrift(ctx, undefined, { autoTransition: false });
+  // 1. Drift detection (checkDrift is read-only)
+  const driftResult = await checkDrift(ctx, undefined);
 
   // 2. Health counts — use detected state, not just DB status
   // checkDrift skips draft cards, so count drafts from allCards

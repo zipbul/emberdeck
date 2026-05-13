@@ -18,17 +18,16 @@ export function registerCheck(program: Command): void {
   check
     .command('drift [key]')
     .description('detect drift (broken_link / glossary_broken)')
-    .option('--no-auto-transition', 'do not auto-mark active→drifted')
-    .action(async (key: string | undefined, opts: { autoTransition?: boolean }, cmd) => {
+    .action(async (key: string | undefined, _opts, cmd) => {
             await run(
         async (rt: CliRuntime) => {
-          const result = await checkDrift(rt.ctx, key, {
-            autoTransition: opts.autoTransition !== false,
-          });
+          const result = await checkDrift(rt.ctx, key);
+          // health.drifted already reflects the union of live drift detection
+          // and DB status (see analysis/drift-detection DI-003); no separate
+          // total field is needed.
           return ok({
             health: result.health,
             cards: result.cards,
-            total_drifted: result.health.drifted,
           });
         },
         cmd,

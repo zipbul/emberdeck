@@ -268,12 +268,12 @@ export async function regressionGuard(
     return { passOrFail: 'pass', driftedRatio: 0, affectedCards: [], threshold };
   }
 
-  // Run fresh drift detection on affected cards (read-only, no auto-transition)
+  // Run fresh drift detection on affected cards (checkDrift is read-only)
   const affectedKeys = affected.map((c) => c.key);
   const driftMap = new Map<string, { status: string; driftType?: string }>();
 
   for (const key of affectedKeys) {
-    const driftResult = await checkDrift(ctx, key, { maxDepth: 0, autoTransition: false });
+    const driftResult = await checkDrift(ctx, key, { maxDepth: 0 });
     const driftCard = driftResult.cards.find((c) => c.key === key);
     if (driftCard) {
       driftMap.set(key, { status: driftCard.status, driftType: driftCard.driftType });
