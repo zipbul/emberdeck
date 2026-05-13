@@ -59,10 +59,20 @@ export function registerValidate(program: Command): void {
           let linkBroken = 0;
           for (const c of allCards) {
             if (mismatchedKeys.has(c.key)) continue;
-            const r = await validateCodeLinks(rt.ctx, c.key);
-            linkDeclared += r.declared;
-            linkBroken += r.broken.length;
-            for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
+            // Per-card try/catch: a single TOCTOU race (file deleted/permission
+            // change between auto-sync and link validation) must not abort the
+            // entire envelope. Captured failure surfaces as VALIDATION_FAILED
+            // with details.file_path so the runner's CARD_SYNC_FAILED dedup
+            // still applies if relevant.
+            try {
+              const r = await validateCodeLinks(rt.ctx, c.key);
+              linkDeclared += r.declared;
+              linkBroken += r.broken.length;
+              for (const b of r.broken) linkErrors.push({ code: 'BROKEN_LINK', message: `${b.link.file}:${b.link.symbol} (${b.reason})`, key: c.key });
+            } catch (e) {
+              const message = e instanceof Error ? e.message : String(e);
+              linkErrors.push({ code: 'VALIDATION_FAILED', message: `link validation failed for ${c.key}: ${message}`, key: c.key, details: { file_path: c.filePath } });
+            }
           }
 
           const allErrors = [...cardErrors, ...linkErrors];

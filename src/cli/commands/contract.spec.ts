@@ -1,11 +1,12 @@
 /**
- * Static contract test: every per-file error emitter under src/cli/commands/
- * must populate `details.file_path` so the runner's CARD_SYNC_FAILED dedup
+ * Static contract test: every per-file error emitter ANYWHERE under src/ must
+ * populate `details.file_path` so the runner's CARD_SYNC_FAILED dedup
  * (runner-and-output INV-003) can suppress duplicate warnings.
  *
  * The check is a regex sweep — it does not execute commands. If a new error
- * code is introduced under src/cli/commands/ with a file-path-derived message
- * but no `details.file_path` field, this test fails fast.
+ * code with a file-path-derived message is introduced (in commands/ or in
+ * helpers under ops/, fs/, etc.) without a `details.file_path` field nearby,
+ * this test fails fast.
  */
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -24,7 +25,9 @@ function walk(dir: string): string[] {
 
 describe('cli/commands per-file error contract', () => {
   test('every code with a file-path-derived message also carries details.file_path', () => {
-    const root = join(import.meta.dir);
+    // Walk all of src/ (not just commands/) so a per-file emitter relocated
+    // into ops/ helpers is still covered by INV-003.
+    const root = join(import.meta.dir, '..', '..');
     const files = walk(root);
     const violations: Array<{ file: string; codeNear: string }> = [];
 

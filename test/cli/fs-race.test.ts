@@ -69,6 +69,49 @@ describe('external FS modification e2e', () => {
     expect(warnForBroken).toHaveLength(0);
   });
 
+  test('card file with missing parent → friendly CARD_SYNC_FAILED, not raw SQLite FK', async () => {
+    // Drop a card file whose parent key doesn't exist in DB or in the same
+    // sync batch. The auto-sync topological pre-check should emit a friendly
+    // "parent card X not found" error, not the raw "FOREIGN KEY constraint
+    // failed" string.
+    writeFileSync(
+      join(tmp, '.emberdeck/cards/orphan-child.md'),
+      [
+        '---',
+        'key: orphan-child',
+        'type: brief',
+        'status: draft',
+        'summary: parent missing',
+        'parent: nonexistent-domain',
+        '---',
+        '',
+      ].join('\n'),
+    );
+    const r = await runCli(['validate', 'cards'], tmp);
+    const parsed = JSON.parse(r.stdout);
+    const orphan = parsed.errors.find((e: { code: string; message: string }) =>
+      e.code === 'ORPHAN_FILE' && e.message.includes('orphan-child.md'));
+    expect(orphan).toBeDefined();
+    expect(orphan.message).toContain('parent card "nonexistent-domain" not found');
+    expect(orphan.message).not.toContain('FOREIGN KEY constraint failed');
+  });
+
+  test('aggregate ed validate with an unreadable card file → partial envelope, not INTERNAL_ERROR', async () => {
+    // TOCTOU-style: auto-sync read the file (cached), then permission was
+    // restricted before validateCodeLinks ran. The per-card try/catch must
+    // capture the I/O error as VALIDATION_FAILED and preserve all other
+    // envelope content, not crash the whole command to INTERNAL_ERROR.
+    const { chmodSync } = await import('node:fs');
+    chmodSync(join(tmp, '.emberdeck/cards/seed.md'), 0o000);
+    const r = await runCli(['validate'], tmp);
+    // Restore so afterEach can clean up the tmp dir without errors.
+    try { chmodSync(join(tmp, '.emberdeck/cards/seed.md'), 0o644); } catch {}
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.error?.code).not.toBe('INTERNAL_ERROR');
+    expect(parsed.status).not.toBe('error');
+    expect(parsed.errors.some((e: { code: string }) => e.code === 'VALIDATION_FAILED')).toBe(true);
+  });
+
   test('broken file + thrown command → CARD_SYNC_FAILED warning preserved on catch path', async () => {
     // Auto-sync produces a failure (broken yaml), AND the command itself
     // throws (asking for a non-existent card). The runner's catch path must
