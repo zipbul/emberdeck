@@ -1,4 +1,4 @@
-# Envelope-Removal Redesign — Executable Plan v2.4
+# Envelope-Removal Redesign — Executable Plan v2.5
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
 > **Last commit (plan)**: `0391702` (v2.1).
@@ -391,6 +391,7 @@ ed reset --yes
 runner-commander-fallback  (not an ed subcommand; commander-error path per Phase 2.7)
   data shape: (none — failure path emits no stdout)
   stderr: one JSON-line `{level:'error', code:'CLI_USAGE_ERROR', message:<commander msg>}`
+  --quiet behavior: stderr line is NOT suppressed (errors always emit per D19).
   exit codes: 0 for commander.help / commander.version; 2 (VALIDATION_FAILURE) for all other commander errors (InvalidArgumentError, missing positional, unknown option).
 ```
 
@@ -640,6 +641,8 @@ spec:
 ---
 ```
 
+**Multi-mode commands** (like `ed check coverage` with 3 modes per §1.7): split POST-001 into POST-001a / POST-001b / POST-001c — three sibling postconditions with identical `keyword: MUST` + `derives: cli-surface/command-routing-and-output#G-001`, and one separate `guarantee:` body per mode (each containing its own fenced JSON shape block). POST-002/POST-003/POST-004 remain single (they describe meta-rules that apply to all modes uniformly). Only `ed check coverage` requires this in v2; future multi-mode commands inherit the pattern.
+
 **Workflow per card** (skill-compliant):
 1. Run `<self_review>` mentally against §1.7 / §1.8 (paste below) to confirm shape accuracy.
 2. Write the card file directly with the template filled (skill allows direct edit + `ed bulk sync` for non-`ed card create` flows; cards under the new path don't exist yet, so direct write is the only option until `ed bulk sync` indexes them).
@@ -697,6 +700,7 @@ stderr `level: error` 코드 (exit non-zero 와 함께):
 
 | code | 의미 | 해결 |
 |------|------|------|
+| `CLI_USAGE_ERROR` (exit 2) | commander 인자/플래그 오류 (typo, 누락 positional, 알 수 없는 flag) | 명령 형식 확인. `ed --help` 또는 `ed <명령> --help` |
 | `CARD_NOT_FOUND` (exit 3) | 명령이 요청한 카드 없음 | key 확인 |
 | `VALIDATION_FAILURE` (exit 2) | 정합성 검증 실패 | details 확인 후 fix |
 | `CARD_ALREADY_EXISTS` (exit 4) | create 시 키 충돌 | 다른 키 or update 사용 |
@@ -946,9 +950,14 @@ CREATE `test/cli/auto-sync-warnings.test.ts`:
 
 #### 4.1 — PROBLEM.md
 
-Mark these entries resolved (one-line note "closed by envelope-removal commit `<sha>`"):
-- `H-005`, `H-006`, `L-006`, `M-018`, `N-021`, `N-034`
-- Plus any others found via `grep -E "envelope|status: 'partial'|errors\[\]" PROBLEM.md`.
+Mark envelope-rooted entries resolved (one-line note "closed by envelope-removal commit `<sha>`"):
+- `L-006`, `N-021`, `N-034`
+- Plus any others found via `grep -E "envelope|status: 'partial'|errors\[\]" PROBLEM.md` that are genuinely envelope-rooted (verify case-by-case; do NOT include `M-018` which is status: refuted, NOR `H-005`/`H-006` which are commander-rooted).
+
+**Separately**, mark commander-rooted entries resolved (one-line note "closed by commander `exitOverride()` in Phase 2.7 commit `<sha>`"):
+- `H-005` (`--limit abc` bypassed envelope)
+- `H-006` (missing positional bypassed envelope)
+- Any others matching `grep -E "InvalidArgumentError|commander" PROBLEM.md` that Phase 2.7's exitOverride actually fixes.
 
 ADD a new entry summarizing the redesign:
 ```
