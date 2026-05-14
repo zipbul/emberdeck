@@ -1,8 +1,8 @@
-# Envelope-Removal Redesign — Executable Plan v2.6
+# Envelope-Removal Redesign — Executable Plan v2.7
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
-> **Last commit (plan)**: `693481f` (v2.5).
-> **Plan version**: v2.6. Each iteration fact-checked against actual codebase via 3-agent parallel cross-review. v2.1 → v2.2 applied 11 NECESSARY fixes (real defects); 4 hostile findings classified OVER-DESIGN and not applied (F6 D20 nested ban / F9 31-spec split / F13 test pattern expand / F19 EPIPE convention).
+> **Last commit (plan)**: `fdc90a2` (v2.6).
+> **Plan version**: v2.7. Each iteration fact-checked against actual codebase via 3-agent parallel cross-review. v2.1 → v2.2 applied 11 NECESSARY fixes (real defects); 4 hostile findings classified OVER-DESIGN and not applied (F6 D20 nested ban / F9 31-spec split / F13 test pattern expand / F19 EPIPE convention).
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
 
 ---
@@ -643,7 +643,7 @@ spec:
 
 **Multi-mode commands** (like `ed check coverage` with 3 modes per §1.7): split POST-001 into POST-001a / POST-001b / POST-001c — three sibling postconditions with identical `keyword: MUST` + `derives: cli-surface/command-routing-and-output#G-001`, and one separate `guarantee:` body per mode (each containing its own fenced JSON shape block). POST-002/POST-003/POST-004 remain single (they describe meta-rules that apply to all modes uniformly). Only `ed check coverage` requires this in v2; future multi-mode commands inherit the pattern.
 
-**Failure-only commands** (only `runner-commander-fallback` in v2): the card has no stdout payload. Drop POST-001 entirely (no "data matches the JSON shape" guarantee). POST-004 (failure path) carries the full contract; POST-003 lists exit codes; POST-002 is omitted (no stdout = no quiet variation to document). INV-001 still applies (stdout receives at most zero JSON values; stderr receives the error JSON-line). One special-case card; future failure-only commands inherit.
+**Failure-only commands** (only `runner-commander-fallback` in v2): the card has no stdout payload. Drop POST-001 entirely (no "data matches the JSON shape" guarantee). POST-004 (failure path) carries the full contract; POST-003 lists exit codes; POST-002 is omitted (no stdout = no quiet variation to document). INV-001 still applies (stdout receives at most zero JSON values; stderr receives the error JSON-line). PRE-001 is also REWRITTEN for this card to: *"commander.parseAsync threw a CommanderError other than `commander.help` / `commander.version`, before any subcommand action was dispatched; no CliRuntime exists."* (The default template PRE-001 about "runner invokes this command's action with a built CliRuntime" is factually inverted for the commander-fallback path.) One special-case card; future failure-only commands inherit the same PRE pattern.
 
 **Workflow per card** (skill-compliant):
 1. Run `<self_review>` mentally against §1.7 / §1.8 (paste below) to confirm shape accuracy.
