@@ -90,8 +90,8 @@ describe('E2E Scenario 1: Onboarding flow', () => {
         },
     ]);
 
-    expect(bulk.created).toHaveLength(3);
-    expect(bulk.errors).toEqual([]);
+    expect(bulk.created).toBe(3);
+    expect(bulk.failed).toBe(0);
 
     // Step 3: validateCards → no structural warnings (except expected orphan/empty-tree)
     const validation = await validateCards(tc.ctx);

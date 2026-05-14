@@ -23,8 +23,8 @@ describe('Phase 2 polish: bulk create partial-success', () => {
     const r = await runEd(['bulk', 'create', '--from', 'mix.json'], tmp);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('partial');
-    expect(parsed.data.created).toHaveLength(1);
-    expect(parsed.data.failed).toHaveLength(1);
+    expect(parsed.data.created).toBe(1);
+    expect(parsed.data.failed).toBe(1);
     expect(parsed.errors.length).toBe(1);
     expect(parsed.errors[0].key).toBe('bad-parent');
   });
@@ -38,7 +38,7 @@ describe('Phase 2 polish: bulk create partial-success', () => {
     const r = await runEd(['bulk', 'create', '--from', 'all.json'], tmp);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('ok');
-    expect(parsed.data.created).toHaveLength(2);
+    expect(parsed.data.created).toBe(2);
   });
 
   test('all failure → status=partial (per CLI_PLAN §3.6) + exit 2 (CI gate)', async () => {
@@ -50,8 +50,8 @@ describe('Phase 2 polish: bulk create partial-success', () => {
     const r = await runEd(['bulk', 'create', '--from', 'all-bad.json'], tmp);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('partial');
-    expect(parsed.data.created).toEqual([]);
-    expect(parsed.data.failed).toHaveLength(2);
+    expect(parsed.data.created).toBe(0);
+    expect(parsed.data.failed).toBe(2);
     expect(r.exitCode).toBe(2);
   });
 
@@ -328,8 +328,8 @@ describe('Phase 2 polish: enum validation at CLI layer', () => {
     expect(r.exitCode).toBe(2); // partial
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe('partial');
-    expect(parsed.data.failed).toHaveLength(1);
-    expect(parsed.data.created).toEqual([]);
+    expect(parsed.data.rejected_pre_write).toBe(1);
+    expect(parsed.data.created).toBe(0);
     // No card actually created
     const list = await runEd(['card', 'list'], tmp);
     expect(JSON.parse(list.stdout).data.total).toBe(0);

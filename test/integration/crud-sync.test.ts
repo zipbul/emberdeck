@@ -399,11 +399,10 @@ describe('bulk-create', () => {
       { key: 'bc-child', summary: 'Child', type: 'spec', parent: 'bc-parent' },
       { key: 'bc-parent', summary: 'Parent', type: 'brief' },
     ]);
-    expect(result.created).toHaveLength(2);
+    expect(result.created).toBe(2);
     expect(result.errors).toHaveLength(0);
-    const keys = result.created.map((c) => c.key);
-    expect(keys).toContain('bc-parent');
-    expect(keys).toContain('bc-child');
+    expect(result.keys).toContain('bc-parent');
+    expect(result.keys).toContain('bc-child');
 
     // Verify parent relationship
     const child = tc.ctx.cardRepo.findByKey('bc-child');
@@ -416,7 +415,7 @@ describe('bulk-create', () => {
       { key: 'br-a', summary: 'A', type: 'spec', relations: ['br-b'] },
       { key: 'br-b', summary: 'B', type: 'spec', relations: ['br-a'] },
     ]);
-    expect(result.created).toHaveLength(2);
+    expect(result.created).toBe(2);
 
     const relsA = tc.ctx.relationRepo.findByCardKey('br-a');
     const forwardA = relsA.filter((r) => !r.isReverse);
@@ -766,8 +765,8 @@ describe('bulk-create activation guard', () => {
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'bc-active', summary: 'Active spec', type: 'spec', status: 'active' },
     ]);
-    expect(result.created).toEqual([]);
-    expect(result.errors).toHaveLength(1);
+    expect(result.created).toBe(0);
+    expect(result.failed).toBe(1);
     expect(result.errors[0]!.message).toContain('Activation conditions not met');
   });
 
@@ -777,8 +776,8 @@ describe('bulk-create activation guard', () => {
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'bc-arch-active', summary: 'Active arch', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief() },
     ]);
-    expect(result.created).toHaveLength(1);
-    expect(result.errors).toEqual([]);
+    expect(result.created).toBe(1);
+    expect(result.failed).toBe(0);
   });
 });
 

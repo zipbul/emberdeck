@@ -169,8 +169,8 @@ describe('Scenario 2: Bulk Create + Relations + Sync', () => {
       { key: 'feature/users', summary: 'User management', type: 'spec', relations: ['core/db', 'core/auth'] },
     ]);
 
-    expect(result.created).toHaveLength(4);
-    expect(result.errors).toEqual([]);
+    expect(result.created).toBe(4);
+    expect(result.failed).toBe(0);
 
     // Verify relations
     const apiRels = ctx.relationRepo.findByCardKey('core/api');
