@@ -1,7 +1,7 @@
-# Envelope-Removal Redesign — Executable Plan v2.13
+# Envelope-Removal Redesign — Executable Plan v2.14
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
-> **Last commit (plan)**: `1c48ad0` (v2.12).
+> **Last commit (plan)**: `2d8d84c` (v2.13).
 > **Plan version**: v2.12. 14th hostile attacked v2.11's new additions and found a BLOCKER: v2.11 pinned OP-2 pseudocode to flat `{cardKey, oldSymbol, newSymbol, file, changeType}` but §1.7's `spec sync-symbols.applied[]` declared grouped `{oldSymbol, newSymbol, file, affected_cards:[]}` — the "CLI maps directly, no transformation" claim was false. Plus Phase 2.3a's "delete the line" escape valve violated D36's "Phase 2 doesn't touch op-tests" commit-boundary. v2.12 (a) flattens §1.7 applied shape to match OP-2 (chosen: gildash returns per-link, no grouping needed; consumer groupBy if wanted), (b) collapses Phase 3.0a back into Phase 2.3a — single Phase 2 commit rewrites op + op-tests atomically (D36 retired), (c) fixes input_index duplicate-key Map collapse, (d) standardizes snake_case in skipped.details, (e) adds Phase 3.0a's missing `result.changes`-length rewrite rule.
 > **Design principle (final)**: §1.7 is canonical — code adapts to §1.7, not the other way. Each command's shape is derived from its functional category (single read / list / mutation / batch / validation / etc.); divergence from the category template is a defect, not an accepted variation.
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
@@ -453,7 +453,7 @@ ed spec sync-symbols [--since TS]  (C4)
   `since_source`, `next_sync_marker`). Mixing inside one response is intentional.
   (Inline shape; actual SymbolChange type lives in src/ops/spec-sync.ts but fields match the public output.)
   exit codes: 0.
-  v1→v2 delta (per D30, Phase 2.3): current `spec.ts:91-98` returns `{updated, broken, changes, since, since_source, next_sync_marker}` — `updated`/`broken`/`changes` are aggregate fields that conflate applied/skipped/total. §1.7 splits into `applied:[]` (successfully renamed links) and `skipped:[]` (changes that couldn't be applied — e.g. ambiguous, missing card). Phase 2.3 MUST: (a) restructure `result.changes` into the two arrays — map `applied` entries (where the rename actually happened) and `skipped` entries (the rest) using the existing op's classification; if the op doesn't already classify, ADD that classification to `syncSymbolChanges()` in src/ops/spec-sync.ts, (b) compute `total`, (c) move the `METADATA_WRITE_FAILED` warning from the `ok(data, [...warnings])` second-arg into `skipped:[{reason:'metadata_write_failed', message:upsertWarning}]` — D19 forbids the old warnings channel.
+  v1→v2 delta (per D30, Phase 2.3): current `spec.ts:91-98` returns `{updated, broken, changes, since, since_source, next_sync_marker}` — `updated`/`broken`/`changes` are aggregate fields that conflate applied/skipped/total. §1.7 splits into `applied:[]` (successfully renamed links) and `skipped:[]` (changes that couldn't be applied — e.g. ambiguous, missing card). Phase 2.3 MUST: (a) restructure `result.changes` into the two arrays — map `applied` entries (where the rename actually happened) and `skipped` entries (the rest) using the existing op's classification; if the op doesn't already classify, ADD that classification to `syncSymbolChanges()` in src/ops/spec-sync.ts, (b) compute `total`, (c) move the `METADATA_WRITE_FAILED` warning from the `ok(data, [...warnings])` second-arg into `skipped:[{reason:'metadata_write_failed', details:{message: upsertWarning}}]` — D19 forbids the old warnings channel. The warning text lives inside `details` (free-form bag) since §1.7's skipped shape has no top-level `message` field; v2.13 16th-hostile F1 fix.
 
 ed bulk create --from FILE  (C4)
   data shape: { created: { key, filePath }[], failed: { input_index, key?, error }[], total: number }
@@ -1376,7 +1376,7 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 | 1.4 | 1–2 | 1 (SKILL.md) | ~100 changed |
 | 2.1 | 1 | 1 (output.ts) | ~80 |
 | 2.2 | 1 | 1 (runner.ts) | ~100 |
-| 2.3a (v2.12) | 4–5 | 2 op files + 4 op-test files (bulk-create + tests, spec-sync + tests, integration/crud-sync, e2e/{chaos,flows}) | ~400 changed |
+| 2.3a (v2.14) | 4–5 | 6 files: 2 op (bulk-create.ts, spec-sync.ts) + 4 test (test/ops/bulk-create.test.ts, test/ops/spec-sync.test.ts, test/integration/crud-sync.test.ts, ONE of test/e2e/{chaos,flows}.test.ts — verify by grep at start; the other may need 0 changes) | ~400 changed |
 | 2.3 | 5–7 | 7 (command files) | ~500 changed (up from ~400; reflects systematic restructures per D23/D24/D28–D32) |
 | 2.4 | 1 | 1 (errors.ts) | ~20 |
 | 2.5 | 1 | 3 deletes | n/a |
@@ -1388,7 +1388,7 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 | 3.3 | 2–3 | ~5 e2e/integration | ~200 changed |
 | 4.1 | 1 | 1 (PROBLEM.md) | ~30 |
 
-**Total estimate (v2.11): 35–47 turns**, 56–86 files touched, ~4000 LOC delta.
+**Total estimate (v2.14): 33–45 turns** (3.0a row retired; 2.3a expanded), **54–82 files touched**, ~3950 LOC delta.
 
 ---
 
