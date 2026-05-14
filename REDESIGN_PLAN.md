@@ -1,7 +1,7 @@
-# Envelope-Removal Redesign — Executable Plan v2.12
+# Envelope-Removal Redesign — Executable Plan v2.13
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
-> **Last commit (plan)**: `d0be85c` (v2.11).
+> **Last commit (plan)**: `1c48ad0` (v2.12).
 > **Plan version**: v2.12. 14th hostile attacked v2.11's new additions and found a BLOCKER: v2.11 pinned OP-2 pseudocode to flat `{cardKey, oldSymbol, newSymbol, file, changeType}` but §1.7's `spec sync-symbols.applied[]` declared grouped `{oldSymbol, newSymbol, file, affected_cards:[]}` — the "CLI maps directly, no transformation" claim was false. Plus Phase 2.3a's "delete the line" escape valve violated D36's "Phase 2 doesn't touch op-tests" commit-boundary. v2.12 (a) flattens §1.7 applied shape to match OP-2 (chosen: gildash returns per-link, no grouping needed; consumer groupBy if wanted), (b) collapses Phase 3.0a back into Phase 2.3a — single Phase 2 commit rewrites op + op-tests atomically (D36 retired), (c) fixes input_index duplicate-key Map collapse, (d) standardizes snake_case in skipped.details, (e) adds Phase 3.0a's missing `result.changes`-length rewrite rule.
 > **Design principle (final)**: §1.7 is canonical — code adapts to §1.7, not the other way. Each command's shape is derived from its functional category (single read / list / mutation / batch / validation / etc.); divergence from the category template is a defect, not an accepted variation.
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
@@ -435,8 +435,8 @@ ed spec sync  (C4)
 ed spec sync-symbols [--since TS]  (C4)
   data shape: {
     applied: { cardKey: string, oldSymbol: string, newSymbol: string, file: string, changeType: 'renamed'|'moved' }[],
-    skipped: { reason: 'no_links_referencing_old_symbol'|'symbol_removed_manual_review_required'|'card_not_found', symbol?: string, file?: string, details?: { card_key?: string, [k: string]: unknown } }[],
-    total: number,                            // input count = applied.length + skipped.length
+    skipped: { reason: 'no_links_referencing_old_symbol'|'symbol_removed_manual_review_required'|'card_not_found'|'metadata_write_failed', symbol?: string, file?: string, details?: { card_key?: string, [k: string]: unknown } }[],
+    total: number,                            // events recorded = applied.length + skipped.length (includes CLI-synthesized metadata_write_failed entries)
     since: string,                            // ISO8601 watermark used
     since_source: 'flag'|'last_sync'|'default_24h',
     next_sync_marker: string | null           // null if metadata upsert failed
@@ -1107,6 +1107,9 @@ Change `SymbolSyncResult`:
 export interface SymbolSyncResult {
   applied: Array<{ cardKey: string; oldSymbol: string; newSymbol: string; file: string; changeType: 'renamed'|'moved' }>;
   skipped: Array<{ reason: 'no_links_referencing_old_symbol'|'symbol_removed_manual_review_required'|'card_not_found'; symbol?: string; file?: string; details?: Record<string, unknown> }>;
+  // Note: `metadata_write_failed` is a 4th reason that the CLI synthesizes AFTER the
+  // op returns (see spec.ts upsertWarning handling). The op itself never emits it.
+  // §1.7's response shape unions the op's 3 reasons with the CLI's 1 reason.
 }
 ```
 Drop `updated`/`broken` counters (derivable from `applied`/`skipped` length). Inside `syncSymbolChanges` (current branching at spec-sync.ts:189-263), make these exact edits:
@@ -1155,12 +1158,13 @@ Rewrite rules (mechanical):
 - `result.keys` (string[]) → `result.created.map(c => c.key)` (compat shim) OR direct `result.created[i].key`
 - `result.partialKeys` → unchanged.
 - `result.errors[i]` gains `input_index` — add `expect(result.errors[i].input_index).toBe(N)` where input order matters.
-- `result.updated` (number) → `result.applied.length` (per OP-2 contract, applied[] is exactly renamed+moved).
-- `result.broken` (number) → `result.skipped.filter(s => s.reason === 'symbol_removed_manual_review_required').length`.
+- **Scope qualifier (v2.13)**: these `result.updated`/`result.broken` rules apply ONLY to `syncSymbolChanges` results. `getLinkCoverage` results ALSO have a `.broken` field (number of broken codeLinks) which is UNCHANGED in v2 — DO NOT mass-replace `result.broken`. Identify by call site: `syncSymbolChanges` returns `SymbolSyncResult` (v2: applied/skipped); `getLinkCoverage` returns `LinkCoverageResult` (unchanged).
+- `result.updated` (number, SymbolSyncResult only) → `result.applied.length` (per OP-2 contract, applied[] is exactly renamed+moved).
+- `result.broken` (number, SymbolSyncResult only) → `result.skipped.filter(s => s.reason === 'symbol_removed_manual_review_required').length`. The `LinkCoverageResult.broken` is untouched.
 - `result.changes[i]` → `result.applied[i]` OR `result.skipped[i]` per the test's intent.
 - `result.changes.toHaveLength(N)` → `expect(result.applied.length + result.skipped.length).toBe(N)`. (Filling F5 gap from 14th hostile.)
 
-Estimated effort (v2.12 §8 update): Phase 2.3a is ~400 LOC across 5 files total (2 op + 4 op-tests including the integration/e2e files that touch op surface). Phase 3.0a is retired; its row removed from §8.
+Estimated effort (v2.13 §8 update): Phase 2.3a is ~400 LOC across **6 files total** (2 op files: bulk-create.ts, spec-sync.ts; plus 4 test files: test/ops/bulk-create.test.ts, test/ops/spec-sync.test.ts, test/integration/crud-sync.test.ts, and ONE of test/e2e/chaos.test.ts or flows.test.ts depending on which actually calls the affected ops — verify by grep, the other may need 0 changes). Phase 3.0a is retired; its row removed from §8.
 
 #### 2.4 — `src/cli/errors.ts` adjustments
 
@@ -1180,9 +1184,9 @@ Estimated effort (v2.12 §8 update): Phase 2.3a is ~400 LOC across 5 files total
 - **Delete the `classifyErrorStatus` tests** (lines 17-18 reference `GILDASH_TRANSIENT` which is no longer exported — function is removed in Phase 2.2 per v2.8 note).
 - Delete `src/cli/output.spec.ts` (envelope assertions; already listed in 2.5).
 
-**Phase 2 GATE 1** (mid-phase): `bunx tsc --noEmit` must be CLEAN. If TS errors remain, Phase 2 incomplete; fix before next sub-step.
+**Phase 2 GATE 1** (v2.13 — end-of-phase only, not per-sub-step): `bunx tsc --noEmit` must be CLEAN at the **end** of Phase 2 (after 2.7). Intermediate states between 2.3a and 2.3 will have tsc errors (op interfaces changed, CLI commands not yet adapted) — this is expected. Do NOT try to keep tsc clean between sub-steps; the v2.12 collapse of 3.0a into 2.3a creates an unavoidable mid-phase red window. End-of-phase: zero tsc errors.
 
-**Phase 2 GATE 2** (end of phase): `bunx tsc --noEmit` clean. `bun test` will have failures (expected). **Record the failing count**; expect 100–400 failures all in `test/cli/`, `test/e2e/`, `test/integration/` files. Non-CLI unit tests under `src/**/*.spec.ts` (excluding `output.spec.ts` and the dedup tests deleted) must still pass.
+**Phase 2 GATE 2** (end of phase): `bunx tsc --noEmit` clean. `bun test` will have failures (expected). **Record the failing count**. Expected-failure scope (v2.13): tests under `test/cli/` (~100-400 failures, rewritten in 3.1/3.2). Tests under `test/ops/`, `test/integration/crud-sync.test.ts`, `test/e2e/{chaos,flows}.test.ts` are REWRITTEN inside Phase 2.3a (per v2.12 collapse) and MUST pass at end of Phase 2. Non-CLI unit tests under `src/**/*.spec.ts` (excluding `output.spec.ts` and the dedup tests deleted) must still pass.
 
 ### Phase 3 — Tests
 
