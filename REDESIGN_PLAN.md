@@ -1,8 +1,8 @@
-# Envelope-Removal Redesign — Executable Plan v2.9
+# Envelope-Removal Redesign — Executable Plan v2.10
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
-> **Last commit (plan)**: `f90e6c1` (v2.8).
-> **Plan version**: v2.9. 11th hostile broke v2.8: the shape-drift methodology applied to card.ts/validate.ts in v2.8 was NOT extended to check.ts/bulk.ts/glossary.ts/spec.ts — systematic drift in 7+ commands. v2.9 (a) lifts §1.7 to a **shape-classification rubric** (10 categories) so future commands are derivable, (b) adds D28–D33 to enumerate v1→v2 delta for every drifted command (mirroring D23/D24's pattern), (c) fixes code defects from 11th review (emitResult race, OutputEncodeError import, ERROR_CODE_TO_EXIT gaps, BROKEN_LINK structured collector, KEY_MISMATCH bucketing).
+> **Last commit (plan)**: `899edb9` (v2.9).
+> **Plan version**: v2.10. 12th hostile confirmed the §1.7 rubric is coherent and rubric-conformant for all 32 commands, but found that v2.9's "v1→v2 delta" notes for D29/D30/D31 conditionalized op-layer changes ("if op doesn't classify, ADD it") — fact-check confirmed every conditional is REAL (`BulkCreateResult` lacks filePath, `SymbolSyncResult` lacks classification, no symbol-coverage op exists). v2.10 promotes these to a new **Phase 2.3a (op-layer changes)** with explicit signatures, plus fixes documentation gaps (summary.by_code source, test pattern table rows, glossary define test impact).
 > **Design principle (final)**: §1.7 is canonical — code adapts to §1.7, not the other way. Each command's shape is derived from its functional category (single read / list / mutation / batch / validation / etc.); divergence from the category template is a defect, not an accepted variation.
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
 
@@ -298,6 +298,9 @@ ed card relations <key>  (C7)
 
 ed validate cards  (C5)
   data shape: {
+    // summary.by_code MUST aggregate codes from BOTH items[].issues[] AND file_level_issues[]
+    // — single source of truth for CI greps like `jq .summary.by_code.KEY_MISMATCH`. (D33)
+    // summary.total === sum(items[i].issues.length) + file_level_issues.length.
     summary: { total: number, by_code: Record<string, number> },
     items: {
       key: string,
@@ -588,7 +591,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
 
 **D12**: `src/cli/commands/contract.spec.ts` → DELETE. INV-003 (per-file dedup) is gone with the envelope. Per-command shape conformance moves to per-command tests in Phase 3.
 
-**D13**: Phase 2 is **one git commit** spanning sub-steps 2.1–2.7. Agent must NOT commit between sub-steps; use `git stash` if interrupted. **Sub-step ordering within Phase 2**: 2.4 (move ERROR_CODE_TO_EXIT to errors.ts) → 2.1 (output.ts) → 2.2 (runner.ts) → 2.3 (commands) → 2.5 (delete obsolete) → 2.6 (runner.spec.ts) → 2.7 (commander exitOverride). This order ensures 2.2's `import {ERROR_CODE_TO_EXIT} from './errors'` compiles.
+**D13**: Phase 2 is **one git commit** spanning sub-steps 2.1–2.7 (plus 2.3a per D35). Agent must NOT commit between sub-steps; use `git stash` if interrupted. **Sub-step ordering within Phase 2 (v2.10)**: 2.4 (move ERROR_CODE_TO_EXIT to errors.ts) → 2.3a (op-layer changes: BulkCreateResult, SymbolSyncResult, getCardSymbolCoverage) → 2.1 (output.ts) → 2.2 (runner.ts) → 2.3 (commands) → 2.5 (delete obsolete) → 2.6 (runner.spec.ts) → 2.7 (commander exitOverride). This order ensures (a) 2.2's `import {ERROR_CODE_TO_EXIT} from './errors'` compiles, (b) 2.3's command rewrites have the new op interfaces ready.
 
 **D14**: `runCli` consolidation is **Phase 3.0**, before any test rewrites. **An exported `runEd(args, cwd)` already exists at `test/cli/helpers.ts`** (used by `phase2.test.ts` and others — verified). Phase 3.0 task: extend the EXISTING `helpers.ts` to also expose stderr (current `runEd` may not return stderr — check + extend). DO NOT create a new file. Add helper `parseJsonLines(stderr)` to the same module. Then replace per-file private `runCli` spawners with imports from `helpers.ts`. **Exhaustive list of files with private `Bun.spawn` / `spawnEd` (v2.8 re-verified by `rg -l 'Bun\.spawn' test/`)**: `test/cli/fs-race.test.ts`, `test/cli/flag-overrides.test.ts`, `test/cli/symlink.test.ts`, `test/cli/db-corruption.test.ts`, `test/cli/fs-error.test.ts`, `test/cli/malformed-yaml.test.ts`, `test/cli/signal-handling.test.ts` (has `spawnEd`), **`test/cli/commands.test.ts`** (3 `Bun.spawn` invocations at lines 297/319/356 + ~42 v1-envelope assertion patterns — was missing from v2.7's list and is the largest envelope-assertion site outside aggregate validators). Phase 3.0 MUST handle commands.test.ts in two passes: (a) replace `Bun.spawn` → `spawnCli` (subprocess for stdin tests) or `runEd` (in-process where no stdin); (b) apply Phase 3.1 pattern table to the envelope assertions. Without this, GATE G6 (`bun test` 0 failures) fails.
 
@@ -705,7 +708,7 @@ These are 2-line edits per command — small, but they are NOT covered by Phase 
 - `bulk sync`: unify file-mode and directory-mode under one shape that always carries `failed:[{filePath, error}]`. File-mode `failed:[]` on success. (REAL defect per 11th hostile F-D.)
 
 **D32 (v2.9 — glossary family alignment)**: Four glossary commands all drift from §1.7:
-- `glossary define`: counter shape → array `{defined:[], failed:[], total}`. **Semantics change**: input validation errors (currently THROW at first bad pair via `parseDefinitionPair`/`loadEntriesFromFile`) become per-entry `failed[]` entries instead — explicitly accepted per C4 ("process all, report all failures").
+- `glossary define`: counter shape → array `{defined:[], failed:[], total}`. **Semantics change SCOPE**: the change is CLI-layer only. The op `defineGlossary` (src/ops/glossary.ts) keeps its existing all-or-nothing throw behavior (verified: test/ops/glossary.test.ts:176-214 asserts GlossaryValidationError throws). The CLI helpers `parseDefinitionPair` and `loadEntriesFromFile` (currently throw at first bad arg) are what change: in v2 they accumulate per-input failures into `failed:[{input_index, reason}]` before calling the op. The op call only happens for the surviving valid entries; if the op itself throws (e.g. duplicate within the same batch), that's still a thrown error → exit 2. No op-test changes required. (REAL defect per 11th hostile F-E; test-impact audit per 12th hostile F4.)
 - `glossary lookup`: unify the word/no-word shapes to single `{entries, total}` form (C2).
 - `glossary remove`: add `word` field (C3 sibling consistency).
 - `glossary rename`: rename `renamed_from→old_word`, `renamed_to→new_word`, `cards_updated→affected_card_keys`, drop `definition` (input echo), `file_write_failures→failed_file_writes?` (optional, only when non-empty), `partial()` → `exitCode:2` branch. (REAL defect per 11th hostile F-E.)
@@ -713,6 +716,8 @@ These are 2-line edits per command — small, but they are NOT covered by Phase 
 **D33 (v2.9 — KEY_MISMATCH bucketing)**: KEY_MISMATCH issues have BOTH a card-key and a file_path. v2.7/v2.8 left it ambiguous between `items[].issues[]` (card-keyed) and `file_level_issues[]` (file-keyed). v2.9 places it in `file_level_issues[]` because the issue IS the file's frontmatter key being wrong — the "card identified by its key" doesn't coherently exist (the key itself is the defect). Single canonical bucket prevents double-reporting. §1.7 `validate cards` shape's `file_level_issues[].key?` is OPTIONAL precisely so KEY_MISMATCH can carry it for context.
 
 **D34 (v2.9 — stdout I/O error)**: Non-EPIPE failures during `process.stdout.write` (ENOSPC, EIO when stdout is redirected to a full filesystem) used to be silently swallowed. v2.9 surfaces them via a new `StdoutWriteError` thrown out of `emitResult`; the runner catches and maps to `STDOUT_WRITE_FAILED` + exit 5. EPIPE stays silent (UNIX SIGPIPE convention). The v2.8 fast-path `if (ok) resolve()` is DELETED — it defeated D25's anti-truncation purpose. (REAL defect per 11th hostile H1.)
+
+**D35 (v2.10 — op-layer prerequisites)**: Phase 2.3 cannot produce §1.7's shapes without prior op-layer changes for bulk-create, spec-sync, and a NEW symbol-coverage op. v2.9's "v1→v2 delta" notes hedged these as conditional ("if op doesn't classify, ADD it"); v2.10 fact-checked and confirmed every conditional is REAL. The work moves into **Phase 2.3a** with explicit interface diffs (`BulkCreateResult`, `SymbolSyncResult`, `CardSymbolCoverageResult`). Phase 2.3a runs BEFORE Phase 2.3 command-file rewrites within the same Phase 2 commit; the linear order documented in D13 amends to: **2.4 → 2.3a → 2.1 → 2.2 → 2.3 → 2.5 → 2.6 → 2.7**.
 
 ---
 
@@ -1063,6 +1068,68 @@ For each file in `src/cli/commands/*.ts`:
 
 Apply similar extract-and-compose to: `ed check coverage` (3 modes), `ed card export` (3 modes via `--out` / `--in-place` / STDOUT).
 
+#### 2.3a — Op-layer changes required for v2 shapes (v2.10, per 12th hostile F1/F2/F3)
+
+These are pre-requisite to Phase 2.3 command-file rewrites. Without them, the command files can't produce the §1.7 shapes. Done in the same Phase 2 commit; verified absent by reading the source.
+
+**OP-1 — `BulkCreateResult` adds `filePath` per created key**
+
+File: `src/ops/bulk-create.ts` (verified: `keys: string[]` only; createCard already returns `filePath` and it is currently DROPPED).
+
+Change `BulkCreateResult`:
+```ts
+export interface BulkCreateResult {
+  created: Array<{ key: string; filePath: string }>;  // was: keys: string[] + numeric `created`
+  partialKeys: string[];
+  errors: Array<{ key: string; filePath?: string; message: string }>;  // add optional filePath when known
+}
+```
+Drop the numeric `created`/`failed` counters. Update `bulkCreateCards` to push `{key: r.fullKey, filePath: r.filePath}` instead of `r.fullKey`. Update its `@spec` reference (existing annotation present per file header comment); verify no other call site relies on the old `keys: string[]` (grep `BulkCreateResult\|bulkCreateCards` across src/).
+
+**OP-2 — `SymbolSyncResult` adds applied/skipped classification**
+
+File: `src/ops/spec-sync.ts` lines 165-263 (verified: currently `{updated, broken, changes[]}` where `changes` only carries successfully-applied details; `links.length===0` is silently `continue`d at line 210, losing information).
+
+Change `SymbolSyncResult`:
+```ts
+export interface SymbolSyncResult {
+  applied: Array<{ cardKey: string; oldSymbol: string; newSymbol: string; file: string; changeType: 'renamed'|'moved' }>;
+  skipped: Array<{ reason: 'no_links_referencing_old_symbol'|'symbol_removed_manual_review_required'|'card_not_found'; symbol?: string; file?: string; details?: Record<string, unknown> }>;
+}
+```
+Drop `updated`/`broken` counters (derivable from `applied`/`skipped` length). Inside `syncSymbolChanges`:
+1. The current `continue` at line 210 (no links found): push to `skipped` with reason `no_links_referencing_old_symbol`, carrying the old symbol/file.
+2. The `removed` branch (currently just records to `broken++`): push to `skipped` with reason `symbol_removed_manual_review_required`.
+3. Successful `renamed`/`moved` paths: push to `applied` with the new symbol/file.
+4. If a link references a non-existent card (defensive): push to `skipped` with reason `card_not_found`.
+
+The CLI layer at `spec.ts:91-98` then maps directly to §1.7 — no transformation needed.
+
+**OP-3 — Add `getCardSymbolCoverage(ctx, key)` op**
+
+File: `src/ops/spec-sync.ts` (or a new `src/ops/coverage.ts` — agent decides at write time based on whether the file gets too long; default: same file, since it shares helpers with `getLinkCoverage` and `getUncoveredSymbols`). Verified absent: only `getLinkCoverage` (declared codeLinks resolution) and project-wide `getUncoveredSymbols` exist.
+
+Signature:
+```ts
+export interface CardSymbolCoverageResult {
+  key: string;
+  total_symbols: number;       // # symbols in the union of files declared in this card's codeLinks
+  covered_symbols: number;      // # symbols actually referenced by this card's codeLinks
+  coverage_ratio: number | null; // covered/total, null if total===0
+  uncovered: Array<{ file: string; symbol: string; kind: string }>;
+}
+
+export async function getCardSymbolCoverage(
+  ctx: EmberdeckContext,
+  cardKey: string,
+): Promise<CardSymbolCoverageResult>
+```
+Implementation sketch: load the card's codeLinks (`ctx.codeLinkRepo.findByCardKey`); collect the set of distinct files; query gildash for ALL symbols in those files (mirrors `getUncoveredSymbols` per-file query); set-difference with the card's actually-referenced symbols. `kind` comes from gildash symbol metadata.
+
+The CLI at `check.ts` mode='card' branch calls this instead of `getLinkCoverage`. The existing `getLinkCoverage` stays — it is repurposed for `check drift`'s link-validity dimension and the broken-link counting in `validate links`.
+
+Estimated effort (v2.10 §8 update): Phase 2.3a is ~150 LOC across 3 files + their tests. Add ~3-5 hours to the Phase 2 budget.
+
 #### 2.4 — `src/cli/errors.ts` adjustments
 
 - Move `ERROR_CODE_TO_EXIT` from `output.ts` to `errors.ts` (export it).
@@ -1138,6 +1205,17 @@ Run `rg` to enumerate every assertion pattern. Apply per the table below:
 | `expect(parsed.schemaVersion).toEqual({major:1,minor:0})` | DELETE assertion |
 | `expect(parsed.error?.code).toBe(...)` | `expect(parseJsonLines(stderr).find(l=>l.level==='error')?.code).toBe(...)` |
 | `expect(parsed.warnings.some(...))` | `expect(parseJsonLines(stderr).some(...))` |
+| `parsed.found` / `parsed.entry` (glossary lookup v1 single-word) | `expect(parsed.entries.length).toBe(0 \| 1); expect(parsed.entries[0]?.word).toBe(W)` (D32) |
+| `expect(parsed.created).toBe(N)` (bulk create / spec sync — v1 numeric) | `expect(parsed.created).toHaveLength(N)` (v2 array per D30/D31) |
+| `expect(parsed.unmatched).toBe(N)` (spec sync v1 numeric) | `expect(parsed.unmatched).toHaveLength(N)` (v2 array per D30) |
+| `expect(parsed.updated).toBe(N)` / `parsed.broken` (spec sync-symbols v1) | `expect(parsed.applied).toHaveLength(N)` / `expect(parsed.skipped.filter(s=>s.reason==='symbol_removed_manual_review_required'))` (D30) |
+| `parsed.results` (glossary define v1) | `parsed.defined` (v2 array; non-defined go to `parsed.failed`) (D32) |
+| `parsed.renamed_from` / `parsed.renamed_to` / `parsed.cards_updated` (glossary rename v1) | `parsed.old_word` / `parsed.new_word` / `parsed.affected_card_keys` (D32) |
+| `parsed.declared` / `parsed.unreferenced_symbols` / `parsed.unreferenced_total` (check coverage `<key>` v1, link-coverage) | DELETE the assertion — v2 switches to symbol-coverage with different fields (`total_symbols`, `covered_symbols`, `uncovered:[{file,symbol,kind}]`) per D29. Tests asserting link-coverage semantics for `check coverage <key>` MUST be rewritten or deleted — flag this with the test's owner if the semantic change breaks an SLA. |
+| `parsed.page.{limit,offset,has_more}` (card list v1) | `parsed.{limit,offset,has_more}` (flat per D23) |
+| `parsed.frontmatter.X` (card get v1) | `parsed.X` (flat per D23; the `frontmatter` wrapper is dropped) |
+| `parsed.keys` / `parsed.partial_keys` / `parsed.succeeded` / `parsed.rejected_pre_write` (bulk create v1) | DELETE — derivable. Use `parsed.created` (array) and `parsed.failed` (array). (D31) |
+| `parsed.errors` as NUMBER (bulk sync v1 dir-mode) | `parsed.failed` as ARRAY (D31) |
 
 Apply mechanically to every affected test file.
 
@@ -1260,7 +1338,8 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 | 1.4 | 1–2 | 1 (SKILL.md) | ~100 changed |
 | 2.1 | 1 | 1 (output.ts) | ~80 |
 | 2.2 | 1 | 1 (runner.ts) | ~100 |
-| 2.3 | 4–6 | 7 (command files) | ~400 changed |
+| 2.3a (v2.10) | 2–3 | 2 (bulk-create.ts, spec-sync.ts) + 1 new function | ~150 added |
+| 2.3 | 5–7 | 7 (command files) | ~500 changed (up from ~400; reflects systematic restructures per D23/D24/D28–D32) |
 | 2.4 | 1 | 1 (errors.ts) | ~20 |
 | 2.5 | 1 | 3 deletes | n/a |
 | 2.6 | 1 | 1 (runner.spec.ts) | ~50 deleted |
@@ -1270,7 +1349,7 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 | 3.3 | 2–3 | ~5 e2e/integration | ~200 changed |
 | 4.1 | 1 | 1 (PROBLEM.md) | ~30 |
 
-**Total estimate: 30–40 turns**, 50–80 files touched, ~3500 LOC delta.
+**Total estimate (v2.10): 33–45 turns**, 52–82 files touched, ~3750 LOC delta.
 
 ---
 
