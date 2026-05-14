@@ -1,9 +1,9 @@
-# Envelope-Removal Redesign — Executable Plan v2
+# Envelope-Removal Redesign — Executable Plan v2.1
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.3+ pending.
-> **Last commit**: `a123d9e` (plan v1).
-> **Plan version**: v2. v1 had 8 BLOCKERs found by hostile review; v2 resolves them.
-> **Resume directly from §10 (Resume Instructions). All BLOCKER decisions are pre-committed in §2 (Decisions).**
+> **Last commit (plan)**: `7a17188` (v2).
+> **Plan version**: v2.1. v1 → v2 resolved 8 BLOCKERs; v2 → v2.1 resolved an additional 16 items (B-* + HA-*) found by 3-agent cross-review. Each fix is fact-checked (commands run against the actual codebase) and traceable in Decisions §2 (D9 / D13-D22).
+> **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
 
 ---
 
@@ -190,7 +190,8 @@ ed card create <key> --type T [...]
   exit codes: 0; thrown→4 CONFLICT if key exists.
 
 ed card update <key> [--field, --patch, --glossary, --tag]
-  data shape: { key: string, filePath: string, status: string, warnings: { code, message }[] }
+  data shape: { key: string, filePath: string, status: string, validation_notes: { code: string, message: string }[] }
+  (validation_notes carries non-fatal field warnings — e.g. "status changed to draft because type changed"; renamed from "warnings" per D20 to avoid v1 envelope collision)
   exit codes: 0; thrown→3 NOT_FOUND, 2 VALIDATION_FAILURE.
 
 ed card delete <key> [--force] [--yes]
@@ -275,23 +276,49 @@ ed check coverage --suggest
   exit codes: 0.
 
 ed check impact <files...> [--symbol N...]
-  data shape: { risk_level, affected_count, affected_cards: AffectedCard[], new_uncovered_files: string[], suggested_actions: string[], max_fan_in?: number }
+  data shape (per D22, inline AffectedCard from src/ops/impact.ts):
+  {
+    risk_level: 'low'|'medium'|'high'|'critical',
+    affected_count: number,
+    affected_cards: { key: string, summary: string, linkType: 'direct'|'transitive', affectedLinks: number, linkStatus: { valid: number, broken: number } }[],
+    new_uncovered_files: string[],
+    suggested_actions: string[],
+    max_fan_in?: number
+  }
   exit codes: 0.
 
 ed check regression <files...>
-  data shape: { pass_or_fail: 'pass'|'fail', drifted_ratio: number, threshold: number, affected: AffectedCard[] }
+  data shape:
+  {
+    pass_or_fail: 'pass'|'fail',
+    drifted_ratio: number,
+    threshold: number,
+    affected: { key: string, status: string, driftType?: string }[]
+  }
   exit codes: 0 if pass_or_fail==='pass'; else 2.
 
 ed check interactions <keys...>
-  data shape: { interactions: Interaction[], undefined_relations: UndefinedRelation[] }
+  data shape (per D22, inline CardInteraction + UndefinedRelation from src/ops/context.ts):
+  {
+    interactions: { keys: string[], sharedSymbols: { file: string, symbol: string }[], sharedFiles: string[], importDependencies: { from: string, to: string, file: string }[] }[],
+    undefined_relations: { src_key: string, dst_key: string, suggestion: string, reason: string }[]
+  }
   exit codes: 0.
 
 ed spec sync
-  data shape: { created: number, alreadyLinked: number, unmatched: Unmatched[], markerMissing: MarkerMissing[], linkMissing: LinkMissing[] }
+  data shape (per D22, inline types from src/ops/spec-sync.ts SpecSyncResult):
+  {
+    created: number,
+    alreadyLinked: number,
+    unmatched: { cardKey: string, file: string, symbol: string }[],
+    markerMissing: { cardKey: string, file: string, symbol: string }[],
+    linkMissing: { cardKey: string, file: string, symbol: string }[]
+  }
   exit codes: 0 (sync is fact-recording; unmatched/marker-missing are diagnostics not failures).
 
 ed spec sync-symbols [--since TS]
-  data shape: { applied: AppliedSymbol[], skipped: SkippedSymbol[] }
+  data shape: { applied: { oldSymbol: string, newSymbol: string, file: string, affected_cards: string[] }[], skipped: { reason: string, symbol?: string }[] }
+  (Inline shape; actual SymbolChange type lives in src/ops/spec-sync.ts but fields match the public output.)
   exit codes: 0.
 
 ed bulk create --from FILE
@@ -324,7 +351,22 @@ ed init [--project-root] [--cards-dir] [--no-gitignore] [--force]
   exit codes: 0.
 
 ed analyze [--drifted-limit N] [--drifted-offset N]
-  data shape: { health, coverage, drifted: { cards, total }, glossary, unlinked_symbols }
+  data shape (all inner types inlined per D22):
+  {
+    health: {
+      total: number,
+      active: number,
+      drifted: number,
+      draft: number,
+      brokenLinks: number,
+      codeStats?: { files: number, symbols: number },
+      codeCycles?: { count: number, samples: string[][] }
+    },
+    coverage: { totalSymbols: number, covered: number, ratio: number | null },
+    drifted: { cards: { key: string, summary: string, driftType?: string, brokenLinks: number, totalLinks: number }[], total: number },
+    glossary: { totalWords: number, unusedWords: string[], entries: { word: string, definition: string }[] },
+    unlinked_symbols: { file: string, symbol: string, kind: string }[]
+  }
   exit codes: 0.
 
 ed reset --yes
@@ -332,32 +374,16 @@ ed reset --yes
   exit codes: 0.
 ```
 
-### 1.8 Quiet mode collapse (per-command)
+### 1.8 Quiet mode (final, per D19)
 
-Default: emit full JSON. With `--quiet`, each command may collapse to a smaller form. Per-command quiet form (declared in the same per-command card as a POST):
+`--quiet` mode does NOT alter the per-command JSON shape. It:
+1. Emits the same compact JSON (single-line `JSON.stringify(data)` instead of pretty 2-space indent) on stdout.
+2. Suppresses stderr `level: warning` and `level: verbose` JSON-lines (auto-sync, runtime traces).
+3. Still emits stderr `level: error` JSON-line on failure + non-zero exit code (failures must remain observable).
 
-| command | --quiet output |
-|---|---|
-| `ed card create` | the key string only |
-| `ed card delete` | the key string only |
-| `ed card update` | the key string only |
-| `ed card rename` | the new_key string only |
-| `ed card set-status` | the new status string only |
-| `ed card list` | newline-separated keys (text, not JSON) |
-| `ed card search` | newline-separated keys |
-| `ed bulk create` | newline-separated created keys |
-| `ed bulk sync` | the synced count as a bare number |
-| `ed glossary define` | newline-separated words defined |
-| `ed glossary lookup` | the definition string when 1 entry; newline-separated `word: definition` when many |
-| `ed glossary remove` | the word string |
-| `ed init` | the project_root path |
-| `ed validate cards` / `ed validate links` / `ed validate` | nothing on stdout; exit code carries success/failure |
-| `ed check drift` / `ed check regression` | nothing on stdout |
-| `ed check coverage` | coverage_ratio as a bare number |
-| `ed analyze` | the health.total bare number |
-| (other queries: get, tree, context, relations) | full JSON unchanged — already minimal |
+There is NO per-command quiet shape variation. Consumers always parse stdout as JSON of the shape declared in the command's spec card. The only difference under `--quiet` is formatting (compact vs pretty) and suppression of non-fatal stderr.
 
-`--quiet` mode emits **no stderr** (suppress JSON-lines warnings). Failures still write the single error line + exit code.
+Validation/check commands that return shapes with `summary.broken > 0` or similar policy markers MAY still emit the full data — `--quiet` does not change that. The exit code carries the policy outcome.
 
 ---
 
@@ -381,7 +407,9 @@ Each BLOCKER/HIGH from the v1 hostile review is resolved here. No "open" entries
 
 **D8**: GATEs split (§7).
 
-**D9**: PROBLEM.md entries to mark resolved at end of Phase 4: `H-005`, `H-006`, `L-006`, `M-018`, `N-021`, `N-034`. Plus any others matching the envelope topic — grep `PROBLEM.md` for `envelope|status: 'partial'|errors\[\]` before final commit.
+**D9**: PROBLEM.md entries to mark resolved at end of Phase 4: `L-006`, `N-021`, `N-034`. **NOT** `H-005`/`H-006` (root = commander missing `exitOverride()`, NOT envelope — see Phase 2.7) and **NOT** `M-018` (status: refuted). Before final commit, grep `PROBLEM.md` for `envelope|status: 'partial'|errors\[\]` to catch any other envelope-rooted entry; only mark as resolved if envelope removal actually fixes it.
+
+**Phase 2.7 (new)**: Add `program.exitOverride()` to `src/cli/index.ts` and route commander `InvalidArgumentError` / missing-positional / unknown-flag through the runner's `emitError + emitResult(undefined)` path. This fixes H-005 and H-006 (otherwise they persist regardless of envelope state). Spec card under runner-and-output.
 
 **D10**: `README.md` does not exist; skip Phase 4.2.
 
@@ -389,15 +417,44 @@ Each BLOCKER/HIGH from the v1 hostile review is resolved here. No "open" entries
 
 **D12**: `src/cli/commands/contract.spec.ts` → DELETE. INV-003 (per-file dedup) is gone with the envelope. Per-command shape conformance moves to per-command tests in Phase 3.
 
-**D13**: Phase 2 is **one git commit** spanning sub-steps 2.1–2.6. Agent must NOT commit between sub-steps; use `git stash` if interrupted.
+**D13**: Phase 2 is **one git commit** spanning sub-steps 2.1–2.7. Agent must NOT commit between sub-steps; use `git stash` if interrupted. **Sub-step ordering within Phase 2**: 2.4 (move ERROR_CODE_TO_EXIT to errors.ts) → 2.1 (output.ts) → 2.2 (runner.ts) → 2.3 (commands) → 2.5 (delete obsolete) → 2.6 (runner.spec.ts) → 2.7 (commander exitOverride). This order ensures 2.2's `import {ERROR_CODE_TO_EXIT} from './errors'` compiles.
 
-**D14**: `runCli` consolidation is **Phase 3.0**, before any test rewrites. The function moves to `test/cli/runner-helper.ts` (new file) with signature `runCli(args: string[], cwd: string): Promise<{ exitCode: number, stdout: string, stderr: string }>`. Per-file private `runCli` copies are deleted in the same commit.
+**D14**: `runCli` consolidation is **Phase 3.0**, before any test rewrites. The function moves to `test/cli/runner-helper.ts` (new file) with signature `runCli(args: string[], cwd: string): Promise<{ exitCode: number, stdout: string, stderr: string }>`. Per-file private `runCli` copies deleted in same commit. **Exhaustive list (verified by grep)**: `test/cli/fs-race.test.ts`, `test/cli/flag-overrides.test.ts`, `test/cli/symlink.test.ts`, `test/cli/db-corruption.test.ts`, `test/cli/fs-error.test.ts`, `test/cli/malformed-yaml.test.ts`.
 
-**D15**: `validate.ts` per-error-code mapping (table in §3.5).
+**D15**: `validate.ts` per-error-code mapping (table in §4).
 
-**D16**: SIGINT race — runner's SIGINT handler must flush stdout before exit. Achieved by writing JSON via `process.stdout.write(...)` (synchronous on POSIX TTY/pipe) and only registering SIGINT after the write completes. Spec card invariant: "stdout JSON is written atomically (single `process.stdout.write` call); SIGINT during write is acceptable as the OS-level write is the unit."
+**D16**: SIGINT race — `process.stdout.write` for `> PIPE_BUF` (64KB on Linux) data is NOT atomic; SIGINT during write can yield partial JSON. Documented contract: **consumers MUST check exit code (130 = SIGINT) before parsing stdout JSON**. The runner registers SIGINT handlers around the command; partial-write damage is bounded by the user's choice of exit code response.
 
-**D17**: `emitResult(undefined)` is **forbidden**. Commands must return `{ data: ... }` or `undefined` (no top-level result). Runner emits nothing on `undefined`. This is also documented in §1.4.
+**D17**: Runner-side rule: if a command's return is `undefined` or its `.data` field is `undefined`, the runner skips `emitResult` entirely (no stdout written). Commands wishing to emit a JSON literal `null` must explicitly `return { data: null }`. Commands MUST NOT write to stdout directly; only the runner calls `emitResult`.
+
+**D18**: `details` schema per stderr code (canonical table — agents emit matching this; consumers parse matching this):
+
+| code | level | details schema |
+|---|---|---|
+| `CARD_SYNC_FAILED` | warning | `{file_path: string}` |
+| `CARD_NOT_FOUND` | error | `{key: string}` |
+| `CARD_ALREADY_EXISTS` | error | `{key: string}` |
+| `VALIDATION_ERROR` | error | `{field?: string}` |
+| `PARENT_VALIDATION_ERROR` | error | `{key: string, parent: string}` |
+| `ACTIVATION_GUARD_ERROR` | error | `{key: string, reason: string}` |
+| `COMPENSATION_ERROR` | error | `{key: string, original_error: string}` |
+| `FTS_SYNTAX_ERROR` | error | `{query: string}` |
+| `CONFIG_MISSING` | error | `{searched_paths: string[]}` |
+| `GILDASH_TRANSIENT` | error | `{}` |
+| `OUTPUT_ENCODE_FAILED` | error | `{}` |
+| `SIGINT` | error | `{}` |
+| `RUNTIME` | verbose | `{subsystem?: string, ...freeform}` |
+| `INTERNAL_ERROR` | error | `{class?: string}` |
+
+New codes added during execution MUST be added to this table.
+
+**D19**: `--quiet` mode emits **compact JSON of the same per-command shape** (not text), one JSON value per stdout. Failures still emit one stderr JSON-line + exit code. `--quiet` does NOT change the data shape — it only suppresses warnings and verbose-level stderr lines. (Old plan §1.8 had per-command text-mode quiet forms; those are removed.) **§1.8 rewrite below.**
+
+**D20**: Field-name avoidance — the v1 envelope had top-level `warnings`/`errors` arrays. Per-command data shapes MUST NOT use `warnings`/`errors`/`status`/`schemaVersion`/`error` as field names to avoid consumer confusion. Use `validation_notes`/`issues`/`outcome` instead. **§1.7 `ed card update` field `warnings` → `validation_notes`.**
+
+**D21**: Numeric indexing in per-command shapes is **0-based** unless the field name says otherwise (e.g. `line_number` is 1-based). `failed[].input_index` in `ed bulk create` is 0-based (the index into the input array as parsed; first entry = 0).
+
+**D22**: Inline named type definitions in §1.7 instead of citing TypeScript type names from `src/`. The shape blocks in §1.7 are the SoT for per-command output; agents do not need to read `src/` to determine field lists. All referenced types (CardFile, CardRow, AnalyzeHealth, AnalyzeCoverage, AnalyzeGlossary, AffectedCard, CardInteraction, UndefinedRelation) MUST be inlined or fully expanded in §1.7 before Phase 1.3 starts. (See §1.7 update below.)
 
 ---
 
@@ -461,13 +518,21 @@ spec:
         - <other policy codes if any with conditions>
         - thrown errors map via the runner's global error→exit table:
           <list relevant thrown error classes for this command>
+    - id: POST-004
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-004
+      guarantee: |
+        On failure (thrown error or non-zero policy exit), this command produces
+        no stdout output. The runner emits a single stderr JSON-line
+        `{level:'error', code, message, details?}` per D18 and exits non-zero.
   invariants:
     - id: INV-001
       always_holds: per-call
+      derives: cli-surface/command-routing-and-output#G-003
       statement: |
         stdout receives at most one JSON value (the data). stderr may receive
-        zero or more JSON-lines (warnings/verbose). Failure path writes no
-        stdout.
+        zero or more JSON-lines per the canonical schema `{level, code, message,
+        details?}`. No free-text on stderr.
   failures:
     - violation: <one realistic failure mode for this command>
       behavior: <what the runner emits>
@@ -489,7 +554,12 @@ spec:
 
 Target file: `.claude/skills/emberdeck/SKILL.md`.
 
-**Replacement text for the `<envelope>` section** (delete the "출력은 항상 JSON 봉투 ..." paragraph):
+**Verified anchors** (no `<envelope>` tag exists; use these instead):
+- Line 116: the literal paragraph beginning with `출력은 항상 JSON 봉투` (inside `<commands>` section)
+- Lines 306–380: `<response_shapes>` … `</response_shapes>`
+- Lines 261–304: `<error_recovery>` … `</error_recovery>`
+
+**Replacement for line 116 paragraph** (delete the existing one-liner about envelope; replace with):
 
 ```markdown
 모든 명령은 stdout 에 그 명령의 자연스러운 JSON 결과를 emit. 공통 envelope 없음. stderr 는 JSON-lines 단일 형식:
@@ -659,6 +729,27 @@ For each file in `src/cli/commands/*.ts`:
 - `src/cli/commands/spec.ts`
 - `src/cli/commands/validate.ts`
 
+**Worked example — `ed validate` (aggregate)**: current code calls `validateCards` then loops `validateCodeLinks`, mixing codes into one `errors[]` array. New v2 restructure:
+
+```ts
+.action(async (_opts, cmd) => {
+  await run(async (rt: CliRuntime) => {
+    // 1) cards portion — reuse the validate-cards action logic
+    const cardsData = await buildValidateCardsData(rt);  // extract from existing validate-cards action; returns the new validate-cards shape
+    // 2) links portion — reuse the validate-links fan-out logic
+    const linksData = await buildValidateLinksData(rt, undefined);  // undefined key = fan-out
+    const cardsOk = cardsData.summary.total === 0;
+    const linksOk = linksData.summary.broken === 0 && linksData.summary.io_failed === 0;
+    return {
+      data: { cards: cardsData, links: linksData },
+      exitCode: cardsOk && linksOk ? 0 : 2,
+    };
+  }, cmd);
+});
+```
+
+Apply similar extract-and-compose to: `ed check coverage` (3 modes), `ed card export` (3 modes via `--out` / `--in-place` / STDOUT).
+
 #### 2.4 — `src/cli/errors.ts` adjustments
 
 - Move `ERROR_CODE_TO_EXIT` from `output.ts` to `errors.ts` (export it).
@@ -724,13 +815,21 @@ Replace all with `import { runCli, parseJsonLines } from './runner-helper';`.
 
 #### 3.1 — Test pattern remap
 
-Run `rg "parsed\.(status|data|warnings|errors|error|schemaVersion)" test/ src/` to enumerate every assertion pattern. Apply per the table below:
+**Process**: Before applying the table, run
+```
+rg -nE 'parsed\.(status|data|warnings|errors|error|schemaVersion)' test/ src/ > /tmp/patterns.txt
+```
+and confirm every line maps to a row in the table below. **If a line matches no row, STOP and add a new row before proceeding.** Do not silently skip unmapped patterns.
+
+Run `rg` to enumerate every assertion pattern. Apply per the table below:
 
 | v1 assertion | v2 replacement |
 |---|---|
 | `expect(parsed.status).toBe('ok')` | `expect(exitCode).toBe(0)` |
 | `expect(parsed.status).toBe('partial')` | `expect(exitCode).toBe(2)` |
-| `expect(parsed.status).toBe('error')` | `expect(exitCode).not.toBe(0); expect(parsed).toBeUndefined()` (no stdout) |
+| `expect(parsed.status).toBe('error')` | `expect(exitCode).not.toBe(0); expect(stdout).toBe('')` (no stdout; `JSON.parse('')` throws, so don't `parsed` — assert on raw `stdout`) |
+| `expect(parsed).toEqual({status:'ok', data:D, errors:[], warnings:[]})` (full envelope match) | decompose: `expect(exitCode).toBe(0); expect(JSON.parse(stdout)).toEqual(D); expect(parseJsonLines(stderr).filter(l=>l.level!=='verbose')).toEqual([])` |
+| `parsed.data?.X` / `parsed.X ?? Z` (conditional) | parsed is the data directly; rewrite as `parsed.X` (no `.data` unwrap). If logic depended on envelope presence, split by exit code: `if (exitCode === 0) parsed.X else ...` |
 | `expect(parsed.data.X).toBe(...)` | `expect(parsed.X).toBe(...)` (parsed is data directly) |
 | `expect(parsed.errors.some(e => e.code==='BROKEN_LINK'))` | `expect(parsed.links.items.some(i => i.broken_links?.length))` |
 | `expect(parsed.errors.some(e => e.code==='CARD_SYNC_FAILED'))` | `expect(parseJsonLines(stderr).some(l => l.code==='CARD_SYNC_FAILED'))` |
