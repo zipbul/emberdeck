@@ -5,28 +5,33 @@ import { createCard } from './create';
 
 /**
  * Result of a bulk card creation operation.
+ *
+ * Schema: per §1.7 spec card cli-surface/command-routing-and-output/commands/bulk-create.
+ * `created` and `errors` are arrays (not counters) so callers can identify which
+ * input failed and retry. `input_index` is the position in the original inputs
+ * array (0-based); topologicalSort reorders inputs internally but input_index
+ * is preserved via an internal augmentation.
  */
 export interface BulkCreateResult {
-  /** Number of successfully created cards. */
-  created: number;
-  /** Number of failed card creations. */
-  failed: number;
-  /** Successfully created card keys. */
-  keys: string[];
+  /** Successfully created cards (in arbitrary order). */
+  created: Array<{ input_index: number; key: string; filePath: string }>;
   /** Cards created but whose relation update failed — exist in DB without intended relations. */
   partialKeys: string[];
-  /** Error details for each failed card. */
-  errors: Array<{ key: string; message: string }>;
+  /** Failures, one entry per failed input (Phase 1 create OR Phase 2 relation update). */
+  errors: Array<{ input_index: number; key?: string; filePath?: string; message: string }>;
 }
 
 /**
  * Topologically sort cards so parents are created before children.
  * Cards without parents come first.
  */
-function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
+/** Internal: tracks original input position through topological reorder. */
+type IndexedInput = CreateCardInput & { __inputIndex: number };
+
+function topologicalSort(inputs: IndexedInput[]): IndexedInput[] {
   const keySet = new Set(inputs.map((i) => i.key));
-  const noParent: CreateCardInput[] = [];
-  const withParent: CreateCardInput[] = [];
+  const noParent: IndexedInput[] = [];
+  const withParent: IndexedInput[] = [];
 
   for (const input of inputs) {
     if (!input.parent || !keySet.has(input.parent)) {
@@ -77,24 +82,26 @@ export async function bulkCreateCards(
   ctx: EmberdeckContext,
   inputs: CreateCardInput[],
 ): Promise<BulkCreateResult> {
-  const keys: string[] = [];
-  const errors: Array<{ key: string; message: string }> = [];
-  // Topologically sort by parent dependency
-  const sorted = topologicalSort(inputs);
+  const indexed: IndexedInput[] = inputs.map((it, i) => ({ ...it, __inputIndex: i }));
+  const created: Array<{ input_index: number; key: string; filePath: string }> = [];
+  const errors: BulkCreateResult['errors'] = [];
+  // Topologically sort by parent dependency (input_index travels with each item).
+  const sorted = topologicalSort(indexed);
 
   // Phase 1: Create all cards without relations
-  const pendingRelations: Array<{ key: string; input: CreateCardInput }> = [];
+  const pendingRelations: Array<{ key: string; filePath: string; input: IndexedInput }> = [];
 
   for (const input of sorted) {
-    const { relations, ...rest } = input;
+    const { relations, __inputIndex, ...rest } = input;
     try {
       const result = await createCard(ctx, rest);
-      keys.push(result.fullKey);
+      created.push({ input_index: __inputIndex, key: result.fullKey, filePath: result.filePath });
       if (relations && relations.length > 0) {
-        pendingRelations.push({ key: result.fullKey, input });
+        pendingRelations.push({ key: result.fullKey, filePath: result.filePath, input });
       }
     } catch (err) {
       errors.push({
+        input_index: __inputIndex,
         key: input.key,
         message: errorMessage(err),
       });
@@ -105,25 +112,25 @@ export async function bulkCreateCards(
   const partialKeys: string[] = [];
   if (pendingRelations.length > 0) {
     const { updateCard } = await import('../ops/update');
-    for (const { key, input } of pendingRelations) {
+    for (const { key, filePath, input } of pendingRelations) {
       try {
         await updateCard(ctx, key, { relations: input.relations });
       } catch (err) {
         errors.push({
+          input_index: input.__inputIndex,
           key,
+          filePath,
           message: `relation update failed: ${errorMessage(err)}`,
         });
-        const idx = keys.indexOf(key);
-        if (idx !== -1) keys.splice(idx, 1);
+        const idx = created.findIndex((c) => c.key === key);
+        if (idx !== -1) created.splice(idx, 1);
         partialKeys.push(key);
       }
     }
   }
 
   return {
-    created: keys.length,
-    failed: errors.length,
-    keys,
+    created,
     partialKeys,
     errors,
   };

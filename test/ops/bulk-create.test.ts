@@ -19,10 +19,11 @@ describe('bulkCreateCards', () => {
       { key: 'card-b', summary: 'Card B', type: 'spec' },
       { key: 'card-c', summary: 'Card C', type: 'spec' },
     ]);
-    expect(result.created).toBe(3);
-    expect(result.failed).toBe(0);
-    expect(result.keys).toEqual(['card-a', 'card-b', 'card-c']);
+    expect(result.created).toHaveLength(3);
     expect(result.errors).toEqual([]);
+    expect(result.created.map((c) => c.key).sort()).toEqual(['card-a', 'card-b', 'card-c']);
+    expect(result.created.every((c) => typeof c.filePath === 'string' && c.filePath.length > 0)).toBe(true);
+    expect(result.created.every((c) => Number.isInteger(c.input_index))).toBe(true);
   });
 
   it('should create cards with all optional fields', async () => {
@@ -35,7 +36,8 @@ describe('bulkCreateCards', () => {
         tags: ['tag1'],
         },
     ]);
-    expect(result.created).toBe(1);
+    expect(result.created).toHaveLength(1);
+    expect(result.created[0]!.input_index).toBe(0);
     const row = tc.ctx.cardRepo.findByKey('full-card');
     expect(row).not.toBeNull();
   });
@@ -51,8 +53,12 @@ describe('bulkCreateCards', () => {
       },
       { key: 'target-second', summary: 'Target card', type: 'spec' },
     ]);
-    expect(result.created).toBe(2);
-    expect(result.failed).toBe(0);
+    expect(result.created).toHaveLength(2);
+    expect(result.errors).toEqual([]);
+    // input_index preserved through topological reorder
+    const byKey = new Map(result.created.map((c) => [c.key, c.input_index]));
+    expect(byKey.get('depends-first')).toBe(0);
+    expect(byKey.get('target-second')).toBe(1);
     const relations = tc.ctx.relationRepo.findByCardKey('depends-first');
     const forward = relations.find((r) => !r.isReverse && r.dstCardKey === 'target-second');
     expect(forward).not.toBeUndefined();
@@ -68,11 +74,11 @@ describe('bulkCreateCards', () => {
       { key: 'existing', summary: 'Duplicate', type: 'spec' },
       { key: 'another-new', summary: 'Another new', type: 'spec' },
     ]);
-    expect(result.created).toBe(2);
-    expect(result.failed).toBe(1);
-    expect(result.keys).toEqual(['new-card', 'another-new']);
+    expect(result.created).toHaveLength(2);
     expect(result.errors).toHaveLength(1);
+    expect(result.created.map((c) => c.key).sort()).toEqual(['another-new', 'new-card']);
     expect(result.errors[0]!.key).toBe('existing');
+    expect(result.errors[0]!.input_index).toBe(1);
   });
 
   it('should report error for invalid key', async () => {
@@ -81,10 +87,12 @@ describe('bulkCreateCards', () => {
       { key: '../evil', summary: 'Bad key', type: 'spec' },
       { key: 'good-card', summary: 'Good card', type: 'spec' },
     ]);
-    expect(result.created).toBe(1);
-    expect(result.failed).toBe(1);
-    expect(result.keys).toEqual(['good-card']);
+    expect(result.created).toHaveLength(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.created[0]!.key).toBe('good-card');
+    expect(result.created[0]!.input_index).toBe(1);
     expect(result.errors[0]!.key).toBe('../evil');
+    expect(result.errors[0]!.input_index).toBe(0);
   });
 
   // ── Edge Cases ──
@@ -92,9 +100,7 @@ describe('bulkCreateCards', () => {
   it('should return zero counts for empty input array', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, []);
-    expect(result.created).toBe(0);
-    expect(result.failed).toBe(0);
-    expect(result.keys).toEqual([]);
+    expect(result.created).toEqual([]);
     expect(result.errors).toEqual([]);
   });
 
@@ -103,8 +109,9 @@ describe('bulkCreateCards', () => {
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'solo', summary: 'Solo card', type: 'spec' },
     ]);
-    expect(result.created).toBe(1);
-    expect(result.keys).toEqual(['solo']);
+    expect(result.created).toHaveLength(1);
+    expect(result.created[0]!.key).toBe('solo');
+    expect(result.created[0]!.input_index).toBe(0);
   });
 
   // ── Mutual Relations ──
@@ -127,8 +134,7 @@ describe('bulkCreateCards', () => {
     ]);
     expect(tc.ctx.cardRepo.findByKey('a')).not.toBeNull();
     expect(tc.ctx.cardRepo.findByKey('b')).not.toBeNull();
-    expect(result.created).toBe(2);
-    expect(result.failed).toBe(0);
+    expect(result.created).toHaveLength(2);
     expect(result.errors).toEqual([]);
     const aRelations = tc.ctx.relationRepo.findByCardKey('a');
     const aForward = aRelations.find((r) => !r.isReverse && r.dstCardKey === 'b');
@@ -146,11 +152,12 @@ describe('bulkCreateCards', () => {
       { key: 'dup', summary: 'A', type: 'spec' },
       { key: 'dup', summary: 'B', type: 'spec' },
     ]);
-    expect(result.created).toBe(1);
-    expect(result.failed).toBe(1);
-    expect(result.keys).toEqual(['dup']);
+    expect(result.created).toHaveLength(1);
     expect(result.errors).toHaveLength(1);
+    expect(result.created[0]!.key).toBe('dup');
+    expect(result.created[0]!.input_index).toBe(0);
     expect(result.errors[0]!.key).toBe('dup');
+    expect(result.errors[0]!.input_index).toBe(1);
     const row = tc.ctx.cardRepo.findByKey('dup');
     expect(row).not.toBeNull();
     expect(row!.summary).toBe('A');
@@ -164,7 +171,7 @@ describe('bulkCreateCards', () => {
       { key: 'pk-b', summary: 'B', type: 'spec', relations: ['pk-a'] },
     ]);
     expect(result.partialKeys).toEqual([]);
-    expect(result.created).toBe(2);
+    expect(result.created).toHaveLength(2);
   });
 
   it('should report card in partialKeys when Phase 2 relation target does not exist', async () => {
@@ -173,7 +180,7 @@ describe('bulkCreateCards', () => {
       { key: 'pk-orphan', summary: 'Orphan', type: 'spec', relations: ['nonexistent-card'] },
     ]);
     expect(result.partialKeys).toContain('pk-orphan');
-    expect(result.keys).not.toContain('pk-orphan');
+    expect(result.created.find((c) => c.key === 'pk-orphan')).toBeUndefined();
     expect(result.errors.some((e) => e.key === 'pk-orphan' && e.message.includes('relation'))).toBe(true);
     // Card still exists in DB (created in Phase 1)
     expect(tc.ctx.cardRepo.findByKey('pk-orphan')).not.toBeNull();

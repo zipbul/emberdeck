@@ -68,18 +68,24 @@ export function registerBulk(program: Command): void {
           // CLI-layer enum validation BEFORE write, mirrors `card create` behavior.
           const validated = validateBulkInput(parsed);
           const result = await bulkCreateCards(rt.ctx, validated.ok);
-          const errors: CliMessage[] = [
-            ...validated.errors.map((e) => ({ code: 'BULK_VALIDATION_FAILED', message: e.message, key: e.key })),
-            ...result.errors.map((e) => ({ code: 'BULK_CREATE_FAILED', message: e.message, key: e.key })),
-          ];
+          // §1.7 bulk-create shape (C4): {created:[], failed:[{input_index,...}], total}
+          // Merge pre-write validation failures + op-time errors; sort by input_index.
+          const failed: Array<{ input_index: number; key?: string; error: string }> = [
+            ...validated.errors.map((e) => ({ input_index: e.index, key: e.key, error: e.message })),
+            ...result.errors.map((e) => ({ input_index: e.input_index, key: e.key, error: e.message })),
+          ].sort((a, b) => a.input_index - b.input_index);
           const data = {
-            succeeded: result.keys,
-            partial_keys: result.partialKeys,
+            created: result.created.map((c) => ({ input_index: c.input_index, key: c.key, filePath: c.filePath })),
+            failed,
             total: parsed.length,
-            created: result.created,
-            failed: result.failed + validated.errors.length,
-            rejected_pre_write: validated.errors.length,
+            ...(result.partialKeys.length > 0 ? { partial_keys: result.partialKeys } : {}),
           };
+          // partialIsFailure routes any failed entry to exit 2.
+          const errors: CliMessage[] = failed.map((f) => ({
+            code: 'BULK_CREATE_FAILED',
+            message: f.error,
+            ...(f.key ? { key: f.key } : {}),
+          }));
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
         cmd,
@@ -106,10 +112,12 @@ export function registerBulk(program: Command): void {
             }
             if (s.isFile()) {
               await syncCardFromFile(rt.ctx, path);
-              return ok({ synced: 1, path, mode: 'file' });
+              // §1.7 bulk-sync shape (C4): always include `failed:[]` even in file mode.
+              return ok({ synced: 1, mode: 'file', path, failed: [] });
             }
           }
           const result = await bulkSyncCards(rt.ctx, path);
+          const failed = result.errors.map((e) => ({ filePath: e.filePath, error: errorMessage(e.error) }));
           const errors: CliMessage[] = result.errors.map((e) => ({
             code: 'SYNC_FAILED',
             message: errorMessage(e.error),
@@ -117,9 +125,9 @@ export function registerBulk(program: Command): void {
           }));
           const data = {
             synced: result.synced,
-            errors: result.errors.length,
-            mode: 'directory',
+            mode: 'directory' as const,
             path: path ?? rt.ctx.cardsDir,
+            failed,
           };
           return errors.length === 0 ? ok(data) : partial(data, errors);
         },
