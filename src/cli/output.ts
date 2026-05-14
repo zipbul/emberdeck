@@ -34,14 +34,14 @@ export interface OutputContext {
   mode: OutputMode;
 }
 
-/** @spec cli-surface/command-routing-and-envelope/runner-and-output */
+/** @spec cli-surface/command-routing-and-output/runner-and-output */
 export function resolveOutputMode(opts: { quiet?: boolean }): OutputMode {
   return opts.quiet ? 'quiet' : 'json';
 }
 
 /**
  * Build a success CliResult.
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function ok<T>(data: T, warnings: CliMessage[] = []): CliResult<T> {
   return {
@@ -55,7 +55,7 @@ export function ok<T>(data: T, warnings: CliMessage[] = []): CliResult<T> {
 
 /**
  * Build a partial-success CliResult (bulk operations).
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function partial<T>(
   data: T,
@@ -73,7 +73,7 @@ export function partial<T>(
 
 /**
  * Build an error CliResult.
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function err(error: CliMessage): CliResult<null> {
   return {
@@ -88,7 +88,7 @@ export function err(error: CliMessage): CliResult<null> {
 
 /**
  * Build a transient/retryable failure CliResult.
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function unknown(error: CliMessage): CliResult<null> {
   return {
@@ -104,7 +104,7 @@ export function unknown(error: CliMessage): CliResult<null> {
 /**
  * Map a CliResult.status to an exit code.
  * Override via options.partialIsFailure to make partial = exit 2 (CI gate).
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function statusToExitCode(
   result: CliResult,
@@ -148,7 +148,7 @@ const ERROR_CODE_TO_EXIT: Record<string, ExitCode> = {
 /**
  * Render a CliResult. JSON envelope on STDOUT; quiet mode prints
  * just the key(s) on STDOUT and routes diagnostics to STDERR.
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function render(result: CliResult, ctx: OutputContext): void {
   if (ctx.mode === 'quiet') {

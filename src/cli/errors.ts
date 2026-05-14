@@ -36,7 +36,7 @@ const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
   [GlossaryValidationError, 'GLOSSARY_VALIDATION_ERROR'],
 ];
 
-/** @spec cli-surface/command-routing-and-envelope/runner-and-output */
+/** @spec cli-surface/command-routing-and-output/runner-and-output */
 export function toCliError(e: unknown): CliMessage {
   // Errors that carry structured details first.
   if (e instanceof ActivationGuardError) {

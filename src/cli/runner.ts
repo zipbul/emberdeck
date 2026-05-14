@@ -24,7 +24,7 @@ function buildFallbackOutputContext(flags: GlobalFlags): import('./output').Outp
  * Decide CliResult.status from an error code.
  * Transient/retryable errors → 'unknown' (exit 7); everything else → 'error'.
  * Exported for testability.
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function classifyErrorStatus(code: string): 'unknown' | 'error' {
   // Add codes here when ops layer surfaces transient failures. Currently:
@@ -42,7 +42,7 @@ export function classifyErrorStatus(code: string): 'unknown' | 'error' {
  * Pure function — exported for unit testing. Does not mutate inputs. On the
  * no-op paths (no failures, or all failures suppressed) the input result is
  * returned by reference; callers MUST NOT mutate the returned object.
- * @spec cli-surface/command-routing-and-envelope/runner-and-output
+ * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export function mergeCardSyncWarnings(
   result: CliResult,
@@ -72,7 +72,7 @@ export function mergeCardSyncWarnings(
  * Execute a command with full lifecycle: build runtime, run, render, exit.
  * Extracts global flags from the Commander instance so callers don't repeat
  * `extractGlobalFlags(cmd.optsWithGlobals())`.
-  * @spec cli-surface/command-routing-and-envelope/runner-and-output
+  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export async function run(
   fn: CommandFn,

@@ -1,35 +1,35 @@
 ---
-key: cli-surface/command-routing-and-envelope/runner-and-output
+key: cli-surface/command-routing-and-output/runner-and-output
 summary: >-
   run wraps every subcommand action; ok, partial, err, unknown, and render build
   and emit the JSON envelope.
 status: draft
 type: spec
-parent: cli-surface/command-routing-and-envelope
+parent: cli-surface/command-routing-and-output
 glossary:
   - json-envelope
 spec:
   preconditions:
     - id: PRE-001
       condition: A commander.js subcommand action wraps its body in run with a CommandFn.
-      derives: cli-surface/command-routing-and-envelope#G-001
+      derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: Every subcommand emits the documented envelope on stdout via render.
       keyword: MUST
-      derives: cli-surface/command-routing-and-envelope#G-001
+      derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
         statusToExitCode maps status to documented exit codes (0 / 1 / 2 / 3 / 4
         / 5 / 6 / 7).
       keyword: SHALL
-      derives: cli-surface/command-routing-and-envelope#G-002
+      derives: cli-surface/command-routing-and-output#G-002
     - id: POST-003
       guarantee: >-
         resolveOutputMode returns quiet when --quiet is set so render emits only
         the data key.
       keyword: MUST
-      derives: cli-surface/command-routing-and-envelope#G-003
+      derives: cli-surface/command-routing-and-output#G-003
     - id: POST-004
       guarantee: >-
         Per-file sync failures returned from ensureCardsSynced are surfaced on
@@ -38,12 +38,12 @@ spec:
         returns) and the catch path (after fn(rt) throws and the envelope is
         synthesized from the toCliError result), so a thrown command never
         silently drops auto-sync diagnostics. A failure whose filePath already
-        appears in the command's errors[].details.file_path is suppressed so
-        the same root cause is reported exactly once. Whether suppressed or
+        appears in the command's errors[].details.file_path is suppressed so the
+        same root cause is reported exactly once. Whether suppressed or
         surfaced, CARD_SYNC_FAILED entries are informational only and do not
         alter result.status or the exit code.
       keyword: MUST
-      derives: cli-surface/command-routing-and-envelope#G-001
+      derives: cli-surface/command-routing-and-output#G-001
   invariants:
     - id: INV-001
       statement: >-
@@ -59,12 +59,12 @@ spec:
       always_holds: per-call
     - id: INV-003
       statement: >-
-        Commander-side contract for the CARD_SYNC_FAILED dedup: any command
-        that surfaces per-file errors in result.errors[] MUST populate the
-        offending file's path on details.file_path (as a string). The runner
-        uses this key — and only this key — to suppress the duplicate auto-sync
-        warning. Commands that emit per-file errors without details.file_path
-        silently regress the dedup contract.
+        Commander-side contract for the CARD_SYNC_FAILED dedup: any command that
+        surfaces per-file errors in result.errors[] MUST populate the offending
+        file's path on details.file_path (as a string). The runner uses this key
+        — and only this key — to suppress the duplicate auto-sync warning.
+        Commands that emit per-file errors without details.file_path silently
+        regress the dedup contract.
       always_holds: cross-call
   failures:
     - violation: An unmapped error class is thrown inside the action.

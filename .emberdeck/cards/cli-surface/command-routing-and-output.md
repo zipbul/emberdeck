@@ -1,5 +1,5 @@
 ---
-key: cli-surface/command-routing-and-envelope
+key: cli-surface/command-routing-and-output
 summary: >-
   ed binary command tree, JSON-envelope output contract, error class to
   exit-code mapping, and quiet mode behavior.
@@ -173,7 +173,6 @@ brief:
         predicate: >-
           Every command in the tree returns the envelope shape across success
           and failure paths.
-        method: Snapshot test sweeping every command with valid and invalid inputs.
       verifies:
         - S-H-01
         - S-F-01
@@ -182,7 +181,6 @@ brief:
       type: binary
       measure:
         predicate: '--quiet mode emits no diagnostics on stdout.'
-        method: CLI integration test capturing stdout vs stderr.
       verifies:
         - S-H-02
   rationale:

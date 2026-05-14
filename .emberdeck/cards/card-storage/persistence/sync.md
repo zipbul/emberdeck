@@ -57,7 +57,7 @@ spec:
         for any file whose error is already reported in the command's own
         errors[] (avoiding double-reporting under `ed bulk sync`). Surfacing is
         informational and does not change exit code (see
-        cli-surface/command-routing-and-envelope/runner-and-output POST-004).
+        cli-surface/command-routing-and-output/runner-and-output POST-004).
       keyword: MUST
       derives: card-storage/persistence#G-004
   invariants:
