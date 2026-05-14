@@ -1,4 +1,4 @@
-# Envelope-Removal Redesign — Executable Plan v2.2
+# Envelope-Removal Redesign — Executable Plan v2.3
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
 > **Last commit (plan)**: `0391702` (v2.1).
@@ -170,6 +170,9 @@ A new card family is introduced under `cli-surface/command-routing-and-output/co
 | `cli-surface/command-routing-and-output/commands/init` | `ed init` | `src/cli/commands/single.ts` |
 | `cli-surface/command-routing-and-output/commands/analyze` | `ed analyze` | `src/cli/commands/single.ts` |
 | `cli-surface/command-routing-and-output/commands/reset` | `ed reset` | `src/cli/commands/single.ts` |
+| `cli-surface/command-routing-and-output/commands/runner-commander-fallback` | (no `.command()`; commander error fallback) | `cli.ts` + `src/cli/index.ts` (Phase 2.7) |
+
+(32 cards total — 31 ed subcommands + 1 commander-fallback meta-card.)
 
 **Each card is a spec**, parent = `cli-surface/command-routing-and-output` (the brief renamed in Phase 1.1). Cards under `card-lifecycle/`, `card-storage/queries/`, etc. (op specs) remain unchanged.
 
@@ -331,8 +334,9 @@ ed bulk sync [PATH]
   exit codes: 0 if failed.length===0; else 2.
 
 ed glossary define [pairs...] [--from f.yaml]
-  data shape: { defined: { word, definition }[], errors: { input_index, reason }[] }
-  exit codes: 0 if errors.length===0; else 2.
+  data shape: { defined: { word, definition }[], failed: { input_index, reason }[] }
+  exit codes: 0 if failed.length===0; else 2.
+  (renamed top-level `errors` → `failed` per D20 v2.3)
 
 ed glossary lookup [word]
   data shape: { entries: { word, definition }[], total: number }
@@ -469,8 +473,8 @@ This fixes H-005 (`--limit abc` plain stderr) and H-006 (missing positional plai
 | `RENAME_SAME_PATH` | error | ✓ (CardRenameSamePathError) | 4 | `{}` |
 | `GLOSSARY_PARSE_ERROR` | error | ✓ (GlossaryParseError) | 2 | `{}` |
 | `GLOSSARY_VALIDATION_ERROR` | error | ✓ (GlossaryValidationError) | 2 | `{}` |
-| `ACTIVATION_GUARD_FAILED` | error | ✓ (ActivationGuardError, structured branch) | 2 | `{}` (today; phase 2.4 may add `{key, reason}`) |
-| `COMPENSATION_FAILED` | error | ✓ (CompensationError, structured branch) | 1 | `{}` (today; phase 2.4 may add `{key, original_error}`) |
+| `ACTIVATION_GUARD_FAILED` | error | ✓ (ActivationGuardError, structured branch) | 2 | `{unmet_conditions: string[]}` (already emitted today) |
+| `COMPENSATION_FAILED` | error | ✓ (CompensationError, structured branch) | 1 | `{original_error: string, compensation_error: string}` (already emitted today) |
 | `INTERNAL_ERROR` | error | ✓ (fallback) | 1 | `{class?: string}` |
 | `OUTPUT_ENCODE_FAILED` | error | n/a (emitResult catch path) | 1 | `{}` |
 | `RUNTIME` | verbose | n/a (runner verboseLog) | n/a | `{subsystem?: string, ...freeform}` |
@@ -485,7 +489,7 @@ Notes:
 
 **D19**: `--quiet` mode emits **compact JSON of the same per-command shape** (not text), one JSON value per stdout. Failures still emit one stderr JSON-line + exit code. `--quiet` does NOT change the data shape — it only suppresses warnings and verbose-level stderr lines. (Old plan §1.8 had per-command text-mode quiet forms; those are removed.) **§1.8 rewrite below.**
 
-**D20**: Field-name avoidance — the v1 envelope had top-level `warnings`/`errors` arrays. Per-command data shapes MUST NOT use `warnings`/`errors`/`status`/`schemaVersion`/`error` as field names to avoid consumer confusion. Use `validation_notes`/`issues`/`outcome` instead. **§1.7 `ed card update` field `warnings` → `validation_notes`.**
+**D20**: Field-name avoidance — the v1 envelope had **top-level** `warnings`/`errors` arrays. Per-command data shapes MUST NOT use `warnings`/`errors`/`status`/`schemaVersion`/`error` **as top-level wrapper-shaped fields** (i.e. directly at the root of the response JSON). Nested usage is permitted when context is unambiguous: `affected_cards[].status` (domain object's natural status field), `failed[].error` (a tuple's error message inside a structured array), are fine. The rule prevents consumer confusion only at the wrapper level. **§1.7 `ed card update` field `warnings` → `validation_notes`.** **§1.7 `ed glossary define` top-level field `errors` → `failed`** (to avoid the wrapper-level collision).
 
 **D21**: Numeric indexing in per-command shapes is **0-based** unless the field name says otherwise (e.g. `line_number` is 1-based). `failed[].input_index` in `ed bulk create` is 0-based (the index into the input array as parsed; first entry = 0).
 
@@ -545,9 +549,9 @@ Discovered post-v2.2 fact-check: Phase 1.2 cards have wording that contradicts v
 **`cli-surface/command-routing-and-output/runner-and-output.md` (spec)** — edits needed:
 - **POST-005**: current text "collapses the stdout shape to its core payload (per command's spec-declared quiet form)". **Rewrite** to match new G-005: "Under --quiet, `emitResult` writes compact JSON of the same shape (no indent); `emitWarning` and `emitVerbose` are suppressed; `emitError` still fires."
 
-**Workflow**: edit each card via `ed card update --patch` (full-namespace replacement). GATE: `ed validate cards` warnings 0.
+**Workflow**: direct YAML edit (Edit tool on the .md file) for the three goal statements + POST-005 wording; then `ed bulk sync` to reindex; then `ed validate cards`. Direct edit is symmetric with Phase 1.3's "direct write" approach for new cards and avoids reconstructing the full namespace JSON for a partial-statement change. GATE: `ed validate cards` `total_issues: 0` (NOT "warnings 0" — current shape uses issues, not warnings).
 
-### Phase 1.3 — Create 31 per-command CLI-shape spec cards ⏳
+### Phase 1.3 — Create 32 per-command CLI-shape spec cards ⏳
 
 For each command in §1.6 table, create a NEW spec card.
 
@@ -586,7 +590,11 @@ spec:
       keyword: SHALL
       derives: cli-surface/command-routing-and-output#G-005
       guarantee: |
-        Under --quiet, the command produces <the quiet form from §1.8>.
+        Under --quiet, this command emits the same JSON shape declared in
+        POST-001 but compact (single-line `JSON.stringify(data)`, no indent).
+        stderr `level:'warning'` and `level:'verbose'` lines are suppressed.
+        stderr `level:'error'` JSON-lines are still emitted on failure.
+        (Per cli-surface/command-routing-and-output G-005 / D19.)
     - id: POST-003
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
@@ -620,12 +628,12 @@ spec:
 **Workflow per card** (skill-compliant):
 1. Run `<self_review>` mentally against §1.7 / §1.8 (paste below) to confirm shape accuracy.
 2. Write the card file directly with the template filled (skill allows direct edit + `ed bulk sync` for non-`ed card create` flows; cards under the new path don't exist yet, so direct write is the only option until `ed bulk sync` indexes them).
-3. After all 31 cards written, run `ed bulk sync` (expect synced=76, errors=0).
+3. After all 32 cards written, run `ed bulk sync` (expect synced=77, errors=0).
 4. Run `ed validate cards` — must show `total_issues: 0`.
 
 **Sub-task list**:
 - 1.3.a: Create `commands/` subdirectory under `.emberdeck/cards/cli-surface/command-routing-and-output/`
-- 1.3.b: Write each of the 31 cards (use §1.7 + §1.8 as the source of truth)
+- 1.3.b: Write each of the 32 cards (use §1.7 + §1.8 as the source of truth)
 - 1.3.c: `ed bulk sync` + `ed validate cards` GATE
 
 ### Phase 1.4 — SKILL.md rewrite
@@ -724,7 +732,7 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
     process.off('SIGINT', onSigint);
     process.off('SIGTERM', onSigterm);
     try { await rt?.cleanup(); } catch { /* best-effort */ }
-    if (!outCtx.quiet) emitError({ code: 'SIGINT', message: `${sig} received, exiting` });
+    emitError({ code: 'SIGINT', message: `${sig} received, exiting` });  // errors always emit per D19
     process.exit(EXIT.SIGINT);
   };
   const onSigint = (): void => { void signalHandler('SIGINT'); };
@@ -752,14 +760,13 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
     const ret = await fn(rt);
     verboseLog(`command done`, { hasData: ret?.data !== undefined });
 
-    if (ret && ret.data !== undefined) emitResult(ret.data);
+    if (ret && ret.data !== undefined) emitResult(ret.data, outCtx);
     exitCode = ret?.exitCode ?? EXIT.OK;
   } catch (e) {
     verboseLog(`command threw`, { class: e instanceof Error ? e.constructor.name : 'unknown' });
     const cliErr = toCliError(e);
-    if (!outCtx.quiet) {
-      emitError({ code: cliErr.code, message: cliErr.message, ...(cliErr.details ? { details: cliErr.details } : {}) });
-    }
+    // Errors always emit regardless of --quiet (D19) — silent failure is anti-pattern.
+    emitError({ code: cliErr.code, message: cliErr.message, ...(cliErr.details ? { details: cliErr.details } : {}) });
     exitCode = (ERROR_CODE_TO_EXIT[cliErr.code] ?? EXIT.GENERIC_ERROR) as ExitCode;
   }
 
@@ -831,7 +838,8 @@ Apply similar extract-and-compose to: `ed check coverage` (3 modes), `ed card ex
 #### 2.4 — `src/cli/errors.ts` adjustments
 
 - Move `ERROR_CODE_TO_EXIT` from `output.ts` to `errors.ts` (export it).
-- `toCliError` returns `{ code: string, message: string, details?: Record<string, unknown> }` (already similar).
+- **Add `OUTPUT_ENCODE_FAILED: EXIT.GENERIC_ERROR` to `ERROR_CODE_TO_EXIT`** so emitResult's catch path has a registered mapping (per D18 footnote and §1.3 emitResult code).
+- `toCliError` returns `{ code: string, message: string, details?: Record<string, unknown> }` (already similar). D18 documents the current details schema; if Phase 2.4 chooses to enrich (e.g. add `{key}` to CARD_NOT_FOUND), update D18 in the same commit.
 
 #### 2.5 — Delete obsolete files
 
@@ -850,46 +858,30 @@ Apply similar extract-and-compose to: `ed check coverage` (3 modes), `ed card ex
 
 ### Phase 3 — Tests
 
-#### 3.0 — Consolidate runCli helper
+#### 3.0 — Extend existing helpers.ts (per D14)
 
-CREATE `test/cli/runner-helper.ts`:
+**Do NOT create a new file.** `test/cli/helpers.ts` already exports `runEd(args, cwd)` that returns `{exitCode, stdout, stderr}` via in-process `buildProgram` + `parseAsync` with `exitOverride` (verified). Phase 3.0 task:
 
-```ts
-import { spawn } from 'bun';
-import { join } from 'node:path';
+1. **Add `parseJsonLines` export** to `test/cli/helpers.ts`:
+   ```ts
+   export function parseJsonLines(stderr: string): Array<{ level: string; code: string; message: string; details?: Record<string, unknown> }> {
+     return stderr.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+   }
+   ```
 
-const CLI = join(import.meta.dir, '../../cli.ts');
+2. **Delete per-file private spawners** in the 6 subprocess-spawning files (these use `bun spawn` because they test signal handling, real subprocess behavior, or EPIPE — NOT in-process):
+   - `test/cli/fs-race.test.ts`
+   - `test/cli/flag-overrides.test.ts`
+   - `test/cli/symlink.test.ts`
+   - `test/cli/db-corruption.test.ts`
+   - `test/cli/fs-error.test.ts`
+   - `test/cli/malformed-yaml.test.ts`
 
-export interface RunResult { exitCode: number; stdout: string; stderr: string; }
+   These tests legitimately need subprocess. Add a SEPARATE exported `spawnCli(args, cwd): Promise<RunResult>` to `helpers.ts` that uses `bun spawn` (same shape as `runEd`'s return). Replace the per-file private versions with this import.
 
-export async function runCli(args: string[], cwd: string): Promise<RunResult> {
-  const proc = spawn(['bun', CLI, ...args], {
-    cwd,
-    env: { ...process.env, NO_COLOR: '1' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  await proc.exited;
-  return { exitCode: proc.exitCode ?? -1, stdout, stderr };
-}
+3. **Special case**: `test/cli/signal-handling.test.ts` uses `spawnEd` for SIGINT testing — keep its private spawner (signal handling needs custom interrupt logic) OR rewrite as `spawnCli` with a `signal` option. Plan-level decision: keep private until proven non-essential.
 
-export function parseJsonLines(stderr: string): Array<{ level: string; code: string; message: string; details?: Record<string, unknown> }> {
-  return stderr.split('\n').filter(Boolean).map((l) => JSON.parse(l));
-}
-```
-
-DELETE per-file private `runCli` definitions in:
-- `test/cli/fs-race.test.ts`
-- `test/cli/flag-overrides.test.ts`
-- `test/cli/symlink.test.ts`
-- `test/cli/db-corruption.test.ts`
-- `test/cli/fs-error.test.ts`
-- `test/cli/json-envelope-schema.test.ts` (already deleted in 2.5)
-- `test/cli/phase2.test.ts`, `test/cli/phase2-polish.test.ts`, `test/cli/commands.test.ts` (any with private runCli — confirm via `grep -l "async function runCli"`)
-
-Replace all with `import { runCli, parseJsonLines } from './runner-helper';`.
+**Net result**: `helpers.ts` exports `runEd` (in-process, fast — used by ~30 tests), `spawnCli` (subprocess, used by ~6 tests), `parseJsonLines`. No new file. No parallel helper.
 
 #### 3.1 — Test pattern remap
 
@@ -897,7 +889,7 @@ Replace all with `import { runCli, parseJsonLines } from './runner-helper';`.
 ```
 rg -nE 'parsed\.(status|data|warnings|errors|error|schemaVersion)' test/ src/ > /tmp/patterns.txt
 ```
-and confirm every line maps to a row in the table below. **If a line matches no row, STOP and add a new row before proceeding.** Do not silently skip unmapped patterns.
+and confirm every line maps to a row in the table below. **If a line matches no row, STOP. Add a new row to the table in §3.1 of this plan (`REDESIGN_PLAN.md`) in the same commit as the test rewrites.** Do not silently skip unmapped patterns. The plan is a living document during Phase 3.1; cumulative edits land with the Phase 3 commit.
 
 Run `rg` to enumerate every assertion pattern. Apply per the table below:
 
@@ -982,7 +974,7 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 
 | GATE | when | criteria | action on fail |
 |---|---|---|---|
-| G1 (Phase 1.3) | after creating 31 cards | `ed validate cards` → `total_issues: 0` | fix card content; re-run |
+| G1 (Phase 1.3) | after creating 32 cards | `ed validate cards` → `total_issues: 0` | fix card content; re-run |
 | G2 (Phase 1.4) | after SKILL.md edits | manual eyeball | edit |
 | G3 (Phase 2 mid) | after 2.1+2.2+2.4 | `bunx tsc --noEmit` clean | fix types |
 | G4 (Phase 2 end) | after 2.1–2.6 | `bunx tsc --noEmit` clean; record `bun test` failure count (expected 100–400 in CLI tests) | proceed to Phase 3 |
@@ -1030,7 +1022,7 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 
 | phase | turns | files | LOC |
 |---|---|---|---|
-| 1.3 | 6–10 | 31 new cards | ~30 × 60 = ~1800 |
+| 1.3 | 6–10 | 32 new cards | ~30 × 60 = ~1800 |
 | 1.4 | 1–2 | 1 (SKILL.md) | ~100 changed |
 | 2.1 | 1 | 1 (output.ts) | ~80 |
 | 2.2 | 1 | 1 (runner.ts) | ~100 |
@@ -1062,17 +1054,23 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
    cat .emberdeck/cards/cli-surface/command-routing-and-output/runner-and-output.md  | head -30
    ```
    Both should be v2 (no `envelope` in summary; mention emitResult/emitError).
-4. **Start Phase 1.3**:
+4. **Execute Phase 1.2.5 (NEW in v2.2)** — read §3 Phase 1.2.5; direct-edit brief G-003/G-004/G-005 + spec POST-005 to match v2.2 D5/D19 wording; run `ed bulk sync`; GATE: `ed validate cards` `total_issues: 0`. Commit before Phase 1.3.
+5. **Detect Phase 1.3 progress**:
+   ```bash
+   ls .emberdeck/cards/cli-surface/command-routing-and-output/commands/ 2>/dev/null | wc -l
+   ```
+   If 0: Phase 1.3 not started. If 32: done (verify via `ed validate cards`). If 1-31: partial — diff against §1.6 list to find missing keys.
+6. **Start Phase 1.3**:
    - Create directory: `mkdir -p .emberdeck/cards/cli-surface/command-routing-and-output/commands`
-   - For each of the 31 commands in §1.6, write the file (use §3.1 Phase 1.3 template; fill placeholders from §1.7 + §1.8).
-   - Run `ed bulk sync` → expect synced=76, errors=0.
+   - For each of the 32 cards in §1.6, write the file (use §3.1 Phase 1.3 template; fill placeholders from §1.7 + §1.8).
+   - Run `ed bulk sync` → expect synced=77, errors=0.
    - Run `ed validate cards` → expect `total_issues: 0`. This is GATE G1.
-5. **Phase 1.4**: edit `.claude/skills/emberdeck/SKILL.md` per §3.2 patches. GATE G2.
-6. **Commit Phase 1.3 + 1.4** as one or two commits (atomic per Phase is fine; Phase 1 sub-phases need not be one commit).
-7. **Phase 2**: read §3.2 sub-steps. Stage all changes. Do NOT commit between sub-steps. Run GATE G3 (`bunx tsc --noEmit`) after 2.1+2.2+2.4 to catch type errors early. After 2.1–2.6 all done, commit as one. GATE G4.
-8. **Phase 3**: 3.0 first (helper consolidation), then 3.1/3.2/3.3 in any order. GATE G5 after 3.0, GATE G6 after 3.3.
-9. **Phase 4**: PROBLEM.md edit. GATE G7.
-10. **Final GATE G8**: end-to-end smoke. Commit + push.
+7. **Phase 1.4**: edit `.claude/skills/emberdeck/SKILL.md` per §3.2 patches. GATE G2.
+8. **Commit Phase 1.3 + 1.4** as one or two commits (atomic per Phase is fine; Phase 1 sub-phases need not be one commit).
+9. **Phase 2**: read §3.2 sub-steps. Stage all changes. Do NOT commit between sub-steps. Run GATE G3 (`bunx tsc --noEmit`) after 2.4+2.1+2.2 (note: 2.4 must precede 2.2 per D13). After 2.1–2.7 all done, commit as one. GATE G4.
+10. **Phase 3**: 3.0 first (helpers.ts extension), then 3.1/3.2/3.3 in any order. GATE G5 after 3.0, GATE G6 after 3.3.
+11. **Phase 4**: PROBLEM.md edit. GATE G7.
+12. **Final GATE G8**: end-to-end smoke. Commit Phase 4 changes (subject: `docs(problem): close envelope-removal entries`). Push.
 
 If you (the agent) encounter ambiguity NOT resolved in this plan, STOP and document the gap in §2 Decisions. Do not invent.
 
@@ -1093,14 +1091,14 @@ This is the trade we accept.
 After all phases complete:
 
 **New cards** (31):
-- `.emberdeck/cards/cli-surface/command-routing-and-output/commands/*.md` (31 files)
+- `.emberdeck/cards/cli-surface/command-routing-and-output/commands/*.md` (32 files: 31 subcommand shapes + 1 commander-fallback)
 
 **Rewritten cards** (3, done in 1.2):
 - `cli-surface/command-routing-and-output.md`
 - `cli-surface/command-routing-and-output/runner-and-output.md`
 - `card-storage/persistence/sync.md` (POST-005 + failures)
 
-**Total cards in `ed validate cards`**: previous count (45 or current) + 31 = ~76. Verify with `ed validate cards` output count.
+**Total cards in `ed validate cards`**: previous count (45 or current) + 32 = ~77. Verify with `ed validate cards` output count.
 
 **Deleted files**:
 - `src/cli/commands/contract.spec.ts`
