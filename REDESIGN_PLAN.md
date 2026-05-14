@@ -1,8 +1,9 @@
-# Envelope-Removal Redesign — Executable Plan v2.8
+# Envelope-Removal Redesign — Executable Plan v2.9
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
-> **Last commit (plan)**: `f85e0e8` (v2.7).
-> **Plan version**: v2.8. Each iteration fact-checked against actual codebase via 2-agent parallel cross-review. v2.7's "CONVERGED" was broken by 10th review's implementation-angle attack: 5 REAL defects found by reading actual `card.ts`/`validate.ts` and comparing current return shapes to §1.7. v2.8 adds D23–D27 to resolve them. **NOT** an over-design — every fix corresponds to a grep-verified divergence between current code and target shape.
+> **Last commit (plan)**: `f90e6c1` (v2.8).
+> **Plan version**: v2.9. 11th hostile broke v2.8: the shape-drift methodology applied to card.ts/validate.ts in v2.8 was NOT extended to check.ts/bulk.ts/glossary.ts/spec.ts — systematic drift in 7+ commands. v2.9 (a) lifts §1.7 to a **shape-classification rubric** (10 categories) so future commands are derivable, (b) adds D28–D33 to enumerate v1→v2 delta for every drifted command (mirroring D23/D24's pattern), (c) fixes code defects from 11th review (emitResult race, OutputEncodeError import, ERROR_CODE_TO_EXIT gaps, BROKEN_LINK structured collector, KEY_MISMATCH bucketing).
+> **Design principle (final)**: §1.7 is canonical — code adapts to §1.7, not the other way. Each command's shape is derived from its functional category (single read / list / mutation / batch / validation / etc.); divergence from the category template is a defect, not an accepted variation.
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
 
 ---
@@ -72,10 +73,23 @@ export class OutputEncodeError extends Error {
   }
 }
 
+/** StdoutWriteError — thrown by emitResult when stdout.write's callback reports a
+ *  non-EPIPE error (e.g. disk-backed redirect that ran out of space). Runner
+ *  catches and maps to exit 5 (PERMISSION_OR_IO). EPIPE is silently swallowed
+ *  per UNIX SIGPIPE convention. */
+export class StdoutWriteError extends Error {
+  constructor(public readonly cause: NodeJS.ErrnoException) {
+    super(cause.message);
+    this.name = 'StdoutWriteError';
+  }
+}
+
 /** Emit success data as a single JSON value on stdout. Pretty in default mode,
- *  compact under --quiet (per D19). Per D25 we use the callback form of
- *  stdout.write and await drain so that `process.exit` (called by the runner
- *  afterward) does not truncate a large pipe-bound payload. */
+ *  compact under --quiet (per D19). Per D25 we ALWAYS wait for the write
+ *  callback before resolving — never resolve early on the sync fast path — so
+ *  `process.exit` (called by the runner afterward) cannot truncate a pipe-bound
+ *  payload. The previous v2.8 fast path (`if (ok) resolve()`) defeated D25;
+ *  fixed in v2.9 per H1. */
 export async function emitResult(data: unknown, ctx: OutputContext): Promise<void> {
   let payload: string;
   try {
@@ -85,17 +99,14 @@ export async function emitResult(data: unknown, ctx: OutputContext): Promise<voi
     // JSON.stringify failed (BigInt, circular). Bubble to runner; do NOT process.exit (D26).
     throw new OutputEncodeError(e);
   }
-  await new Promise<void>((resolve) => {
-    const ok = process.stdout.write(payload, (err) => {
-      // EPIPE (piped to head etc) — silent per UNIX SIGPIPE convention; exit code unchanged.
-      // Other errors are also swallowed; stderr emission is the runner's responsibility.
-      if (err && (err as NodeJS.ErrnoException).code !== 'EPIPE') {
-        // Best-effort stderr signal; runner has not yet decided exit code.
-        emitError({ code: 'OUTPUT_ENCODE_FAILED', message: err.message });
-      }
-      resolve();
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(payload, (err) => {
+      if (!err) return resolve();
+      const errno = (err as NodeJS.ErrnoException).code;
+      if (errno === 'EPIPE') return resolve();  // SIGPIPE convention; exit code unchanged.
+      // Real I/O failure (ENOSPC, EIO). Surface to runner; runner maps to exit 5.
+      reject(new StdoutWriteError(err as NodeJS.ErrnoException));
     });
-    if (ok) resolve();  // synchronous fast path; callback still fires but resolve idempotent
   });
 }
 
@@ -203,8 +214,25 @@ A new card family is introduced under `cli-surface/command-routing-and-output/co
 
 Shapes are written as **JSON Schema-ish sketches** with each field's type. The shape goes in the per-command card's first postcondition (POST-001) as a fenced JSON code block. `(P=N)` annotations indicate which policy exit code applies.
 
+**Shape-classification rubric (v2.9, canonical)** — every command's shape MUST fit one of these categories. Divergence = defect.
+
+| # | category | shape skeleton | rationale |
+|---|---|---|---|
+| C1 | single read | flat object of entity fields | no wrapper; entity IS the response |
+| C2 | list (paginated) | `{items:[], total, limit?, offset?, has_more?}` | unify list shape; no word-vs-no-word divergence |
+| C3 | mutation (single) | `{...mutated_entity_identifiers, ...changed_fields}` | side-effect = "what changed"; concrete IDs, not counters |
+| C4 | batch mutation | `{<verb>:[{...}], failed:[{input_index|filePath, error, ...}], total}` | array-valued success+failure (NOT counters) so caller can retry |
+| C5 | validation (per-entity grouped) | `{summary:{by_code, total, ok, broken, ...}, items:[{key, issues|broken_links, ...}], file_level_issues?:[]}` | envelope-derived defect fix: group by entity; file-level (no key) separate bucket |
+| C6 | structured detail item | inside C5: each issue `{file, symbol, reason, ...}` — NEVER a flattened message string | consumer must filter/group without string parsing |
+| C7 | multi-dimension report | `{<dim1>:{...}, <dim2>:{...}, ...}` each dim is its own natural shape | each dimension stands alone; cards-array within a dim carries its own `total` |
+| C8 | mode-discriminated | one card, N POST-001 blocks (one per mode), consumer dispatches on field presence | unifying loses information; explicit mode flag in shape when needed |
+| C9 | policy gate | `{pass_or_fail, ...reasoning fields, affected:[]}` | exit code is the real signal; data is the reasoning |
+| C10 | environment / scaffold | `{...paths_or_resources, created:[], skipped:[], ...flags}` | idempotent setup reports what changed vs what was already there |
+
+Command → category mapping is annotated `(Cn)` on each command below. Phase 2.3 verifies that the implemented shape matches its category template.
+
 ```
-ed card get <key>
+ed card get <key>  (C1)
   data shape: CardFile + optional history. FLAT (no `frontmatter` nesting):
   {
     key, summary, status, type, parent: string|null,
@@ -219,56 +247,56 @@ ed card get <key>
     v2 inlines the frontmatter fields at the root (drop the `frontmatter` wrapper). The
     `history` field stays at the same position. See D23.
 
-ed card list [filters] [--limit N] [--offset N]
+ed card list [filters] [--limit N] [--offset N]  (C2)
   data shape: { items: CardRow[], total: number, limit: number, offset: number, has_more: boolean }
   exit codes: 0.
   v1→v2 delta (Phase 2.3 hint): current `card.ts:193-197` returns
     `{items, total, page: {limit, offset, has_more}}`. v2 flattens `page.*` to the root.
     See D23.
 
-ed card create <key> --type T [...]
+ed card create <key> --type T [...]  (C3)
   data shape: { key: string, filePath: string, status: string, type: string, parent: string | null }
   exit codes: 0; thrown→4 CONFLICT if key exists.
 
-ed card update <key> [--field, --patch, --glossary, --tag]
+ed card update <key> [--field, --patch, --glossary, --tag]  (C3)
   data shape: { key: string, filePath: string, status: string, validation_notes: { code: string, message: string }[] }
   (validation_notes carries non-fatal field warnings — e.g. "status changed to draft because type changed"; renamed from "warnings" per D20 to avoid v1 envelope collision)
   exit codes: 0; thrown→3 NOT_FOUND, 2 VALIDATION_FAILURE.
 
-ed card delete <key> [--force] [--yes]
+ed card delete <key> [--force] [--yes]  (C3)
   data shape: { key: string, filePath: string, cascaded?: string[] }  // cascaded = child keys deleted
   exit codes: 0; thrown→3 NOT_FOUND, 4 CONFLICT if children and no --force.
 
-ed card rename <old> <new>
+ed card rename <old> <new>  (C3)
   data shape: { old_key, new_key, old_path, new_path, failed_reference_updates: string[] }
   exit codes: 0; thrown→3, 4.
 
-ed card search <query>
+ed card search <query>  (C2)
   data shape: { items: CardRow[], total: number }
   exit codes: 0; thrown→2 FTS_SYNTAX_ERROR.
 
-ed card export <key> [--out FILE | --in-place]
+ed card export <key> [--out FILE | --in-place]  (C8)
   data shape: { key, mode: 'in-place'|'file'|'stdout', filePath?: string|null, bytes?: number, content?: string }
   (mode='stdout' includes content; --out includes filePath; --in-place includes filePath; consumer dispatches on mode)
   exit codes: 0; thrown→3.
 
-ed card set-status <key> <status> [--reason TEXT]
+ed card set-status <key> <status> [--reason TEXT]  (C3)
   data shape: { key: string, oldStatus: string, newStatus: string }
   exit codes: 0; thrown→3, 2 if activation guard fails.
 
-ed card tree <key> [--depth N]
+ed card tree <key> [--depth N]  (C1)
   data shape: TreeNode { key, type, status, summary, children: TreeNode[] }
   exit codes: 0; thrown→3.
 
-ed card context <key> [--depth N]
+ed card context <key> [--depth N]  (C7)
   data shape: { card: CardFile, relations: { forward: CardRow[], reverse: CardRow[] }, parent_chain: CardRow[] }
   exit codes: 0; thrown→3.
 
-ed card relations <key>
+ed card relations <key>  (C7)
   data shape: { forward: CardRow[], reverse: CardRow[] }
   exit codes: 0; thrown→3.
 
-ed validate cards
+ed validate cards  (C5)
   data shape: {
     summary: { total: number, by_code: Record<string, number> },
     items: {
@@ -276,7 +304,15 @@ ed validate cards
       filePath?: string,
       issues: { code: string, message: string, details?: Record<string, unknown> }[]
     }[],
-    file_level_issues: { code: string, message: string, file_path: string }[]  // ORPHAN_FILE, STALE_DB_ROW (no card key)
+    file_level_issues: { code: string, message: string, file_path: string, key?: string }[]
+    //   ORPHAN_FILE  — file with no DB row (no key)
+    //   STALE_DB_ROW — DB row whose file vanished (carries key for context)
+    //   KEY_MISMATCH — frontmatter key != path-derived key (carries BOTH; bucketed
+    //                  here per D33 because the "issue is about the file path, not
+    //                  the entity"; the card's own items[] entry would imply the
+    //                  issue belongs to the card-as-identified-by-its-key, but here
+    //                  the key itself is what's wrong. Single canonical bucket prevents
+    //                  double-reporting.)
   }
   exit codes: 0 if summary.total===0; else 2 (policy).
   v1→v2 delta (Phase 2.3 — NOT mechanical, see D24): current `validate.ts:208-215` returns
@@ -287,7 +323,7 @@ ed validate cards
     (3) compute `summary.by_code` from issue counts,
     (4) return `exitCode: 2` when `summary.total > 0` (no more `partial()`).
 
-ed validate links [key]
+ed validate links [key]  (C5+C6)
   data shape: {
     summary: { total: number, ok: number, broken: number, skipped: number, io_failed: number },
     items: {
@@ -310,22 +346,24 @@ ed validate links [key]
     (5) `summary.total` = items.length; `summary.ok` = items with no broken/skipped/io_error,
     (6) return `exitCode: 2` when `summary.broken > 0 || summary.io_failed > 0`.
 
-ed validate
+ed validate  (C7 of C5+C5)
   data shape: { cards: <validate cards shape>, links: <validate links shape> }
   exit codes: 0 if both sub-shapes 0; else 2.
   v1→v2 delta: apply both deltas above; combine into top-level `{cards, links}`.
 
-ed check drift [key] [--max-depth N]
+ed check drift [key] [--max-depth N]  (C7)
   data shape: {
     health: { total, active, drifted, draft },
     cards: { key, summary, status, driftType?, driftTypes?, brokenLinks, totalLinks }[],
     total_drifted: number  // = cards.filter(c=>c.driftType).length
   }
   exit codes: 0 (read-only).
+  v1→v2 delta (per D28, Phase 2.3): current `check.ts:28-31` returns `{health, cards}` — `total_drifted` field is MISSING (code comment at line 26-27 argues against it; the comment is wrong per C7 — every cards-array dimension carries its own total). v2 adds `total_drifted = result.cards.filter(c=>c.driftType).length`.
 
 ed check coverage <key>                  // mode='card'   (positional key present)
 ed check coverage --uncovered            // mode='uncovered'
 ed check coverage --suggest              // mode='suggest'
+  (C8 — mode-discriminated)
   Single card with 3 mode-discriminated shape variants. Write the per-command card
   with 3 separate POST-001a/b/c blocks (one per mode), each declaring its shape
   + invariants. The runner dispatches on flags; consumer dispatches on the response's
@@ -334,16 +372,19 @@ ed check coverage --suggest              // mode='suggest'
   POST-001a (mode='card'):
   data shape: { key, total_symbols, covered_symbols, coverage_ratio: number|null, uncovered: { file, symbol, kind }[] }
   exit codes: 0.
+  v1→v2 delta (per D29, Phase 2.3): current `check.ts:74-82` returns link-coverage `{declared, resolved, broken, coverage_ratio, unreferenced_symbols, unreferenced_total}` — a DIFFERENT concept (declared codeLinks resolution rate, not symbol coverage). §1.7's POST-001a is **symbol-coverage** (how many project symbols are referenced by THIS card). Phase 2.3 MUST: (a) call `getCoverageByCard(rt.ctx, key)` (the symbol-coverage op — confirm name in src/ops/) instead of `getLinkCoverage`, OR (b) if no such op exists yet, ADD it (count symbols in card's declared codeLinks ÷ total symbols in card's bound files), THEN map to `{key, total_symbols, covered_symbols, coverage_ratio, uncovered:[{file,symbol,kind}]}`. The current op `getLinkCoverage` is REPURPOSED for `check drift`'s link-validity dimension; do NOT delete it.
 
   POST-001b (mode='uncovered'):
   data shape: { total_symbols, covered_symbols, coverage_ratio, uncovered: { file, symbol, kind }[], uncovered_total }
   exit codes: 0.
+  v1→v2 delta: current matches §1.7. Mechanical `ok(D) → {data:D}`.
 
   POST-001c (mode='suggest'):
   data shape: { suggestions: { key, type, parent?, files, symbols, reason, suggested_glossary }[], total }
   exit codes: 0.
+  v1→v2 delta: current matches §1.7. Mechanical.
 
-ed check impact <files...> [--symbol N...]
+ed check impact <files...> [--symbol N...]  (C7)
   data shape (per D22, inline AffectedCard from src/ops/impact.ts):
   {
     risk_level: 'low'|'medium'|'high'|'critical',
@@ -354,8 +395,9 @@ ed check impact <files...> [--symbol N...]
     max_fan_in?: number
   }
   exit codes: 0.
+  v1→v2 delta: matches §1.7. Mechanical.
 
-ed check regression <files...>
+ed check regression <files...>  (C9)
   data shape:
   {
     pass_or_fail: 'pass'|'fail',
@@ -364,16 +406,18 @@ ed check regression <files...>
     affected: { key: string, status: string, driftType?: string }[]
   }
   exit codes: 0 if pass_or_fail==='pass'; else 2.
+  v1→v2 delta: matches §1.7. Remove `partial()` branch; return `{data, exitCode: result.passOrFail==='fail' ? 2 : 0}`.
 
-ed check interactions <keys...>
+ed check interactions <keys...>  (C7)
   data shape (per D22, inline CardInteraction + UndefinedRelation from src/ops/context.ts):
   {
     interactions: { keys: string[], sharedSymbols: { file: string, symbol: string }[], sharedFiles: string[], importDependencies: { from: string, to: string, file: string }[] }[],
     undefined_relations: { src_key: string, dst_key: string, suggestion: string, reason: string }[]
   }
   exit codes: 0.
+  v1→v2 delta: matches §1.7. Mechanical.
 
-ed spec sync
+ed spec sync  (C4)
   data shape (per D22, inline types from src/ops/spec-sync.ts SpecSyncResult):
   {
     created: number,
@@ -383,43 +427,59 @@ ed spec sync
     linkMissing: { cardKey: string, file: string, symbol: string }[]
   }
   exit codes: 0 (sync is fact-recording; unmatched/marker-missing are diagnostics not failures).
+  v1→v2 delta (per D30, Phase 2.3): current `spec.ts:28-34` returns `{created, already_linked, unmatched:NUMBER, marker_missing:NUMBER, link_missing:NUMBER}` — three NUMBER counters where §1.7 demands ARRAYS, plus snake_case `already_linked` vs camelCase `alreadyLinked`. Phase 2.3 MUST: (a) pass `result.unmatched`/`result.markerMissing`/`result.linkMissing` arrays through unmodified, (b) rename `already_linked` → `alreadyLinked`, (c) DELETE the `UNMATCHED_ANNOTATION` CliMessage construction (lines 24-27) — diagnostics live INSIDE the arrays now, not in stderr.
 
-ed spec sync-symbols [--since TS]
-  data shape: { applied: { oldSymbol: string, newSymbol: string, file: string, affected_cards: string[] }[], skipped: { reason: string, symbol?: string }[] }
+ed spec sync-symbols [--since TS]  (C4)
+  data shape: {
+    applied: { oldSymbol: string, newSymbol: string, file: string, affected_cards: string[] }[],
+    skipped: { reason: string, symbol?: string }[],
+    total: number,                            // applied.length + skipped.length
+    since: string,                            // ISO8601 watermark used
+    since_source: 'flag'|'last_sync'|'default_24h',
+    next_sync_marker: string | null           // null if metadata upsert failed
+  }
   (Inline shape; actual SymbolChange type lives in src/ops/spec-sync.ts but fields match the public output.)
   exit codes: 0.
+  v1→v2 delta (per D30, Phase 2.3): current `spec.ts:91-98` returns `{updated, broken, changes, since, since_source, next_sync_marker}` — `updated`/`broken`/`changes` are aggregate fields that conflate applied/skipped/total. §1.7 splits into `applied:[]` (successfully renamed links) and `skipped:[]` (changes that couldn't be applied — e.g. ambiguous, missing card). Phase 2.3 MUST: (a) restructure `result.changes` into the two arrays — map `applied` entries (where the rename actually happened) and `skipped` entries (the rest) using the existing op's classification; if the op doesn't already classify, ADD that classification to `syncSymbolChanges()` in src/ops/spec-sync.ts, (b) compute `total`, (c) move the `METADATA_WRITE_FAILED` warning from the `ok(data, [...warnings])` second-arg into `skipped:[{reason:'metadata_write_failed', message:upsertWarning}]` — D19 forbids the old warnings channel.
 
-ed bulk create --from FILE
+ed bulk create --from FILE  (C4)
   data shape: { created: { key, filePath }[], failed: { input_index, key?, error }[], total: number }
   exit codes: 0 if failed.length===0; else 2.
+  v1→v2 delta (per D31, Phase 2.3): current `bulk.ts:75-82` returns COUNTER shape `{succeeded:string[], partial_keys, total, created:NUMBER, failed:NUMBER, rejected_pre_write:NUMBER}` plus a separate CliMessage `errors[]`. §1.7 is ARRAY shape with structured `failed[]`. Phase 2.3 MUST: (a) build `created:[{key, filePath}]` from `result.keys` joined with `result.<created details>` (op may need a minor change to return filePath per created key — if not present, add it), (b) merge `validated.errors` (pre-write) and `result.errors` (write-time) into one `failed:[{input_index, key?, error}]` ordered by input_index, (c) DROP `succeeded`/`partial_keys`/`rejected_pre_write` (all derivable), (d) keep `total` = input count, (e) return `{data, exitCode: failed.length>0 ? 2 : 0}` — no `partial()`.
 
-ed bulk sync [PATH]
+ed bulk sync [PATH]  (C4)
   data shape: { synced: number, mode: 'file'|'directory', path: string, failed: { filePath, error }[] }
   exit codes: 0 if failed.length===0; else 2.
+  v1→v2 delta (per D31, Phase 2.3): current `bulk.ts:109` (file-mode) returns `{synced:1, path, mode:'file'}` with NO `failed` field; current `bulk.ts:118-123` (directory-mode) returns counter `errors:NUMBER` + separate CliMessage `errors[]`. §1.7 unifies both modes to include `failed:[{filePath, error}]` (empty array on success). Phase 2.3 MUST: (a) file-mode returns `{synced:1, mode:'file', path, failed:[]}`, (b) directory-mode replaces `errors:result.errors.length` with `failed: result.errors.map(e=>({filePath:e.filePath, error:errorMessage(e.error)}))`, (c) return `{data, exitCode: failed.length>0 ? 2 : 0}` — no `partial()`.
 
-ed glossary define [pairs...] [--from f.yaml]
-  data shape: { defined: { word, definition }[], failed: { input_index, reason }[] }
+ed glossary define [pairs...] [--from f.yaml]  (C4)
+  data shape: { defined: { word, definition }[], failed: { input_index, reason }[], total: number }
   exit codes: 0 if failed.length===0; else 2.
   (renamed top-level `errors` → `failed` per D20 v2.3)
+  v1→v2 delta (per D32, Phase 2.3): current `glossary.ts:64-69` returns `{results, total, created:NUMBER, updated:NUMBER}` — a counter shape that conflates created/updated. §1.7 unifies into `defined:[{word, definition}]` (every entry that was successfully written, whether created or updated) + `failed:[]` (validation/IO failures with their input index). Phase 2.3 MUST: (a) map `result.results` filter where `action==='created'||action==='updated'` → `defined:[{word, definition}]`, (b) accumulate any input-validation failures (from `loadEntriesFromFile`/`parseDefinitionPair` — currently these THROW; v2 catches them per-entry into `failed[]`), (c) `total` = input count, (d) return `{data, exitCode: failed.length>0 ? 2 : 0}`. NOTE: this changes failure semantics from "throw at first bad pair" to "process all, report all failures" — explicitly per D32.
 
-ed glossary lookup [word]
+ed glossary lookup [word]  (C2)
   data shape: { entries: { word, definition }[], total: number }
-  // Single-word form returns 1-element entries[]; missing word returns 0-element.
+  // Single-word form returns 1-element entries[] (or 0-element if not found); no-word form returns all entries.
   exit codes: 0.
+  v1→v2 delta (per D32, Phase 2.3): current `glossary.ts:83-89` BRANCHES the shape — single-word form returns `{found, entry}`, no-word form returns `{entries, total}`. §1.7 unifies to single shape. Phase 2.3 MUST: in the `if (word)` branch, build `{entries: result.found ? [result.entry] : [], total: result.found ? 1 : 0}`; in the else branch keep as is. Single shape regardless of args (C2 invariant).
 
-ed glossary remove <word>
+ed glossary remove <word>  (C3)
   data shape: { removed: boolean, word: string, affected_card_keys: string[] }
   exit codes: 0; thrown→3 if word not defined.
+  v1→v2 delta (per D32, Phase 2.3): current `glossary.ts:109` returns `{removed, affected_card_keys}` — `word` field is MISSING. §1.7 mandates `word` for C3 (mutation must identify what was mutated). Phase 2.3: add `word` from the input arg.
 
-ed glossary rename <old> <new> [--def TEXT]
-  data shape: { old_word, new_word, affected_card_keys: string[] }
-  exit codes: 0; thrown→3, 4.
+ed glossary rename <old> <new> [--def TEXT]  (C3)
+  data shape: { old_word, new_word, affected_card_keys: string[], failed_file_writes?: string[] }
+  exit codes: 0 if no failures; 2 if any `failed_file_writes`. thrown→3, 4.
+  v1→v2 delta (per D32, Phase 2.3): current `glossary.ts:124-130` uses `{renamed_from, renamed_to, definition, cards_updated, file_write_failures}` — different field names from §1.7. Phase 2.3 MUST: (a) rename `renamed_from→old_word`, `renamed_to→new_word`, (b) `cards_updated` array → `affected_card_keys` (same content, name aligns with C3 sibling `glossary remove`), (c) `file_write_failures` → optional `failed_file_writes?` (only present if non-empty), (d) DROP `definition` from top-level — it's an input, not a result of the rename; consumer already knows it, (e) return `{data, exitCode: failed_file_writes ? 2 : 0}` — no `partial()`.
 
-ed init [--project-root] [--cards-dir] [--no-gitignore] [--force]
+ed init [--project-root] [--cards-dir] [--no-gitignore] [--force]  (C10)
   data shape: { project_root, cards_dir, config_path, glossary_path, created: string[], skipped: string[], gitignore_updated: boolean }
   exit codes: 0.
+  v1→v2 delta: current `single.ts:111-119` matches §1.7. Mechanical.
 
-ed analyze [--drifted-limit N] [--drifted-offset N]
+ed analyze [--drifted-limit N] [--drifted-offset N]  (C7)
   data shape (all inner types inlined per D22):
   {
     health: {
@@ -438,9 +498,10 @@ ed analyze [--drifted-limit N] [--drifted-offset N]
   }
   exit codes: 0.
 
-ed reset --yes
+ed reset --yes  (C10)
   data shape: { cards_deleted: number, glossary_cleared: boolean, db_reset: boolean }
   exit codes: 0.
+  v1→v2 delta: matches §1.7. Mechanical.
 
 runner-commander-fallback  (not an ed subcommand; commander-error path per Phase 2.7)
   data shape: (none — failure path emits no stdout)
@@ -557,6 +618,13 @@ export async function main(argv: string[] = process.argv): Promise<void> {
 | `COMPENSATION_FAILED` | error | ✓ (CompensationError, structured branch) | 1 | `{original_error: string, compensation_error: string}` (already emitted today) |
 | `INTERNAL_ERROR` | error | ✓ (fallback) | 1 | `{class?: string}` |
 | `OUTPUT_ENCODE_FAILED` | error | n/a (emitResult catch path) | 1 | `{}` |
+| `STDOUT_WRITE_FAILED` | error | n/a (emitResult callback path; non-EPIPE) | 5 | `{}` |
+| `NOT_FOUND` | error | (legacy alias of CARD_NOT_FOUND, kept until grep confirms no source throws) | 3 | `{}` |
+| `CONFLICT` | error | (legacy alias of CARD_ALREADY_EXISTS, kept until grep confirms no source throws) | 4 | `{}` |
+| `PERMISSION` | error | (legacy IO bucket — kept while ops still throws it; audit in Phase 2.4) | 5 | `{}` |
+| `IO_ERROR` | error | (legacy IO bucket — kept while ops still throws it; audit in Phase 2.4) | 5 | `{}` |
+| `BOUNDARY_VALIDATION_ERROR` | error | (boundary check failure; ops throws today) | 2 | `{}` |
+| `VALIDATION_FAILURE` | error | (legacy alias of VALIDATION_ERROR; kept until ops audit) | 2 | `{}` |
 | `RUNTIME` | verbose | n/a (runner verboseLog) | n/a | `{subsystem?: string, ...freeform}` |
 | `SIGINT` | error | n/a (signal handler) | 130 | `{}` |
 
@@ -621,6 +689,30 @@ These are 2-line edits per command — small, but they are NOT covered by Phase 
 **D26 (v2.8 — emitResult must not process.exit)**: If `JSON.stringify` fails inside `emitResult`, the v2.7 code called `process.exit(1)` directly. This bypasses the runner's `await rt?.cleanup()` → leaked DB handle → next CLI run sees stale lock. Resolution: `emitResult` throws an `OutputEncodeError`; the runner's catch block recognizes it, calls `emitError({code:'OUTPUT_ENCODE_FAILED',...})`, sets `exitCode = 1`, then proceeds to cleanup as normal.
 
 **D27 (v2.8 — commander exitOverride location)**: Phase 2.7 v2.7 template put the try/catch in `cli.ts`, but `cli.ts` is a thin shim that just calls `main()` — `parseAsync` lives inside `main()` in `src/cli/index.ts`. v2.8 puts the try/catch inside `main()` so the relative imports (`./output`, `./exit-codes`) work without re-anchoring. Additionally, the existing `.showHelpAfterError('(run `ed --help` for full usage)')` at `src/cli/index.ts:40` is DELETED — it prints free-text help to stderr, which violates §1.1 / D5 ("stderr is JSON-lines only").
+
+**D28 (v2.9 — check drift total_drifted)**: §1.7's `check drift` shape includes `total_drifted` per C7 (every cards-array dimension carries its own total). The code comment at `check.ts:26-27` argues against it on the grounds that "health.drifted already reflects this." That comment is wrong: `health.drifted` is the DB-status-aggregate count; `total_drifted` is the live-detection count from the cards array. They can diverge when a card's DB status is stale. Phase 2.3 adds the field. (REAL defect per 11th hostile F-C.)
+
+**D29 (v2.9 — check coverage <key> semantic shift + BROKEN_LINK structured)**: Two separate issues bundled because they share a single file edit:
+- `check coverage <key>` (mode='card') currently returns LINK-coverage (declared codeLinks resolution rate). §1.7 specifies SYMBOL-coverage (project symbols referenced by this card). These are different concepts. Phase 2.3 switches the op call. If the symbol-coverage op doesn't exist yet (audit src/ops/), Phase 2.3 ADDS it; the existing `getLinkCoverage` stays for `check drift`'s dimension.
+- `BROKEN_LINK` collector in `validate.ts:72,152` currently flattens link details into a message string. v2 stores structured `{file, symbol, reason}` directly (per C6 invariant: no message-string parsing required by consumers). The op already exposes structured `{link:{file,symbol}, reason}`; just pass through. (REAL defect per 11th hostile H7.)
+
+**D30 (v2.9 — spec sync / sync-symbols counter-to-array)**: Both `spec sync` and `spec sync-symbols` currently return COUNTER aggregates (`unmatched:N`, `markerMissing:N`, `updated:N`, `broken:N`); §1.7 per C4 requires structured ARRAYS so consumers can retry/fix individual items. Phase 2.3 restructures:
+- `spec sync` passes the existing op's `unmatched`/`markerMissing`/`linkMissing` arrays through unchanged and DELETES the runner-side `UNMATCHED_ANNOTATION` CliMessage construction (those items live inside the arrays now).
+- `spec sync-symbols` splits the existing `changes[]` into `applied[]` (successful renames) and `skipped[]` (couldn't apply); if the op doesn't already classify, Phase 2.3 adds the classification. The `METADATA_WRITE_FAILED` warning moves into `skipped[]` (D19 forbids the old `warnings` channel). (REAL defect per 11th hostile F-F.)
+
+**D31 (v2.9 — bulk create / bulk sync counter-to-array)**: Same pattern as D30 for `bulk` family. C4 violation: counters where arrays are needed for retry. Phase 2.3:
+- `bulk create`: merge `validated.errors` (pre-write) and `result.errors` (write-time) into one ordered `failed:[{input_index, key?, error}]`. Build `created:[{key, filePath}]` from the op result. Drop the legacy `succeeded`/`partial_keys`/`rejected_pre_write`/numeric `created`/`failed` fields.
+- `bulk sync`: unify file-mode and directory-mode under one shape that always carries `failed:[{filePath, error}]`. File-mode `failed:[]` on success. (REAL defect per 11th hostile F-D.)
+
+**D32 (v2.9 — glossary family alignment)**: Four glossary commands all drift from §1.7:
+- `glossary define`: counter shape → array `{defined:[], failed:[], total}`. **Semantics change**: input validation errors (currently THROW at first bad pair via `parseDefinitionPair`/`loadEntriesFromFile`) become per-entry `failed[]` entries instead — explicitly accepted per C4 ("process all, report all failures").
+- `glossary lookup`: unify the word/no-word shapes to single `{entries, total}` form (C2).
+- `glossary remove`: add `word` field (C3 sibling consistency).
+- `glossary rename`: rename `renamed_from→old_word`, `renamed_to→new_word`, `cards_updated→affected_card_keys`, drop `definition` (input echo), `file_write_failures→failed_file_writes?` (optional, only when non-empty), `partial()` → `exitCode:2` branch. (REAL defect per 11th hostile F-E.)
+
+**D33 (v2.9 — KEY_MISMATCH bucketing)**: KEY_MISMATCH issues have BOTH a card-key and a file_path. v2.7/v2.8 left it ambiguous between `items[].issues[]` (card-keyed) and `file_level_issues[]` (file-keyed). v2.9 places it in `file_level_issues[]` because the issue IS the file's frontmatter key being wrong — the "card identified by its key" doesn't coherently exist (the key itself is the defect). Single canonical bucket prevents double-reporting. §1.7 `validate cards` shape's `file_level_issues[].key?` is OPTIONAL precisely so KEY_MISMATCH can carry it for context.
+
+**D34 (v2.9 — stdout I/O error)**: Non-EPIPE failures during `process.stdout.write` (ENOSPC, EIO when stdout is redirected to a full filesystem) used to be silently swallowed. v2.9 surfaces them via a new `StdoutWriteError` thrown out of `emitResult`; the runner catches and maps to `STDOUT_WRITE_FAILED` + exit 5. EPIPE stays silent (UNIX SIGPIPE convention). The v2.8 fast-path `if (ok) resolve()` is DELETED — it defeated D25's anti-truncation purpose. (REAL defect per 11th hostile H1.)
 
 ---
 
@@ -817,7 +909,7 @@ REPLACE ENTIRE FILE (template):
  */
 import type { Command } from 'commander';
 import { buildRuntime, type GlobalFlags, type CliRuntime } from './context';
-import { emitResult, emitError, emitVerbose, emitWarning, buildOutputContext } from './output';
+import { emitResult, emitError, emitVerbose, emitWarning, buildOutputContext, OutputEncodeError, StdoutWriteError } from './output';
 import { toCliError, ERROR_CODE_TO_EXIT } from './errors';
 import { EXIT, type ExitCode } from './exit-codes';
 import { ensureCardsSynced } from '../ops/sync';
@@ -872,6 +964,11 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
       // D26: emitResult bubbled an encode failure; cleanup still runs below before exit.
       emitError({ code: 'OUTPUT_ENCODE_FAILED', message: e.message });
       exitCode = EXIT.GENERIC_ERROR;
+    } else if (e instanceof StdoutWriteError) {
+      // D25 v2.9: real I/O error during stdout write (ENOSPC, EIO). EPIPE was already
+      // swallowed inside emitResult per UNIX convention; only non-EPIPE reaches here.
+      emitError({ code: 'STDOUT_WRITE_FAILED', message: e.message });
+      exitCode = EXIT.PERMISSION_OR_IO;
     } else {
       const cliErr = toCliError(e);
       // Errors always emit regardless of --quiet (D19) — silent failure is anti-pattern.
@@ -913,12 +1010,24 @@ For each file in `src/cli/commands/*.ts`:
 
 1. Remove `import { ok, partial, ... } from '../output'`.
 2. Change every `return ok(D)` → `return { data: D }` **ONLY if `D` already matches §1.7's shape for that command**. Otherwise restructure `D` first (see step 2a). Most card / glossary / check / bulk commands are mechanical. The exceptions are listed in step 2a.
-2a. **Non-mechanical commands (per D24)** — the current `D` shape differs from §1.7's target; agent MUST restructure. See each command's "v1→v2 delta" note in §1.7:
+2a. **Non-mechanical commands** — the current `D` shape differs from §1.7's target; agent MUST restructure. See each command's "v1→v2 delta" note in §1.7. Per v2.9 systematic audit, the FULL non-mechanical set is:
    - `ed card get` — unwrap `frontmatter` to root, keep `history?` (D23).
    - `ed card list` — flatten `page.{limit,offset,has_more}` to root (D23).
    - `ed validate cards` — bucket warnings into `items[].issues[]`, split file-level into `file_level_issues[]`, compute `summary.by_code` (D24).
    - `ed validate links` — per-target `items[]` with `broken_links[]`/`skipped`/`io_error`, compute `summary` (D24).
    - `ed validate` (aggregate) — combine the two above into `{cards, links}`.
+   - `ed check drift` — add `total_drifted` field (D28).
+   - `ed check coverage <key>` (mode='card') — switch from link-coverage to symbol-coverage op (D29). LARGEST single semantic change.
+   - `ed bulk create` — counter → arrays `{created:[], failed:[{input_index,...}], total}` (D31).
+   - `ed bulk sync` — both modes include `failed:[]` (D31).
+   - `ed glossary define` — counter → arrays; catch per-entry validation errors instead of throw-first (D32). Semantics change documented in D32.
+   - `ed glossary lookup` — unify single-word and no-word shapes to `{entries, total}` (D32).
+   - `ed glossary remove` — add `word` field (D32).
+   - `ed glossary rename` — rename fields to match C3 sibling; drop `definition`; `partial()` → `exitCode:2` branch (D32).
+   - `ed spec sync` — counter → arrays; drop `UNMATCHED_ANNOTATION` stderr messages (D30).
+   - `ed spec sync-symbols` — restructure `changes` into `applied[]`/`skipped[]`; metadata warning moves into `skipped[]` (D30).
+   - `ed check regression` — replace `partial()` with `{data, exitCode: passOrFail==='fail' ? 2 : 0}` (mechanical-ish; no shape change).
+   - `BROKEN_LINK` collector inside validate.ts (per D29 v2.9): the current `validate.ts:72,152` flattens to `message: \`${b.link.file}:${b.link.symbol} (${b.reason})\``. v2 MUST store structured `{file: b.link.file, symbol: b.link.symbol, reason: b.reason}` directly into the per-card `items[i].broken_links[]` array — NO message-string assembly. The src/ops/link.ts BrokenLink already exposes `{link:{file,symbol}, reason}` structured; just pass through.
 3. For non-mechanical commands above: do NOT use `partial(D, errors)`. Build the §1.7 shape directly. Return `{ data, exitCode: 2 }` when the policy condition (`summary.total>0` for validate cards; `summary.broken+io_failed>0` for links) is true.
 4. For other commands still using `partial(D, errors)`: collapse to a clean shape per §1.7 (most have a top-level `failed: []` field; move errors there).
 5. Map error CODE strings per §4 (validate.ts specifically — codes already align with §1.7's expected codes).
