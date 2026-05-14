@@ -1,4 +1,4 @@
-# Envelope-Removal Redesign — Executable Plan v2.3
+# Envelope-Removal Redesign — Executable Plan v2.4
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
 > **Last commit (plan)**: `0391702` (v2.1).
@@ -108,7 +108,7 @@ export type CommandReturn = { data?: unknown; exitCode?: number } | undefined;
 **Rules**:
 - Return `{ data: D }` → runner emits `D` on stdout, exits with `EXIT.OK` (0).
 - Return `{ data: D, exitCode: 2 }` → runner emits `D` on stdout, exits with `2` (policy-failure with data).
-- Return `undefined` → runner emits nothing on stdout, exits with `EXIT.OK`. Reserved for void-side-effect commands (currently none in v2 scope; commands SHOULD always return `{data}`). Commands MUST NOT write stdout directly; only the runner calls `emitResult`.
+- Return `undefined` (or `{data: undefined}`) → runner emits nothing on stdout, exits with `EXIT.OK`. Reserved for void-side-effect commands (currently none in v2 scope; commands SHOULD always return `{data}` with a concrete payload, even if it's `{}`). Commands MUST NOT write stdout directly; only the runner calls `emitResult`. (See D17 for the runner-side guard rule.)
 - Throw → runner catches, emits one `level:error` JSON-line on stderr via `toCliError`, exits with the mapped exit code.
 - Commands MUST NOT call `process.exit` directly. The runner owns lifecycle (cleanup, SIGINT, exit).
 
@@ -269,13 +269,23 @@ ed check drift [key] [--max-depth N]
   }
   exit codes: 0 (read-only).
 
-ed check coverage <key>
+ed check coverage <key>                  // mode='card'   (positional key present)
+ed check coverage --uncovered            // mode='uncovered'
+ed check coverage --suggest              // mode='suggest'
+  Single card with 3 mode-discriminated shape variants. Write the per-command card
+  with 3 separate POST-001a/b/c blocks (one per mode), each declaring its shape
+  + invariants. The runner dispatches on flags; consumer dispatches on the response's
+  field set (presence of `key` vs `uncovered_total` vs `suggestions`).
+
+  POST-001a (mode='card'):
   data shape: { key, total_symbols, covered_symbols, coverage_ratio: number|null, uncovered: { file, symbol, kind }[] }
   exit codes: 0.
-ed check coverage --uncovered
+
+  POST-001b (mode='uncovered'):
   data shape: { total_symbols, covered_symbols, coverage_ratio, uncovered: { file, symbol, kind }[], uncovered_total }
   exit codes: 0.
-ed check coverage --suggest
+
+  POST-001c (mode='suggest'):
   data shape: { suggestions: { key, type, parent?, files, symbols, reason, suggested_glossary }[], total }
   exit codes: 0.
 
@@ -377,6 +387,11 @@ ed analyze [--drifted-limit N] [--drifted-offset N]
 ed reset --yes
   data shape: { cards_deleted: number, glossary_cleared: boolean, db_reset: boolean }
   exit codes: 0.
+
+runner-commander-fallback  (not an ed subcommand; commander-error path per Phase 2.7)
+  data shape: (none — failure path emits no stdout)
+  stderr: one JSON-line `{level:'error', code:'CLI_USAGE_ERROR', message:<commander msg>}`
+  exit codes: 0 for commander.help / commander.version; 2 (VALIDATION_FAILURE) for all other commander errors (InvalidArgumentError, missing positional, unknown option).
 ```
 
 ### 1.8 Quiet mode (final, per D19)
@@ -1090,7 +1105,7 @@ This is the trade we accept.
 
 After all phases complete:
 
-**New cards** (31):
+**New cards** (32):
 - `.emberdeck/cards/cli-surface/command-routing-and-output/commands/*.md` (32 files: 31 subcommand shapes + 1 commander-fallback)
 
 **Rewritten cards** (3, done in 1.2):
