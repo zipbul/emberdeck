@@ -1,8 +1,9 @@
 ---
 key: cli-surface/command-routing-and-output/runner-and-output
 summary: >-
-  run wraps every subcommand action; ok, partial, err, unknown, and render build
-  and emit the JSON envelope.
+  run wraps every subcommand action; emitResult writes stdout JSON of the
+  command's natural shape; emitError writes stderr text + exit code; emitWarning
+  streams CARD_SYNC_FAILED JSON-lines to stderr.
 status: draft
 type: spec
 parent: cli-surface/command-routing-and-output
@@ -11,44 +12,53 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: A commander.js subcommand action wraps its body in run with a CommandFn.
+      condition: >-
+        A commander.js subcommand action wraps its body in run with a CommandFn
+        that returns the command's natural data (no envelope).
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: Every subcommand emits the documented envelope on stdout via render.
+      guarantee: >-
+        On success the runner writes the command's returned data as JSON to
+        stdout. No schemaVersion, no top-level status/errors/warnings wrapper —
+        the data IS the stdout.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        statusToExitCode maps status to documented exit codes (0 / 1 / 2 / 3 / 4
-        / 5 / 6 / 7).
-      keyword: SHALL
-      derives: cli-surface/command-routing-and-output#G-002
+        On failure (thrown error or command-declared non-zero exit) the runner
+        writes a human-readable line to stderr and exits with the spec-declared
+        code. stdout MUST be empty on the failure path.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-004
     - id: POST-003
       guarantee: >-
-        resolveOutputMode returns quiet when --quiet is set so render emits only
-        the data key.
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-003
+        Exit codes come from the EXIT enum (`src/cli/exit-codes.ts`) and are
+        chosen per error class: CardNotFoundError → 3, CliUsageError → 2,
+        ConflictError → 4, IO errors → 5, ConfigMissing → 6, transient → 7,
+        SIGINT → 130, generic → 1.
+      keyword: SHALL
+      derives: cli-surface/command-routing-and-output#G-002
     - id: POST-004
       guarantee: >-
-        Per-file sync failures returned from ensureCardsSynced are surfaced on
-        result.warnings as CARD_SYNC_FAILED entries when they would otherwise be
-        invisible to the user. This holds on BOTH the success path (after fn(rt)
-        returns) and the catch path (after fn(rt) throws and the envelope is
-        synthesized from the toCliError result), so a thrown command never
-        silently drops auto-sync diagnostics. A failure whose filePath already
-        appears in the command's errors[].details.file_path is suppressed so the
-        same root cause is reported exactly once. Whether suppressed or
-        surfaced, CARD_SYNC_FAILED entries are informational only and do not
-        alter result.status or the exit code.
+        Per-file sync failures returned by ensureCardsSynced are streamed to
+        stderr as JSON-lines (one CARD_SYNC_FAILED object per line) regardless
+        of the command's success/failure outcome. They do not affect stdout or
+        exit code.
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
+      derives: cli-surface/command-routing-and-output#G-003
+    - id: POST-005
+      guarantee: >-
+        --quiet collapses the stdout shape to its core payload (per command's
+        spec-declared quiet form) and suppresses non-fatal stderr lines; the
+        auto-sync warning JSON-lines on stderr are still emitted.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-005
   invariants:
     - id: INV-001
       statement: >-
-        Every catchable error class is mapped through toCliError to a CliMessage
-        with a stable code.
+        Every catchable error class is mapped through toCliError to a (code,
+        message) pair with a stable exit code.
       always_holds: per-call
     - id: INV-002
       statement: >-
@@ -59,23 +69,38 @@ spec:
       always_holds: per-call
     - id: INV-003
       statement: >-
-        Commander-side contract for the CARD_SYNC_FAILED dedup: any command that
-        surfaces per-file errors in result.errors[] MUST populate the offending
-        file's path on details.file_path (as a string). The runner uses this key
-        — and only this key — to suppress the duplicate auto-sync warning.
-        Commands that emit per-file errors without details.file_path silently
-        regress the dedup contract.
+        stdout and stderr are disjoint channels by responsibility. stdout =
+        command result data (success only). stderr = diagnostics (auto-sync
+        JSON-lines, error messages, verbose traces). A consumer detecting
+        failure MUST use exit code, not stdout content.
+      always_holds: per-call
+    - id: INV-004
+      statement: >-
+        No command emits the v1 envelope keys (schemaVersion, status, warnings,
+        errors at the top level). These are removed by design; any reappearance
+        is a regression.
       always_holds: cross-call
   failures:
     - violation: An unmapped error class is thrown inside the action.
       behavior: >-
-        classifyErrorStatus returns unknown; render emits status=unknown and
-        exit code 1.
+        toCliError maps to code='INTERNAL_ERROR' message=stringified error;
+        runner emits the message on stderr and exits 1.
     - violation: >-
-        ensureCardsSynced throws (e.g. DB write failure at the schema layer, not
-        a per-file parse error).
+        ensureCardsSynced itself throws (e.g. DB write failure at the schema
+        layer, not a per-file parse error).
       behavior: >-
-        The error propagates through the run try/catch, is mapped via
-        toCliError, and surfaces as a normal envelope error; no partial command
-        execution occurs.
+        The error propagates through the run try/catch and is mapped via
+        toCliError to a stderr line + non-zero exit; the command is not invoked.
+    - violation: A CommandFn returns undefined/null where data is expected.
+      behavior: >-
+        The runner writes `null` (valid JSON) to stdout and exits 0; commands
+        that wish to signal partial-success must include the signal inside their
+        data shape (e.g. a `failed_count` field) and the runner's exit-code
+        policy MAY consult command-supplied exit hints.
+    - violation: A SIGINT or SIGTERM is received during command execution.
+      behavior: >-
+        Best-effort cleanup runs; stderr emits a single 'SIGINT received,
+        exiting' line; process exits with code 130. stdout is whatever was
+        already written (potentially partial JSON) — consumers MUST check exit
+        code.
 ---

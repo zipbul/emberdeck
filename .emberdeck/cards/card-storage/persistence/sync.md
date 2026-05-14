@@ -52,12 +52,13 @@ spec:
       guarantee: >-
         Per-file sync failures inside ensureCardsSynced (parse error, I/O error)
         do not abort the remaining files. The function returns the failures as
-        an array of (filePath, error) pairs so the CLI runner can surface them
-        as envelope warnings on every command. The runner suppresses the warning
-        for any file whose error is already reported in the command's own
-        errors[] (avoiding double-reporting under `ed bulk sync`). Surfacing is
-        informational and does not change exit code (see
-        cli-surface/command-routing-and-output/runner-and-output POST-004).
+        an array of (filePath, error) pairs so the CLI runner can stream them
+        to stderr as CARD_SYNC_FAILED JSON-lines (one object per line). The
+        emission is independent of the command's stdout/outcome and does not
+        affect exit code (see cli-surface/command-routing-and-output/runner-and-output
+        POST-004). Commands that report the same file's failure on their own
+        stderr surface (e.g. `ed bulk sync`) may produce a second line; the
+        runner does not deduplicate.
       keyword: MUST
       derives: card-storage/persistence#G-004
   invariants:
@@ -124,11 +125,10 @@ spec:
         ensureCardsSynced or bulkSyncCards.
       behavior: >-
         The error is captured into the failures array with the file path.
-        ensureCardsSynced surfaces failures as CARD_SYNC_FAILED warnings (unless
-        the same path already appears in the command's errors[]). bulkSyncCards
-        reports them in its errors[] result. Either way the bad file stays
-        absent from the DB; validateCards additionally reports it as
-        ORPHAN_FILE.
+        ensureCardsSynced surfaces each failure as a CARD_SYNC_FAILED JSON-line
+        on stderr. bulkSyncCards reports them in its own stdout shape's
+        `failed` array. Either way the bad file stays absent from the DB;
+        validateCards additionally reports it as ORPHAN_FILE in its own stdout.
     - violation: >-
         A parent and its child both arrive in the same bulk operation on a cold
         DB.
