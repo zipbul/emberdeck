@@ -1,8 +1,8 @@
-# Envelope-Removal Redesign — Executable Plan v2.11
+# Envelope-Removal Redesign — Executable Plan v2.12
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
-> **Last commit (plan)**: `6784363` (v2.10).
-> **Plan version**: v2.11. 13th hostile fact-checked v2.10's Phase 2.3a against actual op + test files. Found: (a) `BulkCreateResult` interface diff lacks `input_index` even though topological sort breaks input order, (b) `SymbolSyncResult` v2.10's `card_not_found` reason has no implementation hook in current spec-sync.ts, (c) Phase 2.3a's "+ their tests" line silently elided **~58 op-test assertion lines** plus integration/e2e test files relying on dropped counter fields. v2.11 promotes op-test rewrites to an explicit **Phase 3.0a** sub-step, adds `input_index` to OP-1, pins `card_not_found` insertion point in OP-2 pseudocode.
+> **Last commit (plan)**: `d0be85c` (v2.11).
+> **Plan version**: v2.12. 14th hostile attacked v2.11's new additions and found a BLOCKER: v2.11 pinned OP-2 pseudocode to flat `{cardKey, oldSymbol, newSymbol, file, changeType}` but §1.7's `spec sync-symbols.applied[]` declared grouped `{oldSymbol, newSymbol, file, affected_cards:[]}` — the "CLI maps directly, no transformation" claim was false. Plus Phase 2.3a's "delete the line" escape valve violated D36's "Phase 2 doesn't touch op-tests" commit-boundary. v2.12 (a) flattens §1.7 applied shape to match OP-2 (chosen: gildash returns per-link, no grouping needed; consumer groupBy if wanted), (b) collapses Phase 3.0a back into Phase 2.3a — single Phase 2 commit rewrites op + op-tests atomically (D36 retired), (c) fixes input_index duplicate-key Map collapse, (d) standardizes snake_case in skipped.details, (e) adds Phase 3.0a's missing `result.changes`-length rewrite rule.
 > **Design principle (final)**: §1.7 is canonical — code adapts to §1.7, not the other way. Each command's shape is derived from its functional category (single read / list / mutation / batch / validation / etc.); divergence from the category template is a defect, not an accepted variation.
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
 
@@ -434,13 +434,23 @@ ed spec sync  (C4)
 
 ed spec sync-symbols [--since TS]  (C4)
   data shape: {
-    applied: { oldSymbol: string, newSymbol: string, file: string, affected_cards: string[] }[],
-    skipped: { reason: string, symbol?: string }[],
-    total: number,                            // applied.length + skipped.length
+    applied: { cardKey: string, oldSymbol: string, newSymbol: string, file: string, changeType: 'renamed'|'moved' }[],
+    skipped: { reason: 'no_links_referencing_old_symbol'|'symbol_removed_manual_review_required'|'card_not_found', symbol?: string, file?: string, details?: { card_key?: string, [k: string]: unknown } }[],
+    total: number,                            // input count = applied.length + skipped.length
     since: string,                            // ISO8601 watermark used
     since_source: 'flag'|'last_sync'|'default_24h',
     next_sync_marker: string | null           // null if metadata upsert failed
   }
+  Shape is per-link (one row per (cardKey, symbol, file)). Grouping by symbol is left to
+  consumers (groupBy applied[].oldSymbol if desired). Rationale: gildash returns
+  per-symbol-change events; per-link emission preserves which card was affected — a
+  v2.11 grouped shape lost that linkage and forced a CLI-side grouping step that v2.12
+  removes.
+  Field-naming convention (v2.12, per 14th hostile F4): top-level interface fields
+  use camelCase (`cardKey`, `oldSymbol`, `newSymbol`, `changeType`) because they are
+  TypeScript surface; the `details` object's keys use snake_case (`card_key`) because
+  it is a free-form bag and snake_case is the CLI output convention (cf. `affected_cards`,
+  `since_source`, `next_sync_marker`). Mixing inside one response is intentional.
   (Inline shape; actual SymbolChange type lives in src/ops/spec-sync.ts but fields match the public output.)
   exit codes: 0.
   v1→v2 delta (per D30, Phase 2.3): current `spec.ts:91-98` returns `{updated, broken, changes, since, since_source, next_sync_marker}` — `updated`/`broken`/`changes` are aggregate fields that conflate applied/skipped/total. §1.7 splits into `applied:[]` (successfully renamed links) and `skipped:[]` (changes that couldn't be applied — e.g. ambiguous, missing card). Phase 2.3 MUST: (a) restructure `result.changes` into the two arrays — map `applied` entries (where the rename actually happened) and `skipped` entries (the rest) using the existing op's classification; if the op doesn't already classify, ADD that classification to `syncSymbolChanges()` in src/ops/spec-sync.ts, (b) compute `total`, (c) move the `METADATA_WRITE_FAILED` warning from the `ok(data, [...warnings])` second-arg into `skipped:[{reason:'metadata_write_failed', message:upsertWarning}]` — D19 forbids the old warnings channel.
@@ -719,7 +729,7 @@ These are 2-line edits per command — small, but they are NOT covered by Phase 
 
 **D35 (v2.10 — op-layer prerequisites)**: Phase 2.3 cannot produce §1.7's shapes without prior op-layer changes for bulk-create, spec-sync, and a NEW symbol-coverage op. v2.9's "v1→v2 delta" notes hedged these as conditional ("if op doesn't classify, ADD it"); v2.10 fact-checked and confirmed every conditional is REAL. The work moves into **Phase 2.3a** with explicit interface diffs (`BulkCreateResult`, `SymbolSyncResult`, `CardSymbolCoverageResult`). Phase 2.3a runs BEFORE Phase 2.3 command-file rewrites within the same Phase 2 commit. v2.11 amendment: `BulkCreateResult.created` and `.errors` BOTH carry `input_index` (topological sort breaks input order); OP-2 pseudocode pins `card_not_found` to a `findByKey` check at the top of the per-link loop in `syncSymbolChanges`.
 
-**D36 (v2.11 — op-test rewrite scope)**: Phase 2.3a's interface changes break ~58 assertion lines across 4 op/integration/e2e test files (test/ops/bulk-create.test.ts, test/ops/spec-sync.test.ts, test/integration/crud-sync.test.ts, test/e2e/{chaos,flows}.test.ts). v2.10 elided these as "+ their tests" inside Phase 2.3a; v2.11 lifts them into a new **Phase 3.0a** so the entire test-rewrite mass commits in the Phase 3 commit. Phase 2 commit will leave op-tests RED — this is expected and is part of GATE 2's documented "100-400 failures all in `test/cli/`, `test/e2e/`, `test/integration/` files" allowance.
+**D36 (RETIRED in v2.12)**: v2.11 deferred op-test rewrites to Phase 3.0a but the deferral was unworkable — leaving stale assertions in Phase 2 either broke `bunx tsc --noEmit` (GATE 2.1) or required silent "delete the line" vacuity. v2.12 inlines op-test rewrites into Phase 2.3a so op + op-tests change atomically. Phase 3.0a is removed. GATE 2.1 (tsc clean) now applies to op-tests inside the Phase 2 commit; `bun test` is still expected to have CLI-test failures after Phase 2 (those land in 3.1/3.2/3.3).
 
 ---
 
@@ -1086,7 +1096,7 @@ export interface BulkCreateResult {
   errors: Array<{ input_index: number; key?: string; filePath?: string; message: string }>;
 }
 ```
-Drop the numeric `created`/`failed` counters. The `input_index` is mandatory on BOTH arrays because `topologicalSort` (bulk-create.ts:26-65) reorders inputs — the result order diverges from the input order, so the CLI cannot recover the input position by array index alone. Implementation: at the top of `bulkCreateCards`, build a `Map<inputKey, number>` from `inputs[i].key → i`; after each create attempt, look up the index by the input's `.key`. For pre-write validation failures that have no key (item not an object), the CLI layer (`bulk.ts validateBulkInput`) ALREADY tracks `index` — pass it through verbatim. Update its `@spec` reference (existing annotation present per file header comment); verify no other call site relies on the old `keys: string[]` (grep `BulkCreateResult\|bulkCreateCards` across src/ and test/).
+Drop the numeric `created`/`failed` counters. The `input_index` is mandatory on BOTH arrays because `topologicalSort` (bulk-create.ts:26-65) reorders inputs. **Duplicate-key handling (v2.12 fix per 14th hostile F3)**: a naive `Map<inputKey, index>` collapses duplicates so both error reports inherit the LATER index — wrong. Instead, `bulkCreateCards` augments inputs at function entry: `const indexed = inputs.map((it, i) => ({ ...it, __inputIndex: i }))` (private symbol field, NOT persisted to disk; type-erased by interface). topologicalSort and createCard operate on `indexed`; on success/failure, the original index travels with the record. Duplicate input keys produce two error entries with distinct `input_index` (the op decides which to attempt; typical behavior: first attempt succeeds, second fails with `CARD_ALREADY_EXISTS` carrying its own input_index — this is the desired user-facing report). The CLI layer (`bulk.ts validateBulkInput`) ALREADY tracks `index` for pre-write validation failures — pass it through verbatim. Update the op's `@spec` reference; verify no other call site relies on the old `keys: string[]` (grep `BulkCreateResult\|bulkCreateCards` across src/ and test/).
 
 **OP-2 — `SymbolSyncResult` adds applied/skipped classification**
 
@@ -1132,9 +1142,25 @@ Implementation sketch: load the card's codeLinks (`ctx.codeLinkRepo.findByCardKe
 
 The CLI at `check.ts` mode='card' branch calls this instead of `getLinkCoverage`. The existing `getLinkCoverage` stays — it is repurposed for `check drift`'s link-validity dimension and the broken-link counting in `validate links`.
 
-**Phase 2.3a does NOT rewrite op-tests** — those land in Phase 3.0a (v2.11, below) so the entire test-rewrite mass lives in the Phase 3 commit. Phase 2 will leave op-tests failing; that is expected. GATE 2 (`bunx tsc --noEmit` clean) still passes because type errors come from removed FIELDS not from missing usages — tests reference `result.broken` etc. which become `any` if not declared, which TS may flag depending on tsconfig strictness. If tsc flags them in Phase 2, FIX by deleting those single lines in Phase 2.3a (mark with `// XXX phase 3.0a: replace assertion`) rather than waiting.
+**Phase 2.3a DOES rewrite op-tests (v2.12 change, retiring D36)**: the v2.11 attempt to defer op-tests to Phase 3.0a created an unworkable commit-boundary — the new interfaces would either break `bunx tsc --noEmit` (GATE 2.1) or force "delete the assertion" silent-pass vacuity. Both unacceptable. v2.12 collapses: Phase 2.3a now atomically edits BOTH the op file AND its op-tests in the same commit. Affected test files (verified by `rg` against v2.10's drop list):
 
-Estimated effort (v2.11 §8 update): Phase 2.3a is ~150 LOC of op edits. Op-test rewrites move to Phase 3.0a (~250 LOC across 4 test files).
+- `test/ops/bulk-create.test.ts` — ~32 assertion lines (`result.created` as number, `result.failed`, `result.keys`, `result.partialKeys`).
+- `test/ops/spec-sync.test.ts` — ~22 assertion lines (`result.updated`, `result.broken`, `result.changes[]`).
+- `test/integration/crud-sync.test.ts` — ~6 lines (bulkCreateCards callers at lines 398-776).
+- `test/e2e/chaos.test.ts` + `test/e2e/flows.test.ts` — ~8 lines combined.
+
+Rewrite rules (mechanical):
+- `result.created` (number) → `result.created.length`
+- `result.failed` (number) → `result.errors.length`
+- `result.keys` (string[]) → `result.created.map(c => c.key)` (compat shim) OR direct `result.created[i].key`
+- `result.partialKeys` → unchanged.
+- `result.errors[i]` gains `input_index` — add `expect(result.errors[i].input_index).toBe(N)` where input order matters.
+- `result.updated` (number) → `result.applied.length` (per OP-2 contract, applied[] is exactly renamed+moved).
+- `result.broken` (number) → `result.skipped.filter(s => s.reason === 'symbol_removed_manual_review_required').length`.
+- `result.changes[i]` → `result.applied[i]` OR `result.skipped[i]` per the test's intent.
+- `result.changes.toHaveLength(N)` → `expect(result.applied.length + result.skipped.length).toBe(N)`. (Filling F5 gap from 14th hostile.)
+
+Estimated effort (v2.12 §8 update): Phase 2.3a is ~400 LOC across 5 files total (2 op + 4 op-tests including the integration/e2e files that touch op surface). Phase 3.0a is retired; its row removed from §8.
 
 #### 2.4 — `src/cli/errors.ts` adjustments
 
@@ -1185,27 +1211,7 @@ Estimated effort (v2.11 §8 update): Phase 2.3a is ~150 LOC of op edits. Op-test
 
 **Net result**: `helpers.ts` exports `runEd` (in-process, fast — used by ~30 tests), `spawnCli` (subprocess, used by ~6 tests), `parseJsonLines`. No new file. No parallel helper.
 
-#### 3.0a — Op-layer test rewrites (v2.11, per 13th hostile F1+F3)
-
-Phase 2.3a's op-interface changes break op-level test files. v2.11 promotes these rewrites from a hidden line-item ("+ their tests") to an explicit sub-step. Verified by grep against v2.10's drop list.
-
-**Affected files (verified)**:
-- `test/ops/bulk-create.test.ts` — assertions on `result.created` (number), `result.failed` (number), `result.keys` (string[]), `result.partialKeys`. ~32 lines.
-- `test/ops/spec-sync.test.ts` — assertions on `result.updated`, `result.broken`, `result.changes[]` shape (cardKey/oldFile/oldSymbol/newFile/newSymbol/changeType). The plan v2.10 dropped `broken`/`updated`/`changes`; v2.11 replaces with `applied[]`/`skipped[]`. ~22 lines (notably lines 338, 380, 440-442, 525, 565, 583 per 13th hostile F3).
-- `test/integration/crud-sync.test.ts` — calls `bulkCreateCards`; asserts old shape. Audit lines 398-776 for `result.failed`/`result.keys`/`result.created`. ~6 assertion lines.
-- `test/e2e/chaos.test.ts` and `test/e2e/flows.test.ts` — also call `bulkCreateCards` and `syncSpecAnnotations`/`syncSymbolChanges`. Audit for old-shape assertions. ~8 assertion lines combined.
-
-**Rewrite rules**:
-- `result.created` (number) → `result.created.length` OR `result.created.filter(c => c.input_index === N).length`
-- `result.failed` (number) → `result.errors.length`
-- `result.keys` (string[]) → `result.created.map(c => c.key)` for compat, OR direct `result.created[i].key`
-- `result.partialKeys` → unchanged (kept in OP-1).
-- `result.errors[i]` now carries `input_index`; add assertions verifying `input_index === expected` where input order matters.
-- `result.updated` (number) → `result.applied.filter(a => a.changeType === 'renamed' || a.changeType === 'moved').length`
-- `result.broken` (number) → `result.skipped.filter(s => s.reason === 'symbol_removed_manual_review_required').length`
-- `result.changes[i]` → `result.applied[i]` (renamed/moved) OR `result.skipped[i]` per the test's intent.
-
-**Out of scope for 3.0a**: CLI tests use `runEd` and parse stdout — those land in 3.1 (pattern remap). Op-tests speak to the op API directly.
+(Phase 3.0a was retired in v2.12 — its rewrites are absorbed into Phase 2.3a so op + op-tests change atomically in the Phase 2 commit. See D36 retired note.)
 
 #### 3.1 — Test pattern remap
 
@@ -1366,13 +1372,13 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 | 1.4 | 1–2 | 1 (SKILL.md) | ~100 changed |
 | 2.1 | 1 | 1 (output.ts) | ~80 |
 | 2.2 | 1 | 1 (runner.ts) | ~100 |
-| 2.3a (v2.10) | 2–3 | 2 (bulk-create.ts, spec-sync.ts) + 1 new function | ~150 added |
+| 2.3a (v2.12) | 4–5 | 2 op files + 4 op-test files (bulk-create + tests, spec-sync + tests, integration/crud-sync, e2e/{chaos,flows}) | ~400 changed |
 | 2.3 | 5–7 | 7 (command files) | ~500 changed (up from ~400; reflects systematic restructures per D23/D24/D28–D32) |
 | 2.4 | 1 | 1 (errors.ts) | ~20 |
 | 2.5 | 1 | 3 deletes | n/a |
 | 2.6 | 1 | 1 (runner.spec.ts) | ~50 deleted |
 | 3.0 | 2 | 1 new + ~10 edits | ~80 |
-| 3.0a (v2.11) | 2 | 4 op-test files (bulk-create, spec-sync, integration/crud-sync, e2e/{chaos,flows}) | ~250 changed |
+| (3.0a retired in v2.12 — folded into 2.3a) | — | — | — |
 | 3.1 | 6–10 | ~20 test files | ~600 changed |
 | 3.2 | 1 | 1 new test | ~60 |
 | 3.3 | 2–3 | ~5 e2e/integration | ~200 changed |
