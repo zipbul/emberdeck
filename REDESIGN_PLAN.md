@@ -1,8 +1,8 @@
-# Envelope-Removal Redesign — Executable Plan v2.1
+# Envelope-Removal Redesign — Executable Plan v2.2
 
-> **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.3+ pending.
-> **Last commit (plan)**: `7a17188` (v2).
-> **Plan version**: v2.1. v1 → v2 resolved 8 BLOCKERs; v2 → v2.1 resolved an additional 16 items (B-* + HA-*) found by 3-agent cross-review. Each fix is fact-checked (commands run against the actual codebase) and traceable in Decisions §2 (D9 / D13-D22).
+> **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
+> **Last commit (plan)**: `0391702` (v2.1).
+> **Plan version**: v2.2. Each iteration fact-checked against actual codebase via 3-agent parallel cross-review. v2.1 → v2.2 applied 11 NECESSARY fixes (real defects); 4 hostile findings classified OVER-DESIGN and not applied (F6 D20 nested ban / F9 31-spec split / F13 test pattern expand / F19 EPIPE convention).
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
 
 ---
@@ -62,13 +62,14 @@ export function buildOutputContext(flags: { quiet?: boolean }): OutputContext {
   return { quiet: !!flags.quiet };
 }
 
-/** Emit success data as a single JSON value on stdout. Per-command quiet collapse
- *  is the caller's responsibility (commands compute their quiet form before calling). */
-export function emitResult(data: unknown): void {
+/** Emit success data as a single JSON value on stdout. Pretty in default mode,
+ *  compact under --quiet (per D19). */
+export function emitResult(data: unknown, ctx: OutputContext): void {
   try {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    const indent = ctx.quiet ? undefined : 2;
+    process.stdout.write(JSON.stringify(data, null, indent) + '\n');
   } catch (e) {
-    // EPIPE (piped to head etc) or circular ref. Ignore EPIPE; rethrow other.
+    // EPIPE (piped to head etc) — silent success per UNIX SIGPIPE convention; exit code unchanged.
     if (e instanceof Error && (e as NodeJS.ErrnoException).code === 'EPIPE') return;
     emitError({ code: 'OUTPUT_ENCODE_FAILED', message: e instanceof Error ? e.message : String(e) });
     process.exit(EXIT.GENERIC_ERROR);
@@ -107,7 +108,7 @@ export type CommandReturn = { data?: unknown; exitCode?: number } | undefined;
 **Rules**:
 - Return `{ data: D }` → runner emits `D` on stdout, exits with `EXIT.OK` (0).
 - Return `{ data: D, exitCode: 2 }` → runner emits `D` on stdout, exits with `2` (policy-failure with data).
-- Return `undefined` → runner emits nothing on stdout, exits with `EXIT.OK`. Used for commands that handled their own output (rare; default is to return data).
+- Return `undefined` → runner emits nothing on stdout, exits with `EXIT.OK`. Reserved for void-side-effect commands (currently none in v2 scope; commands SHOULD always return `{data}`). Commands MUST NOT write stdout directly; only the runner calls `emitResult`.
 - Throw → runner catches, emits one `level:error` JSON-line on stderr via `toCliError`, exits with the mapped exit code.
 - Commands MUST NOT call `process.exit` directly. The runner owns lifecycle (cleanup, SIGINT, exit).
 
@@ -409,7 +410,32 @@ Each BLOCKER/HIGH from the v1 hostile review is resolved here. No "open" entries
 
 **D9**: PROBLEM.md entries to mark resolved at end of Phase 4: `L-006`, `N-021`, `N-034`. **NOT** `H-005`/`H-006` (root = commander missing `exitOverride()`, NOT envelope — see Phase 2.7) and **NOT** `M-018` (status: refuted). Before final commit, grep `PROBLEM.md` for `envelope|status: 'partial'|errors\[\]` to catch any other envelope-rooted entry; only mark as resolved if envelope removal actually fixes it.
 
-**Phase 2.7 (new)**: Add `program.exitOverride()` to `src/cli/index.ts` and route commander `InvalidArgumentError` / missing-positional / unknown-flag through the runner's `emitError + emitResult(undefined)` path. This fixes H-005 and H-006 (otherwise they persist regardless of envelope state). Spec card under runner-and-output.
+**Phase 2.7 (new)**: Catch commander argument errors. Concrete code template:
+
+```ts
+// src/cli/index.ts — inside buildProgram(), before returning `program`:
+program.exitOverride();  // throws CommanderError instead of process.exit
+
+// cli.ts (the executable entry that calls program.parseAsync):
+import { emitError } from './src/cli/output';
+import { EXIT } from './src/cli/exit-codes';
+try {
+  await program.parseAsync(process.argv);
+} catch (e) {
+  // commander.help / commander.version are intentional exits (exit 0)
+  if (e && typeof e === 'object' && 'code' in e) {
+    const code = (e as { code: string }).code;
+    if (code === 'commander.help' || code === 'commander.version') process.exit(EXIT.OK);
+    // All other commander errors = usage errors
+    const msg = e instanceof Error ? e.message : String(e);
+    emitError({ code: 'CLI_USAGE_ERROR', message: msg });
+    process.exit(EXIT.VALIDATION_FAILURE);
+  }
+  throw e;
+}
+```
+
+This fixes H-005 (`--limit abc` plain stderr) and H-006 (missing positional plain stderr): both now emit JSON-line on stderr + exit 2. Spec card under cli-surface/command-routing-and-output/commands/`runner-commander-fallback` (NEW Phase 1.3 card).
 
 **D10**: `README.md` does not exist; skip Phase 4.2.
 
@@ -419,34 +445,43 @@ Each BLOCKER/HIGH from the v1 hostile review is resolved here. No "open" entries
 
 **D13**: Phase 2 is **one git commit** spanning sub-steps 2.1–2.7. Agent must NOT commit between sub-steps; use `git stash` if interrupted. **Sub-step ordering within Phase 2**: 2.4 (move ERROR_CODE_TO_EXIT to errors.ts) → 2.1 (output.ts) → 2.2 (runner.ts) → 2.3 (commands) → 2.5 (delete obsolete) → 2.6 (runner.spec.ts) → 2.7 (commander exitOverride). This order ensures 2.2's `import {ERROR_CODE_TO_EXIT} from './errors'` compiles.
 
-**D14**: `runCli` consolidation is **Phase 3.0**, before any test rewrites. The function moves to `test/cli/runner-helper.ts` (new file) with signature `runCli(args: string[], cwd: string): Promise<{ exitCode: number, stdout: string, stderr: string }>`. Per-file private `runCli` copies deleted in same commit. **Exhaustive list (verified by grep)**: `test/cli/fs-race.test.ts`, `test/cli/flag-overrides.test.ts`, `test/cli/symlink.test.ts`, `test/cli/db-corruption.test.ts`, `test/cli/fs-error.test.ts`, `test/cli/malformed-yaml.test.ts`.
+**D14**: `runCli` consolidation is **Phase 3.0**, before any test rewrites. **An exported `runEd(args, cwd)` already exists at `test/cli/helpers.ts`** (used by `phase2.test.ts` and others — verified). Phase 3.0 task: extend the EXISTING `helpers.ts` to also expose stderr (current `runEd` may not return stderr — check + extend). DO NOT create a new file. Add helper `parseJsonLines(stderr)` to the same module. Then replace per-file private `runCli` spawners with imports from `helpers.ts`. **Exhaustive list of files with private spawners (verified by grep)**: `test/cli/fs-race.test.ts`, `test/cli/flag-overrides.test.ts`, `test/cli/symlink.test.ts`, `test/cli/db-corruption.test.ts`, `test/cli/fs-error.test.ts`, `test/cli/malformed-yaml.test.ts`, `test/cli/signal-handling.test.ts` (has `spawnEd`).
 
 **D15**: `validate.ts` per-error-code mapping (table in §4).
 
-**D16**: SIGINT race — `process.stdout.write` for `> PIPE_BUF` (64KB on Linux) data is NOT atomic; SIGINT during write can yield partial JSON. Documented contract: **consumers MUST check exit code (130 = SIGINT) before parsing stdout JSON**. The runner registers SIGINT handlers around the command; partial-write damage is bounded by the user's choice of exit code response.
+**D16**: SIGINT during stdout write — `process.stdout.write` for `> PIPE_BUF` (64KB on Linux) data is NOT atomic; SIGINT mid-write can yield partial JSON on stdout. **Consumer contract**: check `exitCode === 130` (SIGINT) BEFORE attempting to parse stdout. The runner does best-effort cleanup; this is documented as a known limitation, not mitigated by atomicity. Risk register row updated accordingly (impact: Med, not Low — partial JSON parse can mislead consumers).
 
 **D17**: Runner-side rule: if a command's return is `undefined` or its `.data` field is `undefined`, the runner skips `emitResult` entirely (no stdout written). Commands wishing to emit a JSON literal `null` must explicitly `return { data: null }`. Commands MUST NOT write to stdout directly; only the runner calls `emitResult`.
 
-**D18**: `details` schema per stderr code (canonical table — agents emit matching this; consumers parse matching this):
+**D18**: stderr code table (regenerated from `src/cli/errors.ts` `SIMPLE_ERROR_CODES` + structured-error branches in `toCliError` — verified against source):
 
-| code | level | details schema |
-|---|---|---|
-| `CARD_SYNC_FAILED` | warning | `{file_path: string}` |
-| `CARD_NOT_FOUND` | error | `{key: string}` |
-| `CARD_ALREADY_EXISTS` | error | `{key: string}` |
-| `VALIDATION_ERROR` | error | `{field?: string}` |
-| `PARENT_VALIDATION_ERROR` | error | `{key: string, parent: string}` |
-| `ACTIVATION_GUARD_ERROR` | error | `{key: string, reason: string}` |
-| `COMPENSATION_ERROR` | error | `{key: string, original_error: string}` |
-| `FTS_SYNTAX_ERROR` | error | `{query: string}` |
-| `CONFIG_MISSING` | error | `{searched_paths: string[]}` |
-| `GILDASH_TRANSIENT` | error | `{}` |
-| `OUTPUT_ENCODE_FAILED` | error | `{}` |
-| `SIGINT` | error | `{}` |
-| `RUNTIME` | verbose | `{subsystem?: string, ...freeform}` |
-| `INTERNAL_ERROR` | error | `{class?: string}` |
+| code | level | mapped by toCliError? | exit code | details schema (today; phase 2.4 may add) |
+|---|---|---|---|---|
+| `CARD_SYNC_FAILED` | warning | n/a (runner-emit only) | n/a (warning) | `{file_path: string}` |
+| `CLI_USAGE_ERROR` | error | ✓ (CliUsageError) | 2 | `{}` |
+| `FTS_SYNTAX_ERROR` | error | ✓ (FtsSyntaxError) | 2 | `{}` |
+| `CARD_NOT_FOUND` | error | ✓ (CardNotFoundError) | 3 | `{}` (only message carries key today) |
+| `CARD_ALREADY_EXISTS` | error | ✓ (CardAlreadyExistsError) | 4 | `{}` |
+| `INVALID_CARD_KEY` | error | ✓ (CardKeyError) | 2 | `{}` |
+| `VALIDATION_ERROR` | error | ✓ (CardValidationError) | 2 | `{}` |
+| `PARENT_VALIDATION_ERROR` | error | ✓ (ParentValidationError) | 2 | `{}` |
+| `GILDASH_INIT_FAILED` | error | ✓ (GildashInitError) | 6 | `{}` |
+| `RENAME_SAME_PATH` | error | ✓ (CardRenameSamePathError) | 4 | `{}` |
+| `GLOSSARY_PARSE_ERROR` | error | ✓ (GlossaryParseError) | 2 | `{}` |
+| `GLOSSARY_VALIDATION_ERROR` | error | ✓ (GlossaryValidationError) | 2 | `{}` |
+| `ACTIVATION_GUARD_FAILED` | error | ✓ (ActivationGuardError, structured branch) | 2 | `{}` (today; phase 2.4 may add `{key, reason}`) |
+| `COMPENSATION_FAILED` | error | ✓ (CompensationError, structured branch) | 1 | `{}` (today; phase 2.4 may add `{key, original_error}`) |
+| `INTERNAL_ERROR` | error | ✓ (fallback) | 1 | `{class?: string}` |
+| `OUTPUT_ENCODE_FAILED` | error | n/a (emitResult catch path) | 1 | `{}` |
+| `RUNTIME` | verbose | n/a (runner verboseLog) | n/a | `{subsystem?: string, ...freeform}` |
+| `SIGINT` | error | n/a (signal handler) | 130 | `{}` |
 
-New codes added during execution MUST be added to this table.
+`details` schemas currently `{}` are emit-time empty; if a command's structured-details enhancement is desired (per F4), it goes in Phase 2.4 errors.ts edit. The `{key}` placeholders previously in D18 v2.1 were aspirational — removed until errors.ts adds them.
+
+Notes:
+- D18 v2.1 had invented codes (`GILDASH_TRANSIENT` — no source class) — removed.
+- D18 v2.1 had wrong names (`ACTIVATION_GUARD_ERROR`, `COMPENSATION_ERROR`) — corrected to `_FAILED`.
+- Missing in v2.1 (`CLI_USAGE_ERROR`, `INVALID_CARD_KEY`, `GILDASH_INIT_FAILED`, `RENAME_SAME_PATH`, `GLOSSARY_PARSE_ERROR`, `GLOSSARY_VALIDATION_ERROR`) — added.
 
 **D19**: `--quiet` mode emits **compact JSON of the same per-command shape** (not text), one JSON value per stdout. Failures still emit one stderr JSON-line + exit code. `--quiet` does NOT change the data shape — it only suppresses warnings and verbose-level stderr lines. (Old plan §1.8 had per-command text-mode quiet forms; those are removed.) **§1.8 rewrite below.**
 
@@ -454,7 +489,36 @@ New codes added during execution MUST be added to this table.
 
 **D21**: Numeric indexing in per-command shapes is **0-based** unless the field name says otherwise (e.g. `line_number` is 1-based). `failed[].input_index` in `ed bulk create` is 0-based (the index into the input array as parsed; first entry = 0).
 
-**D22**: Inline named type definitions in §1.7 instead of citing TypeScript type names from `src/`. The shape blocks in §1.7 are the SoT for per-command output; agents do not need to read `src/` to determine field lists. All referenced types (CardFile, CardRow, AnalyzeHealth, AnalyzeCoverage, AnalyzeGlossary, AffectedCard, CardInteraction, UndefinedRelation) MUST be inlined or fully expanded in §1.7 before Phase 1.3 starts. (See §1.7 update below.)
+**D22**: Inline named type definitions in §1.7 instead of citing TypeScript type names from `src/`. The shape blocks in §1.7 are the SoT for per-command output; agents do not need to read `src/` to determine field lists. **Canonical inlined types** (paste into card POST when shape mentions them):
+
+```
+CardRow:
+{
+  key: string, summary: string, status: 'draft'|'active'|'drifted'|'retired',
+  type: 'principle'|'domain'|'brief'|'spec', parent: string | null,
+  namespacesJson: string | null, body: string | null,
+  glossaryJson: string,  // JSON-encoded string[]
+  filePath: string, updatedAt: string  // ISO8601
+}
+
+CardFile (frontmatter object — fields are a typed superset of CardRow + parsed JSON fields):
+{
+  key: string, summary: string, status: ..., type: ..., parent: ... | null,
+  glossary: string[],                  // parsed
+  relations?: string[],
+  tags?: string[],
+  principle?: PrincipleBody, domain?: DomainBody, brief?: BriefBody, spec?: SpecBody,  // namespaces
+  filePath: string, updatedAt: string
+}
+
+TreeNode:
+{
+  key: string, type: string, status: string, summary: string,
+  children: TreeNode[]
+}
+```
+
+Agents writing per-command cards may inline these recursively where the shape uses them.
 
 ---
 
@@ -468,6 +532,20 @@ New codes added during execution MUST be added to this table.
 - Brief `cli-surface/command-routing-and-output.md` rewritten (envelope removed, per-command goals)
 - Spec `runner-and-output.md` rewritten (emitResult/emitWarning/emitError contract)
 - `card-storage/persistence/sync.md` POST-005 + failures updated (CARD_SYNC_FAILED → stderr JSON-line)
+
+### Phase 1.2.5 — Reconcile Phase 1.2 cards with v2.2 decisions ⏳ NEW
+
+Discovered post-v2.2 fact-check: Phase 1.2 cards have wording that contradicts v2.2 decisions D19, D5, D18. **Must reconcile before Phase 1.3** (per-command cards derive from these goals).
+
+**`cli-surface/command-routing-and-output.md` (brief)** — edits needed:
+- **G-003**: current text mentions "verbose / user-facing error messages — go to stderr" implying free text. v2.2 D5 says stderr is JSON-lines ONLY. **Rewrite G-003** to: "All stderr emission is canonical JSON-lines per the schema `{level: 'error'|'warning'|'verbose', code: string, message: string, details?: Record<string, unknown>}`. No free-text on stderr. CARD_SYNC_FAILED uses `level:'warning'`; thrown command errors use `level:'error'`; verbose traces use `level:'verbose'`."
+- **G-004**: current text says "stderr carries a human-readable message". **Rewrite** to: "On command failure (typo, IO, crash) stdout emits no JSON; stderr carries exactly one `level:'error'` JSON-line + exit code is non-zero."
+- **G-005**: current text says "--quiet collapses the natural stdout shape to its core payload (e.g. a card key, a count)". v2.2 D19 says no shape collapse. **Rewrite** to: "--quiet emits the same per-command JSON shape but compact (single-line `JSON.stringify`); suppresses `level:'warning'` and `level:'verbose'` stderr lines; `level:'error'` still emitted on failure."
+
+**`cli-surface/command-routing-and-output/runner-and-output.md` (spec)** — edits needed:
+- **POST-005**: current text "collapses the stdout shape to its core payload (per command's spec-declared quiet form)". **Rewrite** to match new G-005: "Under --quiet, `emitResult` writes compact JSON of the same shape (no indent); `emitWarning` and `emitVerbose` are suppressed; `emitError` still fires."
+
+**Workflow**: edit each card via `ed card update --patch` (full-namespace replacement). GATE: `ed validate cards` warnings 0.
 
 ### Phase 1.3 — Create 31 per-command CLI-shape spec cards ⏳
 
@@ -924,7 +1002,7 @@ If `dist/` was committed previously, run the build pipeline (whatever produces i
 | Hostile re-review finds new defects | Certain | Low | Per-command defects fix per-card; no shared-envelope defect class can recur by construction (§9) |
 | stderr JSON-line format violation by accident | Med | Low | Phase 3.2 auto-sync test asserts the format; any free-text emission breaks the test |
 | `--quiet` collapse rule drift | Med | Low | Each per-command card POST-002 declares; §1.8 is the index |
-| SIGINT mid-stdout-write | Low | Low | `process.stdout.write` is a single OS-level syscall on POSIX; SIGINT either happens before (no output) or after (full output). Documented in D16 |
+| SIGINT mid-stdout-write | Low | Med | `process.stdout.write` is NOT atomic for >PIPE_BUF (64KB) writes. Partial JSON possible. Documented in D16; consumers MUST check exitCode===130 before parsing |
 | `process.exit` accidentally called in a command | Med | High | Phase 3.2 contract test: `grep "process.exit" src/cli/commands/` returns 0 lines |
 
 ---
