@@ -1,8 +1,8 @@
-# Envelope-Removal Redesign — Executable Plan v2.7
+# Envelope-Removal Redesign — Executable Plan v2.8
 
 > **Status**: Phase 1.1 ✅ + Phase 1.2 partial ✅ done in commits `072d2c7`, `f96a50d`. Phase 1.2.5 + 1.3+ pending.
-> **Last commit (plan)**: `fdc90a2` (v2.6).
-> **Plan version**: v2.7. Each iteration fact-checked against actual codebase via 3-agent parallel cross-review. v2.1 → v2.2 applied 11 NECESSARY fixes (real defects); 4 hostile findings classified OVER-DESIGN and not applied (F6 D20 nested ban / F9 31-spec split / F13 test pattern expand / F19 EPIPE convention).
+> **Last commit (plan)**: `f85e0e8` (v2.7).
+> **Plan version**: v2.8. Each iteration fact-checked against actual codebase via 2-agent parallel cross-review. v2.7's "CONVERGED" was broken by 10th review's implementation-angle attack: 5 REAL defects found by reading actual `card.ts`/`validate.ts` and comparing current return shapes to §1.7. v2.8 adds D23–D27 to resolve them. **NOT** an over-design — every fix corresponds to a grep-verified divergence between current code and target shape.
 > **Resume directly from §10 (Resume Instructions). All BLOCKER + HIGH decisions are pre-committed in §2 (Decisions).**
 
 ---
@@ -62,18 +62,41 @@ export function buildOutputContext(flags: { quiet?: boolean }): OutputContext {
   return { quiet: !!flags.quiet };
 }
 
+/** OutputEncodeError — thrown by emitResult when JSON.stringify fails (e.g. BigInt,
+ *  circular ref). Runner catches and maps to exit 1 + stderr line. Per D26 we do
+ *  NOT process.exit here so the runner's cleanup (DB close, file handles) runs. */
+export class OutputEncodeError extends Error {
+  constructor(public readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = 'OutputEncodeError';
+  }
+}
+
 /** Emit success data as a single JSON value on stdout. Pretty in default mode,
- *  compact under --quiet (per D19). */
-export function emitResult(data: unknown, ctx: OutputContext): void {
+ *  compact under --quiet (per D19). Per D25 we use the callback form of
+ *  stdout.write and await drain so that `process.exit` (called by the runner
+ *  afterward) does not truncate a large pipe-bound payload. */
+export async function emitResult(data: unknown, ctx: OutputContext): Promise<void> {
+  let payload: string;
   try {
     const indent = ctx.quiet ? undefined : 2;
-    process.stdout.write(JSON.stringify(data, null, indent) + '\n');
+    payload = JSON.stringify(data, null, indent) + '\n';
   } catch (e) {
-    // EPIPE (piped to head etc) — silent success per UNIX SIGPIPE convention; exit code unchanged.
-    if (e instanceof Error && (e as NodeJS.ErrnoException).code === 'EPIPE') return;
-    emitError({ code: 'OUTPUT_ENCODE_FAILED', message: e instanceof Error ? e.message : String(e) });
-    process.exit(EXIT.GENERIC_ERROR);
+    // JSON.stringify failed (BigInt, circular). Bubble to runner; do NOT process.exit (D26).
+    throw new OutputEncodeError(e);
   }
+  await new Promise<void>((resolve) => {
+    const ok = process.stdout.write(payload, (err) => {
+      // EPIPE (piped to head etc) — silent per UNIX SIGPIPE convention; exit code unchanged.
+      // Other errors are also swallowed; stderr emission is the runner's responsibility.
+      if (err && (err as NodeJS.ErrnoException).code !== 'EPIPE') {
+        // Best-effort stderr signal; runner has not yet decided exit code.
+        emitError({ code: 'OUTPUT_ENCODE_FAILED', message: err.message });
+      }
+      resolve();
+    });
+    if (ok) resolve();  // synchronous fast path; callback still fires but resolve idempotent
+  });
 }
 
 export function emitWarning(obj: { code: string; message: string; details?: Record<string, unknown> }): void {
@@ -182,12 +205,26 @@ Shapes are written as **JSON Schema-ish sketches** with each field's type. The s
 
 ```
 ed card get <key>
-  data shape: CardFile (key, summary, status, type, parent?, namespacesJson?, body?, glossary[], filePath, updatedAt)
+  data shape: CardFile + optional history. FLAT (no `frontmatter` nesting):
+  {
+    key, summary, status, type, parent: string|null,
+    glossary: string[], relations?: string[], tags?: string[],
+    principle?, domain?, brief?, spec?,                   // namespace bodies, present per type
+    filePath: string, updatedAt: string,
+    history?: { entries: { ts, action, fields?: string[] }[] }  // present iff --history was passed
+  }
   exit codes: 0 (success); thrown→3 NOT_FOUND if no such card.
+  v1→v2 delta (Phase 2.3 hint): current `card.ts:104-112` returns
+    `{key, type, status, summary, frontmatter: {...all namespace fields...}, history?}`.
+    v2 inlines the frontmatter fields at the root (drop the `frontmatter` wrapper). The
+    `history` field stays at the same position. See D23.
 
 ed card list [filters] [--limit N] [--offset N]
   data shape: { items: CardRow[], total: number, limit: number, offset: number, has_more: boolean }
   exit codes: 0.
+  v1→v2 delta (Phase 2.3 hint): current `card.ts:193-197` returns
+    `{items, total, page: {limit, offset, has_more}}`. v2 flattens `page.*` to the root.
+    See D23.
 
 ed card create <key> --type T [...]
   data shape: { key: string, filePath: string, status: string, type: string, parent: string | null }
@@ -242,6 +279,13 @@ ed validate cards
     file_level_issues: { code: string, message: string, file_path: string }[]  // ORPHAN_FILE, STALE_DB_ROW (no card key)
   }
   exit codes: 0 if summary.total===0; else 2 (policy).
+  v1→v2 delta (Phase 2.3 — NOT mechanical, see D24): current `validate.ts:208-215` returns
+    flat counters `{warnings, stale_db_rows, orphan_files, key_mismatches, total_issues}`
+    with separate `errors[]` envelope. v2 requires:
+    (1) bucket per-card issues by `cardKey` into `items[].issues[]`,
+    (2) split `STALE_DB_ROW`/`ORPHAN_FILE` (no key) → `file_level_issues[]`,
+    (3) compute `summary.by_code` from issue counts,
+    (4) return `exitCode: 2` when `summary.total > 0` (no more `partial()`).
 
 ed validate links [key]
   data shape: {
@@ -256,10 +300,20 @@ ed validate links [key]
     }[]
   }
   exit codes: 0 if summary.{broken,io_failed}===0; else 2.
+  v1→v2 delta (Phase 2.3 — NOT mechanical, see D24): current `validate.ts:158-165` returns
+    flat counters `{declared, resolved, broken, unresolved}` with separate `errors[]`
+    carrying BROKEN_LINK/KEY_MISMATCH_SKIPPED/VALIDATION_FAILED. v2 requires:
+    (1) accumulate one `items[]` entry per target card (explicit-key path = 1 entry; fan-out = N),
+    (2) move BROKEN_LINK from flat `errors[]` into the matching `items[i].broken_links[]`,
+    (3) convert KEY_MISMATCH_SKIPPED → `items[i].skipped = {reason:'key_mismatch'}`,
+    (4) convert VALIDATION_FAILED → `items[i].io_error = {message}`,
+    (5) `summary.total` = items.length; `summary.ok` = items with no broken/skipped/io_error,
+    (6) return `exitCode: 2` when `summary.broken > 0 || summary.io_failed > 0`.
 
 ed validate
   data shape: { cards: <validate cards shape>, links: <validate links shape> }
   exit codes: 0 if both sub-shapes 0; else 2.
+  v1→v2 delta: apply both deltas above; combine into top-level `{cards, links}`.
 
 ed check drift [key] [--max-depth N]
   data shape: {
@@ -430,32 +484,42 @@ Each BLOCKER/HIGH from the v1 hostile review is resolved here. No "open" entries
 
 **D9**: PROBLEM.md entries to mark resolved at end of Phase 4: `L-006`, `N-021`, `N-034`. **NOT** `H-005`/`H-006` (root = commander missing `exitOverride()`, NOT envelope — see Phase 2.7) and **NOT** `M-018` (status: refuted). Before final commit, grep `PROBLEM.md` for `envelope|status: 'partial'|errors\[\]` to catch any other envelope-rooted entry; only mark as resolved if envelope removal actually fixes it.
 
-**Phase 2.7 (new)**: Catch commander argument errors. Concrete code template:
+**Phase 2.7 (new)**: Catch commander argument errors. Concrete code template (per D27, the try/catch lives inside `main()` in `src/cli/index.ts`; `cli.ts` stays the 11-line shim):
 
 ```ts
-// src/cli/index.ts — inside buildProgram(), before returning `program`:
+// src/cli/index.ts — edit buildProgram() and rewrite main():
+
+// 1) Inside buildProgram(), before returning `program`:
+//    DELETE the existing `.showHelpAfterError(...)` call (line 40) — it prints
+//    free-text help to stderr, which violates §1.1 "stderr is JSON-lines only" (D5).
 program.exitOverride();  // throws CommanderError instead of process.exit
 
-// cli.ts (the executable entry that calls program.parseAsync):
-import { emitError } from './src/cli/output';
-import { EXIT } from './src/cli/exit-codes';
-try {
-  await program.parseAsync(process.argv);
-} catch (e) {
-  // commander.help / commander.version are intentional exits (exit 0)
-  if (e && typeof e === 'object' && 'code' in e) {
-    const code = (e as { code: string }).code;
-    if (code === 'commander.help' || code === 'commander.version') process.exit(EXIT.OK);
-    // All other commander errors = usage errors
-    const msg = e instanceof Error ? e.message : String(e);
-    emitError({ code: 'CLI_USAGE_ERROR', message: msg });
-    process.exit(EXIT.VALIDATION_FAILURE);
+// 2) Replace main():
+import { emitError } from './output';
+import { EXIT } from './exit-codes';
+
+export async function main(argv: string[] = process.argv): Promise<void> {
+  const program = buildProgram();
+  try {
+    await program.parseAsync(argv);
+  } catch (e) {
+    if (e && typeof e === 'object' && 'code' in e) {
+      const code = (e as { code: string }).code;
+      // commander.help / commander.version are intentional successful exits.
+      if (code === 'commander.help' || code === 'commander.version') {
+        process.exit(EXIT.OK);
+      }
+      // All other commander errors = usage errors (typo, bad flag, missing positional).
+      const msg = e instanceof Error ? e.message : String(e);
+      emitError({ code: 'CLI_USAGE_ERROR', message: msg });
+      process.exit(EXIT.VALIDATION_FAILURE);
+    }
+    throw e;  // non-commander error: re-throw so it surfaces (should not happen in practice)
   }
-  throw e;
 }
 ```
 
-This fixes H-005 (`--limit abc` plain stderr) and H-006 (missing positional plain stderr): both now emit JSON-line on stderr + exit 2. Spec card under cli-surface/command-routing-and-output/commands/`runner-commander-fallback` (NEW Phase 1.3 card).
+`cli.ts` remains unchanged (it just `await main()`). This fixes H-005 (`--limit abc` plain stderr) and H-006 (missing positional plain stderr): both now emit JSON-line on stderr + exit 2. Spec card under cli-surface/command-routing-and-output/commands/`runner-commander-fallback` (NEW Phase 1.3 card).
 
 **D10**: `README.md` does not exist; skip Phase 4.2.
 
@@ -465,7 +529,7 @@ This fixes H-005 (`--limit abc` plain stderr) and H-006 (missing positional plai
 
 **D13**: Phase 2 is **one git commit** spanning sub-steps 2.1–2.7. Agent must NOT commit between sub-steps; use `git stash` if interrupted. **Sub-step ordering within Phase 2**: 2.4 (move ERROR_CODE_TO_EXIT to errors.ts) → 2.1 (output.ts) → 2.2 (runner.ts) → 2.3 (commands) → 2.5 (delete obsolete) → 2.6 (runner.spec.ts) → 2.7 (commander exitOverride). This order ensures 2.2's `import {ERROR_CODE_TO_EXIT} from './errors'` compiles.
 
-**D14**: `runCli` consolidation is **Phase 3.0**, before any test rewrites. **An exported `runEd(args, cwd)` already exists at `test/cli/helpers.ts`** (used by `phase2.test.ts` and others — verified). Phase 3.0 task: extend the EXISTING `helpers.ts` to also expose stderr (current `runEd` may not return stderr — check + extend). DO NOT create a new file. Add helper `parseJsonLines(stderr)` to the same module. Then replace per-file private `runCli` spawners with imports from `helpers.ts`. **Exhaustive list of files with private spawners (verified by grep)**: `test/cli/fs-race.test.ts`, `test/cli/flag-overrides.test.ts`, `test/cli/symlink.test.ts`, `test/cli/db-corruption.test.ts`, `test/cli/fs-error.test.ts`, `test/cli/malformed-yaml.test.ts`, `test/cli/signal-handling.test.ts` (has `spawnEd`).
+**D14**: `runCli` consolidation is **Phase 3.0**, before any test rewrites. **An exported `runEd(args, cwd)` already exists at `test/cli/helpers.ts`** (used by `phase2.test.ts` and others — verified). Phase 3.0 task: extend the EXISTING `helpers.ts` to also expose stderr (current `runEd` may not return stderr — check + extend). DO NOT create a new file. Add helper `parseJsonLines(stderr)` to the same module. Then replace per-file private `runCli` spawners with imports from `helpers.ts`. **Exhaustive list of files with private `Bun.spawn` / `spawnEd` (v2.8 re-verified by `rg -l 'Bun\.spawn' test/`)**: `test/cli/fs-race.test.ts`, `test/cli/flag-overrides.test.ts`, `test/cli/symlink.test.ts`, `test/cli/db-corruption.test.ts`, `test/cli/fs-error.test.ts`, `test/cli/malformed-yaml.test.ts`, `test/cli/signal-handling.test.ts` (has `spawnEd`), **`test/cli/commands.test.ts`** (3 `Bun.spawn` invocations at lines 297/319/356 + ~42 v1-envelope assertion patterns — was missing from v2.7's list and is the largest envelope-assertion site outside aggregate validators). Phase 3.0 MUST handle commands.test.ts in two passes: (a) replace `Bun.spawn` → `spawnCli` (subprocess for stdin tests) or `runEd` (in-process where no stdin); (b) apply Phase 3.1 pattern table to the envelope assertions. Without this, GATE G6 (`bun test` 0 failures) fails.
 
 **D15**: `validate.ts` per-error-code mapping (table in §4).
 
@@ -539,6 +603,24 @@ TreeNode:
 ```
 
 Agents writing per-command cards may inline these recursively where the shape uses them.
+
+**D23 (v2.8 — card shape drift)**: The current `card get` and `card list` implementations return shapes that diverge from §1.7 (verified by reading `src/cli/commands/card.ts:104-112,193-197`):
+- `card get` currently nests namespace fields under `frontmatter:{...}` and adds `history?` at the root.
+- `card list` currently nests `{limit, offset, has_more}` under `page:{...}`.
+
+**Resolution**: §1.7 is canonical. Phase 2.3 MUST restructure card.ts returns:
+- `card get`: spread frontmatter at the root (`...frontmatter`), keep `history?` (already at root in current code). Net delta: drop the literal `frontmatter:` wrapper.
+- `card list`: spread `page` at the root (`...page`). Net delta: replace `page: {limit, offset, has_more}` with the three fields directly.
+
+These are 2-line edits per command — small, but they are NOT covered by Phase 2.3's "mechanical `ok(D) → {data:D}`" rule. Phase 2.3 step 2a lists them explicitly.
+
+**D24 (v2.8 — validate restructure)**: The current `validate.ts` implementations emit flat counters + a separate `errors[]` envelope. §1.7 specifies per-card `items[]` with grouped issues. Phase 2.3 step 2a flags both `validate cards` and `validate links` as **non-mechanical restructures** with explicit pseudocode in §1.7's "v1→v2 delta" notes. This is the largest single piece of work in Phase 2.3.
+
+**D25 (v2.8 — stdout flush before exit)**: `process.exit` does NOT flush stdout when piped to a slow consumer. For commands like `analyze` whose JSON payload can exceed PIPE_BUF (64KB on Linux), the runner's `process.exit(exitCode)` immediately after `emitResult` can truncate. Resolution: `emitResult` uses the callback form of `process.stdout.write` and awaits drain (§1.3 v2.8 code); the runner `await`s `emitResult` (§2.2 template updated).
+
+**D26 (v2.8 — emitResult must not process.exit)**: If `JSON.stringify` fails inside `emitResult`, the v2.7 code called `process.exit(1)` directly. This bypasses the runner's `await rt?.cleanup()` → leaked DB handle → next CLI run sees stale lock. Resolution: `emitResult` throws an `OutputEncodeError`; the runner's catch block recognizes it, calls `emitError({code:'OUTPUT_ENCODE_FAILED',...})`, sets `exitCode = 1`, then proceeds to cleanup as normal.
+
+**D27 (v2.8 — commander exitOverride location)**: Phase 2.7 v2.7 template put the try/catch in `cli.ts`, but `cli.ts` is a thin shim that just calls `main()` — `parseAsync` lives inside `main()` in `src/cli/index.ts`. v2.8 puts the try/catch inside `main()` so the relative imports (`./output`, `./exit-codes`) work without re-anchoring. Additionally, the existing `.showHelpAfterError('(run `ed --help` for full usage)')` at `src/cli/index.ts:40` is DELETED — it prints free-text help to stderr, which violates §1.1 / D5 ("stderr is JSON-lines only").
 
 ---
 
@@ -708,8 +790,9 @@ stderr `level: error` 코드 (exit non-zero 와 함께):
 | `CARD_ALREADY_EXISTS` (exit 4) | create 시 키 충돌 | 다른 키 or update 사용 |
 | `PERMISSION_OR_IO` (exit 5) | 파일/DB IO | 권한/디스크 확인 |
 | `CONFIG_MISSING` (exit 6) | `.emberdeck.jsonc` 없음 | `ed init` |
-| `GILDASH_TRANSIENT` (exit 7) | gildash 일시 실패 | 재시도 |
 ```
+
+(D18 v2.8: `GILDASH_TRANSIENT` / `NETWORK_TRANSIENT` rows are NOT included — no error class throws them today; `classifyErrorStatus` in v1 `runner.ts:33` was reserved-future code, deleted by Phase 2.2 rewrite. If a transient class is added later, that PR amends both `SIMPLE_ERROR_CODES` and `ERROR_CODE_TO_EXIT` and re-adds the SKILL row in one atomic change.)
 
 Phase 1.4 GATE: SKILL.md updated; run a manual eyeball check.
 
@@ -781,14 +864,20 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
     const ret = await fn(rt);
     verboseLog(`command done`, { hasData: ret?.data !== undefined });
 
-    if (ret && ret.data !== undefined) emitResult(ret.data, outCtx);
+    if (ret && ret.data !== undefined) await emitResult(ret.data, outCtx);  // D25: await drain
     exitCode = ret?.exitCode ?? EXIT.OK;
   } catch (e) {
     verboseLog(`command threw`, { class: e instanceof Error ? e.constructor.name : 'unknown' });
-    const cliErr = toCliError(e);
-    // Errors always emit regardless of --quiet (D19) — silent failure is anti-pattern.
-    emitError({ code: cliErr.code, message: cliErr.message, ...(cliErr.details ? { details: cliErr.details } : {}) });
-    exitCode = (ERROR_CODE_TO_EXIT[cliErr.code] ?? EXIT.GENERIC_ERROR) as ExitCode;
+    if (e instanceof OutputEncodeError) {
+      // D26: emitResult bubbled an encode failure; cleanup still runs below before exit.
+      emitError({ code: 'OUTPUT_ENCODE_FAILED', message: e.message });
+      exitCode = EXIT.GENERIC_ERROR;
+    } else {
+      const cliErr = toCliError(e);
+      // Errors always emit regardless of --quiet (D19) — silent failure is anti-pattern.
+      emitError({ code: cliErr.code, message: cliErr.message, ...(cliErr.details ? { details: cliErr.details } : {}) });
+      exitCode = (ERROR_CODE_TO_EXIT[cliErr.code] ?? EXIT.GENERIC_ERROR) as ExitCode;
+    }
   }
 
   try { await rt?.cleanup(); } catch (ce) {
@@ -799,10 +888,12 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
   process.exit(exitCode);
 }
 
-export function classifyErrorStatus(code: string): 'unknown' | 'error' {
-  if (code === 'GILDASH_TRANSIENT' || code === 'NETWORK_TRANSIENT') return 'unknown';
-  return 'error';
-}
+// classifyErrorStatus REMOVED in v2 — GILDASH_TRANSIENT / NETWORK_TRANSIENT were
+// reserved-future codes never thrown by ops. If transient classification is needed
+// later, add the throwing error class + SIMPLE_ERROR_CODES row + ERROR_CODE_TO_EXIT
+// entry + SKILL row in one atomic PR. Tests referencing classifyErrorStatus
+// (src/cli/runner.spec.ts:17-18, src/cli/output.spec.ts:58-61) are deleted in
+// Phase 2.6 along with the v1 envelope assertions.
 
 function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
   return {
@@ -821,10 +912,17 @@ function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
 For each file in `src/cli/commands/*.ts`:
 
 1. Remove `import { ok, partial, ... } from '../output'`.
-2. Change every `return ok(D)` → `return { data: D }`.
-3. Change every `return partial(D, errors)` → `return { data: { ...D, errors }, exitCode: 2 }` OR collapse to a clean shape per §1.7.
-4. Map errors per §3.5 (validate.ts specifically).
-5. Map `--quiet` collapse per §1.8.
+2. Change every `return ok(D)` → `return { data: D }` **ONLY if `D` already matches §1.7's shape for that command**. Otherwise restructure `D` first (see step 2a). Most card / glossary / check / bulk commands are mechanical. The exceptions are listed in step 2a.
+2a. **Non-mechanical commands (per D24)** — the current `D` shape differs from §1.7's target; agent MUST restructure. See each command's "v1→v2 delta" note in §1.7:
+   - `ed card get` — unwrap `frontmatter` to root, keep `history?` (D23).
+   - `ed card list` — flatten `page.{limit,offset,has_more}` to root (D23).
+   - `ed validate cards` — bucket warnings into `items[].issues[]`, split file-level into `file_level_issues[]`, compute `summary.by_code` (D24).
+   - `ed validate links` — per-target `items[]` with `broken_links[]`/`skipped`/`io_error`, compute `summary` (D24).
+   - `ed validate` (aggregate) — combine the two above into `{cards, links}`.
+3. For non-mechanical commands above: do NOT use `partial(D, errors)`. Build the §1.7 shape directly. Return `{ data, exitCode: 2 }` when the policy condition (`summary.total>0` for validate cards; `summary.broken+io_failed>0` for links) is true.
+4. For other commands still using `partial(D, errors)`: collapse to a clean shape per §1.7 (most have a top-level `failed: []` field; move errors there).
+5. Map error CODE strings per §4 (validate.ts specifically — codes already align with §1.7's expected codes).
+6. `--quiet` does NOT change shape (D19) — no per-command collapse logic needed in command files.
 
 **Exhaustive list of command files**:
 - `src/cli/commands/bulk.ts`
@@ -871,7 +969,8 @@ Apply similar extract-and-compose to: `ed check coverage` (3 modes), `ed card ex
 #### 2.6 — Adjust `src/cli/runner.spec.ts`
 
 - Delete the `mergeCardSyncWarnings` describe block (7 tests).
-- Keep `classifyErrorStatus` tests.
+- **Delete the `classifyErrorStatus` tests** (lines 17-18 reference `GILDASH_TRANSIENT` which is no longer exported — function is removed in Phase 2.2 per v2.8 note).
+- Delete `src/cli/output.spec.ts` (envelope assertions; already listed in 2.5).
 
 **Phase 2 GATE 1** (mid-phase): `bunx tsc --noEmit` must be CLEAN. If TS errors remain, Phase 2 incomplete; fix before next sub-step.
 
