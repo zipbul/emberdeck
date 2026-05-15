@@ -195,6 +195,20 @@ export async function renameGlossary(
     if (!oldEntry) {
       throw new GlossaryValidationError(`glossary word "${oldWord}" not found`);
     }
+    // Same-name rename = definition-only update. Skip the "already exists"
+    // check (it would always fire on oldEntry itself) and the cards-update
+    // pass (no glossary key changes — only the value).
+    if (oldWord === newWord) {
+      if (definition !== undefined) oldEntry.definition = definition;
+      writeGlossary(ctx, entries);
+      return {
+        renamedFrom: oldWord,
+        renamedTo: newWord,
+        definition: oldEntry.definition,
+        cardsUpdated: 0,
+        fileWriteFailures: [],
+      };
+    }
     if (entries.some((e) => e.word === newWord)) {
       throw new GlossaryValidationError(`glossary word "${newWord}" already exists`);
     }

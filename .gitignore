@@ -1,6 +1,7 @@
 node_modules
 .emberdeck/*
 !.emberdeck/cards/
+!.emberdeck/glossary.yaml
 dist
 .gildash
 coverage/
