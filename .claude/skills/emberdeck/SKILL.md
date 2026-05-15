@@ -164,8 +164,15 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed bulk sync [PATH]` | 카드 파일 → DB. partial → exit 2 | X |
 | `ed analyze` | health/coverage/drift/glossary 종합 | X |
 
-출력은 항상 JSON 봉투 `{schemaVersion, status, data, warnings, errors, error?}`. `--quiet` 만 stdout 을 결과 key 로 축약 (diagnostics → stderr).
-exit: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permission/IO, 6=config_missing, 7=transient, 130=SIGINT.
+모든 명령은 stdout 에 자기 자연 JSON shape 을 emit. 공통 envelope 없음. stderr 는 JSON-lines 단일 형식:
+```
+{"level": "error"|"warning"|"verbose", "code": string, "message": string, "details"?: object}
+```
+각 명령의 정확한 shape 은 그 명령의 spec card `cli-surface/command-routing-and-output/commands/<command-key>` 의 POST-001 fenced JSON 블록에 정의 (SoT).
+
+exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permission/IO, 6=config_missing, 7=transient, 130=SIGINT. 명령별 exit policy 는 그 명령 spec card 의 POST-002 에 명시.
+
+`--quiet` 동작: 같은 shape compact JSON (single-line `JSON.stringify`, no indent) + stderr `level:'warning'`/`'verbose'` suppress. `level:'error'` 는 그대로 emit. shape 자체는 안 바뀜 (포맷만).
 
 </commands>
 
@@ -339,94 +346,77 @@ cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 bri
 | broken_link | 소스의 `@spec` 어노테이션 위치 갱신 → `ed spec sync-symbols` 또는 `ed spec sync` |
 | glossary_broken | `ed glossary define` 또는 `--glossary <새 목록>` |
 
-envelope `warnings[]` 코드:
+stderr JSON-line `level:'warning'` 코드:
 
 | code | 의미 | 해결 |
 |------|------|------|
-| `CARD_SYNC_FAILED` | 모든 명령 진입 직전 자동 file→DB sync 가 특정 파일을 처리 못 함 (parse error 등). 명령 자체는 진행, exit code 무영향. 같은 파일이 명령 errors[]에 `details.file_path` 로 보고되면 중복 방지 차원에서 표시되지 않음. | message 의 file_path 확인 → 해당 카드 파일 수정 또는 제거 → 다음 명령에서 자동 재시도 |
+| `card-sync-failed` | 모든 명령 진입 직전 자동 file→DB sync 가 특정 파일을 처리 못 함 (parse error 등). 명령 자체는 진행, exit code 무영향. | `details.filePath` 확인 → 해당 카드 파일 수정 또는 제거 → 다음 명령에서 자동 재시도 |
 
-envelope `errors[]` 코드 (`ed validate` / `ed validate links` 한정):
+stdout 의 validate 결과 안 *file-level / per-link 진단* (envelope `errors[]` 아닌 *data shape 안 array*):
 
-| code | 의미 | 해결 |
-|------|------|------|
-| `VALIDATION_FAILED` | 한 카드의 link 검증 중 I/O / 파싱 에러 (주로 TOCTOU — auto-sync 직후 파일 권한 변경 또는 삭제). 다른 카드 검증은 정상 진행, exit 2 (partial). | `details.file_path` 확인 → 파일 권한 / 존재 복구 → 재실행 |
-| `KEY_MISMATCH_SKIPPED` (`ed validate links` fan-out) | 카드 frontmatter `key` 가 파일 슬러그와 달라서 link 검증이 그 카드만 건너뛰어짐. 나머지는 정상 진행. | `ed validate cards` 로 KEY_MISMATCH 상세 확인 → 파일명 또는 frontmatter key 정정 |
+| 위치 | code | 의미 | 해결 |
+|------|------|------|------|
+| `validate cards data.fileLevelIssues[].code` | `orphan-file` | DB row 없는 disk 파일 | `ed bulk sync PATH` |
+| 동 | `stale-db-row` | 파일 사라진 DB row | `ed bulk sync` 또는 `ed card delete KEY` |
+| 동 | `key-mismatch` | frontmatter key ≠ 경로 슬러그 | 파일 이름 또는 frontmatter key 정정 |
+| `validate cards data.items[].issues[].code` | `orphan-card` / `broken-parent` / `type-hierarchy-violation` / `broken-cross-domain-dep` / `broken-relation` / `rework-dependency` / `empty-tree` / `content-mismatch` / `glossary-broken` / `glossary-unused` / `broken-chain` | per-card 검증 위반 — 각자 `<error_recovery>` 표 (위) 참조 | 해당 표 |
+| `validate links data.items[].brokenLinks[].reason` | `gildash-unavailable` / `symbol-not-found` | per-link 검증 — gildash 인덱스 미가용 또는 symbol 없음 | gildash reindex 또는 source `@spec` 위치 갱신 |
+| `validate links data.items[].skipped.reason` | `key-mismatch` | 카드 fan-out 중 key 슬러그 불일치로 skip (나머지는 정상) | frontmatter key 또는 파일명 정정 |
+| `validate links data.items[].ioError.message` | (free-form) | 한 카드 link 검증 중 I/O / 파싱 에러 (주로 TOCTOU) | 파일 권한/존재 복구 후 재실행 |
+
+stderr JSON-line `level:'error'` 코드 (thrown command failure 시 한 줄, exit 비-0):
+
+| code | exit | 의미 |
+|------|:---:|------|
+| `card-not-found` | 3 | 명령이 요청한 카드 없음 |
+| `card-already-exists` | 4 | create 시 key 충돌 |
+| `cli-usage-error` | 2 | commander 인자/플래그 오류 (typo, 누락 positional, 알 수 없는 flag) — `ed --help` 확인 |
+| `fts-syntax-error` | 2 | `ed card search` 의 FTS5 syntax 오류 |
+| `invalid-card-key` | 2 | key 형식 위반 |
+| `validation-error` | 2 | card / op 입력 schema 검증 실패 |
+| `parent-validation-error` | 2 | parent 검증 실패 (parent 미존재 / 4-tier 위반) |
+| `activation-guard-failed` | 2 | `set-status active` 시 가드 미달. `details.unmetConditions` 참조 |
+| `compensation-failed` | 1 | 보상 트랜잭션 실패. `details.{originalError, compensationError}` 참조 |
+| `glossary-parse-error` | 2 | glossary 파싱 실패 (YAML / 입력 형식) |
+| `glossary-validation-error` | 2 | glossary 검증 실패 (word/definition limit 초과, 중복 등) |
+| `glossary-not-found` | 3 | `glossary remove`/`rename` 의 word 미존재 |
+| `rename-same-path` | 4 | `card rename` 의 old=new 경로 충돌 |
+| `gildash-init-failed` | 6 | gildash 초기화 실패 (config_missing 카테고리) |
+| `output-encode-failed` | 1 | `JSON.stringify` 실패 (BigInt/circular). 입력 데이터 확인 |
+| `stdout-write-failed` | 5 | stdout I/O 실패 (ENOSPC/EIO 등, EPIPE 제외) |
+| `internal-error` | 1 | 알 수 없는 에러 클래스 (`details.class?`) |
+| `sigint` | 130 | 사용자가 SIGINT/SIGTERM 으로 중단 |
 
 </error_recovery>
 
 <response_shapes>
 
-`ed check drift`:
+각 명령의 stdout shape 은 그 명령의 spec card `cli-surface/command-routing-and-output/commands/<command-key>` 의 POST-001 fenced JSON 블록에 정의 — **SoT**. SKILL 안에는 *agent 가 가장 자주 참조하는 패턴 예시 2개* 만 inline:
+
+`ed check drift` (read-only 종합):
 ```json
-{"data":{
-  "health":{"total":N,"active":N,"drifted":N,"draft":N},
-  "cards":[{
-    "key":"...",
-    "driftType":"broken_link|glossary_broken",  // 조건부: drift 시
-    "driftTypes":["...",...],                   // 조건부: 전체
-    "brokenLinks":N,"totalLinks":N
+{
+  "health": {"total": N, "active": N, "drifted": N, "draft": N},
+  "cards": [{
+    "key": "...",
+    "summary": "...", "status": "active|drifted|draft",
+    "driftType": "broken_link|glossary_broken",   // optional: primary
+    "driftTypes": ["..."],                          // optional: all detected
+    "brokenLinks": N, "totalLinks": N
   }]
-}}
+}
 ```
 
-`ed check impact`:
+`ed bulk create --from FILE` (batch mutation):
 ```json
-{"data":{
-  "risk_level":"low|medium|high|critical",
-  "affected_count":N,
-  "affected_cards":[{"key":"...","linkType":"direct|transitive","affectedLinks":N,"linkStatus":{"valid":N,"broken":N}}],
-  "new_uncovered_files":[...],
-  "suggested_actions":[...],
-  "max_fan_in":N           // 조건부: > 0
-}}
+{
+  "created": [{"inputIndex": N, "key": "...", "filePath": "..."}],
+  "failed":  [{"inputIndex": N, "key": "...", "error": "..."}],
+  "total":   N
+}
 ```
 
-`ed validate links`:
-```json
-{"data":{
-  "declared":N,"resolved":N,"broken":N,"unresolved":N
-}}
-```
-`unresolved` = `errors.length`. partial 모드에서 BROKEN_LINK 와 VALIDATION_FAILED 를 모두 포함하므로 `unresolved > broken` 일 수 있음.
-
-`ed card list`:
-```json
-{"data":{
-  "items":[{"key":"...","type":"...","status":"...","summary":"...","parent":"..."|null}],
-  "total":N,
-  "page":{"limit":N,"offset":N,"has_more":bool}
-}}
-```
-
-`ed check coverage <key>`:
-```json
-{"data":{
-  "key":"...","total_symbols":N,"covered_symbols":N,"coverage_ratio":0~1|null,
-  "uncovered":[{"file":"...","symbol":"...","kind":"..."}]
-}}
-```
-
-`ed check coverage --suggest`:
-```json
-{"data":{
-  "suggestions":[{"key":"...","type":"domain|spec","files":N,"symbols":N,"reason":"...","suggested_glossary":[]}],
-  "total":N
-}}
-```
-
-`ed analyze`:
-```json
-{"data":{
-  "health":{"total":N,"active":N,"drifted":N,"draft":N,"brokenLinks":N,
-    "codeStats":{"files":N,"symbols":N},          // 조건부: gildash 활성
-    "codeCycles":{"count":N,"samples":[["a.ts","b.ts"]]}  // 조건부
-  },
-  "coverage":{"totalSymbols":N,"covered":N,"ratio": 0~1 | null},  // null = 인덱스 0
-  "drifted":{"cards":[...],"total":N},
-  "glossary":{"totalWords":N,"unusedWords":[...],"entries":[...]},
-  "unlinked_symbols":[{"file":"...","symbol":"...","kind":"..."}]
-}}
-```
+다른 31 명령 shape — `ed card get cli-surface/command-routing-and-output/commands/<key>` 로 spec card POST-001 직접 read. `card-get` / `card-list` / `card-create` / `card-update` / `card-delete` / `card-rename` / `card-search` / `card-export` / `card-set-status` / `card-tree` / `card-context` / `card-relations` / `validate-cards` / `validate-links` / `validate-aggregate` / `check-coverage` / `check-impact` / `check-regression` / `check-interactions` / `spec-sync` / `spec-sync-symbols` / `bulk-sync` / `glossary-define` / `glossary-lookup` / `glossary-remove` / `glossary-rename` / `init` / `analyze` / `reset` / `runner-commander-fallback`.
 
 </response_shapes>
 
