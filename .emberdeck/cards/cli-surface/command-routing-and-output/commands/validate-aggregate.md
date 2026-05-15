@@ -6,6 +6,9 @@ summary: >-
 status: draft
 type: spec
 parent: cli-surface/command-routing-and-output
+relations:
+  - cli-surface/command-routing-and-output/commands/validate-cards
+  - cli-surface/command-routing-and-output/commands/validate-links
 glossary:
   - json-envelope
 spec:
@@ -15,8 +18,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: >-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
 
@@ -30,9 +31,9 @@ spec:
         sub-field 로 묶음.
 
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): cards.summary.total === 0 && links.summary.broken === 0
         && links.summary.ioFailed === 0.
@@ -40,6 +41,8 @@ spec:
         - 2 (EXIT.VALIDATION_FAILURE): 두 sub 중 하나라도 비-0 위반.
 
         - thrown 매핑: 없음 (read-only).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

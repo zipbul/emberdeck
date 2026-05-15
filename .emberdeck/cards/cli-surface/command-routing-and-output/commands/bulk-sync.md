@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -28,17 +26,19 @@ spec:
           failed: { filePath: string, error: string }[]   // 성공 시 빈 배열. CLI 가 op 의 `error: unknown` 을 `errorMessage(e)` 로 string 변환.
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): failed.length === 0.
 
         - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data 정상 emit, exit 만
         2).
 
-        - thrown 매핑: 없음 (per-file 실패는 failed[] 에 누적). PATH 미존재는 CliUsageError →
-        2.
+        - thrown 매핑: `CliUsageError` (PATH 미존재) → 2; per-file 실패는 throw 아님,
+        `failed[]` 누적.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
