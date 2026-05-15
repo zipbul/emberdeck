@@ -492,7 +492,7 @@ ed glossary remove <word>
 ed glossary rename <old> <new> [--def TEXT]
   { oldWord, newWord, affectedCardKeys: string[],
     failedFileWrites?: string[] }
-  exit: 0 if no failures; 2 if any failedFileWrites; thrown→3 (GlossaryNotFoundError when oldWord missing); 4 (GlossaryValidationError when newWord conflicts).
+  exit: 0 if no failures; 2 if any failedFileWrites; thrown→3 (GlossaryNotFoundError when oldWord missing); 2 (GlossaryValidationError when newWord conflicts; 코드 매핑 §4 표 일치. 의미적 conflict 분리는 별도 `GlossaryConflictError` 도입 후 exit 4 로 변경 가능 — 별도 PR).
 
 ed init [--project-root] [--cards-dir] [--no-gitignore] [--force]
   {
@@ -607,6 +607,8 @@ runner-commander-fallback   // subcommand 아님; commander 에러 폴백
 
 **D18 — Phase 1.3 카드 공통부 hoisting**: stdout 1회 JSON / stderr JSON-line / `--quiet` 동작 / failure 시 stdout 무출력 같은 *모든 명령 공통 invariant* 는 부모 spec `runner-and-output` 에 한 번만 선언. 32 명령 카드는 자기 *고유* POST-001 (shape) + 고유 exit code policy + 고유 failure 만 가짐. 32 카드에 동일 POST-002/003/004 복붙 금지.
 
+**D18.1 — `cli-usage-error` 의 failures entry placeholder 예외**: SKILL.md card_fields 가 `spec.failures ≥1` 강제. *read-only 명령으로 op-throw 없음* 인 카드 (예: `card-list`, `analyze`, `check-impact`, `check-interactions`, `glossary-lookup`, `reset`, `spec-sync-symbols`) 는 *명령-specific* failure mode 0 — schema 통과를 위해 *commander 거부* (cli-usage-error) entry 를 *예외적으로* 유지 가능. cli-usage-error 가 *유일한 entry* 인 경우만 허용; *명령-specific failure 가 있는 카드* 는 cli-usage-error entry 제거 (부모 anchor 처리). 향후 schema 가 `failures ≥0` 허용 시 7 카드의 placeholder 도 제거.
+
 ---
 
 ## 3. Phase 단계
@@ -699,6 +701,46 @@ GATE: 수동 검토.
 ### Phase 2 — 코드 (단일 git commit)
 
 `git diff` clean 에서 시작.
+
+#### 2.0 — action handler 함수 추출 (gildash `@spec` 인식 활성화)
+
+**왜**: Phase 1.3 에서 31 명령의 `@spec cli-surface/command-routing-and-output/commands/<key>` JSDoc annotation 을 `src/cli/commands/*.ts` 에 추가했으나, annotation 이 commander chain expression statement (`.command(...).action(async (...) => {...})`) 직전에 위치 → gildash 가 *function declaration* 위 JSDoc 만 인덱싱하므로 annotation 이 어느 symbol 에도 attach 안 됨 → `ed spec sync` 가 새 link 0 생성, `ed validate links` 통과해도 *카드 active 전환 시* activation guard 가 "no source bindings" 로 거부.
+
+**작업**: 각 명령의 inline arrow action callback 을 *export 된 named async function* 으로 추출. JSDoc annotation 을 함수 declaration 위에 둠.
+
+**Before** (`src/cli/commands/card.ts` 예):
+```ts
+/** @spec cli-surface/command-routing-and-output/commands/card-get */
+card
+  .command('get <key>')
+  .description('read a card from file')
+  .option('--history', 'include changelog history')
+  .action(async (key: string, opts: { history?: boolean }, cmd) => {
+    await run(async (rt: CliRuntime) => { ... }, cmd);
+  });
+```
+
+**After**:
+```ts
+/** @spec cli-surface/command-routing-and-output/commands/card-get */
+export async function cardGetAction(
+  key: string,
+  opts: { history?: boolean },
+  cmd: Command,
+): Promise<void> {
+  await run(async (rt: CliRuntime) => { ... }, cmd);
+}
+
+card
+  .command('get <key>')
+  .description('read a card from file')
+  .option('--history', 'include changelog history')
+  .action(cardGetAction);
+```
+
+**대상**: 31 명령 — card (12), validate (3), check (5), spec (2), bulk (2), glossary (4), single (3). `runner-commander-fallback` 은 Phase 2.7 의 commander `main()` catch 블록이 anchor (별도 함수 추출 불필요).
+
+**GATE**: 2.0 완료 후 `ed spec sync` → `linkMissing` 가 31개 신규 link 보고. `ed validate links` broken=0. 한 카드 `ed card set-status <key> active` 시도 → activation guard 통과 (`code_links_total > 0`).
 
 #### 2.1 — `src/cli/output.ts` 전면 교체 (§1.3 코드)
 
@@ -824,7 +866,7 @@ function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
 | `ed glossary define` | per-entry validation 실패를 throw 대신 `failed[]` 에 누적 (CLI helper 가 사전 분리). counter → arrays |
 | `ed glossary lookup` | word/no-word 통합 → `{entries, total}` |
 | `ed glossary remove` | `removed: boolean` 제거. `{word, affectedCardKeys}` 만. not-found 는 신규 `GlossaryNotFoundError` → exit 3 |
-| `ed glossary rename` | OP-9 결과 사용. 필드명 변경: `renamed_from→oldWord`, `renamed_to→newWord`, `cards_updated→affectedCardKeys`, `file_write_failures→failedFileWrites?`, `definition` 드롭. not-found 는 `GlossaryNotFoundError` → exit 3, conflict 는 `GlossaryValidationError` → exit 4 |
+| `ed glossary rename` | OP-9 결과 사용. 필드명 변경: `renamed_from→oldWord`, `renamed_to→newWord`, `cards_updated→affectedCardKeys`, `file_write_failures→failedFileWrites?`, `definition` 드롭. not-found 는 `GlossaryNotFoundError` → exit 3, conflict 는 `GlossaryValidationError` → exit 2 (코드 매핑 §4 일치) |
 | `ed spec sync` | op 의 `unmatched`/`markerMissing`/`linkMissing` array + `alreadyLinked` 카운터 그대로 통과. op 의 `created: number` 는 응답에서 제거 (linkMissing.length 와 동일 정보). `UNMATCHED_ANNOTATION` CliMessage 제거 |
 | `ed spec sync-symbols` | OP-2 결과 사용. `changes[]` → `applied[]` + `skipped[]`. `metadata-write-failed` 경고 → `skipped[]` 엔트리. enum 값 kebab |
 | `ed check regression` | `partial()` 제거, `{data, exitCode: passOrFail==='fail' ? 2 : 0}` |
@@ -1123,7 +1165,7 @@ rg -nE 'parsed\.(status|data|warnings|errors|error|schemaVersion)' test/ src/
 
 #### 3.2 — 신규 테스트
 
-`test/cli/auto-sync-warnings.test.ts`: 망가진 카드 파일 → 어떤 read 명령에서든 stderr 에 `level:warning code:CARD_SYNC_FAILED` JSON-line 정확히 1개. stdout shape 영향 없음. exit 코드는 명령의 자연 코드.
+`test/cli/auto-sync-warnings.test.ts`: 망가진 카드 파일 → 어떤 read 명령에서든 stderr 에 `level:warning code:card-sync-failed` JSON-line 정확히 1개. stdout shape 영향 없음. exit 코드는 명령의 자연 코드.
 
 `test/cli/no-direct-process-exit.test.ts` (계약 테스트): `grep "process.exit" src/cli/commands/` 가 0 라인.
 
