@@ -209,3 +209,92 @@ describe('serializeCard', () => {
     expect(second).toBe(first);
   });
 });
+
+// ── B-002 regression: brief.criteria.measure optional fields preserved across all variants ──
+describe('parseCard — brief.criteria.measure (B-002 round-trip)', () => {
+  // Minimal valid brief frontmatter that lets parseCard succeed. Only `criteria` varies.
+  function makeBriefWithCriteria(criteria: unknown): string {
+    return makeCard({
+      type: 'brief',
+      parent: 'parent-domain',
+      brief: {
+        context: { problem: 'p', impact: [{ statement: 's' }] },
+        scope: {
+          goals: [{ id: 'G-001', statement: 'g' }],
+          non_goals: [],
+          assumptions: [],
+        },
+        flow: [
+          { id: 'S-H-01', kind: 'happy', given: 'a', when: 'b', then: 'c', covers: ['G-001'] },
+          { id: 'S-F-01', kind: 'failure', given: 'a', when: 'b', then: 'c', covers: ['G-001'] },
+        ],
+        design: { overview: 'o', components: [], data_flow: [], invariants: [] },
+        policy: [{ id: 'R-001', subject: 's', keyword: 'MUST', predicate: 'p', governs: ['S-H-01'] }],
+        external: [{ id: 'C-001', statement: 's', reference: { title: 't', locator: 'l' } }],
+        compatibility: { guarantees: [] },
+        limits: [],
+        criteria,
+        rationale: {
+          alternatives: [
+            { option: 'A', pros: ['p'], cons: ['c'] },
+            { option: 'B', pros: ['p'], cons: ['c'] },
+          ],
+          chosen: { option: 'A', reasoning: 'r' },
+          addresses: ['C-001'],
+        },
+      },
+    });
+  }
+
+  it('binary variant: preserves predicate + optional method + optional reference', () => {
+    const yaml = makeBriefWithCriteria([
+      { id: 'SC-001', type: 'binary', measure: { predicate: 'P', method: 'M', reference: 'R' }, verifies: ['S-H-01'] },
+    ]);
+    const parsed = parseCard(yaml);
+    const c0 = parsed.frontmatter.brief?.criteria[0];
+    if (!c0) throw new Error('brief.criteria[0] missing');
+    expect(c0.measure).toEqual({ predicate: 'P', method: 'M', reference: 'R' });
+  });
+
+  it('binary variant: minimal (predicate only) survives round-trip without inventing optionals', () => {
+    const yaml = makeBriefWithCriteria([
+      { id: 'SC-001', type: 'binary', measure: { predicate: 'P' }, verifies: ['S-H-01'] },
+    ]);
+    const parsed = parseCard(yaml);
+    const c0 = parsed.frontmatter.brief?.criteria[0];
+    if (!c0) throw new Error('brief.criteria[0] missing');
+    expect(c0.measure).toEqual({ predicate: 'P' });
+  });
+
+  it('numeric variant: preserves predicate + value + comparator + unit + optional reference', () => {
+    const yaml = makeBriefWithCriteria([
+      { id: 'SC-001', type: 'numeric', measure: { predicate: 'P', value: 1, comparator: '<=', unit: 'ms', reference: 'R' }, verifies: ['S-H-01'] },
+    ]);
+    const parsed = parseCard(yaml);
+    const c0 = parsed.frontmatter.brief?.criteria[0];
+    if (!c0) throw new Error('brief.criteria[0] missing');
+    expect(c0.measure).toEqual({ predicate: 'P', value: 1, comparator: '<=', unit: 'ms', reference: 'R' });
+  });
+
+  it('verification variant: preserves method + reference + optional predicate + optional unit', () => {
+    const yaml = makeBriefWithCriteria([
+      { id: 'SC-001', type: 'verification', measure: { method: 'M', reference: 'R', predicate: 'P', unit: 'count' }, verifies: ['S-H-01'] },
+    ]);
+    const parsed = parseCard(yaml);
+    const c0 = parsed.frontmatter.brief?.criteria[0];
+    if (!c0) throw new Error('brief.criteria[0] missing');
+    expect(c0.measure).toEqual({ method: 'M', reference: 'R', predicate: 'P', unit: 'count' });
+  });
+
+  it('full round-trip (parse → serialize → parse) preserves all measure optionals', () => {
+    const yaml = makeBriefWithCriteria([
+      { id: 'SC-001', type: 'binary', measure: { predicate: 'P', method: 'M', reference: 'R' }, verifies: ['S-H-01'] },
+      { id: 'SC-002', type: 'numeric', measure: { predicate: 'Q', value: 5, comparator: '>=', unit: 's', reference: 'R2' }, verifies: ['S-H-01'] },
+      { id: 'SC-003', type: 'verification', measure: { method: 'M3', reference: 'R3', predicate: 'P3', unit: 'pct' }, verifies: ['S-H-01'] },
+    ]);
+    const first = parseCard(yaml);
+    const second = parseCard(serializeCard(first.frontmatter));
+    if (!first.frontmatter.brief || !second.frontmatter.brief) throw new Error('brief missing');
+    expect(second.frontmatter.brief.criteria).toEqual(first.frontmatter.brief.criteria);
+  });
+});

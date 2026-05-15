@@ -448,3 +448,59 @@ describe('CLI: invalid invocation', () => {
     expect(r.stderr).toMatch(/missing required argument/i);
   });
 });
+
+// ── B-001 regression: card update --patch rejects unwrapped namespace bodies ──
+describe('CLI: card update --patch root key whitelist (B-001)', () => {
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = mkdtempSync(join(tmpdir(), 'ed-cli-b001-'));
+    writeFileSync(join(tmp, 'package.json'), JSON.stringify({ name: 'test', version: '0.0.0' }));
+    writeFileSync(
+      join(tmp, '.emberdeck.jsonc'),
+      JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
+    );
+    mkdirSync(join(tmp, '.emberdeck/cards'), { recursive: true });
+  });
+  afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
+
+  test('--patch with unwrapped brief namespace keys → exit 2 + CLI_USAGE_ERROR', async () => {
+    const create = await runEd(
+      ['card', 'create', 'b001-target', '--type', 'spec', '--summary', 'B-001 target', '--parent', 'b001-parent-brief'],
+      tmp,
+    );
+    // Even if create fails due to missing parent, that's fine — we want to assert the patch path rejects bad input
+    // regardless. Use a always-existing path: re-create with a brief instead so update can be attempted.
+    if (create.exitCode !== 0) {
+      const createBrief = await runEd(
+        ['card', 'create', 'b001-target', '--type', 'principle', '--summary', 'B-001 target'],
+        tmp,
+      );
+      expect(createBrief.exitCode).toBe(0);
+    }
+
+    // Unwrapped patch: top-level keys are namespace contents (context/scope/...), not 'brief'.
+    const badPatch = join(tmp, 'bad-patch.json');
+    writeFileSync(badPatch, JSON.stringify({ context: { problem: 'x', impact: [] }, scope: {} }));
+    const r = await runEd(['card', 'update', 'b001-target', '--patch', badPatch], tmp);
+    expect(r.exitCode).toBe(2);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('error');
+    expect(parsed.error.code).toBe('CLI_USAGE_ERROR');
+    expect(parsed.error.message).toMatch(/UpdateCardFields names/);
+    expect(parsed.error.message).toMatch(/wrap the namespace/);
+  });
+
+  test('--patch with allowed top-level keys (summary, glossary) succeeds', async () => {
+    await runEd(
+      ['card', 'create', 'b001-allowed', '--type', 'principle', '--summary', 'before'],
+      tmp,
+    );
+    const goodPatch = join(tmp, 'good-patch.json');
+    writeFileSync(goodPatch, JSON.stringify({ summary: 'after' }));
+    const r = await runEd(['card', 'update', 'b001-allowed', '--patch', goodPatch], tmp);
+    expect(r.exitCode).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe('ok');
+  });
+});
