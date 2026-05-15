@@ -150,7 +150,7 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed card tree KEY [--depth N]` | parent-child 계층 | X |
 | `ed card context KEY [--depth N]` | relations + parent BFS | X |
 | `ed card relations KEY` | 직접 forward+reverse | X |
-| `ed validate cards` | 정합성 (계층/orphan/glossary/chain 등). partial → exit 2 | X |
+| `ed validate cards` | 정합성 (계층/orphan/glossary/chain 등). 위반 있으면 exit 2 | X |
 | `ed validate links [KEY]` | DB code_link resolve 검증 (소스 어노테이션 기반) | X |
 | `ed validate` | cards + links 종합 | X |
 | `ed check drift [KEY] [--max-depth N]` | broken_link / glossary_broken 검출. 읽기 전용 — status 는 변경하지 않음. 명시적 전이는 `ed card set-status <KEY> drifted`. | X |
@@ -160,8 +160,8 @@ glossary 추가 기준 — 4 모두 충족 시:
 | `ed check interactions <keys...>` | shared symbol/file/import + 충돌 | X |
 | `ed spec sync` | 소스 `@spec` JSDoc 어노테이션 → DB code_link 재구성. 사실상 멱등. | X |
 | `ed spec sync-symbols [--since TS]` | renamed/moved 심볼 적용 (DB code_link 갱신) | X |
-| `ed bulk create --from FILE` | YAML/JSON 배열 일괄 생성. partial → exit 2 | 예 |
-| `ed bulk sync [PATH]` | 카드 파일 → DB. partial → exit 2 | X |
+| `ed bulk create --from FILE` | JSON 배열 일괄 생성. `failed[]` 있으면 exit 2 | 예 |
+| `ed bulk sync [PATH]` | 카드 파일 → DB. `failed[]` 있으면 exit 2 | X |
 | `ed analyze` | health/coverage/drift/glossary 종합 | X |
 
 모든 명령은 stdout 에 자기 자연 JSON shape 을 emit. 공통 envelope 없음. stderr 는 JSON-lines 단일 형식:
@@ -375,6 +375,7 @@ stderr JSON-line `level:'error'` 코드 (thrown command failure 시 한 줄, exi
 | `invalid-card-key` | 2 | key 형식 위반 |
 | `validation-error` | 2 | card / op 입력 schema 검증 실패 |
 | `parent-validation-error` | 2 | parent 검증 실패 (parent 미존재 / 4-tier 위반) |
+| `boundary-validation-error` | 2 | spec 카드 boundary glob 위반 (Phase 2.4 후 op 가 throw 시) |
 | `activation-guard-failed` | 2 | `set-status active` 시 가드 미달. `details.unmetConditions` 참조 |
 | `compensation-failed` | 1 | 보상 트랜잭션 실패. `details.{originalError, compensationError}` 참조 |
 | `glossary-parse-error` | 2 | glossary 파싱 실패 (YAML / 입력 형식) |
@@ -416,7 +417,7 @@ stderr JSON-line `level:'error'` 코드 (thrown command failure 시 한 줄, exi
 }
 ```
 
-다른 31 명령 shape — `ed card get cli-surface/command-routing-and-output/commands/<key>` 로 spec card POST-001 직접 read. `card-get` / `card-list` / `card-create` / `card-update` / `card-delete` / `card-rename` / `card-search` / `card-export` / `card-set-status` / `card-tree` / `card-context` / `card-relations` / `validate-cards` / `validate-links` / `validate-aggregate` / `check-coverage` / `check-impact` / `check-regression` / `check-interactions` / `spec-sync` / `spec-sync-symbols` / `bulk-sync` / `glossary-define` / `glossary-lookup` / `glossary-remove` / `glossary-rename` / `init` / `analyze` / `reset` / `runner-commander-fallback`.
+다른 30 명령 shape — `ed card get cli-surface/command-routing-and-output/commands/<key>` 로 spec card POST-001 직접 read. `card-get` / `card-list` / `card-create` / `card-update` / `card-delete` / `card-rename` / `card-search` / `card-export` / `card-set-status` / `card-tree` / `card-context` / `card-relations` / `validate-cards` / `validate-links` / `validate-aggregate` / `check-coverage` / `check-impact` / `check-regression` / `check-interactions` / `spec-sync` / `spec-sync-symbols` / `bulk-sync` / `glossary-define` / `glossary-lookup` / `glossary-remove` / `glossary-rename` / `init` / `analyze` / `reset` / `runner-commander-fallback`.
 
 </response_shapes>
 
