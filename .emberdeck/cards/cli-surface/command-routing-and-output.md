@@ -50,19 +50,23 @@ brief:
       - id: G-003
         statement: >-
           Cross-cutting diagnostics — auto-sync per-file failures, verbose
-          tracing, user-facing error messages — go to stderr. Auto-sync warnings
-          use JSON-lines (one CARD_SYNC_FAILED object per line) for agent
-          parseability; verbose / error messages are free-form text.
+          tracing, command errors — go to stderr as a single canonical JSON-line
+          schema `{level, code, message, details?}`. No free-form text on
+          stderr. Auto-sync failures use level:`warning` with
+          code:`card-sync-failed`; thrown command errors use level:`error`;
+          verbose traces use level:`verbose`.
       - id: G-004
         statement: >-
           On command failure (typo, IO, crash) stdout emits no JSON; stderr
-          carries a human-readable message and exit code is non-zero. Consumers
-          detect failure by exit code, not by parsing stdout.
+          emits exactly one `level:error` JSON-line + exit code is non-zero.
+          Consumers detect failure by exit code, not by parsing stdout.
       - id: G-005
         statement: >-
-          --quiet collapses the natural stdout shape to its core payload (e.g. a
-          card key, a count) and silences non-fatal stderr; --json (default)
-          emits the full shape.
+          --quiet emits the same per-command JSON shape but compact (single-line
+          JSON.stringify, no indent) on stdout; suppresses stderr
+          `level:warning` and `level:verbose` lines; `level:error` is still
+          emitted on failure. --quiet does NOT alter the data shape — only
+          format and non-fatal stderr.
     non_goals:
       - id: NG-001
         statement: Pretty TTY output (stdout JSON or empty).
@@ -214,8 +218,8 @@ brief:
       subject: Auto-sync warnings
       keyword: MUST
       predicate: >-
-        emit one CARD_SYNC_FAILED JSON object per line on stderr, never on
-        stdout, regardless of the command's outcome.
+        emit one `level:warning code:card-sync-failed` JSON-line per failed file
+        on stderr, never on stdout, regardless of the command outcome.
       governs:
         - S-H-03
     - id: R-005

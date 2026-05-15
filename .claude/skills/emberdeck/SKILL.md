@@ -1,18 +1,58 @@
 ---
 name: emberdeck
-description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로젝트 그 자체이자 SSOT(single source of truth). 프로젝트의 모든 설계 지식 — 원칙·정책, 영역 경계, 의도·시나리오, 코드 contract·invariant, 가정·한계·rationale, 용어·정의·개념 — 을 표현하고 코드는 이로부터 derive 된다. 프로젝트의 어떤 부분에든 영향을 주거나 그것을 참조하는 모든 작업에 사용한다.
+description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로젝트 SSOT. 코드는 카드로부터 derive 된다. **카드 디렉토리 `.emberdeck/cards/` 안 파일을 만들거나 수정하려는 모든 의도에 즉시 본 SKILL 진입.** Write/Edit 로 카드 파일을 직접 손대는 것은 SSOT-DB 불일치를 만드는 절차 우회이며 — 효율로 보일 뿐 실제 cost 는 검증 단계에서 발견되는 재작업으로 항상 더 크다. 프로젝트의 어떤 부분에 영향을 주거나 그것을 참조하는 모든 작업에 사용.
 ---
+
+<hard_constraints>
+이 SKILL 의 hard constraint 는 PreToolUse hook (`.claude/hooks/block-card-direct-edit.sh`) 으로도 enforce 된다. hook 은 `.emberdeck/cards/**/*.md` 에 대한 Write/Edit 시도를 deny 한다. 아래 rule 은 모두 그 enforcement 의 의도를 설명한다.
+
+**HC-1**: 카드 파일 변경은 오직 `ed` CLI 로만 — `ed card create / update / delete / rename / set-status`, `ed bulk create / sync`. Write/Edit tool 로 `.emberdeck/cards/**` 안 파일 직접 편집 X.
+  Why: ed CLI 는 DB index 와 disk 파일을 atomic 하게 갱신한다. Write 직접 편집 시 disk 만 갱신되고 DB stale → 다음 `ed validate` 까지 lag → 후속 작업의 검증 깨짐. 단축처럼 보이지만 발견 시점 늦어진다.
+
+**HC-2**: 카드 N (N≥1) 생성/갱신 전 — `<card_analysis>` 한 번에 모든 N 카드 (key, parent, summary, 핵심 POST 요지) 표로 정리해 사용자 확인. batch 명목 / 효율 명목 / "schema 이미 plan 에 있음" 명목 — 어떤 명목으로도 스킵 X.
+  Why: 카드 = SSOT. 사용자 confirm 없는 작성은 의도 불일치를 검증 단계에서야 발견시킴 → 재작업 cost > 사전 confirm cost. Scope: 1 카드든 32 카드든 동일하게 적용. (Anthropic Opus 4.7 가이드: scope 를 명시적으로 — 일부 케이스에 generalize 금지.)
+
+**HC-3**: `<self_review>` 항목별 통과 — 한 항목 fail 시 즉시 중단, fix 후 재검토. skip X.
+  Why: review 가 작성과 분리돼야 자체 점검이 의미 있음. 작성-중 mental review 는 confirmation bias 로 fail 을 놓친다.
+
+**HC-4**: 카드 commit 전 `ed validate cards` 통과 필수 (warnings 0).
+  Why: commit 이 SSOT 의 publication 시점. 통과 안 한 상태 commit 시 history 가 오염된다 — `git revert` 후 재작업 cost.
+</hard_constraints>
+
+<positive_example>
+사용자: "X feature 추가를 위해 3 카드 (domain-x, brief-x-overview, spec-x-flow) 만들어"
+
+올바른 응답:
+1. `<card_analysis>` 작성. 3 카드 표 (key/parent/type/summary/주요 토픽) 제시. "이대로 진행?"
+2. 사용자 confirm 받음.
+3. `<self_review>` 각 항목 통과 확인 후 작성.
+4. `ed card create domain-x --type domain ...` 형태로 ed CLI 실행 (Write tool X).
+5. 세 카드 모두 작성 후 `ed validate cards` 실행.
+6. warnings 0 확인 후 commit.
+
+안티패턴 (실제 발생): "32 카드라 batch 가 효율적" 으로 `<card_analysis>` 스킵 + Write tool 직접 사용. → hook 이 차단 + 재작업. 효율이 아니라 우회.
+</positive_example>
 
 <rules>
 1. 코드 수정 **전** 관련 카드 읽기. 수정 **후** `ed validate links` 실행.
-2. 카드 생성/갱신 **전** `<card_analysis>` 템플릿 사용자 확인.
-3. 모든 카드 생성/갱신 전 `<self_review>` 통과.
-4. `glossary.yaml` 에 항목 ≥1 시 신규 카드의 `glossary` 필드 필수 (주요 토픽만).
-5. 4-tier strict: `principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용.
-6. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 11 의 ignorePatterns 에 명시 추가 (rule 6 우선).
-7. `--patch` 는 namespace 전체 교체 (merge X). 누락 필수 필드 시 `VALIDATION_ERROR`. 부분 업데이트가 필요하면 카드 파일 직접 편집 후 `ed bulk sync`.
-8. **source ↔ card binding 은 source 가 SoT.** spec 카드의 source 결합은 코드의 `/** @spec card-key */` JSDoc 어노테이션으로만 표현. 카드는 codeLinks/boundary 필드를 갖지 않으며, `ed spec sync` 가 어노테이션을 스캔해 DB code_link 테이블을 채운다.
+2. 카드 생성/갱신 = HC-1/HC-2/HC-3/HC-4 (above). 별도 rule X.
+3. `glossary.yaml` 에 항목 ≥1 시 신규 카드의 `glossary` 필드 필수 (주요 토픽만).
+4. 4-tier strict: `principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용.
+5. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 11 의 ignorePatterns 에 명시 추가 (rule 5 우선).
+6. `--patch` 는 namespace 전체 교체 (merge X). 누락 필수 필드 시 `VALIDATION_ERROR`. 부분 업데이트가 필요하면 카드 파일을 ed 가 export → 편집 → `ed bulk sync`. (직접 편집은 HC-1 위반.)
+7. **source ↔ card binding 은 source 가 SoT.** spec 카드의 source 결합은 코드의 `/** @spec card-key */` JSDoc 어노테이션으로만 표현. 카드는 codeLinks/boundary 필드를 갖지 않으며, `ed spec sync` 가 어노테이션을 스캔해 DB code_link 테이블을 채운다.
 </rules>
+
+<constraint_check>
+카드 작업 직전 매번 emit. 각 항목 `[PASS]` / `[FAIL: 이유]` 명시. 한 FAIL = 즉시 중단.
+
+- HC-1 ed CLI 사용 (Write/Edit X)? [ ]
+- HC-2 `<card_analysis>` 작성 후 사용자 confirm 받음? [ ]
+- HC-3 `<self_review>` 항목별 통과? [ ]
+- HC-4 commit 전 `ed validate cards` 통과 확인? [ ]
+- Rule 3 glossary 필드 (해당 시)? [ ]
+- Rule 4 4-tier hierarchy 만족? [ ]
+</constraint_check>
 
 <route>
 첫 매치 행 따름.

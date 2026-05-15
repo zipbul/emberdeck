@@ -27,8 +27,9 @@ spec:
     - id: POST-002
       guarantee: >-
         On failure (thrown error or command-declared non-zero exit) the runner
-        writes a human-readable line to stderr and exits with the spec-declared
-        code. stdout MUST be empty on the failure path.
+        emits a single `level:error` JSON-line on stderr via toCliError
+        (`{level:error, code, message, details?}`) and exits with the
+        spec-declared code. stdout MUST be empty on the failure path.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-004
     - id: POST-003
@@ -42,16 +43,17 @@ spec:
     - id: POST-004
       guarantee: >-
         Per-file sync failures returned by ensureCardsSynced are streamed to
-        stderr as JSON-lines (one CARD_SYNC_FAILED object per line) regardless
-        of the command's success/failure outcome. They do not affect stdout or
-        exit code.
+        stderr as JSON-lines `{level:warning, code:card-sync-failed, message,
+        details:{filePath}}` regardless of the command outcome. They do not
+        affect stdout or exit code.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-003
     - id: POST-005
       guarantee: >-
-        --quiet collapses the stdout shape to its core payload (per command's
-        spec-declared quiet form) and suppresses non-fatal stderr lines; the
-        auto-sync warning JSON-lines on stderr are still emitted.
+        --quiet emits the same per-command shape but compact (single-line
+        JSON.stringify, no indent) on stdout; suppresses stderr `level:warning`
+        and `level:verbose` lines; `level:error` is still emitted on failure.
+        quiet does NOT alter the data shape — only format and non-fatal stderr.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-005
   invariants:
@@ -80,11 +82,17 @@ spec:
         errors at the top level). These are removed by design; any reappearance
         is a regression.
       always_holds: cross-call
+    - id: INV-005
+      statement: >-
+        Every stderr line is a JSON-line of the canonical schema `{level, code,
+        message, details?}`. All property names (including inside the `details`
+        bag) are camelCase. Error code values are kebab-case.
+      always_holds: cross-call
   failures:
     - violation: An unmapped error class is thrown inside the action.
       behavior: >-
-        toCliError maps to code='INTERNAL_ERROR' message=stringified error;
-        runner emits the message on stderr and exits 1.
+        toCliError maps to code=`internal-error` message=stringified error;
+        runner emits a single `level:error` JSON-line on stderr and exits 1.
     - violation: >-
         ensureCardsSynced itself throws (e.g. DB write failure at the schema
         layer, not a per-file parse error).
@@ -93,10 +101,10 @@ spec:
         toCliError to a stderr line + non-zero exit; the command is not invoked.
     - violation: A CommandFn returns undefined/null where data is expected.
       behavior: >-
-        The runner writes `null` (valid JSON) to stdout and exits 0; commands
-        that wish to signal partial-success must include the signal inside their
-        data shape (e.g. a `failed_count` field) and the runner's exit-code
-        policy MAY consult command-supplied exit hints.
+        A CommandFn returning undefined (or `{data: undefined}`) yields no
+        stdout output and exit 0. Commands that need to emit JSON `null` MUST
+        return `{data: null}` explicitly. Commands MUST NOT write to stdout
+        directly — only the runner calls emitResult.
     - violation: A SIGINT or SIGTERM is received during command execution.
       behavior: >-
         Best-effort cleanup runs; stderr emits a single 'SIGINT received,
