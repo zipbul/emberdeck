@@ -278,6 +278,16 @@ export function registerCard(program: Command): void {
             if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
               throw new CliUsageError('--patch must be a JSON object (got non-object root)');
             }
+            const allowed = new Set<keyof UpdateCardFields>([
+              'summary', 'type', 'status', 'parent', 'tags', 'relations', 'glossary',
+              'principle', 'domain', 'brief', 'spec',
+            ]);
+            const unknown = Object.keys(parsedRaw as object).filter((k) => !allowed.has(k as keyof UpdateCardFields));
+            if (unknown.length > 0) {
+              throw new CliUsageError(
+                `--patch root keys must be UpdateCardFields names (${[...allowed].join('/')}). Got unknown keys: ${unknown.join(', ')}. Did you forget to wrap the namespace? e.g. {"brief": {...}} instead of {context:..., scope:...}.`,
+              );
+            }
             Object.assign(fields, parsedRaw as UpdateCardFields);
           }
           const fieldMap = parseFields(opts.field);

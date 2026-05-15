@@ -380,16 +380,24 @@ function normalizeBriefCriteria(value: unknown): BriefCriterion[] {
         throw new CardValidationError(`Invalid brief.criteria[].measure.comparator (expected one of: ${VALID_COMPARATORS.join(', ')})`);
       }
       measure = {
+        predicate: asString(m.predicate, 'brief.criteria[].measure.predicate'),
         value: m.value,
         comparator: m.comparator as '<' | '<=' | '=' | '>=' | '>',
         unit: asString(m.unit, 'brief.criteria[].measure.unit'),
+        ...(m.reference !== undefined ? { reference: asString(m.reference, 'brief.criteria[].measure.reference') } : {}),
       };
     } else if (c.type === 'binary') {
-      measure = { predicate: asString(m.predicate, 'brief.criteria[].measure.predicate') };
+      measure = {
+        predicate: asString(m.predicate, 'brief.criteria[].measure.predicate'),
+        ...(m.method !== undefined ? { method: asString(m.method, 'brief.criteria[].measure.method') } : {}),
+        ...(m.reference !== undefined ? { reference: asString(m.reference, 'brief.criteria[].measure.reference') } : {}),
+      };
     } else {
       measure = {
         method: asString(m.method, 'brief.criteria[].measure.method'),
         reference: asString(m.reference, 'brief.criteria[].measure.reference'),
+        ...(m.predicate !== undefined ? { predicate: asString(m.predicate, 'brief.criteria[].measure.predicate') } : {}),
+        ...(m.unit !== undefined ? { unit: asString(m.unit, 'brief.criteria[].measure.unit') } : {}),
       };
     }
     return {

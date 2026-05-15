@@ -2,6 +2,11 @@
 
 작성: 2026-05-15 (envelope-removal redesign Phase 1.2.5 실행 중)
 
+## 상태 (2026-05-15 fix 완료)
+
+- B-001 ✅ fix 완료 (`src/cli/commands/card.ts:282-291`): `--patch` 최상위 키 whitelist 검증 추가. unknown key 면 `CliUsageError` + 친절한 안내 ("Did you forget to wrap the namespace?").
+- B-002 ✅ fix 완료 (`src/card/types.ts:174-177` + `src/card/serialize.ts:382-401`): `BriefCriterionMeasure` 의 3 variant 모두 SKILL.md 정의에 정합 — `numeric` 에 `predicate` + `reference?` 추가, `binary` 에 `method?`/`reference?` 추가, `verification` 에 `predicate?`/`unit?` 추가. `normalizeBriefCriteria` 가 모든 optional 보존.
+
 ## B-001 — `ed card update --patch` 가 잘못된 형식의 patch 를 silently 무시 (status: ok 반환)
 
 **위치**: `src/cli/commands/card.ts:274-282`

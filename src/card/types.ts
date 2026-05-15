@@ -172,9 +172,9 @@ export interface BriefLimit {
 }
 
 export type BriefCriterionMeasure =
-  | { value: number; comparator: '<' | '<=' | '=' | '>=' | '>'; unit: string }
-  | { predicate: string }
-  | { method: string; reference: string };
+  | { predicate: string; value: number; comparator: '<' | '<=' | '=' | '>=' | '>'; unit: string; reference?: string }   // numeric
+  | { predicate: string; method?: string; reference?: string }                                                            // binary
+  | { method: string; reference: string; predicate?: string; unit?: string };                                             // verification
 
 export interface BriefCriterion {
   /** ID format: SC-001 */
