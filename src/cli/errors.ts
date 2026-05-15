@@ -1,6 +1,7 @@
 /**
- * Map ops-layer errors → CliMessage with stable error codes.
- * Stable codes are part of the JSON schema contract.
+ * Map ops-layer errors → stderr JSON-line error objects with stable kebab codes.
+ * Stable codes (values) are part of the public CLI contract; uppercase TS keys
+ * are internal lookup names only.
  */
 
 import {
@@ -16,48 +17,97 @@ import {
 } from '../card/errors';
 import { GildashInitError } from '../setup';
 import { GlossaryParseError, GlossaryValidationError } from '../glossary/io';
-import type { CliMessage } from './output';
+import { GlossaryNotFoundError } from '../glossary/errors';
 import { CliUsageError } from './usage-error';
+import { EXIT, type ExitCode } from './exit-codes';
 import { errorMessage } from '../util/error';
 
+export interface CliErrorLine {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
 
-// Errors that map to {code, message:e.message} with no additional details.
+// Map kebab error code (value) → ExitCode.
+// `code` here is the kebab string actually emitted on stderr.
+export const ERROR_CODE_TO_EXIT: Record<string, ExitCode> = {
+  // Card surface
+  'card-not-found': EXIT.NOT_FOUND,
+  'card-already-exists': EXIT.CONFLICT,
+  'rename-same-path': EXIT.CONFLICT,
+  'invalid-card-key': EXIT.VALIDATION_FAILURE,
+  'validation-error': EXIT.VALIDATION_FAILURE,
+  'parent-validation-error': EXIT.VALIDATION_FAILURE,
+  'fts-syntax-error': EXIT.VALIDATION_FAILURE,
+  'activation-guard-failed': EXIT.VALIDATION_FAILURE,
+  'boundary-validation-error': EXIT.VALIDATION_FAILURE,
+  // Glossary
+  'glossary-parse-error': EXIT.VALIDATION_FAILURE,
+  'glossary-validation-error': EXIT.VALIDATION_FAILURE,
+  'glossary-not-found': EXIT.NOT_FOUND,
+  // Setup
+  'gildash-init-failed': EXIT.CONFIG_MISSING,
+  // CLI usage
+  'cli-usage-error': EXIT.VALIDATION_FAILURE,
+  // Compensation / internal
+  'compensation-failed': EXIT.GENERIC_ERROR,
+  'internal-error': EXIT.GENERIC_ERROR,
+  // Output / IO
+  'output-encode-failed': EXIT.GENERIC_ERROR,
+  'stdout-write-failed': EXIT.PERMISSION_OR_IO,
+  // Legacy UPPER_SNAKE — kept until callers stop throwing these; will be
+  // removed once a grep confirms no ops layer emits them.
+  'not-found': EXIT.NOT_FOUND,
+  'conflict': EXIT.CONFLICT,
+  'permission': EXIT.PERMISSION_OR_IO,
+  'io-error': EXIT.PERMISSION_OR_IO,
+  'validation-failure': EXIT.VALIDATION_FAILURE,
+  'config-missing': EXIT.CONFIG_MISSING,
+};
+
+// Simple class-to-kebab-code map. Lookup TS keys stay UPPER_SNAKE for
+// readability; values are the emitted kebab codes.
 const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
-  [CliUsageError, 'CLI_USAGE_ERROR'],
-  [FtsSyntaxError, 'FTS_SYNTAX_ERROR'],
-  [CardNotFoundError, 'CARD_NOT_FOUND'],
-  [CardAlreadyExistsError, 'CARD_ALREADY_EXISTS'],
-  [CardKeyError, 'INVALID_CARD_KEY'],
-  [CardValidationError, 'VALIDATION_ERROR'],
-  [ParentValidationError, 'PARENT_VALIDATION_ERROR'],
-  [GildashInitError, 'GILDASH_INIT_FAILED'],
-  [CardRenameSamePathError, 'RENAME_SAME_PATH'],
-  [GlossaryParseError, 'GLOSSARY_PARSE_ERROR'],
-  [GlossaryValidationError, 'GLOSSARY_VALIDATION_ERROR'],
+  [CliUsageError, 'cli-usage-error'],
+  [FtsSyntaxError, 'fts-syntax-error'],
+  [CardNotFoundError, 'card-not-found'],
+  [CardAlreadyExistsError, 'card-already-exists'],
+  [CardKeyError, 'invalid-card-key'],
+  [CardValidationError, 'validation-error'],
+  [ParentValidationError, 'parent-validation-error'],
+  [GildashInitError, 'gildash-init-failed'],
+  [CardRenameSamePathError, 'rename-same-path'],
+  [GlossaryParseError, 'glossary-parse-error'],
+  [GlossaryNotFoundError, 'glossary-not-found'],
+  [GlossaryValidationError, 'glossary-validation-error'],
 ];
 
 /** @spec cli-surface/command-routing-and-output/runner-and-output */
-export function toCliError(e: unknown): CliMessage {
+export function toCliError(e: unknown): CliErrorLine {
   // Errors that carry structured details first.
   if (e instanceof ActivationGuardError) {
     return {
-      code: 'ACTIVATION_GUARD_FAILED',
+      code: 'activation-guard-failed',
       message: e.message,
-      details: { unmet_conditions: e.unmetConditions },
+      details: { unmetConditions: e.unmetConditions },
     };
   }
   if (e instanceof CompensationError) {
     return {
-      code: 'COMPENSATION_FAILED',
+      code: 'compensation-failed',
       message: e.message,
       details: {
-        original_error: String(e.originalError),
-        compensation_error: String(e.compensationError),
+        originalError: String(e.originalError),
+        compensationError: String(e.compensationError),
       },
     };
   }
   for (const [Cls, code] of SIMPLE_ERROR_CODES) {
     if (e instanceof Cls) return { code, message: e.message };
   }
-  return { code: 'INTERNAL_ERROR', message: errorMessage(e) };
+  return {
+    code: 'internal-error',
+    message: errorMessage(e),
+    ...(e instanceof Error ? { details: { class: e.constructor.name } } : {}),
+  };
 }

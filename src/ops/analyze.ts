@@ -41,13 +41,13 @@ const MAX_CYCLES_FETCH = 200;
 
 export interface AnalyzeCoverage {
   totalSymbols: number;
-  covered: number;
+  coveredSymbols: number;
   /**
-   * `covered / totalSymbols`, or `null` when there are no cards yet (or no
-   * indexed symbols). Distinguishes "no information available" from
-   * "0% covered" — agents should treat `null` as "set up cards first".
+   * `coveredSymbols / totalSymbols`, or `null` when there are no indexed
+   * symbols. Distinguishes "no information available" from "0% covered" —
+   * agents should treat `null` as "set up cards first".
    */
-  ratio: number | null;
+  coverageRatio: number | null;
 }
 
 export interface UnlinkedSymbol {
@@ -66,7 +66,6 @@ export interface DriftedCardSummary {
 }
 
 export interface AnalyzeGlossary {
-  totalWords: number;
   unusedWords: string[];
   entries: GlossaryEntry[];
 }
@@ -159,8 +158,8 @@ export async function analyze(
   const uncoveredResult = await getUncoveredSymbols(ctx);
   const coverage: AnalyzeCoverage = {
     totalSymbols: uncoveredResult.totalSymbols,
-    covered: uncoveredResult.coveredSymbols,
-    ratio: uncoveredResult.coverageRatio,
+    coveredSymbols: uncoveredResult.coveredSymbols,
+    coverageRatio: uncoveredResult.coverageRatio,
   };
   const unlinkedSymbols: UnlinkedSymbol[] = uncoveredResult.uncovered
     .slice(0, UNLINKED_SYMBOLS_LIMIT)
@@ -256,7 +255,6 @@ export async function analyze(
     driftedCards: slicedDriftedCards,
     driftedCardsTotal,
     glossary: {
-      totalWords: glossaryEntries.length,
       unusedWords,
       entries: glossaryEntries,
     },

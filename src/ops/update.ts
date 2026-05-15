@@ -364,7 +364,7 @@ export async function updateCardStatus(
   fullKey: string,
   status: CardStatus,
   reason?: string,
-): Promise<UpdateCardResult> {
+): Promise<UpdateCardResult & { oldStatus: CardStatus }> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 
@@ -439,7 +439,7 @@ export async function updateCardStatus(
             }
           });
 
-          return { filePath, card } as UpdateCardResult;
+          return { filePath, card, oldStatus } as UpdateCardResult & { oldStatus: CardStatus };
         },
         fileAction: async () => {
           await writeCardFile(filePath, card);
@@ -447,5 +447,5 @@ export async function updateCardStatus(
         compensate: async () => {
           await syncCardFromFile(ctx, filePath);
         },
-      });
+      }) as Promise<UpdateCardResult & { oldStatus: CardStatus }>;
     })();}

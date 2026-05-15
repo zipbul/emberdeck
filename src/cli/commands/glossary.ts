@@ -5,9 +5,9 @@
 import { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
 import { run } from '../runner';
-import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { defineGlossary, lookupGlossary, removeGlossary, renameGlossary } from '../../ops/glossary';
+import { validateGlossaryEntry } from '../../glossary/validation';
 import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../usage-error';
 import { errorMessage } from '../../util/error';
@@ -16,7 +16,6 @@ interface GlossaryItem {
   word?: string;
   definition?: string;
 }
-
 
 function parseDefinitionPair(arg: string): { word: string; definition: string } {
   const idx = arg.indexOf('=');
@@ -43,106 +42,139 @@ async function loadEntriesFromFile(value: string): Promise<Array<{ word: string;
   });
 }
 
+/** @spec cli-surface/command-routing-and-output/commands/glossary-define */
+export async function glossaryDefineAction(
+  pairs: string[],
+  opts: { from?: string },
+  cmd: Command,
+): Promise<void> {
+  await run(async (rt: CliRuntime) => {
+    let entries: Array<{ word: string; definition: string }> = [];
+    if (opts.from) entries = await loadEntriesFromFile(opts.from);
+    for (const arg of pairs) entries.push(parseDefinitionPair(arg));
+    if (entries.length === 0) throw new CliUsageError('no entries provided (use WORD=DEF args or --from)');
+
+    // Per-entry pre-validation: failures go into `failed[]` (CLI helper splits),
+    // surviving entries are passed to the op for all-or-nothing write.
+    const accepted: Array<{ word: string; definition: string; inputIndex: number }> = [];
+    const failed: Array<{ inputIndex: number; reason: string }> = [];
+    entries.forEach((entry, i) => {
+      try {
+        validateGlossaryEntry(entry);
+        accepted.push({ ...entry, inputIndex: i });
+      } catch (e) {
+        failed.push({ inputIndex: i, reason: errorMessage(e) });
+      }
+    });
+
+    const defined: Array<{ word: string; definition: string; action: 'created' | 'updated' }> = [];
+    if (accepted.length > 0) {
+      try {
+        const result = await defineGlossary(rt.ctx, {
+          entries: accepted.map(({ word, definition }) => ({ word, definition })),
+        });
+        for (const r of result.results) {
+          defined.push({ word: r.word, definition: r.definition, action: r.action });
+        }
+      } catch (e) {
+        // op still throws all-or-nothing on hard validation errors — convert to
+        // a single failed entry covering the whole batch so the agent sees it.
+        for (const a of accepted) {
+          failed.push({ inputIndex: a.inputIndex, reason: errorMessage(e) });
+        }
+      }
+    }
+
+    const data = { defined, failed, total: entries.length };
+    return { data, exitCode: failed.length > 0 ? 2 : 0 };
+  }, cmd);
+}
+
+/** @spec cli-surface/command-routing-and-output/commands/glossary-lookup */
+export async function glossaryLookupAction(
+  word: string | undefined,
+  _opts: unknown,
+  cmd: Command,
+): Promise<void> {
+  await run(async (rt: CliRuntime) => {
+    const result = lookupGlossary(rt.ctx, word);
+    let entries: Array<{ word: string; definition: string }> = [];
+    if (word) {
+      entries = result.entry ? [{ word: result.entry.word, definition: result.entry.definition }] : [];
+    } else {
+      entries = (result.entries ?? []).map((e) => ({ word: e.word, definition: e.definition }));
+    }
+    return { data: { entries, total: entries.length } };
+  }, cmd);
+}
+
+/** @spec cli-surface/command-routing-and-output/commands/glossary-remove */
+export async function glossaryRemoveAction(
+  word: string,
+  opts: { yes?: boolean },
+  cmd: Command,
+): Promise<void> {
+  await run(async (rt: CliRuntime) => {
+    await confirmDestructive({
+      yes: !!opts.yes,
+      opName: 'glossary remove',
+      prompt: `glossary remove will DELETE word '${word}' (cards referencing it become drifted). Type "yes" to proceed: `,
+    });
+    const result = await removeGlossary(rt.ctx, word);
+    return { data: { word: result.removed, affectedCardKeys: result.affectedCardKeys } };
+  }, cmd);
+}
+
+/** @spec cli-surface/command-routing-and-output/commands/glossary-rename */
+export async function glossaryRenameAction(
+  oldWord: string,
+  newWord: string,
+  opts: { def?: string },
+  cmd: Command,
+): Promise<void> {
+  await run(async (rt: CliRuntime) => {
+    const result = await renameGlossary(rt.ctx, oldWord, newWord, opts.def);
+    const data: {
+      oldWord: string;
+      newWord: string;
+      affectedCardKeys: string[];
+      failedFileWrites?: string[];
+    } = {
+      oldWord: result.renamedFrom,
+      newWord: result.renamedTo,
+      affectedCardKeys: result.affectedCardKeys,
+    };
+    if (result.fileWriteFailures.length > 0) {
+      data.failedFileWrites = result.fileWriteFailures;
+      return { data, exitCode: 2 };
+    }
+    return { data };
+  }, cmd);
+}
+
 export function registerGlossary(program: Command): void {
   const glossary = program.command('glossary').description('domain vocabulary single source of truth');
 
-  // ── glossary define ──
-  /** @spec cli-surface/command-routing-and-output/commands/glossary-define */
   glossary
     .command('define [pairs...]')
-    .description('define WORD=DEFINITION pairs (batch up to 50, all-or-nothing)')
+    .description('define WORD=DEFINITION pairs (batch up to 50)')
     .option('--from <file>', 'read entries from JSON file (- for STDIN)')
-    .action(async (pairs: string[], opts: { from?: string }, cmd) => {
-            await run(
-        async (rt: CliRuntime) => {
-          let entries: Array<{ word: string; definition: string }> = [];
-          if (opts.from) {
-            entries = await loadEntriesFromFile(opts.from);
-          }
-          for (const arg of pairs) entries.push(parseDefinitionPair(arg));
-          if (entries.length === 0) throw new CliUsageError('no entries provided (use WORD=DEF args or --from)');
-          const result = await defineGlossary(rt.ctx, { entries });
-          return ok({
-            results: result.results,
-            total: result.results.length,
-            created: result.results.filter((r) => r.action === 'created').length,
-            updated: result.results.filter((r) => r.action === 'updated').length,
-          });
-        },
-        cmd,
-      );
-    });
+    .action(glossaryDefineAction);
 
-  // ── glossary lookup ──
-  /** @spec cli-surface/command-routing-and-output/commands/glossary-lookup */
   glossary
     .command('lookup [word]')
     .description('look up a word, or list all if WORD omitted')
-    .action(async (word: string | undefined, _opts, cmd) => {
-            await run(
-        async (rt: CliRuntime) => {
-          const result = lookupGlossary(rt.ctx, word);
-          if (word) {
-            return ok({ found: result.found, entry: result.entry ?? null });
-          }
-          return ok({
-            entries: result.entries ?? [],
-            total: (result.entries ?? []).length,
-          });
-        },
-        cmd,
-      );
-    });
+    .action(glossaryLookupAction);
 
-  // ── glossary remove ──
-  /** @spec cli-surface/command-routing-and-output/commands/glossary-remove */
   glossary
     .command('remove <word>')
     .description('remove a glossary entry (cards referencing it become drifted)')
     .option('--yes', 'skip confirmation prompt (required for non-TTY)')
-    .action(async (word: string, opts: { yes?: boolean }, cmd) => {
-            await run(
-        async (rt: CliRuntime) => {
-          await confirmDestructive({
-            yes: !!opts.yes,
-            opName: 'glossary remove',
-            prompt: `glossary remove will DELETE word '${word}' (cards referencing it become drifted). Type "yes" to proceed: `,
-          });
-          const result = await removeGlossary(rt.ctx, word);
-          return ok({ removed: result.removed, affected_card_keys: result.affectedCardKeys });
-        },
-        cmd,
-      );
-    });
+    .action(glossaryRemoveAction);
 
-  // ── glossary rename ──
-  /** @spec cli-surface/command-routing-and-output/commands/glossary-rename */
   glossary
     .command('rename <oldWord> <newWord>')
     .description('rename a glossary word (auto-updates card glossary fields)')
     .option('--def <text>', 'optional new definition')
-    .action(async (oldWord: string, newWord: string, opts: { def?: string }, cmd) => {
-            await run(
-        async (rt: CliRuntime) => {
-          const result = await renameGlossary(rt.ctx, oldWord, newWord, opts.def);
-          const data = {
-            renamed_from: result.renamedFrom,
-            renamed_to: result.renamedTo,
-            definition: result.definition,
-            cards_updated: result.cardsUpdated,
-            file_write_failures: result.fileWriteFailures,
-          };
-          if (result.fileWriteFailures.length > 0) {
-            const errors: CliMessage[] = result.fileWriteFailures.map((key) => ({
-              code: 'GLOSSARY_RENAME_FILE_WRITE_FAILED',
-              message: `failed to write updated glossary into card file`,
-              key,
-            }));
-            return partial(data, errors);
-          }
-          return ok(data);
-        },
-        cmd,
-      );
-    });
+    .action(glossaryRenameAction);
 }

@@ -441,8 +441,8 @@ describe('analyze', () => {
     expect(result.health.drifted).toBe(0);
     expect(result.health.brokenLinks).toBe(0);
     expect(result.coverage.totalSymbols).toBe(2);
-    expect(result.coverage.covered).toBe(1);
-    expect(result.coverage.ratio).toBe(0.5);
+    expect(result.coverage.coveredSymbols).toBe(1);
+    expect(result.coverage.coverageRatio).toBe(0.5);
     expect(result.unlinkedSymbols).toHaveLength(1);
     expect(result.unlinkedSymbols[0]!.symbol).toBe('logout');
   });

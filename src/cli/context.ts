@@ -8,7 +8,7 @@ import { setupEmberdeck, teardownEmberdeck } from '../setup';
 import { loadConfig, loadConfigFromPath, mergeCliArgs } from '../config-file';
 import type { EmberdeckContext } from '../config';
 import type { OutputContext } from './output';
-import { resolveOutputMode } from './output';
+import { buildOutputContext } from './output';
 
 export interface GlobalFlags {
   config?: string;
@@ -44,7 +44,7 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     projectRoot: flags.projectRoot,
   });
 
-  const mode = resolveOutputMode({ quiet: flags.quiet });
+  const output = buildOutputContext({ quiet: flags.quiet });
 
   const ctx = await setupEmberdeck({
     cardsDir: merged.cardsDir,
@@ -57,7 +57,7 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
 
   return {
     ctx,
-    output: { mode },
+    output,
     cleanup: () => teardownEmberdeck(ctx),
   };
 }

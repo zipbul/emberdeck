@@ -13,7 +13,7 @@
  *   ed reset
  */
 
-import { Command } from 'commander';
+import { Command, CommanderError } from 'commander';
 import pkg from '../../package.json' with { type: 'json' };
 import { registerCard } from './commands/card';
 import { registerValidate } from './commands/validate';
@@ -22,6 +22,8 @@ import { registerGlossary } from './commands/glossary';
 import { registerSpec } from './commands/spec';
 import { registerBulk } from './commands/bulk';
 import { registerSingle } from './commands/single';
+import { emitError } from './output';
+import { EXIT } from './exit-codes';
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -34,10 +36,9 @@ export function buildProgram(): Command {
     .option('--dir <path>', 'cards directory (overrides config)')
     .option('--db-path <path>', 'card index database file (overrides config)')
     .option('--project-root <path>', 'project root for source code analysis (overrides config)')
-    .option('--quiet, -q', 'suppress JSON envelope on stdout — print only result key(s)')
-    .option('--verbose', 'verbose stderr logging')
-    // for help: showHelpAfterError so users see usage on bad invocation
-    .showHelpAfterError('(run `ed --help` for full usage)');
+    .option('--quiet, -q', 'compact JSON on stdout; suppress warning/verbose stderr lines')
+    .option('--verbose', 'verbose stderr (level:verbose JSON-lines)')
+    .exitOverride();
 
   registerCard(program);
   registerGlossary(program);
@@ -50,7 +51,30 @@ export function buildProgram(): Command {
   return program;
 }
 
+/**
+ * Top-level commander fallback. Subcommand actions go through `runner.run`
+ * (which owns its own try/catch + emit + exit). This handler only catches
+ * commander parse failures (invalid args, unknown options, missing positionals,
+ * --help/--version) before any subcommand action runs.
+ *
+ * @spec cli-surface/command-routing-and-output/commands/runner-commander-fallback
+ */
 export async function main(argv: string[] = process.argv): Promise<void> {
   const program = buildProgram();
-  await program.parseAsync(argv);
+  try {
+    await program.parseAsync(argv);
+  } catch (e) {
+    if (e instanceof CommanderError) {
+      // --help / --version are not errors — exit cleanly.
+      if (e.code === 'commander.help' || e.code === 'commander.helpDisplayed' || e.code === 'commander.version') {
+        process.exit(EXIT.OK);
+      }
+      emitError({ code: 'cli-usage-error', message: e.message });
+      process.exit(EXIT.VALIDATION_FAILURE);
+    }
+    // Defensive: any non-CommanderError that reaches here is a bug.
+    const msg = e instanceof Error ? e.message : String(e);
+    emitError({ code: 'internal-error', message: msg });
+    process.exit(EXIT.GENERIC_ERROR);
+  }
 }

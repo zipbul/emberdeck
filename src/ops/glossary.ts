@@ -8,6 +8,7 @@ import {
   GLOSSARY_LIMITS,
   GlossaryValidationError,
 } from '../glossary/io';
+import { GlossaryNotFoundError } from '../glossary/errors';
 import { validateGlossaryEntry } from '../glossary/validation';
 import { deleteCardFile } from '../fs/writer';
 import { DrizzleChangelogRepository } from '../db/changelog-repo';
@@ -135,7 +136,7 @@ export async function removeGlossary(
     const entries = readGlossary(ctx);
     const idx = entries.findIndex((e) => e.word === word);
     if (idx === -1) {
-      throw new GlossaryValidationError(`glossary word "${word}" not found`);
+      throw new GlossaryNotFoundError(word);
     }
 
     entries.splice(idx, 1);
@@ -153,6 +154,8 @@ export interface RenameGlossaryResult {
   renamedTo: string;
   definition: string;
   cardsUpdated: number;
+  /** Keys of cards whose glossary field referenced the old word and were updated. */
+  affectedCardKeys: string[];
   fileWriteFailures: string[];
 }
 
@@ -193,7 +196,7 @@ export async function renameGlossary(
     const entries = readGlossary(ctx);
     const oldEntry = entries.find((e) => e.word === oldWord);
     if (!oldEntry) {
-      throw new GlossaryValidationError(`glossary word "${oldWord}" not found`);
+      throw new GlossaryNotFoundError(oldWord);
     }
     if (entries.some((e) => e.word === newWord)) {
       throw new GlossaryValidationError(`glossary word "${newWord}" already exists`);
@@ -265,6 +268,7 @@ export async function renameGlossary(
       renamedTo: newWord,
       definition: finalDefinition,
       cardsUpdated: affectedCards.length,
+      affectedCardKeys: affectedCards.map((c) => c.key),
       fileWriteFailures,
     };
   })();
@@ -299,7 +303,6 @@ function cardsContainingGlossaryWord(ctx: EmberdeckContext, word: string): CardR
 export interface ResetResult {
   cardsDeleted: number;
   glossaryCleared: boolean;
-  dbReset: boolean;
 }
 
 /**
@@ -340,7 +343,7 @@ export async function resetEmberdeck(
     glossaryCleared = true;
   } catch { /* skip */ }
 
-  return { cardsDeleted, glossaryCleared, dbReset: true };
+  return { cardsDeleted, glossaryCleared };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────

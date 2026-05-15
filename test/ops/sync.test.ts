@@ -424,7 +424,7 @@ describe('exportCardToFile', () => {
       tags: ['tag1'],
       relations: ['exp-rt-tgt'],
       });
-    const exportedPath = await exportCardToFile(tc.ctx, 'exp-rt-src');
+    const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-rt-src');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCard(text);
     expect(exportedPath).toBe(filePath);
@@ -443,7 +443,7 @@ describe('exportCardToFile', () => {
       type: 'spec',
       relations: ['exp-fwd-tgt'],
     });
-    const exportedPath = await exportCardToFile(tc.ctx, 'exp-fwd-src');
+    const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-fwd-src');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCard(text);
     expect(parsed.frontmatter.relations).toHaveLength(1);
@@ -453,7 +453,7 @@ describe('exportCardToFile', () => {
   it('should include tags in the exported file when card has tags', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'exp-tag', summary: 'Tag card', type: 'spec', tags: ['release', 'v2'] });
-    const exportedPath = await exportCardToFile(tc.ctx, 'exp-tag');
+    const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-tag');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCard(text);
     expect(parsed.frontmatter.tags).toEqual(expect.arrayContaining(['release', 'v2']));
@@ -466,7 +466,7 @@ describe('exportCardToFile', () => {
       summary: 'Body card',
       type: 'spec',
     });
-    const returnedPath = await exportCardToFile(tc.ctx, 'exp-body');
+    const { filePath: returnedPath } = await exportCardToFile(tc.ctx, 'exp-body');
     expect(returnedPath).toBe(filePath);
   });
 
@@ -478,10 +478,10 @@ describe('exportCardToFile', () => {
       type: 'spec',
       spec: makeTestSpec('src/x.ts', 'foo'),
       });
-    const path1 = await exportCardToFile(tc.ctx, 'exp-ns-rt');
+    const { filePath: path1 } = await exportCardToFile(tc.ctx, 'exp-ns-rt');
     const text1 = await Bun.file(path1).text();
     await syncCardFromFile(tc.ctx, path1);
-    const path2 = await exportCardToFile(tc.ctx, 'exp-ns-rt');
+    const { filePath: path2 } = await exportCardToFile(tc.ctx, 'exp-ns-rt');
     const text2 = await Bun.file(path2).text();
     expect(text2).toBe(text1);
   });
@@ -501,10 +501,10 @@ describe('exportCardToFile', () => {
         ],
       },
     });
-    const path1 = await exportCardToFile(tc.ctx, 'platform-b');
+    const { filePath: path1 } = await exportCardToFile(tc.ctx, 'platform-b');
     const text1 = await Bun.file(path1).text();
     await syncCardFromFile(tc.ctx, path1);
-    const path2 = await exportCardToFile(tc.ctx, 'platform-b');
+    const { filePath: path2 } = await exportCardToFile(tc.ctx, 'platform-b');
     const text2 = await Bun.file(path2).text();
     expect(text2).toBe(text1);
     const parsed = parseCard(text1);
@@ -535,7 +535,7 @@ describe('exportCardToFile', () => {
       type: 'spec',
       relations: ['exp-rev-tgt'],
     });
-    const exportedPath = await exportCardToFile(tc.ctx, 'exp-rev-tgt');
+    const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-rev-tgt');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCard(text);
     expect(parsed.frontmatter.relations).toBeUndefined();
@@ -544,7 +544,7 @@ describe('exportCardToFile', () => {
   it('should export minimal front-matter with no optional fields when all are empty', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'exp-min', summary: 'Minimal card', type: 'spec' });
-    const exportedPath = await exportCardToFile(tc.ctx, 'exp-min');
+    const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-min');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCard(text);
     expect(parsed.frontmatter.key).toBe('exp-min');
@@ -594,7 +594,7 @@ describe('exportCardToFile — type round-trip', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'exp-type', summary: 'Type export', type: 'brief' });
 
-    const exportedPath = await exportCardToFile(tc.ctx, 'exp-type');
+    const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-type');
     const text = await Bun.file(exportedPath).text();
     const parsed = parseCard(text);
     expect(parsed.frontmatter.type).toBe('brief');

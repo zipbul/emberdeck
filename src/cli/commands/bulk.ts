@@ -6,7 +6,6 @@ import { Command } from 'commander';
 import { stat } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
 import { run } from '../runner';
-import { ok, partial, type CliMessage } from '../output';
 import type { CliRuntime } from '../context';
 import { bulkCreateCards } from '../../ops/bulk-create';
 import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
@@ -16,120 +15,130 @@ import { CliUsageError } from '../usage-error';
 import { parseJsonInput } from '../parse-input';
 import { errorMessage } from '../../util/error';
 
-function validateBulkInput(items: unknown[]): { ok: CreateCardInput[]; errors: Array<{ index: number; key?: string; message: string }> } {
-  const ok: CreateCardInput[] = [];
-  const errors: Array<{ index: number; key?: string; message: string }> = [];
+interface ValidatedBulk {
+  ok: Array<{ originalIndex: number; input: CreateCardInput }>;
+  rejected: Array<{ inputIndex: number; key?: string; error: string }>;
+}
+
+function validateBulkInput(items: unknown[]): ValidatedBulk {
+  const out: ValidatedBulk = { ok: [], rejected: [] };
   items.forEach((item, i) => {
     const it = item as Partial<CreateCardInput>;
     if (!it || typeof it !== 'object') {
-      errors.push({ index: i, message: `item[${i}] not an object` });
+      out.rejected.push({ inputIndex: i, error: `item[${i}] not an object` });
       return;
     }
     if (typeof it.key !== 'string' || it.key.length === 0) {
-      errors.push({ index: i, message: `item[${i}] missing/invalid 'key'` });
+      out.rejected.push({ inputIndex: i, error: `item[${i}] missing/invalid 'key'` });
       return;
     }
     if (typeof it.type !== 'string') {
-      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' missing 'type'` });
+      out.rejected.push({ inputIndex: i, key: it.key, error: `item[${i}] '${it.key}' missing 'type'` });
       return;
     }
     if (!CARD_TYPES.includes(it.type as CardType)) {
-      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid type '${it.type}' (allowed: ${CARD_TYPES.join('|')})` });
+      out.rejected.push({
+        inputIndex: i,
+        key: it.key,
+        error: `item[${i}] '${it.key}' invalid type '${it.type}' (allowed: ${CARD_TYPES.join('|')})`,
+      });
       return;
     }
     if (it.status !== undefined && !CARD_STATUSES.includes(it.status as CardStatus)) {
-      errors.push({ index: i, key: it.key, message: `item[${i}] '${it.key}' invalid status '${it.status}' (allowed: ${CARD_STATUSES.join('|')})` });
+      out.rejected.push({
+        inputIndex: i,
+        key: it.key,
+        error: `item[${i}] '${it.key}' invalid status '${it.status}' (allowed: ${CARD_STATUSES.join('|')})`,
+      });
       return;
     }
-    ok.push(it as CreateCardInput);
+    out.ok.push({ originalIndex: i, input: it as CreateCardInput });
   });
-  return { ok, errors };
+  return out;
+}
+
+/** @spec cli-surface/command-routing-and-output/commands/bulk-create */
+export async function bulkCreateAction(opts: { from: string }, cmd: Command): Promise<void> {
+  await run(async (rt: CliRuntime) => {
+    const text = opts.from === '-' ? await Bun.stdin.text() : await readFile(opts.from, 'utf-8');
+    const parsed = parseJsonInput(text);
+    if (!Array.isArray(parsed)) throw new CliUsageError('--from FILE must be an array of card inputs');
+    if (parsed.length === 0) {
+      throw new CliUsageError('--from input contains zero cards (empty array) — nothing to create');
+    }
+
+    const validated = validateBulkInput(parsed);
+
+    // Run op only on accepted entries; remap op's `inputIndex` (position within
+    // the accepted slice) back to the original input position so output is stable.
+    const opResult = await bulkCreateCards(rt.ctx, validated.ok.map((o) => o.input));
+    const opIndexToOriginal = new Map<number, number>();
+    validated.ok.forEach((o, i) => opIndexToOriginal.set(i, o.originalIndex));
+
+    const created = opResult.created.map((c) => ({
+      inputIndex: opIndexToOriginal.get(c.inputIndex) ?? c.inputIndex,
+      key: c.key,
+      filePath: c.filePath,
+    }));
+    const opErrors = opResult.errors.map((e) => ({
+      inputIndex: opIndexToOriginal.get(e.inputIndex) ?? e.inputIndex,
+      ...(e.key !== undefined ? { key: e.key } : {}),
+      error: e.message,
+    }));
+    const failed = [...validated.rejected, ...opErrors].sort((a, b) => a.inputIndex - b.inputIndex);
+
+    const data = { created, failed, total: parsed.length };
+    return { data, exitCode: failed.length > 0 ? 2 : 0 };
+  }, cmd);
+}
+
+/** @spec cli-surface/command-routing-and-output/commands/bulk-sync */
+export async function bulkSyncAction(
+  path: string | undefined,
+  _opts: unknown,
+  cmd: Command,
+): Promise<void> {
+  await run(async (rt: CliRuntime) => {
+    if (path) {
+      let s;
+      try {
+        s = await stat(path);
+      } catch {
+        throw new CliUsageError(`path not found: ${path}`);
+      }
+      if (s.isFile()) {
+        await syncCardFromFile(rt.ctx, path);
+        return {
+          data: { synced: 1, mode: 'file' as const, path, failed: [] as Array<{ filePath: string; error: string }> },
+        };
+      }
+    }
+    const result = await bulkSyncCards(rt.ctx, path);
+    const failed = result.errors.map((e) => ({
+      filePath: e.filePath,
+      error: errorMessage(e.error),
+    }));
+    const data = {
+      synced: result.synced,
+      mode: 'directory' as const,
+      path: path ?? rt.ctx.cardsDir,
+      failed,
+    };
+    return { data, exitCode: failed.length > 0 ? 2 : 0 };
+  }, cmd);
 }
 
 export function registerBulk(program: Command): void {
   const bulk = program.command('bulk').description('batch operations');
 
-  // ── bulk create ──
-  /** @spec cli-surface/command-routing-and-output/commands/bulk-create */
   bulk
     .command('create')
     .description('create multiple cards from JSON file')
     .requiredOption('--from <file>', 'JSON file (- for STDIN)')
-    .action(async (opts: { from: string }, cmd) => {
-            await run(
-        async (rt: CliRuntime) => {
-          const text = opts.from === '-' ? await Bun.stdin.text() : await readFile(opts.from, 'utf-8');
-          const parsed = parseJsonInput(text);
-          if (!Array.isArray(parsed)) {
-            throw new CliUsageError('--from FILE must be an array of card inputs');
-          }
-          if (parsed.length === 0) {
-            throw new CliUsageError('--from input contains zero cards (empty array) — nothing to create');
-          }
-          // CLI-layer enum validation BEFORE write, mirrors `card create` behavior.
-          const validated = validateBulkInput(parsed);
-          const result = await bulkCreateCards(rt.ctx, validated.ok);
-          const errors: CliMessage[] = [
-            ...validated.errors.map((e) => ({ code: 'BULK_VALIDATION_FAILED', message: e.message, key: e.key })),
-            ...result.errors.map((e) => ({ code: 'BULK_CREATE_FAILED', message: e.message, key: e.key })),
-          ];
-          const data = {
-            succeeded: result.keys,
-            partial_keys: result.partialKeys,
-            total: parsed.length,
-            created: result.created,
-            failed: result.failed + validated.errors.length,
-            rejected_pre_write: validated.errors.length,
-          };
-          return errors.length === 0 ? ok(data) : partial(data, errors);
-        },
-        cmd,
-        {
-          // bulk create with any failure → exit 2 (CI gate signal). Pure success → exit 0.
-          partialIsFailure: true,
-        },
-      );
-    });
+    .action(bulkCreateAction);
 
-  // ── bulk sync ──
-  /** @spec cli-surface/command-routing-and-output/commands/bulk-sync */
   bulk
     .command('sync [path]')
     .description('sync card files (directory recursive or single file) → DB')
-    .action(async (path: string | undefined, _opts, cmd) => {
-            await run(
-        async (rt: CliRuntime) => {
-          if (path) {
-            let s;
-            try {
-              s = await stat(path);
-            } catch {
-              throw new CliUsageError(`path not found: ${path}`);
-            }
-            if (s.isFile()) {
-              await syncCardFromFile(rt.ctx, path);
-              return ok({ synced: 1, path, mode: 'file' });
-            }
-          }
-          const result = await bulkSyncCards(rt.ctx, path);
-          const errors: CliMessage[] = result.errors.map((e) => ({
-            code: 'SYNC_FAILED',
-            message: errorMessage(e.error),
-            details: { file_path: e.filePath },
-          }));
-          const data = {
-            synced: result.synced,
-            errors: result.errors.length,
-            mode: 'directory',
-            path: path ?? rt.ctx.cardsDir,
-          };
-          return errors.length === 0 ? ok(data) : partial(data, errors);
-        },
-        cmd,
-        {
-          partialIsFailure: true,
-          
-        },
-      );
-    });
+    .action(bulkSyncAction);
 }

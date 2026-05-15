@@ -12,30 +12,25 @@ describe('bulkCreateCards', () => {
 
   // ── Happy Path ──
 
-  it('should create multiple cards and return correct counts', async () => {
+  it('should create multiple cards and return correct arrays', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'card-a', summary: 'Card A', type: 'spec' },
       { key: 'card-b', summary: 'Card B', type: 'spec' },
       { key: 'card-c', summary: 'Card C', type: 'spec' },
     ]);
-    expect(result.created).toBe(3);
-    expect(result.failed).toBe(0);
-    expect(result.keys).toEqual(['card-a', 'card-b', 'card-c']);
-    expect(result.errors).toEqual([]);
+    expect(result.created).toHaveLength(3);
+    expect(result.errors).toHaveLength(0);
+    expect(result.created.map((c) => c.key)).toEqual(['card-a', 'card-b', 'card-c']);
+    expect(result.created.every((c, i) => c.inputIndex === i)).toBe(true);
   });
 
   it('should create cards with all optional fields', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      {
-        key: 'full-card',
-        summary: 'Full card',
-        type: 'spec',
-        tags: ['tag1'],
-        },
+      { key: 'full-card', summary: 'Full card', type: 'spec', tags: ['tag1'] },
     ]);
-    expect(result.created).toBe(1);
+    expect(result.created).toHaveLength(1);
     const row = tc.ctx.cardRepo.findByKey('full-card');
     expect(row).not.toBeNull();
   });
@@ -51,8 +46,8 @@ describe('bulkCreateCards', () => {
       },
       { key: 'target-second', summary: 'Target card', type: 'spec' },
     ]);
-    expect(result.created).toBe(2);
-    expect(result.failed).toBe(0);
+    expect(result.created).toHaveLength(2);
+    expect(result.errors).toHaveLength(0);
     const relations = tc.ctx.relationRepo.findByCardKey('depends-first');
     const forward = relations.find((r) => !r.isReverse && r.dstCardKey === 'target-second');
     expect(forward).not.toBeUndefined();
@@ -68,11 +63,11 @@ describe('bulkCreateCards', () => {
       { key: 'existing', summary: 'Duplicate', type: 'spec' },
       { key: 'another-new', summary: 'Another new', type: 'spec' },
     ]);
-    expect(result.created).toBe(2);
-    expect(result.failed).toBe(1);
-    expect(result.keys).toEqual(['new-card', 'another-new']);
+    expect(result.created).toHaveLength(2);
     expect(result.errors).toHaveLength(1);
+    expect(result.created.map((c) => c.key)).toEqual(['new-card', 'another-new']);
     expect(result.errors[0]!.key).toBe('existing');
+    expect(result.errors[0]!.inputIndex).toBe(1);
   });
 
   it('should report error for invalid key', async () => {
@@ -81,21 +76,19 @@ describe('bulkCreateCards', () => {
       { key: '../evil', summary: 'Bad key', type: 'spec' },
       { key: 'good-card', summary: 'Good card', type: 'spec' },
     ]);
-    expect(result.created).toBe(1);
-    expect(result.failed).toBe(1);
-    expect(result.keys).toEqual(['good-card']);
+    expect(result.created).toHaveLength(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.created[0]!.key).toBe('good-card');
     expect(result.errors[0]!.key).toBe('../evil');
   });
 
   // ── Edge Cases ──
 
-  it('should return zero counts for empty input array', async () => {
+  it('should return empty arrays for empty input array', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, []);
-    expect(result.created).toBe(0);
-    expect(result.failed).toBe(0);
-    expect(result.keys).toEqual([]);
-    expect(result.errors).toEqual([]);
+    expect(result.created).toHaveLength(0);
+    expect(result.errors).toHaveLength(0);
   });
 
   it('should handle single card input', async () => {
@@ -103,8 +96,8 @@ describe('bulkCreateCards', () => {
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'solo', summary: 'Solo card', type: 'spec' },
     ]);
-    expect(result.created).toBe(1);
-    expect(result.keys).toEqual(['solo']);
+    expect(result.created).toHaveLength(1);
+    expect(result.created[0]!.key).toBe('solo');
   });
 
   // ── Mutual Relations ──
@@ -112,29 +105,16 @@ describe('bulkCreateCards', () => {
   it('should create both cards and succeed with mutual relations in same batch', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
-      {
-        key: 'a',
-        summary: 'Card A',
-        type: 'spec',
-        relations: ['b'],
-      },
-      {
-        key: 'b',
-        summary: 'Card B',
-        type: 'spec',
-        relations: ['a'],
-      },
+      { key: 'a', summary: 'Card A', type: 'spec', relations: ['b'] },
+      { key: 'b', summary: 'Card B', type: 'spec', relations: ['a'] },
     ]);
     expect(tc.ctx.cardRepo.findByKey('a')).not.toBeNull();
     expect(tc.ctx.cardRepo.findByKey('b')).not.toBeNull();
-    expect(result.created).toBe(2);
-    expect(result.failed).toBe(0);
-    expect(result.errors).toEqual([]);
-    const aRelations = tc.ctx.relationRepo.findByCardKey('a');
-    const aForward = aRelations.find((r) => !r.isReverse && r.dstCardKey === 'b');
+    expect(result.created).toHaveLength(2);
+    expect(result.errors).toHaveLength(0);
+    const aForward = tc.ctx.relationRepo.findByCardKey('a').find((r) => !r.isReverse && r.dstCardKey === 'b');
     expect(aForward).not.toBeUndefined();
-    const bRelations = tc.ctx.relationRepo.findByCardKey('b');
-    const bForward = bRelations.find((r) => !r.isReverse && r.dstCardKey === 'a');
+    const bForward = tc.ctx.relationRepo.findByCardKey('b').find((r) => !r.isReverse && r.dstCardKey === 'a');
     expect(bForward).not.toBeUndefined();
   });
 
@@ -146,17 +126,18 @@ describe('bulkCreateCards', () => {
       { key: 'dup', summary: 'A', type: 'spec' },
       { key: 'dup', summary: 'B', type: 'spec' },
     ]);
-    expect(result.created).toBe(1);
-    expect(result.failed).toBe(1);
-    expect(result.keys).toEqual(['dup']);
+    expect(result.created).toHaveLength(1);
     expect(result.errors).toHaveLength(1);
+    // inputIndex preserved: first won (index 0), second failed (index 1)
+    expect(result.created[0]!.inputIndex).toBe(0);
+    expect(result.errors[0]!.inputIndex).toBe(1);
     expect(result.errors[0]!.key).toBe('dup');
     const row = tc.ctx.cardRepo.findByKey('dup');
     expect(row).not.toBeNull();
     expect(row!.summary).toBe('A');
   });
 
-  // B-2: partialKeys tracking for Phase 2 relation failures
+  // partialKeys for Phase 2 relation failures
   it('should include partialKeys as empty array when all relations succeed', async () => {
     tc = await createTestContext();
     const result = await bulkCreateCards(tc.ctx, [
@@ -164,7 +145,7 @@ describe('bulkCreateCards', () => {
       { key: 'pk-b', summary: 'B', type: 'spec', relations: ['pk-a'] },
     ]);
     expect(result.partialKeys).toEqual([]);
-    expect(result.created).toBe(2);
+    expect(result.created).toHaveLength(2);
   });
 
   it('should report card in partialKeys when Phase 2 relation target does not exist', async () => {
@@ -173,9 +154,8 @@ describe('bulkCreateCards', () => {
       { key: 'pk-orphan', summary: 'Orphan', type: 'spec', relations: ['nonexistent-card'] },
     ]);
     expect(result.partialKeys).toContain('pk-orphan');
-    expect(result.keys).not.toContain('pk-orphan');
+    expect(result.created.find((c) => c.key === 'pk-orphan')).toBeUndefined();
     expect(result.errors.some((e) => e.key === 'pk-orphan' && e.message.includes('relation'))).toBe(true);
-    // Card still exists in DB (created in Phase 1)
     expect(tc.ctx.cardRepo.findByKey('pk-orphan')).not.toBeNull();
   });
 

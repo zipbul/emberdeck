@@ -5,28 +5,30 @@ import { createCard } from './create';
 
 /**
  * Result of a bulk card creation operation.
+ *
+ * Counters (`created`/`failed` numbers) are derivable from the arrays
+ * (`created.length`/`errors.length`) — only the structured arrays are stored.
  */
 export interface BulkCreateResult {
-  /** Number of successfully created cards. */
-  created: number;
-  /** Number of failed card creations. */
-  failed: number;
-  /** Successfully created card keys. */
-  keys: string[];
-  /** Cards created but whose relation update failed — exist in DB without intended relations. */
+  /** Successfully created cards, in topologically-sorted execution order. */
+  created: Array<{ inputIndex: number; key: string; filePath: string }>;
+  /** Cards created in phase 1 whose phase-2 relation update failed — they
+   *  exist in the DB without the intended relations. */
   partialKeys: string[];
-  /** Error details for each failed card. */
-  errors: Array<{ key: string; message: string }>;
+  /** Failed inputs (validation, write, or relation-update failure). */
+  errors: Array<{ inputIndex: number; key?: string; filePath?: string; message: string }>;
 }
+
+type IndexedInput = CreateCardInput & { __inputIndex: number };
 
 /**
  * Topologically sort cards so parents are created before children.
- * Cards without parents come first.
+ * Cards without parents (or whose parent is outside the batch) come first.
  */
-function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
+function topologicalSort(inputs: IndexedInput[]): IndexedInput[] {
   const keySet = new Set(inputs.map((i) => i.key));
-  const noParent: CreateCardInput[] = [];
-  const withParent: CreateCardInput[] = [];
+  const noParent: IndexedInput[] = [];
+  const withParent: IndexedInput[] = [];
 
   for (const input of inputs) {
     if (!input.parent || !keySet.has(input.parent)) {
@@ -59,72 +61,65 @@ function topologicalSort(inputs: CreateCardInput[]): CreateCardInput[] {
 /**
  * Create multiple cards at once.
  *
- * Processing order:
- * 1. Topologically sort by parent dependency (parents first).
- * 2. Create all cards without relations first.
- * 3. Update relations for all cards that had them.
+ * Topological sort moves parents before children; intra-batch relations are
+ * applied in a second pass. Failed items are skipped; remaining items continue.
  *
- * This ensures intra-batch parent references and relations resolve regardless of input order.
+ * Duplicate keys in the input batch are processed in the order they appear;
+ * the first wins, the second fails with `inputIndex` preserving its original
+ * position (D13: inputIndex never collapses duplicates).
  *
- * Failed items are skipped; remaining items continue (partial success).
- *
- * @param ctx - EmberdeckContext from setupEmberdeck()
- * @param inputs - Array of card inputs (same schema as createCard)
- * @returns Summary with created count, failed count, keys, and errors
-  * @spec card-lifecycle/mutation-workflows/delete-rename-bulk
+ * @spec card-lifecycle/mutation-workflows/delete-rename-bulk
  */
 export async function bulkCreateCards(
   ctx: EmberdeckContext,
   inputs: CreateCardInput[],
 ): Promise<BulkCreateResult> {
-  const keys: string[] = [];
-  const errors: Array<{ key: string; message: string }> = [];
-  // Topologically sort by parent dependency
-  const sorted = topologicalSort(inputs);
+  const indexed: IndexedInput[] = inputs.map((it, i) => ({ ...it, __inputIndex: i }));
 
-  // Phase 1: Create all cards without relations
-  const pendingRelations: Array<{ key: string; input: CreateCardInput }> = [];
+  const created: BulkCreateResult['created'] = [];
+  const errors: BulkCreateResult['errors'] = [];
+  const sorted = topologicalSort(indexed);
+
+  // Phase 1: create all cards without relations
+  const pendingRelations: Array<{ key: string; filePath: string; input: IndexedInput }> = [];
 
   for (const input of sorted) {
-    const { relations, ...rest } = input;
+    const { relations, __inputIndex, ...rest } = input;
     try {
       const result = await createCard(ctx, rest);
-      keys.push(result.fullKey);
+      created.push({ inputIndex: __inputIndex, key: result.fullKey, filePath: result.filePath });
       if (relations && relations.length > 0) {
-        pendingRelations.push({ key: result.fullKey, input });
+        pendingRelations.push({ key: result.fullKey, filePath: result.filePath, input });
       }
     } catch (err) {
       errors.push({
+        inputIndex: __inputIndex,
         key: input.key,
         message: errorMessage(err),
       });
     }
   }
 
-  // Phase 2: Apply relations for successfully created cards.
+  // Phase 2: apply relations for successfully created cards.
   const partialKeys: string[] = [];
   if (pendingRelations.length > 0) {
     const { updateCard } = await import('../ops/update');
-    for (const { key, input } of pendingRelations) {
+    for (const { key, filePath, input } of pendingRelations) {
       try {
         await updateCard(ctx, key, { relations: input.relations });
       } catch (err) {
         errors.push({
+          inputIndex: input.__inputIndex,
           key,
+          filePath,
           message: `relation update failed: ${errorMessage(err)}`,
         });
-        const idx = keys.indexOf(key);
-        if (idx !== -1) keys.splice(idx, 1);
+        const idx = created.findIndex((c) => c.key === key);
+        if (idx !== -1) created.splice(idx, 1);
         partialKeys.push(key);
       }
     }
   }
 
-  return {
-    created: keys.length,
-    failed: errors.length,
-    keys,
-    partialKeys,
-    errors,
-  };
+  return { created, partialKeys, errors };
 }

@@ -22,8 +22,9 @@ export interface RenameCardResult {
   newFullKey: string;
   /** New card data (with updated frontmatter). */
   card: CardFile;
-  /** Card keys whose file update failed (DB has new key but file retains old key). */
-  failedReferenceUpdates?: string[];
+  /** Cards whose file update failed (DB has new key but file retains old key),
+   *  plus the underlying error reason. */
+  failedReferenceUpdates?: Array<{ cardKey: string; reason: string }>;
 }
 
 /**
@@ -112,7 +113,7 @@ export async function renameCard(
         await writeCardFile(newFilePath, card);
 
         const now = new Date().toISOString();
-        const failedReferenceUpdates: string[] = [];
+        const failedReferenceUpdates: Array<{ cardKey: string; reason: string }> = [];
         try {
           // UPDATE the key in-place + changelog inside a single transaction.
           // FK ON UPDATE CASCADE propagates to all referencing tables
@@ -172,8 +173,11 @@ export async function renameCard(
                 // see the up-to-date namespacesJson (cross_domain_dependencies etc).
                 await syncCardFromFile(ctx, ref.filePath);
               }
-            } catch {
-              failedReferenceUpdates.push(ref.key);
+            } catch (e) {
+              failedReferenceUpdates.push({
+                cardKey: ref.key,
+                reason: e instanceof Error ? e.message : String(e),
+              });
             }
           }
         } catch (dbErr) {

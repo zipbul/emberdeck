@@ -131,7 +131,7 @@ describe('Scenario 1: Full Lifecycle -- Single Card Through Every Operation', ()
     expect(codeLinks).toHaveLength(2);
 
     // -- Step 5: Export --
-    const exportedPath = await exportCardToFile(ctx, 'auth/jwt-token');
+    const { filePath: exportedPath } = await exportCardToFile(ctx, 'auth/jwt-token');
     expect(existsSync(exportedPath)).toBe(true);
 
     // -- Step 6: Validate --
@@ -169,8 +169,8 @@ describe('Scenario 2: Bulk Create + Relations + Sync', () => {
       { key: 'feature/users', summary: 'User management', type: 'spec', relations: ['core/db', 'core/auth'] },
     ]);
 
-    expect(result.created).toBe(4);
-    expect(result.failed).toBe(0);
+    expect(result.created).toHaveLength(4);
+    expect(result.errors).toHaveLength(0);
 
     // Verify relations
     const apiRels = ctx.relationRepo.findByCardKey('core/api');

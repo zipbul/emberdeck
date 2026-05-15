@@ -36,7 +36,7 @@ export async function deleteCard(
   ctx: EmberdeckContext,
   fullKey: string,
   options?: DeleteCardOptions,
-): Promise<{ filePath: string }> {
+): Promise<{ filePath: string; detachedChildren: string[]; removedCrossDomainRefs: string[] }> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
   const force = options?.force ?? false;
@@ -84,6 +84,12 @@ export async function deleteCard(
         );
       }
 
+      // Pre-compute the two surfaced lists. force=false branch has neither.
+      const detachedChildren: string[] = force ? children.map((c) => c.key) : [];
+      const removedCrossDomainRefs: string[] = force
+        ? crossDomainDependents.map((d) => d.key)
+        : [];
+
       return safeWriteOperation({
         dbAction: () => {
           ctx.db.transaction((tx) => {
@@ -95,7 +101,7 @@ export async function deleteCard(
             // After cascade, only mappings are deleted; tags themselves may remain
             classRepo.pruneOrphans();
           });
-          return { filePath };
+          return { filePath, detachedChildren, removedCrossDomainRefs };
         },
         fileAction: async () => {
           // Delete the card file first — if this fails, no side-effect files

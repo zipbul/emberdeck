@@ -517,9 +517,8 @@ describe('Glossary', () => {
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Orphan', definition: 'b' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const result = await analyze(tc.ctx);
-      expect(result.glossary.totalWords).toBe(2);
-      expect(result.glossary.unusedWords).toContain('Orphan');
       expect(result.glossary.entries).toHaveLength(2);
+      expect(result.glossary.unusedWords).toContain('Orphan');
     });
   });
 

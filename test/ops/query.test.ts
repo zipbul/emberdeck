@@ -272,16 +272,17 @@ describe('listCardRelations', () => {
     await updateCard(tc.ctx, 'lrel-src', {
       relations: ['lrel-dst'],
     });
-    const rows = listCardRelations(tc.ctx, 'lrel-src');
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows.some((r) => r.dstCardKey === 'lrel-dst')).toBe(true);
+    const rel = listCardRelations(tc.ctx, 'lrel-src');
+    expect(rel.forward.length + rel.reverse.length).toBeGreaterThan(0);
+    expect(rel.forward.some((r) => r.key === 'lrel-dst')).toBe(true);
   });
 
-  it('should return empty array when card has no relations', async () => {
+  it('should return empty arrays when card has no relations', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'lrel-none', summary: 'No rel', type: 'spec' });
-    const rows = listCardRelations(tc.ctx, 'lrel-none');
-    expect(rows).toHaveLength(0);
+    const rel = listCardRelations(tc.ctx, 'lrel-none');
+    expect(rel.forward).toHaveLength(0);
+    expect(rel.reverse).toHaveLength(0);
   });
 
   it('should throw CardKeyError when key is invalid', async () => {

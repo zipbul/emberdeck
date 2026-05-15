@@ -691,10 +691,15 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
 }
 
 /** @spec card-storage/persistence/sync */
-export async function exportCardToFile(ctx: EmberdeckContext, fullKey: string): Promise<string> {
+export async function exportCardToFile(
+  ctx: EmberdeckContext,
+  fullKey: string,
+): Promise<{ filePath: string; bytes: number }> {
   const cardFile = buildCardFromDb(ctx, fullKey);
+  const { serializeCard } = await import('../card/serialize');
+  const content = serializeCard(cardFile.frontmatter);
   await writeCardFile(cardFile.filePath!, cardFile);
-  return cardFile.filePath!;
+  return { filePath: cardFile.filePath!, bytes: Buffer.byteLength(content, 'utf-8') };
 }
 
 /**

@@ -274,9 +274,9 @@ describe('syncSymbolChanges', () => {
     });
 
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(result.updated).toBe(1);
-    expect(result.changes[0]!.changeType).toBe('renamed');
-    expect(result.changes[0]!.newSymbol).toBe('newName');
+    expect(result.applied).toHaveLength(1);
+    expect(result.applied[0]!.changeType).toBe('renamed');
+    expect(result.applied[0]!.newSymbol).toBe('newName');
 
     const links = tc.ctx.codeLinkRepo.findByCardKey('rename-card');
     expect(links[0]!.symbol).toBe('newName');
@@ -305,8 +305,9 @@ describe('syncSymbolChanges', () => {
     });
 
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(result.updated).toBe(1);
-    expect(result.changes[0]!.newFile).toBe('src/new-path.ts');
+    expect(result.applied).toHaveLength(1);
+    expect(result.applied[0]!.changeType).toBe('moved');
+    expect(result.applied[0]!.file).toBe('src/new-path.ts');
 
     const links = tc.ctx.codeLinkRepo.findByCardKey('move-card');
     expect(links[0]!.file).toBe('src/new-path.ts');
@@ -335,8 +336,8 @@ describe('syncSymbolChanges', () => {
     });
 
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(result.broken).toBe(1);
-    expect(result.updated).toBe(0);
+    expect(result.applied).toHaveLength(0);
+    expect(result.skipped.some((s) => s.reason === 'symbol-removed-manual-review-required')).toBe(true);
 
     // Link should still exist (not auto-deleted)
     const links = tc.ctx.codeLinkRepo.findByCardKey('del-card');
@@ -345,14 +346,13 @@ describe('syncSymbolChanges', () => {
 
   // ── ED ──
 
-  it('should return zero counts when no changes detected', async () => {
+  it('should return empty arrays when no changes detected', async () => {
     tc = await createMockTestContext();
     tc.ctx.gildash = createMockGildash({ getSymbolChanges: () => [] });
 
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(result.updated).toBe(0);
-    expect(result.broken).toBe(0);
-    expect(result.changes).toHaveLength(0);
+    expect(result.applied).toHaveLength(0);
+    expect(result.skipped).toHaveLength(0);
   });
 
   it('should skip changes with no matching code links', async () => {
@@ -377,8 +377,8 @@ describe('syncSymbolChanges', () => {
     });
 
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(result.updated).toBe(0);
-    expect(result.broken).toBe(0);
+    expect(result.applied).toHaveLength(0);
+    expect(result.skipped.some((s) => s.reason === 'no-links-referencing-old-symbol')).toBe(true);
   });
 
   // ── CO ──
@@ -406,9 +406,9 @@ describe('syncSymbolChanges', () => {
     });
 
     // oldName is null → oldName = symbolName = 'sameName', same as current
-    // This means the link matches but new name is same → still counts as update
+    // This means the link matches but new name is same → still counts as applied
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(result.updated).toBe(1);
+    expect(result.applied).toHaveLength(1);
   });
 
   it('should handle multiple changes affecting the same card', async () => {
@@ -437,9 +437,8 @@ describe('syncSymbolChanges', () => {
     });
 
     const result = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(result.updated).toBe(1);
-    expect(result.broken).toBe(1);
-    expect(result.changes).toHaveLength(2);
+    expect(result.applied).toHaveLength(1);
+    expect(result.skipped.some((s) => s.reason === 'symbol-removed-manual-review-required')).toBe(true);
   });
 
   // ── ID ──
@@ -460,7 +459,7 @@ describe('syncSymbolChanges', () => {
     await syncSymbolChanges(tc.ctx, '2020-01-01');
     // Second call: oldName 'old' no longer exists in code links (now 'new')
     const r2 = await syncSymbolChanges(tc.ctx, '2020-01-01');
-    expect(r2.updated).toBe(0);
+    expect(r2.applied).toHaveLength(0);
   });
 });
 

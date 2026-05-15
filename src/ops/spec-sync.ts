@@ -163,18 +163,24 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
 // ── Symbol rename/move sync ──
 
 export interface SymbolSyncResult {
-  /** Number of code links updated due to renames/moves. */
-  updated: number;
-  /** Number of code links marked as broken due to symbol deletion. */
-  broken: number;
-  /** Details of each change applied. */
-  changes: Array<{
+  /** Code links updated due to renames/moves. */
+  applied: Array<{
     cardKey: string;
-    oldFile: string;
     oldSymbol: string;
-    newFile: string | null;
-    newSymbol: string | null;
-    changeType: string;
+    newSymbol: string;
+    file: string;
+    changeType: 'renamed' | 'moved';
+  }>;
+  /** Changes that did not produce an update.
+   *  `metadata-write-failed` is added by the CLI layer (op itself never emits it). */
+  skipped: Array<{
+    reason:
+      | 'no-links-referencing-old-symbol'
+      | 'symbol-removed-manual-review-required'
+      | 'card-not-found';
+    symbol?: string;
+    file?: string;
+    details?: Record<string, unknown>;
   }>;
 }
 
@@ -197,9 +203,8 @@ export async function syncSymbolChanges(
     changeTypes: ['renamed', 'moved', 'removed'],
   });
 
-  let updated = 0;
-  let broken = 0;
-  const details: SymbolSyncResult['changes'] = [];
+  const applied: SymbolSyncResult['applied'] = [];
+  const skipped: SymbolSyncResult['skipped'] = [];
 
   for (const change of changes) {
     // Find code links referencing the old symbol/file
@@ -207,62 +212,71 @@ export async function syncSymbolChanges(
     const oldFile = change.oldFilePath ?? change.filePath;
     const links = ctx.codeLinkRepo.findBySymbol(oldName, oldFile);
 
-    if (links.length === 0) continue;
+    if (links.length === 0) {
+      skipped.push({
+        reason: 'no-links-referencing-old-symbol',
+        symbol: oldName,
+        file: oldFile,
+      });
+      continue;
+    }
 
     for (const link of links) {
-      if (change.changeType === 'renamed') {
-        // Update symbol name
-        const allLinks = ctx.codeLinkRepo.findByCardKey(link.cardKey);
-        const updated_links = allLinks.map((l) => {
-          if (l.file === oldFile && l.symbol === oldName) {
-            return { kind: l.kind, file: l.file, symbol: change.symbolName };
-          }
-          return { kind: l.kind, file: l.file, symbol: l.symbol };
+      // Guard: card must still exist (FK may have been broken by an external delete).
+      if (!ctx.cardRepo.findByKey(link.cardKey)) {
+        skipped.push({
+          reason: 'card-not-found',
+          symbol: oldName,
+          file: oldFile,
+          details: { cardKey: link.cardKey },
         });
-        ctx.codeLinkRepo.replaceForCard(link.cardKey, updated_links);
-        updated++;
-        details.push({
+        continue;
+      }
+
+      if (change.changeType === 'renamed') {
+        const allLinks = ctx.codeLinkRepo.findByCardKey(link.cardKey);
+        const newLinks = allLinks.map((l) =>
+          l.file === oldFile && l.symbol === oldName
+            ? { kind: l.kind, file: l.file, symbol: change.symbolName }
+            : { kind: l.kind, file: l.file, symbol: l.symbol },
+        );
+        ctx.codeLinkRepo.replaceForCard(link.cardKey, newLinks);
+        applied.push({
           cardKey: link.cardKey,
-          oldFile,
           oldSymbol: oldName,
-          newFile: oldFile,
           newSymbol: change.symbolName,
+          file: oldFile,
           changeType: 'renamed',
         });
       } else if (change.changeType === 'moved') {
-        // Update file path
         const allLinks = ctx.codeLinkRepo.findByCardKey(link.cardKey);
-        const updated_links = allLinks.map((l) => {
-          if (l.file === oldFile && l.symbol === oldName) {
-            return { kind: l.kind, file: change.filePath, symbol: change.symbolName };
-          }
-          return { kind: l.kind, file: l.file, symbol: l.symbol };
-        });
-        ctx.codeLinkRepo.replaceForCard(link.cardKey, updated_links);
-        updated++;
-        details.push({
+        const newLinks = allLinks.map((l) =>
+          l.file === oldFile && l.symbol === oldName
+            ? { kind: l.kind, file: change.filePath, symbol: change.symbolName }
+            : { kind: l.kind, file: l.file, symbol: l.symbol },
+        );
+        ctx.codeLinkRepo.replaceForCard(link.cardKey, newLinks);
+        applied.push({
           cardKey: link.cardKey,
-          oldFile,
           oldSymbol: oldName,
-          newFile: change.filePath,
           newSymbol: change.symbolName,
+          file: change.filePath,
           changeType: 'moved',
         });
       } else if (change.changeType === 'removed') {
-        broken++;
-        details.push({
-          cardKey: link.cardKey,
-          oldFile,
-          oldSymbol: oldName,
-          newFile: null,
-          newSymbol: null,
-          changeType: 'removed',
+        // Removed symbols are NOT auto-deleted from card links; the human
+        // must decide whether the rename was intentional. Report only.
+        skipped.push({
+          reason: 'symbol-removed-manual-review-required',
+          symbol: oldName,
+          file: oldFile,
+          details: { cardKey: link.cardKey },
         });
       }
     }
   }
 
-  return { updated, broken, changes: details };
+  return { applied, skipped };
 }
 
 // ── Code link coverage ──

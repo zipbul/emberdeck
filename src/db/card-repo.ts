@@ -109,10 +109,13 @@ export class DrizzleCardRepository implements CardRepository {
                   c.namespaces_json AS namespacesJson,
                   c.body,
                   c.glossary_json AS glossaryJson,
-                  c.file_path AS filePath, c.updated_at AS updatedAt
+                  c.file_path AS filePath, c.updated_at AS updatedAt,
+                  snippet(card_fts, -1, '', '', '…', 12) AS snippet,
+                  bm25(card_fts) AS rank
            FROM card c
            JOIN card_fts f ON c.rowid = f.rowid
-           WHERE card_fts MATCH ?`,
+           WHERE card_fts MATCH ?
+           ORDER BY rank`,
         )
         .all(query) as CardRow[];
     } catch (e) {

@@ -1,6 +1,6 @@
 import type { EmberdeckContext } from '../config';
 import type { CardFile, CardStatus, CardType } from '../card/types';
-import type { CardRow, CardListFilter, RelationRow, ChangelogRow } from '../db/repository';
+import type { CardRow, CardListFilter, ChangelogRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
 import { readCardFileOrThrow } from '../fs/reader';
@@ -78,6 +78,8 @@ export interface CardContext {
   codeLinks: ResolvedCodeLink[];
   upstreamCards: CardRow[];
   downstreamCards: CardRow[];
+  /** root → current-card-parent chain, in walked order. Empty when no parent. */
+  parentChain: CardRow[];
   /** Cards at depth 2+ discovered by BFS. Only present when depth > 1. */
   related?: RelatedCard[];
   /** True when BFS traversal was cut short by the depth limit. */
@@ -111,9 +113,23 @@ export async function getCardContext(
     .map((r) => ctx.cardRepo.findByKey(r.dstCardKey))
     .filter((r): r is CardRow => r !== null);
 
+  // Build parent chain (root → direct parent).
+  const parentChain: CardRow[] = [];
+  {
+    const seen = new Set<string>([key]);
+    let cur = card.frontmatter.parent ?? null;
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      const row = ctx.cardRepo.findByKey(cur);
+      if (!row) break;
+      parentChain.unshift(row);
+      cur = row.parent ?? null;
+    }
+  }
+
   const depth = options?.depth ?? 1;
   if (depth <= 1) {
-    return { card, codeLinks, upstreamCards, downstreamCards };
+    return { card, codeLinks, upstreamCards, downstreamCards, parentChain };
   }
 
   // BFS traversal for depth > 1
@@ -139,7 +155,7 @@ export async function getCardContext(
     }
   }
 
-  return { card, codeLinks, upstreamCards, downstreamCards, related, truncated };
+  return { card, codeLinks, upstreamCards, downstreamCards, parentChain, related, truncated };
 }
 
 /**
@@ -232,20 +248,28 @@ export interface SearchCardsOptions {
   status?: CardStatus;
 }
 
+/** FTS5 match metadata appended to each search hit. */
+export interface SearchCardMatch extends CardSummaryRow {
+  /** Short excerpt around the match (FTS5 `snippet()`). May be empty. */
+  snippet: string;
+  /** BM25 score; lower = stronger match. */
+  rank: number;
+}
+
 /**
  * Searches cards using FTS5 full-text search, with optional type/status filters.
  *
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param query - Search query text. Returns an empty array if the query is empty.
  * @param options - Optional type and status filters.
- * @returns Array of DB rows matching the search.
-  * @spec card-storage/queries/get-list-search
+ * @returns Array of match rows with `snippet` and `rank` for each hit.
+ * @spec card-storage/queries/get-list-search
  */
 export function searchCards(
   ctx: EmberdeckContext,
   query: string,
   options?: SearchCardsOptions,
-): CardSummaryRow[] {
+): SearchCardMatch[] {
   const results = ctx.cardRepo.search(query);
   const filtered = options
     ? results.filter((row) => {
@@ -255,20 +279,61 @@ export function searchCards(
       })
     : results;
 
-  return filtered.map(({ body, ...rest }) => rest);
+  return filtered.map(({ body: _body, ...rest }) => ({
+    ...rest,
+    // Until card-repo emits snippet/rank natively, surface empty/0 so the
+    // shape is stable. The repo enhancement is tracked separately; consumers
+    // can rely on the fields existing.
+    snippet: (rest as unknown as { snippet?: string }).snippet ?? '',
+    rank: (rest as unknown as { rank?: number }).rank ?? 0,
+  }));
+}
+
+/** Lightweight card view used by relation / context output shapes. */
+export interface CardSummary {
+  key: string;
+  summary: string;
+  type: string;
+  status: string;
+  parent: string | null;
+}
+
+export interface CardRelations {
+  /** This card → other cards (forward declared in this card's `relations`). */
+  forward: CardSummary[];
+  /** Other cards → this card (reverse: those cards declared a relation to this one). */
+  reverse: CardSummary[];
+}
+
+function toCardSummary(row: CardRow): CardSummary {
+  return {
+    key: row.key,
+    summary: row.summary,
+    type: row.type,
+    status: row.status,
+    parent: row.parent,
+  };
 }
 
 /**
- * Returns the list of relations for a card (both forward and reverse).
+ * Resolve a card's direct relations into lightweight `CardSummary` shapes,
+ * grouped by direction. Dead links (the relation row references a card that
+ * no longer exists) are silently dropped — `ed validate cards` surfaces them.
  *
- * @param ctx - Context created by `setupEmberdeck()`.
- * @param fullKey - fullKey of the card to query.
- * @returns `isReverse=false` for outgoing relations, `isReverse=true` for incoming relations.
-  * @spec card-storage/queries/get-list-search
+ * @spec card-storage/queries/get-list-search
  */
-export function listCardRelations(ctx: EmberdeckContext, fullKey: string): RelationRow[] {
+export function listCardRelations(ctx: EmberdeckContext, fullKey: string): CardRelations {
   const key = parseFullKey(fullKey);
-  return ctx.relationRepo.findByCardKey(key);
+  const rows = ctx.relationRepo.findByCardKey(key);
+  const forward: CardSummary[] = [];
+  const reverse: CardSummary[] = [];
+  for (const rel of rows) {
+    const target = ctx.cardRepo.findByKey(rel.dstCardKey);
+    if (!target) continue;
+    if (rel.isReverse) reverse.push(toCardSummary(target));
+    else forward.push(toCardSummary(target));
+  }
+  return { forward, reverse };
 }
 
 // ---- Card Tree ----
