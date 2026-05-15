@@ -15,23 +15,23 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
         // stdout shape for `ed glossary remove <word>`
         { word: string, affectedCardKeys: string[] }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): 단어 제거 성공.
 
         - thrown 매핑: GlossaryNotFoundError → 3 (EXIT.NOT_FOUND) (word missing —
         errors.ts 의 분리 매핑); GlossaryValidationError → 2
         (EXIT.VALIDATION_FAILURE) (기타 검증).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -41,4 +41,8 @@ spec:
   failures:
     - violation: word 가 glossary.yaml 에 없음.
       behavior: stderr `{level:'error', code:'glossary-not-found', message}` + exit 3.
+    - violation: word 인자 형식 오류 (빈 문자열 등 op validation)
+      behavior: >-
+        GlossaryValidationError → stderr {code:'glossary-validation-error',
+        message} + exit 2.
 ---

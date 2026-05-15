@@ -40,13 +40,16 @@ spec:
       behavior: >-
         stderr `{level:'error', code:'card-already-exists', message, details?}`
         + exit 4.
-    - violation: parent 검증 실패 / activation guard 위반 / key 형식 오류.
+    - violation: card 입력 schema validation 실패 (잘못된 type/namespace body)
       behavior: >-
-        stderr `{level:'error',
-        code:'validation-error'|'parent-validation-error'|'activation-guard-failed',
-        message}` + exit 2.
-    - violation: commander 가 인자 검증 실패 (typo/누락/알 수 없는 옵션)
+        CardValidationError → stderr {code:'validation-error', message} + exit
+        2.
+    - violation: parent 검증 실패 (parent 미존재 / 4-tier 위반)
       behavior: >-
-        runner 가 stderr 에 {level:'error', code:'cli-usage-error', message}
-        JSON-line emit 후 exit 2.
+        ParentValidationError → stderr {code:'parent-validation-error', message}
+        + exit 2.
+    - violation: status 가 'active' 로 시작 시 활성화 가드 미달
+      behavior: >-
+        ActivationGuardError → stderr {code:'activation-guard-failed',
+        details:{unmetConditions}} + exit 2.
 ---

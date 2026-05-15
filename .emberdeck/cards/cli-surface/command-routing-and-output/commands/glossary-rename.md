@@ -34,7 +34,8 @@ spec:
         emit, exit 만 2).
 
         - thrown 매핑: GlossaryNotFoundError → 3 (EXIT.NOT_FOUND) (oldWord
-        missing); GlossaryValidationError → 4 (EXIT.CONFLICT) (newWord 충돌).
+        missing); GlossaryValidationError → 2 (EXIT.VALIDATION_FAILURE; 코드 매핑
+        정합).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -47,7 +48,7 @@ spec:
     - violation: newWord 가 이미 glossary 에 존재.
       behavior: >-
         stderr `{level:'error', code:'glossary-validation-error', message}` +
-        exit 4.
+        exit 2.
     - violation: affected 카드 파일 일부 write 실패.
       behavior: failedFileWrites 채워짐 + stdout 정상 emit + exit 2.
     - violation: oldWord 가 glossary 에 미존재

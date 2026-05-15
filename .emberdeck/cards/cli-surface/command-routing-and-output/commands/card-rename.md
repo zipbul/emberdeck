@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: >-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
 
@@ -33,9 +31,9 @@ spec:
         이 error 메시지를 버리므로 보강 후 채워짐.
 
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): rename 성공 + 모든 reference 업데이트 통과
         (failedReferenceUpdates.length === 0).
@@ -45,6 +43,8 @@ spec:
 
         - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND);
         CardAlreadyExistsError → 4 (EXIT.CONFLICT) (newKey 충돌).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -56,4 +56,10 @@ spec:
       behavior: >-
         stdout 은 정상 data shape (failedReferenceUpdates 채워짐) + exit 2; stderr 무출력
         (data 채널이 진단을 담음).
+    - violation: key 에 해당하는 카드 미존재
+      behavior: CardNotFoundError → stderr {code:'card-not-found', message} + exit 3.
+    - violation: newKey 가 이미 존재하는 다른 카드 키
+      behavior: >-
+        CardAlreadyExistsError → stderr {code:'card-already-exists', message} +
+        exit 4.
 ---

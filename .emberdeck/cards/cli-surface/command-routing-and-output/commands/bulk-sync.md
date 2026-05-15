@@ -46,8 +46,6 @@ spec:
         disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
       always_holds: per-call
   failures:
-    - violation: PATH 인자가 존재하지 않는 경로.
-      behavior: stderr `{level:'error', code:'cli-usage-error', message}` + exit 2.
     - violation: per-file 파싱/sync 실패.
       behavior: failed[] 에 누적 + stdout 정상 emit + exit 2.
 ---

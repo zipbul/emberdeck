@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -27,9 +25,9 @@ spec:
           total: number   // 입력 개수
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): failed.length === 0 (모두 성공).
 
@@ -38,6 +36,8 @@ spec:
 
         - thrown 매핑: 없음 (per-item 실패는 failed[] 에 누적, throw 아님). 빌드/IO 에러는 부모
         runner 의 일반 매핑.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -45,8 +45,6 @@ spec:
         disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
       always_holds: per-call
   failures:
-    - violation: 입력 파일이 array 아님 또는 빈 배열.
-      behavior: stderr `{level:'error', code:'cli-usage-error', message}` + exit 2.
     - violation: per-item 실패 (key 중복 / parent 미존재 / 검증 실패).
       behavior: failed[] 에 누적 + stdout 정상 emit + exit 2 (전체 실패 누적 있을 때).
 ---

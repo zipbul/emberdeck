@@ -19,8 +19,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001a
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: >-
         mode='card' (`ed check coverage <key>`): 성공 시 `data` 는 다음 shape:
 
@@ -38,9 +36,9 @@ spec:
 
         의미 전환 (link-coverage → symbol-coverage) 은 §6 분리된 결정. 카드 본문에는 위 shape
         하나만.
-    - id: POST-001b
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-001b
       guarantee: >-
         mode='uncovered' (`ed check coverage --uncovered`): 성공 시 `data` 는 다음
         shape:
@@ -53,9 +51,9 @@ spec:
           uncovered: { file, symbol, kind }[],    // 전체
           uncoveredTotal: number }                 // === uncovered.length
         ```
-    - id: POST-001c
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-001c
       guarantee: |-
         mode='suggest' (`ed check coverage --suggest`): 성공 시 `data` 는 다음 shape:
         ```jsonc
@@ -72,14 +70,16 @@ spec:
           total
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): 세 모드 모두 성공 시 (coverage 결과 또는 빈 array 포함 정상 emit).
 
         - thrown 매핑 (mode='card' 만): CardNotFoundError → 3 (EXIT.NOT_FOUND).
         mode='uncovered'/'suggest' 는 thrown 매핑 없음.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -89,8 +89,4 @@ spec:
   failures:
     - violation: mode='card' 에서 주어진 key 가 DB 에 없음.
       behavior: stderr `{level:'error', code:'card-not-found', message}` + exit 3.
-    - violation: '--uncovered 와 --suggest 가 동시 지정 또는 <key> 와 모드 플래그 동시 지정.'
-      behavior: >-
-        commander 가 사전 거부 → runner-commander-fallback 경로로 stderr
-        `{level:'error', code:'cli-usage-error', ...}` + exit 2.
 ---
