@@ -302,24 +302,10 @@ describe('Glossary', () => {
       expect(() => renameGlossary(tc.ctx, 'Nope', 'New')).toThrow(/not found/);
     });
 
-    // B-003 regression: same-name rename = definition-only update, no "already exists" throw.
-    it('B-003: same-name rename updates definition without "already exists" error', async () => {
+    it('same-name rename is rejected — definition-only update is `defineGlossary` upsert', async () => {
       tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'old definition' }] });
-      const result = await renameGlossary(tc.ctx, 'Job', 'Job', 'new definition');
-      expect(result.renamedFrom).toBe('Job');
-      expect(result.renamedTo).toBe('Job');
-      expect(result.definition).toBe('new definition');
-      expect(result.cardsUpdated).toBe(0);
-      expect(readGlossary(tc.ctx).find((e) => e.word === 'Job')!.definition).toBe('new definition');
-    });
-
-    it('B-003: same-name rename without --def leaves definition unchanged', async () => {
-      tc = await createTestContext();
-      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'kept' }] });
-      const result = await renameGlossary(tc.ctx, 'Job', 'Job');
-      expect(result.definition).toBe('kept');
-      expect(readGlossary(tc.ctx).find((e) => e.word === 'Job')!.definition).toBe('kept');
+      await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'old' }] });
+      expect(() => renameGlossary(tc.ctx, 'Job', 'Job', 'new')).toThrow(/already exists/);
     });
   });
 

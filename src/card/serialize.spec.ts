@@ -210,8 +210,8 @@ describe('serializeCard', () => {
   });
 });
 
-// ── B-002 regression: brief.criteria.measure optional fields preserved across all variants ──
-describe('parseCard — brief.criteria.measure (B-002 round-trip)', () => {
+// brief.criteria.measure optional-field preservation across all 3 variants
+describe('parseCard — brief.criteria.measure optional-field round-trip', () => {
   // Minimal valid brief frontmatter that lets parseCard succeed. Only `criteria` varies.
   function makeBriefWithCriteria(criteria: unknown): string {
     return makeCard({

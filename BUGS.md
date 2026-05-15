@@ -6,26 +6,7 @@
 
 - B-001 ✅ fix 완료 (`src/cli/commands/card.ts:282-291`): `--patch` 최상위 키 whitelist 검증 추가. unknown key 면 `CliUsageError` + 친절한 안내 ("Did you forget to wrap the namespace?").
 - B-002 ✅ fix 완료 (`src/card/types.ts:174-177` + `src/card/serialize.ts:382-401`): `BriefCriterionMeasure` 의 3 variant 모두 SKILL.md 정의에 정합 — `numeric` 에 `predicate` + `reference?` 추가, `binary` 에 `method?`/`reference?` 추가, `verification` 에 `predicate?`/`unit?` 추가. `normalizeBriefCriteria` 가 모든 optional 보존.
-- B-003 ✅ fix 완료 (`src/ops/glossary.ts:192-217`): `renameGlossary` 의 `oldWord === newWord` (same-name) 케이스 분기 추가. 정의만 갱신 (cards-update pass 스킵, "already exists" throw 회피). regression test 2개 추가 (test/ops/glossary.test.ts).
-
----
-
-## B-003 — `ed glossary rename WORD WORD --def "<def>"` 가 `GLOSSARY_VALIDATION_ERROR: already exists` 로 거부
-
-**위치**: `src/ops/glossary.ts:198` (fix 전).
-
-**현상**: SKILL.md `<commands>` 표의 `glossary rename OLD NEW [--def TEXT]` 시맨틱이 *정의-only 갱신* 도 허용한다고 자연 해석되나, op 가 `entries.some((e) => e.word === newWord)` 로 *동일 이름 항상 throw*. 결과: 사용자가 정의만 갱신하려면 `remove + define` 2-step 우회 필요.
-
-**재현**:
-```bash
-ed glossary define foo="old def"
-ed glossary rename foo foo --def "new def"
-# → error: glossary word "foo" already exists
-```
-
-**영향**: glossary 정의 갱신 워크플로 우회 강제 (`remove + define`). carrier 의 affected_card_keys 가 *임시로 비어짐* — 카드 validation 영향 (transient `glossary-broken`).
-
-**fix**: same-name 분기 추가 — 정의만 갱신 + cards-update pass 스킵 (글로사리 키 미변경이라 카드 영향 0).
+- B-003 ❌ **non-bug — 잘못된 진단 (reverted)**. `renameGlossary` 의 same-name 거부는 *올바른 동작*. 정의-only 갱신은 `ed glossary define WORD=<def>` 의 upsert 가 정직 경로 (`src/ops/glossary.ts:33-80` 의 `existingMap.has(entry.word)` 분기 = upsert). `rename` 의 시맨틱은 *이름 변경 (+ 선택 정의 갱신)*, `define` 의 시맨틱은 *create-or-update*. 두 명령 책임 분리가 정확. 임시 same-name 분기는 *spec 모호함을 코드 분기로 메우는 워크어라운드* — production 코드에 영구 박는 안티패턴이었음. revert.
 
 ## B-001 — `ed card update --patch` 가 잘못된 형식의 patch 를 silently 무시 (status: ok 반환)
 
