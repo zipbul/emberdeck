@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: >-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
 
@@ -28,14 +26,16 @@ spec:
         { key, filePath, status,
           validationNotes: string[] }   // 비-치명 field warnings (예: 'status changed to draft because type changed')
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): 패치 적용 + DB / 파일 write 성공 (validationNotes 가 있어도 0).
 
         - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND); CardValidationError
         / ParentValidationError → 2 (EXIT.VALIDATION_FAILURE).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -47,6 +47,14 @@ spec:
       behavior: stderr `{level:'error', code:'card-not-found', message}` + exit 3.
     - violation: '패치 본문이 카드 schema 와 충돌 (예: 잘못된 type, 잘못된 namespace body).'
       behavior: >-
-        stderr `{level:'error', code:'card-validation-failed', message,
-        details?}` + exit 2.
+        stderr `{level:'error', code:'validation-error', message, details?}` +
+        exit 2.
+    - violation: status 를 active 로 변경 시 활성화 가드 미달
+      behavior: >-
+        ActivationGuardError → stderr {code:'activation-guard-failed',
+        details:{unmetConditions}} + exit 2.
+    - violation: parent 변경 시 4-tier 위반 / parent 미존재
+      behavior: >-
+        ParentValidationError → stderr {code:'parent-validation-error'} + exit
+        2.
 ---

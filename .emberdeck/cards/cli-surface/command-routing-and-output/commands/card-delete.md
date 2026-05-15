@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -27,9 +25,9 @@ spec:
           removedCrossDomainRefs: string[]     // --force 시 cross_domain_dependencies 에서 이 키 참조가 제거된 도메인 카드 키. force=false 면 []
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): 삭제 성공 (파일 unlink + DB row delete + 자식 detach + cross-ref
         정리).
@@ -37,6 +35,8 @@ spec:
         - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND);
         CardHasDependentsError / ConflictError → 4 (EXIT.CONFLICT) (force 없이
         자식/참조 존재 시).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -48,4 +48,6 @@ spec:
       behavior: >-
         stderr `{level:'error', code:'card-has-dependents', message, details?}`
         + exit 4.
+    - violation: key 에 해당하는 카드 미존재
+      behavior: CardNotFoundError → stderr {code:'card-not-found'} + exit 3.
 ---

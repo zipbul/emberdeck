@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -32,9 +30,9 @@ spec:
           }[]
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): summary.broken === 0 && summary.ioFailed === 0
         (plannedLinks 는 exit 에 영향 X — draft 의 의도된 미완성).
@@ -43,6 +41,8 @@ spec:
         0.
 
         - thrown 매핑: 없음 (read-only).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -52,4 +52,9 @@ spec:
   failures:
     - violation: active 카드의 코드 링크가 깨짐 (symbol-not-found 또는 gildash-unavailable).
       behavior: stdout 정상 data emit (brokenLinks 채워짐) + exit 2.
+    - violation: 특정 카드의 link 검증 중 I/O 실패 또는 frontmatter key/슬러그 mismatch 로 skip
+      behavior: >-
+        stdout items[i].ioError={message} 또는
+        items[i].skipped={reason:'key-mismatch'} 로 보고, exit 2 (broken+ioFailed>0
+        시) 또는 0.
 ---

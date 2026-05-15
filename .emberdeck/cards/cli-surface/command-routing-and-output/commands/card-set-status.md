@@ -15,22 +15,22 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
         // stdout shape for `ed card set-status <key> <status> [--reason TEXT]`
         { key, oldStatus, newStatus }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): 상태 전이 성공.
 
         - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND);
         ActivationGuardError → 2 (EXIT.VALIDATION_FAILURE).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -40,6 +40,8 @@ spec:
   failures:
     - violation: 'draft → active 전이가 activation guard 위반 (예: 자식 카드 부재 / broken link).'
       behavior: >-
-        stderr `{level:'error', code:'activation-guard-error', message,
+        stderr `{level:'error', code:'activation-guard-failed', message,
         details?}` + exit 2.
+    - violation: key 에 해당하는 카드 미존재
+      behavior: CardNotFoundError → stderr {code:'card-not-found'} + exit 3.
 ---

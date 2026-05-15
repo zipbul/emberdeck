@@ -15,20 +15,20 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
         // stdout shape for `ed card create <key> --type T [...]`
         { key, filePath, status, type, parent: string|null }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: |-
         - 0 (EXIT.OK): card 신규 생성 + 파일 write + DB row insert 성공.
         - thrown 매핑: CardAlreadyExistsError → 4 (EXIT.CONFLICT).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -43,6 +43,10 @@ spec:
     - violation: parent 검증 실패 / activation guard 위반 / key 형식 오류.
       behavior: >-
         stderr `{level:'error',
-        code:'card-validation-failed'|'parent-validation-failed'|'activation-guard-error',
+        code:'validation-error'|'parent-validation-error'|'activation-guard-failed',
         message}` + exit 2.
+    - violation: commander 가 인자 검증 실패 (typo/누락/알 수 없는 옵션)
+      behavior: >-
+        runner 가 stderr 에 {level:'error', code:'cli-usage-error', message}
+        JSON-line emit 후 exit 2.
 ---

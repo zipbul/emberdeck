@@ -16,8 +16,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -25,9 +23,9 @@ spec:
         { oldWord, newWord, affectedCardKeys: string[],
           failedFileWrites?: string[] }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): rename 성공 + 모든 affected card 파일 write 통과
         (failedFileWrites 미존재 또는 빈 배열).
@@ -37,6 +35,8 @@ spec:
 
         - thrown 매핑: GlossaryNotFoundError → 3 (EXIT.NOT_FOUND) (oldWord
         missing); GlossaryValidationError → 4 (EXIT.CONFLICT) (newWord 충돌).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -46,8 +46,10 @@ spec:
   failures:
     - violation: newWord 가 이미 glossary 에 존재.
       behavior: >-
-        stderr `{level:'error', code:'glossary-validation-failed', message}` +
+        stderr `{level:'error', code:'glossary-validation-error', message}` +
         exit 4.
     - violation: affected 카드 파일 일부 write 실패.
       behavior: failedFileWrites 채워짐 + stdout 정상 emit + exit 2.
+    - violation: oldWord 가 glossary 에 미존재
+      behavior: GlossaryNotFoundError → stderr {code:'glossary-not-found'} + exit 3.
 ---
