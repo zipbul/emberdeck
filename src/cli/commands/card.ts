@@ -94,6 +94,7 @@ function applyFieldValue(fields: UpdateCardFields, name: string, value: string):
 export function registerCard(program: Command): void {
   const card = program.command('card').description('card-level operations');
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-get */
   card
     .command('get <key>')
     .description('read a card from file')
@@ -115,6 +116,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-list */
   card
     .command('list')
     .description('list cards. --symbol filters cards linking that symbol; --glossary filters cards declaring that term')
@@ -200,6 +202,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-create */
   card
     .command('create <key>')
     .description('create a new card')
@@ -259,6 +262,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-update */
   card
     .command('update <key>')
     .description('update a card')
@@ -318,6 +322,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-delete */
   card
     .command('delete <key>')
     .description('delete a card and its file')
@@ -338,6 +343,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-rename */
   card
     .command('rename <oldKey> <newKey>')
     .description('rename a card key (moves the file and updates every other card referencing it)')
@@ -367,6 +373,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-search */
   card
     .command('search <query>')
     .description('full-text search over card key, summary, body, and namespace fields')
@@ -403,6 +410,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-export */
   card
     .command('export <key>')
     .description('render the canonical card content. Default prints to STDOUT (no file side-effects). --out FILE writes to a file. --in-place rewrites the card file.')
@@ -429,6 +437,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-set-status */
   card
     .command('set-status <key> <status>')
     .description('change card status (draft|active|drifted)')
@@ -451,6 +460,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-tree */
   card
     .command('tree <key>')
     .description('parent-child hierarchy starting from KEY')
@@ -465,6 +475,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-context */
   card
     .command('context <key>')
     .description('show related cards (parent chain + declared relations, depth-bounded). Use `card relations` for one-hop only.')
@@ -496,6 +507,7 @@ export function registerCard(program: Command): void {
       );
     });
 
+  /** @spec cli-surface/command-routing-and-output/commands/card-relations */
   card
     .command('relations <key>')
     .description('list direct relations (forward + reverse)')

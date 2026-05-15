@@ -50,6 +50,7 @@ export function registerBulk(program: Command): void {
   const bulk = program.command('bulk').description('batch operations');
 
   // ── bulk create ──
+  /** @spec cli-surface/command-routing-and-output/commands/bulk-create */
   bulk
     .command('create')
     .description('create multiple cards from JSON file')
@@ -91,6 +92,7 @@ export function registerBulk(program: Command): void {
     });
 
   // ── bulk sync ──
+  /** @spec cli-surface/command-routing-and-output/commands/bulk-sync */
   bulk
     .command('sync [path]')
     .description('sync card files (directory recursive or single file) → DB')

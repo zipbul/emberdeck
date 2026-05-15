@@ -18,6 +18,7 @@ export function registerValidate(program: Command): void {
   const validate = program.command('validate').description('integrity gates');
 
   // ── validate (no args = all) ──
+  /** @spec cli-surface/command-routing-and-output/commands/validate-aggregate */
   validate
     .action(async (_opts, cmd) => {
             await run(
@@ -93,6 +94,7 @@ export function registerValidate(program: Command): void {
     });
 
   // ── validate links ──
+  /** @spec cli-surface/command-routing-and-output/commands/validate-links */
   validate
     .command('links [key]')
     .description('check that every codeLink points to a real source symbol (one card or all)')
@@ -173,6 +175,7 @@ export function registerValidate(program: Command): void {
     });
 
   // ── validate cards ──
+  /** @spec cli-surface/command-routing-and-output/commands/validate-cards */
   validate
     .command('cards')
     .description('check card integrity: file consistency, hierarchy, glossary references, brief→spec chains')

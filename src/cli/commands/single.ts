@@ -20,6 +20,7 @@ async function pathExists(p: string): Promise<boolean> {
 
 export function registerSingle(program: Command): void {
   // ── init ──
+  /** @spec cli-surface/command-routing-and-output/commands/init */
   program
     .command('init')
     .description('scaffold an emberdeck project (config file, cards directory, glossary, .gitignore entries). Idempotent.')
@@ -123,6 +124,7 @@ export function registerSingle(program: Command): void {
     });
 
   // ── analyze ──
+  /** @spec cli-surface/command-routing-and-output/commands/analyze */
   program
     .command('analyze')
     .description('full project analysis (drift + coverage + glossary)')
@@ -151,6 +153,7 @@ export function registerSingle(program: Command): void {
     });
 
   // ── reset ──
+  /** @spec cli-surface/command-routing-and-output/commands/reset */
   program
     .command('reset')
     .description('delete every card and clear the glossary. DESTRUCTIVE.')

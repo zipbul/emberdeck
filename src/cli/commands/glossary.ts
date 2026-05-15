@@ -47,6 +47,7 @@ export function registerGlossary(program: Command): void {
   const glossary = program.command('glossary').description('domain vocabulary single source of truth');
 
   // ── glossary define ──
+  /** @spec cli-surface/command-routing-and-output/commands/glossary-define */
   glossary
     .command('define [pairs...]')
     .description('define WORD=DEFINITION pairs (batch up to 50, all-or-nothing)')
@@ -73,6 +74,7 @@ export function registerGlossary(program: Command): void {
     });
 
   // ── glossary lookup ──
+  /** @spec cli-surface/command-routing-and-output/commands/glossary-lookup */
   glossary
     .command('lookup [word]')
     .description('look up a word, or list all if WORD omitted')
@@ -93,6 +95,7 @@ export function registerGlossary(program: Command): void {
     });
 
   // ── glossary remove ──
+  /** @spec cli-surface/command-routing-and-output/commands/glossary-remove */
   glossary
     .command('remove <word>')
     .description('remove a glossary entry (cards referencing it become drifted)')
@@ -113,6 +116,7 @@ export function registerGlossary(program: Command): void {
     });
 
   // ── glossary rename ──
+  /** @spec cli-surface/command-routing-and-output/commands/glossary-rename */
   glossary
     .command('rename <oldWord> <newWord>')
     .description('rename a glossary word (auto-updates card glossary fields)')

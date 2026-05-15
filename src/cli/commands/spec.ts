@@ -14,6 +14,7 @@ export function registerSpec(program: Command): void {
   const spec = program.command('spec').description('source code ↔ card binding sync');
 
   // ── spec sync ──
+  /** @spec cli-surface/command-routing-and-output/commands/spec-sync */
   spec
     .command('sync')
     .description('reconcile DB codeLinks from @spec annotations in source')
@@ -39,6 +40,7 @@ export function registerSpec(program: Command): void {
     });
 
   // ── spec sync-symbols ──
+  /** @spec cli-surface/command-routing-and-output/commands/spec-sync-symbols */
   spec
     .command('sync-symbols')
     .description('update card code links when source symbols are renamed or moved. --since defaults to the last sync time (or 24h ago on first run)')

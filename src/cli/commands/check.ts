@@ -15,6 +15,7 @@ export function registerCheck(program: Command): void {
   const check = program.command('check').description('inspect drift, coverage, impact, regressions, and card interactions');
 
   // ── check drift ──
+  /** @spec cli-surface/command-routing-and-output/commands/check-drift */
   check
     .command('drift [key]')
     .description('detect drift (broken_link / glossary_broken)')
@@ -35,6 +36,7 @@ export function registerCheck(program: Command): void {
     });
 
   // ── check coverage ──
+  /** @spec cli-surface/command-routing-and-output/commands/check-coverage */
   check
     .command('coverage [key]')
     .description('code link coverage for one card; --uncovered for project-wide; --suggest for new card scopes')
@@ -86,6 +88,7 @@ export function registerCheck(program: Command): void {
     });
 
   // ── check impact ──
+  /** @spec cli-surface/command-routing-and-output/commands/check-impact */
   check
     .command('impact <files...>')
     .description('pre-change impact analysis (direct / transitive)')
@@ -108,6 +111,7 @@ export function registerCheck(program: Command): void {
     });
 
   // ── check regression ──
+  /** @spec cli-surface/command-routing-and-output/commands/check-regression */
   check
     .command('regression <files...>')
     .description('regression guard: drifted ratio of affected cards vs threshold')
@@ -142,6 +146,7 @@ export function registerCheck(program: Command): void {
     });
 
   // ── check interactions ──
+  /** @spec cli-surface/command-routing-and-output/commands/check-interactions */
   check
     .command('interactions <keys...>')
     .description('analyze interactions between cards (shared symbols/files/imports)')
