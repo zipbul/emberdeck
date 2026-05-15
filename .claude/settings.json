@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '.tool_input.file_path // .tool_input.path // empty | if test(\"(^|/)\\\\.emberdeck/cards/.+\\\\.md$\") then {hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"deny\",permissionDecisionReason:\"Card files in .emberdeck/cards/ must be modified via the ed CLI only (ed card create/update/delete/rename/set-status, or ed bulk sync). Direct Write/Edit/MultiEdit creates an SSOT-DB inconsistency (emberdeck SKILL HC-1 violation). The ed CLI updates the DB index atomically with the disk file; Write bypasses that and the divergence is only detected at the next ed validate.\"}} else empty end'"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/revil/projects/zipbul/emberdeck/.claude/hooks/check-ed-gate.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

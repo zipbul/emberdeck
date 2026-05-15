@@ -1,10 +1,20 @@
 ---
 name: emberdeck
-description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로젝트 SSOT. 코드는 카드로부터 derive 된다. **카드 디렉토리 `.emberdeck/cards/` 안 파일을 만들거나 수정하려는 모든 의도에 즉시 본 SKILL 진입.** Write/Edit 로 카드 파일을 직접 손대는 것은 SSOT-DB 불일치를 만드는 절차 우회이며 — 효율로 보일 뿐 실제 cost 는 검증 단계에서 발견되는 재작업으로 항상 더 크다. 프로젝트의 어떤 부분에 영향을 주거나 그것을 참조하는 모든 작업에 사용.
+description: emberdeck 4-tier 카드 시스템 (principle/domain/brief/spec + glossary, SSOT). ed CLI 호출, `.emberdeck/cards/` 파일 접근, 카드/spec/brief/domain/glossary 관련 답변/계획 — 어느 의도라도 즉시 진입. ed 의 mutating 명령 (create/update/delete/rename/set-status/bulk/spec sync/glossary 변경/reset) 은 PreToolUse hook (HC-0) 이 marker 없으면 결정론적으로 차단. 미진입 진행은 SSOT 게이트 우회.
 ---
 
 <hard_constraints>
-이 SKILL 의 hard constraint 는 PreToolUse hook (`.claude/hooks/block-card-direct-edit.sh`) 으로도 enforce 된다. hook 은 `.emberdeck/cards/**/*.md` 에 대한 Write/Edit 시도를 deny 한다. 아래 rule 은 모두 그 enforcement 의 의도를 설명한다.
+PreToolUse hook 두 개가 enforce:
+- `.claude/settings.json` Write/Edit/MultiEdit matcher: `.emberdeck/cards/**/*.md` 직접 편집 deny (HC-1)
+- `.claude/hooks/check-ed-gate.sh` Bash matcher: ed mutating 명령에 `/tmp/claude-emberdeck-gate-<session_id>` marker 검증 (HC-0)
+
+**HC-0** (외부 force gate, 결정론적): ed CLI 의 *mutating* 명령 — `card create/update/delete/rename/set-status`, `bulk create/sync`, `glossary define/remove/rename`, `spec sync`, `spec sync-symbols`, `reset` — 는 PreToolUse hook 이 차단. 통과 절차 (반드시 순서대로):
+  1. **Skill(emberdeck) invoke** (model-invoked. 카드 작업 진입 시점마다 명시 호출 — 세션 내 반복 진입 OK; 비-카드 작업 후 돌아오면 재진입)
+  2. **`<card_analysis>` 표** 한 번에 모든 N 카드 정리 (HC-2) → **사용자 confirm 응답** 받음
+  3. **`<self_review>`** 항목별 통과 (HC-3)
+  4. **marker write**: `touch /tmp/claude-emberdeck-gate-<session_id>` (Bash tool)
+  5. ed mutating 명령 호출 가능. marker 는 1시간 유효 (multiple ed 호출 허용)
+  Why: Skill 은 model-invoked 라 자발성 의존 — hook 이 *결정론적 외부 force*. marker 없이는 ed mutate 불가 = HC-2/3 우회 불가능. read-only 명령 (`get/list/search/tree/context/relations/validate/check/analyze/glossary lookup/init`) 은 gate 외.
 
 **HC-1**: 카드 파일 변경은 오직 `ed` CLI 로만 — `ed card create / update / delete / rename / set-status`, `ed bulk create / sync`. Write/Edit tool 로 `.emberdeck/cards/**` 안 파일 직접 편집 X.
   Why: ed CLI 는 DB index 와 disk 파일을 atomic 하게 갱신한다. Write 직접 편집 시 disk 만 갱신되고 DB stale → 다음 `ed validate` 까지 lag → 후속 작업의 검증 깨짐. 단축처럼 보이지만 발견 시점 늦어진다.
@@ -26,8 +36,9 @@ description: 4-tier 카드(principle/domain/brief/spec)와 glossary 가 프로�
 1. `<card_analysis>` 작성. 3 카드 표 (key/parent/type/summary/주요 토픽) 제시. "이대로 진행?"
 2. 사용자 confirm 받음.
 3. `<self_review>` 각 항목 통과 확인 후 작성.
-4. `ed card create domain-x --type domain ...` 형태로 ed CLI 실행 (Write tool X).
-5. 세 카드 모두 작성 후 `ed validate cards` 실행.
+4. `touch /tmp/claude-emberdeck-gate-<session_id>` 로 HC-0 marker write (없이는 hook 이 ed 차단).
+5. `ed card create domain-x --type domain ...` 형태로 ed CLI 실행 (Write tool X).
+6. 세 카드 모두 작성 후 `ed validate cards` 실행.
 6. warnings 0 확인 후 commit.
 
 안티패턴 (실제 발생): "32 카드라 batch 가 효율적" 으로 `<card_analysis>` 스킵 + Write tool 직접 사용. → hook 이 차단 + 재작업. 효율이 아니라 우회.
