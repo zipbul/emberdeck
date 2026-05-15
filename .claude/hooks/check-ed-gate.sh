@@ -18,6 +18,30 @@ cmd=$(echo "$input" | jq -r '.tool_input.command // ""')
 # do NOT need the gate.
 mutating_re='(^|[[:space:];&|]+)ed[[:space:]]+(card[[:space:]]+(create|update|delete|rename|set-status)|bulk[[:space:]]+(create|sync)|glossary[[:space:]]+(define|remove|rename)|spec[[:space:]]+(sync|sync-symbols)|reset)([[:space:]]|$)'
 
+# Script-bypass pattern: scripting languages (python/node/ruby/perl/awk) that
+# touch `.emberdeck/cards/` directly OR that pipe into `ed bulk create --from`.
+# This catches "Python loop generates card frontmatter" — the very anti-pattern
+# CORE.md forbids (card SoT must be the YAML body, not script output).
+bypass_re='^[[:space:]]*(python[0-9.]*|node|deno|bun|ruby|perl|awk|sed)[[:space:]].*(\.emberdeck/cards|ed[[:space:]]+bulk[[:space:]]+create.*--from)'
+
+if echo "$cmd" | grep -qE "$bypass_re"; then
+  jq -nc --arg cmd "$cmd" '
+  {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: (
+        "emberdeck script-bypass blocked. Detected scripting language touching `.emberdeck/cards` or piping into `ed bulk create --from`.\n\n" +
+        "Card data SoT is the YAML body. Generating it via Python/node/etc makes the script the SoT and breaks per-card review (HC-3 self_review). " +
+        "If you genuinely need bulk creation, write the staging JSON array MANUALLY with the Write tool to a path OUTSIDE .emberdeck/cards/, then call " +
+        "`ed bulk create --from <staging>.json` directly — no script generation step.\n\n" +
+        "Command: " + ($cmd | split(" ")[0:4] | join(" ")) + " ..."
+      )
+    }
+  }'
+  exit 0
+fi
+
 if ! echo "$cmd" | grep -qE "$mutating_re"; then
   # Not a card-mutating ed invocation. Allow.
   echo "{}"
