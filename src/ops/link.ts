@@ -275,38 +275,6 @@ export async function expandAffectedFiles(
 }
 
 /**
- * Given a list of changed files, returns the cards that reference symbols in
- * those files via codeLinks. Expands the input through the import graph so a
- * change to `foo.ts` also flags cards that link to importers of `foo.ts`.
- * Internal function — not part of the public API. Use preChangeCheck instead.
-  * @spec code-binding/link-and-coverage/resolve-and-validate
- */
-export async function findAffectedCards(
-  ctx: EmberdeckContext,
-  changedFiles: string[],
-): Promise<CardRow[]> {
-  if (changedFiles.length === 0) return [];
-
-  await ensureReindexed(ctx);
-
-  const expanded = await expandAffectedFiles(ctx, changedFiles);
-  const seen = new Set<string>();
-  for (const file of expanded) {
-    const rows = ctx.codeLinkRepo.findByFile(file);
-    for (const row of rows) {
-      seen.add(row.cardKey);
-    }
-  }
-
-  const result: CardRow[] = [];
-  for (const key of seen) {
-    const card = ctx.cardRepo.findByKey(key);
-    if (card) result.push(card);
-  }
-  return result;
-}
-
-/**
  * Validates that all of a card's codeLinks exist in the current symbol index.
  * Returns declared/valid/broken counts for unambiguous interpretation.
  *

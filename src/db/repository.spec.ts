@@ -298,51 +298,6 @@ describe('CardRepository', () => {
     expect(result).toEqual([]);
   });
 
-  it('findAncestors: returns ancestor chain in order for 3-level hierarchy', () => {
-    // Arrange
-    const grandparent = makeCard({
-      key: 'grandparent',
-      type: 'brief',
-      parent: null,
-      filePath: '.emberdeck/cards/grandparent.md',
-    });
-    const parent = makeCard({
-      key: 'parent',
-      type: 'brief',
-      parent: 'grandparent',
-      filePath: '.emberdeck/cards/parent.md',
-    });
-    const child = makeCard({
-      key: 'child',
-      type: 'spec',
-      parent: 'parent',
-      filePath: '.emberdeck/cards/child.md',
-    });
-    cardRepo.upsert(grandparent);
-    cardRepo.upsert(parent);
-    cardRepo.upsert(child);
-
-    // Act
-    const result = cardRepo.findAncestors('child');
-
-    // Assert
-    expect(result).toHaveLength(2);
-    expect(result[0]!.key).toBe('parent');
-    expect(result[1]!.key).toBe('grandparent');
-  });
-
-  it('findAncestors: returns empty array for a root card', () => {
-    // Arrange
-    const root = makeCard({ key: 'root', parent: null });
-    cardRepo.upsert(root);
-
-    // Act
-    const result = cardRepo.findAncestors('root');
-
-    // Assert
-    expect(result).toEqual([]);
-  });
-
   it('search: matches cards by key and summary via FTS', () => {
     // Arrange
     const card = makeCard({

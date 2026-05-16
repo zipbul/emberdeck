@@ -12,7 +12,6 @@ import {
   findCardsBySymbol,
   validateCodeLinks,
 } from '../../index';
-import { findAffectedCards } from '../../src/ops/link';
 
 // ---- Setup ----
 
@@ -189,29 +188,6 @@ describe('ops/link', () => {
     expect(result[0]!.card.key).toBe('spec/a');
   });
 
-  // 9. [HP] findAffectedCards: 1 file, 1 card → that card
-  it('should return the card that references the changed file', async () => {
-    insertInDb('spec/a');
-    tc.ctx.codeLinkRepo.replaceForCard('spec/a', [
-      { kind: 'function', file: 'src/auth.ts', symbol: 'fn' },
-    ]);
-    const result = await findAffectedCards(tc.ctx, ['src/auth.ts']);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.key).toBe('spec/a');
-  });
-
-  // 10. [HP] findAffectedCards: 2 files same card → dedup (1 card returned)
-  it('should return each card at most once when it references multiple changed files', async () => {
-    insertInDb('spec/a');
-    tc.ctx.codeLinkRepo.replaceForCard('spec/a', [
-      { kind: 'function', file: 'src/a.ts', symbol: 'fnA' },
-      { kind: 'class', file: 'src/b.ts', symbol: 'ClassB' },
-    ]);
-    const result = await findAffectedCards(tc.ctx, ['src/a.ts', 'src/b.ts']);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.key).toBe('spec/a');
-  });
-
   // 11. [HP] validateCodeLinks: all valid → declared=1, valid=1, broken=[]
   it('should return empty array when all code links resolve to existing symbols', async () => {
     const link: CodeLink = { kind: 'function', file: 'src/auth.ts', symbol: 'myFn' };
@@ -260,22 +236,6 @@ describe('ops/link', () => {
     expect(result).toEqual([]);
   });
 
-  // 18. [NE] findAffectedCards: findByKey null → skip
-  it('should skip cards where cardRepo has no matching row when findAffectedCards is called', async () => {
-    insertInDb('spec/a');
-    tc.ctx.codeLinkRepo.replaceForCard('spec/a', [
-      { kind: 'function', file: 'src/a.ts', symbol: 'fn' },
-    ]);
-    tc.ctx.cardRepo.deleteByKey('spec/a');
-    const result = await findAffectedCards(tc.ctx, ['src/a.ts']);
-    expect(result).toEqual([]);
-  });
-
-  // 19. [ED] findAffectedCards: changedFiles=[] → []
-  it('should return empty array when changedFiles is empty', async () => {
-    const result = await findAffectedCards(tc.ctx, []);
-    expect(result).toEqual([]);
-  });
 
   // 20. [ED] findCardsBySymbol: no links matching → []
   it('should return empty array when no cards reference the symbol', async () => {

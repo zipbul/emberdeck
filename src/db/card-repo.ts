@@ -5,8 +5,6 @@ import type { CardRepository, CardRow, CardListFilter, SearchOptions } from './r
 import { FtsSyntaxError } from '../card/errors';
 import { card } from './schema';
 
-const MAX_ANCESTOR_DEPTH = 20;
-
 export class DrizzleCardRepository implements CardRepository {
   constructor(private db: EmberdeckDb) {}
 
@@ -145,17 +143,4 @@ export class DrizzleCardRepository implements CardRepository {
     return this.db.select().from(card).where(eq(card.parent, key)).all() as CardRow[];
   }
 
-  findAncestors(key: string): CardRow[] {
-    const ancestors: CardRow[] = [];
-    let current = this.findByKey(key);
-
-    for (let i = 0; i < MAX_ANCESTOR_DEPTH && current?.parent; i++) {
-      const parent = this.findByKey(current.parent);
-      if (!parent) break;
-      ancestors.push(parent);
-      current = parent;
-    }
-
-    return ancestors;
-  }
 }

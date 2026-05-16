@@ -68,7 +68,6 @@ export interface CardRepository {
   /** Push limit/offset down to FTS5. Without pagination at the DB the CLI fetches every match before slicing. */
   search(query: string, options?: SearchOptions): CardRow[];
   findChildren(key: string): CardRow[];
-  findAncestors(key: string): CardRow[];
 }
 
 export interface RelationRepository {
