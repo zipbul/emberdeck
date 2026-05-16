@@ -20,8 +20,9 @@
 - word: drift
   definition: >-
     Divergence between card claims and current code or glossary state,
-    classified into `broken_link` and `glossary_broken` driftTypes that drive
-    auto status transitions.
+    classified into broken_link and glossary_broken driftTypes. Detection by
+    check-drift is read-only; status transitions to drifted are explicit
+    operator decisions via card set-status.
 - word: gildash
   definition: >-
     External code-index dependency that supplies symbol, file, and import facts
