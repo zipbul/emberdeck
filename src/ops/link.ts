@@ -201,7 +201,7 @@ export async function resolveCardCodeLinks(
   const codeLinks = ctx.codeLinkRepo.findByCardKey(key);
   if (codeLinks.length === 0) return [];
 
-  const cache = makeSymbolFileCache(ctx)!;
+  const cache = makeSymbolFileCache(ctx);
   const result: ResolvedCodeLink[] = [];
   for (const link of codeLinks) {
     const lk: CodeLink = { kind: link.kind, file: link.file, symbol: link.symbol };
@@ -295,7 +295,7 @@ export async function validateCodeLinks(
   const status = cardFile.frontmatter.status;
   const isPlanning = status === 'draft';
 
-  const cache = makeSymbolFileCache(ctx)!;
+  const cache = makeSymbolFileCache(ctx);
   const broken: BrokenLink[] = [];
   const planned: BrokenLink[] = [];
 

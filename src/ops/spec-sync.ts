@@ -77,7 +77,7 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
   await ensureReindexed(ctx);
 
   const annotations = collectTrackedAnnotations(ctx);
-  const symbolCache = makeSymbolFileCache(ctx)!;
+  const symbolCache = makeSymbolFileCache(ctx);
   let created = 0;
   let alreadyLinked = 0;
   const unmatched: SpecSyncResult['unmatched'] = [];
@@ -324,7 +324,7 @@ export async function getLinkCoverage(
     return { declared: 0, resolved: 0, broken: 0, coverage: 1, unreferenced: [] };
   }
 
-  const coverageCache = makeSymbolFileCache(ctx)!;
+  const coverageCache = makeSymbolFileCache(ctx);
   let resolved = 0;
   let broken = 0;
   const linkedFiles = new Set<string>();

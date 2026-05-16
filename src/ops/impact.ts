@@ -55,7 +55,7 @@ export async function preChangeCheck(
   const expandedFiles = await expandAffectedFiles(ctx, files);
 
   // Shared symbol cache reused across all per-card link-status checks below.
-  const sharedCache = makeSymbolFileCache(ctx)!;
+  const sharedCache = makeSymbolFileCache(ctx);
 
   // Find directly affected cards by codeLinks
   for (const file of expandedFiles) {
@@ -219,7 +219,7 @@ function computeLinkStatus(
   const links = ctx.codeLinkRepo.findByCardKey(cardKey);
   if (links.length === 0) return { valid: 0, broken: 0 };
 
-  const symbolCache = cache ?? makeSymbolFileCache(ctx)!;
+  const symbolCache = cache ?? makeSymbolFileCache(ctx);
   let valid = 0;
   let broken = 0;
   for (const link of links) {
