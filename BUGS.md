@@ -84,3 +84,37 @@ Phase 1.2.5 (brief + spec runner-and-output 카드 wording 정정) 진행 중 �
 - B-002 우회: patch base 를 `ed card get` (DB) 이 아닌 *disk `.md` 의 frontmatter* 에서 직접 read (HC-1 = Write/Edit 금지지 Read OK) — nested optional 필드 보존
 
 두 버그 모두 별도 PR 로 fix 권장 — 우회 없이 ed CLI 만으로 카드 작업이 안전해지려면 필수.
+
+---
+
+## Follow-up (envelope-removal redesign 영역 외 — 별도 PR)
+
+envelope-removal redesign 진행 중 surfaced 됐으나 *별도 design 결정* 영역. 본 redesign 의 완성도와 무관.
+
+### F-001 — `CardStatus` type 에 `retired` 누락 (SKILL.md vs 코드 drift)
+
+**현황**: `src/card/types.ts:8` `CardStatus = 'draft' | 'active' | 'drifted'`. SKILL.md card_fields 명시: principle/domain = `draft|active|retired`, brief/spec = `draft|active|drifted|retired`. 코드는 retired 누락.
+
+**현재 영향**: 0 — 32 spec 카드 모두 draft, retired 사용 0건. silent drift (validateCardStatus 가 `retired` 입력 시 fail).
+
+**진짜 fix 범위**: retired status 의 *의미* + 영향 (validate / check drift / analyze health / activation guard) design. retired = 카드 lifecycle 종료 = *deprecation 기능 영역*. 별도 PR.
+
+### F-002 — `ed spec sync` markerMissing 자동 cleanup
+
+**현황**: `src/ops/spec-sync.ts:150-158` 가 markerMissing 를 *진단으로 report 만*, DB code_link 자동 삭제 X. Phase 2 의 envelope 함수 삭제 후 9개 stale link 잔존.
+
+**의도된 동작**: plan §1.7 의 spec sync shape 가 markerMissing 을 "진단 (실패 아님)" 명시. 자동 삭제 = silent breakage 위험 (사용자가 source `@spec` 임시 제거 시 link 영구 손실).
+
+**진짜 fix 범위**: 별도 `ed spec sync --prune` flag 또는 `ed spec gc` 명령 — 사용자 명시 의도 확인 후 stale 삭제. 별도 PR.
+
+### F-003 — `CardHasDependentsError` / `GlossaryConflictError` 별도 클래스 분리
+
+**현황**: `src/ops/delete.ts:56,82` 가 children/cross-domain-refs 검증 실패 시 `CardValidationError` throw → exit 2. 의미적으로 *conflict* (다른 리소스와 충돌) 라 exit 4 가 자연 (`CardAlreadyExistsError` 와 일관). 동일 패턴: `src/ops/glossary.ts` `renameGlossary` 의 newWord 충돌 → `GlossaryValidationError` (exit 2) 대신 `GlossaryConflictError` (exit 4).
+
+**진짜 fix 범위**: 두 신규 클래스 추가 + errors.ts 매핑 + ops/* throw 변경 + 카드 wording 회복 (exit 2 → 4) + plan §1.7 + §4 표 정정. 의미 정합 회복 가치 있음. 별도 PR.
+
+### F-004 — `ed check coverage <key>` 의미 전환 (link-coverage → symbol-coverage)
+
+**현황**: plan §6 "분리된 결정" 명시. OP-3 `getCardSymbolCoverage` 신규 op 도입 = `ed check coverage <key>` 의 의미를 *declared codeLinks 의 resolve 율* 에서 *카드가 가리키는 파일들의 심볼 중 카드가 참조하는 비율* 로 변경. envelope 제거와 직교 — 의미 재정의.
+
+**진짜 fix 범위**: 신규 op + check.ts 모드 분기 + 카드 POST-001a 본문 정정 + plan §6 결정 마무리. 별도 PR.
