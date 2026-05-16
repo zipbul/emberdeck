@@ -9,20 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, unlinkSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CLI = join(import.meta.dir, '../../cli.ts');
-
-interface RunResult { exitCode: number; stdout: string; }
-async function runCli(args: string[], cwd: string): Promise<RunResult> {
-  const proc = Bun.spawn(['bun', CLI, ...args], {
-    cwd,
-    env: { ...process.env, NO_COLOR: '1' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const stdout = await new Response(proc.stdout).text();
-  await proc.exited;
-  return { exitCode: proc.exitCode ?? -1, stdout };
-}
+import { spawnCli as runCli } from './helpers';
 
 function setupProject(): string {
   const tmp = mkdtempSync(join(tmpdir(), 'ed-dbcorrupt-'));
@@ -44,31 +31,33 @@ describe('DB corruption / fault tolerance e2e', () => {
   });
   afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
 
-  test('completely corrupt data.db file → JSON error envelope, no crash', async () => {
+  test('completely corrupt data.db file → stderr JSON-line error, no crash', async () => {
     writeFileSync(join(tmp, '.emberdeck/data.db'), 'this is not a sqlite file at all');
-    // Also remove WAL/SHM so SQLite can't recover from them.
     try { unlinkSync(join(tmp, '.emberdeck/data.db-wal')); } catch {}
     try { unlinkSync(join(tmp, '.emberdeck/data.db-shm')); } catch {}
 
     const r = await runCli(['card', 'list'], tmp);
-    // Either crashes cleanly with JSON error envelope, or recovers via fallback.
-    // Contract: stdout MUST be parseable JSON envelope.
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.schemaVersion).toEqual({ major: 1, minor: 0 });
+    // Either recovers (exit 0 + per-command JSON on stdout) or errors (stderr JSON-line).
     if (r.exitCode !== 0) {
-      expect(parsed.status).toBe('error');
-      expect(typeof parsed.error.code).toBe('string');
+      expect(r.stdout).toBe('');
+      expect(r.stderr).toContain('"level":"error"');
+    } else {
+      JSON.parse(r.stdout); // must parse
     }
   });
 
   test('truncated data.db (file shorter than SQLite header)', async () => {
-    writeFileSync(join(tmp, '.emberdeck/data.db'), 'SQ');  // < 16 bytes
+    writeFileSync(join(tmp, '.emberdeck/data.db'), 'SQ');
     try { unlinkSync(join(tmp, '.emberdeck/data.db-wal')); } catch {}
     try { unlinkSync(join(tmp, '.emberdeck/data.db-shm')); } catch {}
 
     const r = await runCli(['card', 'list'], tmp);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.schemaVersion).toEqual({ major: 1, minor: 0 });
+    // Either recovers or emits structured error
+    if (r.exitCode === 0) {
+      JSON.parse(r.stdout);
+    } else {
+      expect(r.stderr).toContain('"level":"error"');
+    }
   });
 
   test('missing data.db file (after init) → re-creates DB transparently', async () => {
@@ -79,19 +68,18 @@ describe('DB corruption / fault tolerance e2e', () => {
     const r = await runCli(['card', 'list'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('ok');
-    expect(parsed.data.total).toBe(0);
+    expect(parsed.total).toBe(0);
   });
 
-  test('readonly data.db → write op reports error envelope', async () => {
+  test('readonly data.db → write op reports error', async () => {
     const { chmodSync } = await import('node:fs');
     chmodSync(join(tmp, '.emberdeck/data.db'), 0o400);
     try {
       const r = await runCli(['card', 'create', 'p', '--type', 'brief', '--summary', 's'], tmp);
-      // Read might succeed (chmod 400 allows read), write must fail with JSON envelope.
-      const parsed = JSON.parse(r.stdout);
-      expect(parsed.schemaVersion).toEqual({ major: 1, minor: 0 });
-      if (r.exitCode !== 0) expect(parsed.status).toBe('error');
+      if (r.exitCode !== 0) {
+        expect(r.stdout).toBe('');
+        expect(r.stderr).toContain('"level":"error"');
+      }
     } finally {
       chmodSync(join(tmp, '.emberdeck/data.db'), 0o644);
     }

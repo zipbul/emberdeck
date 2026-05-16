@@ -13,27 +13,9 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, chmodSync, readdirSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CLI = join(import.meta.dir, '../../cli.ts');
+import { spawnCli as runCli } from './helpers';
+
 const IS_ROOT = process.getuid?.() === 0;
-
-interface RunResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-async function runCli(args: string[], cwd: string): Promise<RunResult> {
-  const proc = Bun.spawn(['bun', CLI, ...args], {
-    cwd,
-    env: { ...process.env, NO_COLOR: '1' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  await proc.exited;
-  return { exitCode: proc.exitCode ?? -1, stdout, stderr };
-}
 
 function setupProject(): string {
   const tmp = mkdtempSync(join(tmpdir(), 'ed-fserr-'));
@@ -59,16 +41,13 @@ describeIfNotRoot('FS write error e2e', () => {
     }
   });
 
-  test('readonly cards dir → card create reports IO error envelope', async () => {
+  test('readonly cards dir → card create reports stderr JSON-line error', async () => {
     chmodSync(join(tmp, '.emberdeck/cards'), 0o500);  // r+x, no write
     const r = await runCli(['card', 'create', 'p', '--type', 'brief', '--summary', 's'], tmp);
     expect(r.exitCode).not.toBe(0);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('error');
-    // Error code may be PERMISSION/IO_ERROR/INTERNAL_ERROR depending on
-    // which layer caught it; the contract is just "non-zero exit + error envelope"
-    expect(typeof parsed.error.code).toBe('string');
-    expect(parsed.error.message.length).toBeGreaterThan(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('"level":"error"');
+    expect(r.stderr).toContain('"code":');
   });
 
   test('readonly cards dir + atomicWrite leaves no orphaned tmp files', async () => {
@@ -89,8 +68,8 @@ describeIfNotRoot('FS write error e2e', () => {
     // After rollback the card must not exist in the DB; `card get` returns NOT_FOUND.
     const got = await runCli(['card', 'get', 'p'], tmp);
     expect(got.exitCode).toBe(3); // NOT_FOUND
-    const parsed = JSON.parse(got.stdout);
-    expect(parsed.error.code).toBe('CARD_NOT_FOUND');
+    expect(got.stdout).toBe('');
+    expect(got.stderr).toContain('"code":"card-not-found"');
   });
 
   test('missing parent dir for namespaced key still creates dir tree', async () => {
@@ -109,22 +88,24 @@ describeIfNotRoot('FS write error e2e', () => {
       );
       // Don't pre-create .emberdeck/cards. Setup will fail trying to open DB.
       const r = await runCli(['card', 'list'], tmp2);
-      // Either it auto-creates the dir or returns clean error envelope.
-      // Either way, response is JSON envelope with status field.
-      const parsed = JSON.parse(r.stdout);
-      expect(parsed.schemaVersion).toEqual({ major: 1, minor: 0 });
-      expect(['ok', 'error']).toContain(parsed.status);
+      // Either auto-creates (exit 0 + per-command JSON) or clean error (stderr JSON-line).
+      if (r.exitCode === 0) {
+        JSON.parse(r.stdout);
+      } else {
+        expect(r.stdout).toBe('');
+        expect(r.stderr).toContain('"level":"error"');
+      }
     } finally {
       try { rmSync(tmp2, { recursive: true, force: true }); } catch {}
     }
   });
 
-  test('config file unreadable → CONFIG_MISSING-class error', async () => {
+  test('config file unreadable → stderr JSON-line error', async () => {
     chmodSync(join(tmp, '.emberdeck.jsonc'), 0o000);
     const r = await runCli(['card', 'list'], tmp);
     chmodSync(join(tmp, '.emberdeck.jsonc'), 0o644);
     expect(r.exitCode).not.toBe(0);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('error');
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('"level":"error"');
   });
 });

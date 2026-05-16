@@ -95,23 +95,22 @@ describeIfPty('TTY interactive confirm e2e', () => {
   test('user types "yes" → reset proceeds', async () => {
     const r = await runInPty(['reset'], tmp, 'yes\n');
     expect(r.exitCode).toBe(0);
-    const env = extractJson(r.stdout) as { status: string };
-    expect(env.status).toBe('ok');
+    const env = extractJson(r.stdout) as { cardsDeleted: number; glossaryCleared: boolean };
+    expect(env.glossaryCleared).toBe(true);
   });
 
-  test('user types "no" → reset aborts with CLI_USAGE_ERROR', async () => {
+  test('user types "no" → reset aborts (exit 2; stderr cli-usage-error JSON-line)', async () => {
     const r = await runInPty(['reset'], tmp, 'no\n');
     expect(r.exitCode).toBe(2);
-    const env = extractJson(r.stdout) as { status: string; error: { code: string } };
-    expect(env.status).toBe('error');
-    expect(env.error.code).toBe('CLI_USAGE_ERROR');
+    // stderr (mixed into r.stdout by pty) should contain an error JSON-line
+    expect(r.stdout).toContain('"level":"error"');
+    expect(r.stdout).toContain('"code":"cli-usage-error"');
   });
 
   test('user types empty (just enter) → aborts', async () => {
     const r = await runInPty(['reset'], tmp, '\n');
     expect(r.exitCode).toBe(2);
-    const env = extractJson(r.stdout) as { status: string };
-    expect(env.status).toBe('error');
+    expect(r.stdout).toContain('"level":"error"');
   });
 
   test('user types "YES" (uppercase) → proceeds (case-insensitive match)', async () => {

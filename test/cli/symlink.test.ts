@@ -9,20 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CLI = join(import.meta.dir, '../../cli.ts');
-
-interface RunResult { exitCode: number; stdout: string; }
-async function runCli(args: string[], cwd: string): Promise<RunResult> {
-  const proc = Bun.spawn(['bun', CLI, ...args], {
-    cwd,
-    env: { ...process.env, NO_COLOR: '1' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const stdout = await new Response(proc.stdout).text();
-  await proc.exited;
-  return { exitCode: proc.exitCode ?? -1, stdout };
-}
+import { spawnCli as runCli } from './helpers';
 
 function setupProject(): string {
   const tmp = mkdtempSync(join(tmpdir(), 'ed-symlink-'));
@@ -62,7 +49,7 @@ describe('symlink handling e2e', () => {
 
     const get = await runCli(['card', 'get', 'symlinked'], tmp);
     expect(get.exitCode).toBe(0);
-    expect(JSON.parse(get.stdout).data.summary).toBe('card symlinked');
+    expect(JSON.parse(get.stdout).summary).toBe('card symlinked');
   });
 
   test('broken symlink → bulk sync handles cleanly, good cards still synced', async () => {
@@ -73,8 +60,11 @@ describe('symlink handling e2e', () => {
     // Either skipped (exit 0) or reported as partial (exit 2). Both acceptable —
     // contract is "no crash + good card still made it".
     expect([0, 2]).toContain(sync.exitCode);
-    const parsed = JSON.parse(sync.stdout);
-    expect(parsed.schemaVersion).toEqual({ major: 1, minor: 0 });
+    // Stdout may be empty (exit 2 partial throws to stderr) or v2 bulk-sync shape
+    if (sync.stdout.trim()) {
+      const parsed = JSON.parse(sync.stdout);
+      expect(parsed.synced).toBeDefined();
+    }
     // Good card synced into DB (verifiable via subsequent get).
     const get = await runCli(['card', 'get', 'good'], tmp);
     expect(get.exitCode).toBe(0);
@@ -103,9 +93,12 @@ describe('symlink handling e2e', () => {
     symlinkSync(realDir, join(tmp, '.emberdeck/cards/linked-dir'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);
-    // Either the glob follows the dir symlink and syncs (status=ok) or it doesn't (still ok with synced=0).
-    // Contract: subprocess returns valid JSON envelope without crash.
-    const parsed = JSON.parse(sync.stdout);
-    expect(parsed.schemaVersion).toEqual({ major: 1, minor: 0 });
+    // v2 contract: subprocess returns valid JSON object on success (or exit 2 on partial).
+    if (sync.exitCode === 0) {
+      const parsed = JSON.parse(sync.stdout);
+      expect(parsed.synced).toBeDefined();
+    } else {
+      expect(sync.exitCode).toBe(2);
+    }
   });
 });

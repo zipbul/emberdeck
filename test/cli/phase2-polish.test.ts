@@ -6,7 +6,7 @@ import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
 import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runEd, setupTmpProject } from './helpers';
+import { runEd, setupTmpProject, parseJsonLines } from './helpers';
 
 describe('Phase 2 polish: bulk create partial-success', () => {
   let tmp: string;
@@ -14,34 +14,33 @@ describe('Phase 2 polish: bulk create partial-success', () => {
   beforeEach(() => { const h = setupTmpProject(); tmp = h.tmp; cleanup = h.cleanup; });
   afterEach(() => { cleanup(); });
 
-  test('mixed success/failure in bulk → status=partial', async () => {
+  test('mixed success/failure in bulk → exit 2 + partial arrays', async () => {
     const json = JSON.stringify([
       { key: 'ok-card', type: 'brief', summary: 'OK card' },
       { key: 'bad-parent', type: 'brief', summary: 'bad', parent: 'nonexistent-parent' },
     ]);
     writeFileSync(join(tmp, 'mix.json'), json);
     const r = await runEd(['bulk', 'create', '--from', 'mix.json'], tmp);
+    expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
-    expect(parsed.data.created).toBe(1);
-    expect(parsed.data.failed).toBe(1);
-    expect(parsed.errors.length).toBe(1);
-    expect(parsed.errors[0].key).toBe('bad-parent');
+    expect(parsed.created).toHaveLength(1);
+    expect(parsed.failed).toHaveLength(1);
+    expect(parsed.failed[0].key).toBe('bad-parent');
   });
 
-  test('all success → status=ok', async () => {
+  test('all success → exit 0', async () => {
     const json = JSON.stringify([
       { key: 'a-card', type: 'brief', summary: 'A' },
       { key: 'b-card', type: 'brief', summary: 'B' },
     ]);
     writeFileSync(join(tmp, 'all.json'), json);
     const r = await runEd(['bulk', 'create', '--from', 'all.json'], tmp);
+    expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('ok');
-    expect(parsed.data.created).toBe(2);
+    expect(parsed.created).toHaveLength(2);
   });
 
-  test('all failure → status=partial (per CLI_PLAN §3.6) + exit 2 (CI gate)', async () => {
+  test('all failure → exit 2 + failed[] populated, created[] empty', async () => {
     const json = JSON.stringify([
       { key: 'bad1', type: 'brief', summary: 'X', parent: 'nonexistent' },
       { key: 'bad2', type: 'brief', summary: 'Y', parent: 'nonexistent' },
@@ -49,9 +48,8 @@ describe('Phase 2 polish: bulk create partial-success', () => {
     writeFileSync(join(tmp, 'all-bad.json'), json);
     const r = await runEd(['bulk', 'create', '--from', 'all-bad.json'], tmp);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
-    expect(parsed.data.created).toBe(0);
-    expect(parsed.data.failed).toBe(2);
+    expect(parsed.created).toHaveLength(0);
+    expect(parsed.failed).toHaveLength(2);
     expect(r.exitCode).toBe(2);
   });
 
@@ -87,12 +85,14 @@ describe('Phase 2 polish: card export STDOUT default', () => {
   });
   afterEach(() => { cleanup(); });
 
-  test('default → content to STDOUT (markdown)', async () => {
+  test('default → markdown content nested in JSON output (mode=stdout)', async () => {
     const r = await runEd(['card', 'export', 'expo'], tmp);
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toContain('---');
-    expect(r.stdout).toContain('key: expo');
-    expect(r.stdout).toContain('summary: export me');
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.mode).toBe('stdout');
+    expect(parsed.content).toContain('---');
+    expect(parsed.content).toContain('key: expo');
+    expect(parsed.content).toContain('summary: export me');
   });
 
   test('default STDOUT does NOT modify original file', async () => {
@@ -117,7 +117,8 @@ describe('Phase 2 polish: card export STDOUT default', () => {
   test('--out=- explicit STDOUT', async () => {
     const r = await runEd(['card', 'export', 'expo', '--out', '-'], tmp);
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toContain('key: expo');
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.content).toContain('key: expo');
   });
 
   test('--out FILE writes to file', async () => {
@@ -125,7 +126,7 @@ describe('Phase 2 polish: card export STDOUT default', () => {
     const r = await runEd(['card', 'export', 'expo', '--out', outPath], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.data.mode).toBe('file');
+    expect(parsed.mode).toBe('file');
     const content = await Bun.file(outPath).text();
     expect(content).toContain('key: expo');
   });
@@ -134,8 +135,8 @@ describe('Phase 2 polish: card export STDOUT default', () => {
     const r = await runEd(['card', 'export', 'expo', '--in-place'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.data.mode).toBe('in-place');
-    expect(parsed.data.filePath).toContain('expo');
+    expect(parsed.mode).toBe('in-place');
+    expect(parsed.filePath).toContain('expo');
   });
 });
 
@@ -219,28 +220,28 @@ describe('Phase 2 polish: card create/update --glossary/--tag/--parent', () => {
     expect(r.exitCode).toBe(0);
     const get = await runEd(['card', 'get', 'g1'], tmp);
     const parsed = JSON.parse(get.stdout);
-    expect(parsed.data.frontmatter.glossary).toEqual(['foo']);
+    expect(parsed.glossary).toEqual(['foo']);
   });
 
   test('card create with --glossary comma-separated', async () => {
     const r = await runEd(['card', 'create', 'g2', '--type', 'brief', '--summary', 's', '--glossary', 'foo,bar'], tmp);
     expect(r.exitCode).toBe(0);
     const get = await runEd(['card', 'get', 'g2'], tmp);
-    expect(JSON.parse(get.stdout).data.frontmatter.glossary).toEqual(['foo', 'bar']);
+    expect(JSON.parse(get.stdout).glossary).toEqual(['foo', 'bar']);
   });
 
   test('card create with repeated --glossary flag', async () => {
     const r = await runEd(['card', 'create', 'g3', '--type', 'brief', '--summary', 's', '--glossary', 'foo', '--glossary', 'bar'], tmp);
     expect(r.exitCode).toBe(0);
     const get = await runEd(['card', 'get', 'g3'], tmp);
-    expect(JSON.parse(get.stdout).data.frontmatter.glossary).toEqual(['foo', 'bar']);
+    expect(JSON.parse(get.stdout).glossary).toEqual(['foo', 'bar']);
   });
 
   test('card create with --tag (repeatable)', async () => {
     const r = await runEd(['card', 'create', 't1', '--type', 'brief', '--summary', 's', '--glossary', 'foo', '--tag', 'alpha', '--tag', 'beta'], tmp);
     expect(r.exitCode).toBe(0);
     const get = await runEd(['card', 'get', 't1'], tmp);
-    expect(JSON.parse(get.stdout).data.frontmatter.tags).toEqual(['alpha', 'beta']);
+    expect(JSON.parse(get.stdout).tags).toEqual(['alpha', 'beta']);
   });
 
   test('card create with --parent', async () => {
@@ -248,7 +249,7 @@ describe('Phase 2 polish: card create/update --glossary/--tag/--parent', () => {
     const r = await runEd(['card', 'create', 'p-child', '--type', 'spec', '--summary', 'c', '--parent', 'parent-of-p', '--glossary', 'foo'], tmp);
     expect(r.exitCode).toBe(0);
     const get = await runEd(['card', 'get', 'p-child'], tmp);
-    expect(JSON.parse(get.stdout).data.frontmatter.parent).toBe('parent-of-p');
+    expect(JSON.parse(get.stdout).parent).toBe('parent-of-p');
   });
 
   test('card update --glossary replaces existing glossary', async () => {
@@ -256,7 +257,7 @@ describe('Phase 2 polish: card create/update --glossary/--tag/--parent', () => {
     const r = await runEd(['card', 'update', 'u1', '--glossary', 'bar'], tmp);
     expect(r.exitCode).toBe(0);
     const get = await runEd(['card', 'get', 'u1'], tmp);
-    expect(JSON.parse(get.stdout).data.frontmatter.glossary).toEqual(['bar']);
+    expect(JSON.parse(get.stdout).glossary).toEqual(['bar']);
   });
 });
 
@@ -266,16 +267,22 @@ describe('Phase 2 polish: --quiet mode', () => {
   beforeEach(() => { const h = setupTmpProject(); tmp = h.tmp; cleanup = h.cleanup; });
   afterEach(() => { cleanup(); });
 
-  test('--quiet suppresses JSON envelope on stdout', async () => {
+  test('--quiet produces compact JSON (single line, no pretty-print)', async () => {
     const r = await runEd(['--quiet', 'card', 'list'], tmp);
     expect(r.exitCode).toBe(0);
+    // No schemaVersion envelope in v2; compact JSON → no leading "  " indent on first key
     expect(r.stdout).not.toMatch(/"schemaVersion"/);
+    expect(r.stdout.split('\n').filter(Boolean)).toHaveLength(1);
   });
 
-  test('default emits JSON envelope', async () => {
+  test('default emits pretty-printed v2 JSON (multi-line, top-level keys present)', async () => {
     const r = await runEd(['card', 'list'], tmp);
     expect(r.exitCode).toBe(0);
-    expect(r.stdout).toMatch(/"schemaVersion"/);
+    // v2 has no envelope; only per-command keys at top level
+    expect(r.stdout).not.toMatch(/"schemaVersion"/);
+    expect(r.stdout).toMatch(/"items"/);
+    expect(r.stdout).toMatch(/"total"/);
+    expect(r.stdout.split('\n').length).toBeGreaterThan(1);
   });
 });
 
@@ -288,26 +295,27 @@ describe('Phase 2 polish: enum validation at CLI layer', () => {
   test('card create --type invalid → rejected before write (no corrupt file)', async () => {
     const r = await runEd(['card', 'create', 'bad-type', '--type', 'banana', '--summary', 'x'], tmp);
     expect(r.exitCode).not.toBe(0);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('error');
-    expect(parsed.error.message).toContain('invalid --type');
+    expect(r.stdout).toBe('');
+    const err = parseJsonLines(r.stderr).find((l) => l.level === 'error');
+    expect(err?.message).toContain('invalid --type');
     // Verify NO file was created (no corruption)
     const list = await runEd(['card', 'list'], tmp);
-    expect(JSON.parse(list.stdout).data.total).toBe(0);
+    expect(JSON.parse(list.stdout).total).toBe(0);
   });
 
   test('card create --status invalid → rejected', async () => {
     const r = await runEd(['card', 'create', 'x', '--type', 'brief', '--summary', 'x', '--status', 'banana'], tmp);
     expect(r.exitCode).not.toBe(0);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.error.message).toContain('invalid status');
+    const err = parseJsonLines(r.stderr).find((l) => l.level === 'error');
+    expect(err?.message).toContain('invalid status');
   });
 
   test('card set-status invalid → rejected', async () => {
     await runEd(['card', 'create', 'x', '--type', 'brief', '--summary', 'x'], tmp);
     const r = await runEd(['card', 'set-status', 'x', 'banana'], tmp);
     expect(r.exitCode).not.toBe(0);
-    expect(JSON.parse(r.stdout).error.message).toContain('invalid status');
+    const err = parseJsonLines(r.stderr).find((l) => l.level === 'error');
+    expect(err?.message).toContain('invalid status');
   });
 
   test('card list --type invalid → rejected', async () => {
@@ -318,21 +326,21 @@ describe('Phase 2 polish: enum validation at CLI layer', () => {
   test('card search --type invalid → rejected', async () => {
     const r = await runEd(['card', 'search', 'foo', '--type', 'banana'], tmp);
     expect(r.exitCode).not.toBe(0);
-    expect(JSON.parse(r.stdout).error.message).toContain('invalid --type');
+    const err = parseJsonLines(r.stderr).find((l) => l.level === 'error');
+    expect(err?.message).toContain('invalid --type');
   });
 
   test('bulk create with invalid type in JSON → rejected, no corruption', async () => {
     const json = JSON.stringify([{ key: 'bad-bulk', type: 'banana', summary: 'x' }]);
     writeFileSync(join(tmp, 'bad.json'), json);
     const r = await runEd(['bulk', 'create', '--from', 'bad.json'], tmp);
-    expect(r.exitCode).toBe(2); // partial
+    expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
-    expect(parsed.data.rejected_pre_write).toBe(1);
-    expect(parsed.data.created).toBe(0);
+    expect(parsed.failed).toHaveLength(1);
+    expect(parsed.created).toHaveLength(0);
     // No card actually created
     const list = await runEd(['card', 'list'], tmp);
-    expect(JSON.parse(list.stdout).data.total).toBe(0);
+    expect(JSON.parse(list.stdout).total).toBe(0);
   });
 
   test('card update --field type=invalid → rejected', async () => {
@@ -353,23 +361,21 @@ describe('Phase 2 polish: card export emits JSON envelope', () => {
   });
   afterEach(() => { cleanup(); });
 
-  test('STDOUT emits PURE CliResult JSON (jq-parseable, markdown nested in data.content)', async () => {
+  test('STDOUT emits PURE v2 JSON (jq-parseable, markdown nested in content)', async () => {
     const r = await runEd(['card', 'export', 'jx'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('ok');
-    expect(parsed.data.mode).toBe('stdout');
-    expect(parsed.data.content).toContain('key: jx');
-    expect(parsed.data.content).toContain('summary: json export');
-    expect(parsed.data.bytes).toBe(parsed.data.content.length);
+    expect(parsed.mode).toBe('stdout');
+    expect(parsed.content).toContain('key: jx');
+    expect(parsed.content).toContain('summary: json export');
+    expect(parsed.bytes).toBe(parsed.content.length);
   });
 
-  test('--in-place emits only JSON envelope (no raw markdown leak)', async () => {
+  test('--in-place emits only v2 JSON (no raw markdown leak)', async () => {
     const r = await runEd(['card', 'export', 'jx', '--in-place'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('ok');
-    expect(parsed.data.mode).toBe('in-place');
+    expect(parsed.mode).toBe('in-place');
   });
 });
 
@@ -383,7 +389,7 @@ describe('Phase 2 polish: spinner stays out of stdout AND no stderr leaks in JSO
     const r = await runEd(['analyze'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('ok');
+    expect(parsed.health).toBeDefined();
     expect(r.stdout).not.toContain('\x1b[');
     expect(r.stdout).not.toContain('⠋');
   });

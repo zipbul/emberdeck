@@ -12,26 +12,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CLI = join(import.meta.dir, '../../cli.ts');
-
-interface RunResult {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}
-
-async function runCli(args: string[], cwd: string): Promise<RunResult> {
-  const proc = Bun.spawn(['bun', CLI, ...args], {
-    cwd,
-    env: { ...process.env, NO_COLOR: '1' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  await proc.exited;
-  return { exitCode: proc.exitCode ?? -1, stdout, stderr };
-}
+import { spawnCli as runCli } from './helpers';
 
 function setupProject(): string {
   const tmp = mkdtempSync(join(tmpdir(), 'ed-malformed-'));
@@ -67,9 +48,8 @@ describe('malformed card files: error envelope regression', () => {
     const r = await runCli(['bulk', 'sync'], tmp);
     expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
-    expect(parsed.errors.length).toBeGreaterThan(0);
-    expect(parsed.errors[0].code).toBe('SYNC_FAILED');
+    expect(parsed.failed.length).toBeGreaterThan(0);
+    expect(parsed.failed[0].filePath).toContain('broken-yaml');
   });
 
   test('card missing required key field', async () => {
@@ -83,7 +63,7 @@ describe('malformed card files: error envelope regression', () => {
     const r = await runCli(['bulk', 'sync'], tmp);
     expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
+    expect(parsed.failed.length).toBeGreaterThan(0);
   });
 
   test('card with invalid type', async () => {
@@ -98,8 +78,7 @@ describe('malformed card files: error envelope regression', () => {
     const r = await runCli(['bulk', 'sync'], tmp);
     expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
-    expect(parsed.errors[0].code).toBe('SYNC_FAILED');
+    expect(parsed.failed.length).toBeGreaterThan(0);
   });
 
   test('card with invalid status', async () => {
@@ -217,9 +196,8 @@ describe('malformed card files: error envelope regression', () => {
     const r = await runCli(['bulk', 'sync'], tmp);
     expect(r.exitCode).toBe(2);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('partial');
-    expect(parsed.data.synced).toBe(1);
-    expect(parsed.data.errors).toBeGreaterThan(0);
+    expect(parsed.synced).toBe(1);
+    expect(parsed.failed.length).toBeGreaterThan(0);
   });
 
   test('card file with totally invalid markdown (no frontmatter)', async () => {

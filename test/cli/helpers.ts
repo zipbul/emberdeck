@@ -52,14 +52,21 @@ export async function runEd(args: string[], cwd: string): Promise<RunResult> {
     exitCode = code ?? 0;
     throw new ExitInvoked(exitCode);
   }) as never);
-  const outSpy = spyOn(process.stdout, 'write').mockImplementation((s: string | Uint8Array) => {
+  // emitResult passes a node-style callback to process.stdout.write and awaits
+  // it via Promise; if the mock ignores the callback the test hangs forever.
+  // Invoke the callback synchronously on the next tick (no error).
+  const outSpy = spyOn(process.stdout, 'write').mockImplementation(((s: string | Uint8Array, ...rest: unknown[]) => {
     stdout.push(typeof s === 'string' ? s : Buffer.from(s).toString());
+    const cb = rest.find((a) => typeof a === 'function') as ((e?: Error | null) => void) | undefined;
+    if (cb) queueMicrotask(() => cb(null));
     return true;
-  });
-  const errSpy = spyOn(process.stderr, 'write').mockImplementation((s: string | Uint8Array) => {
+  }) as never);
+  const errSpy = spyOn(process.stderr, 'write').mockImplementation(((s: string | Uint8Array, ...rest: unknown[]) => {
     stderr.push(typeof s === 'string' ? s : Buffer.from(s).toString());
+    const cb = rest.find((a) => typeof a === 'function') as ((e?: Error | null) => void) | undefined;
+    if (cb) queueMicrotask(() => cb(null));
     return true;
-  });
+  }) as never);
 
   try {
     const program = buildProgram();
@@ -120,4 +127,47 @@ export function setupTmpProject(options?: {
     tmp,
     cleanup: () => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} },
   };
+}
+
+/**
+ * Parse newline-delimited JSON from stderr. Non-JSON lines are skipped.
+ * Returns array of `{level, code, message, details?}` entries.
+ */
+export interface StderrLine {
+  level: string;
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+export function parseJsonLines(stderr: string): StderrLine[] {
+  const out: StderrLine[] = [];
+  for (const raw of stderr.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    try {
+      const obj = JSON.parse(line);
+      if (obj && typeof obj === 'object' && typeof obj.level === 'string') {
+        out.push(obj as StderrLine);
+      }
+    } catch { /* skip non-JSON noise (e.g. raw error messages) */ }
+  }
+  return out;
+}
+
+/**
+ * Subprocess spawn of the CLI. Required when tests depend on real
+ * signal/EPIPE/stdout-buffer behavior (in-process `runEd` cannot model these).
+ */
+export async function spawnCli(args: string[], cwd: string): Promise<RunResult> {
+  const CLI = join(import.meta.dir, '../../cli.ts');
+  const proc = Bun.spawn(['bun', CLI, ...args], {
+    cwd,
+    env: { ...process.env, NO_COLOR: '1' },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const stdoutText = await new Response(proc.stdout).text();
+  const stderrText = await new Response(proc.stderr).text();
+  await proc.exited;
+  return { exitCode: proc.exitCode ?? -1, stdout: stdoutText, stderr: stderrText };
 }

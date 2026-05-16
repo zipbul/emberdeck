@@ -9,20 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CLI = join(import.meta.dir, '../../cli.ts');
-
-interface RunResult { exitCode: number; stdout: string; }
-async function runCli(args: string[], cwd: string): Promise<RunResult> {
-  const proc = Bun.spawn(['bun', CLI, ...args], {
-    cwd,
-    env: { ...process.env, NO_COLOR: '1' },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const stdout = await new Response(proc.stdout).text();
-  await proc.exited;
-  return { exitCode: proc.exitCode ?? -1, stdout };
-}
+import { spawnCli as runCli } from './helpers';
 
 describe('CLI flag overrides matrix', () => {
   let tmp: string;
@@ -109,9 +96,9 @@ describe('CLI flag overrides matrix', () => {
     const r = await runCli(['--project-root', 'cli-root', 'analyze'], tmp);
     expect(r.exitCode).toBe(0);
     const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('ok');
+    expect(parsed.health).toBeDefined();
     // Indicates gildash actually attached to cli-root (saw at least one symbol)
-    expect(parsed.data.coverage.totalSymbols).toBeGreaterThan(0);
+    expect(parsed.coverage.totalSymbols).toBeGreaterThan(0);
   });
 
   test('multiple flags compose: --dir + --db-path together', async () => {
@@ -143,11 +130,11 @@ describe('CLI flag overrides matrix', () => {
 
     const r = await runCli(['--config', 'does-not-exist.jsonc', 'card', 'list'], tmp);
     expect(r.exitCode).not.toBe(0);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.status).toBe('error');
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('"level":"error"');
   });
 
-  test('--quiet suppresses JSON envelope, prints only key', async () => {
+  test('--quiet emits compact JSON (no schemaVersion envelope, single line)', async () => {
     writeFileSync(
       join(tmp, '.emberdeck.jsonc'),
       JSON.stringify({ cardsDir: '.emberdeck/cards', dbPath: '.emberdeck/data.db' }),
@@ -157,8 +144,10 @@ describe('CLI flag overrides matrix', () => {
     await runCli(['card', 'create', 'foo-card', '--type', 'brief', '--summary', 's'], tmp);
     const r = await runCli(['--quiet', 'card', 'get', 'foo-card'], tmp);
     expect(r.exitCode).toBe(0);
-    expect(r.stdout.trim()).toBe('foo-card');
-    // Not JSON
+    // v2 quiet: compact JSON object (single line), no envelope
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.key).toBe('foo-card');
     expect(r.stdout).not.toContain('"schemaVersion"');
+    expect(r.stdout.split('\n').filter(Boolean)).toHaveLength(1);
   });
 });
