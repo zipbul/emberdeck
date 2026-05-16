@@ -13,80 +13,94 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출. 모드는 인자에
-        따라 결정: <key> 위치 인자 → 'card'; --uncovered → 'uncovered'; --suggest →
-        'suggest'.
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action. The mode is selected by the
+        arguments: a <key> positional → 'card'; --uncovered → 'uncovered';
+        --suggest → 'suggest'.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001a
       guarantee: >-
-        mode='card' (`ed check coverage <key>`): 성공 시 `data` 는 다음 shape:
+        mode='card' (`ed check coverage <key>`): on success the `data` matches
+        the shape:
 
         ```jsonc
 
-        // 현재 op `getLinkCoverage` 가 만드는 link-coverage shape.
+        // getLinkCoverage produces this link-coverage shape per card.
 
-        // unreferencedSymbols 는 전체 array (CLI 의 slice(0, 100) 제거 — caller 가 jq
-        로 자름).
+        // unreferencedSymbols is the full array (no CLI-side slice); callers
+        can page with jq if needed.
+
+        // A card with zero declared links surfaces coverageRatio = 1 (vacuous
+        coverage).
 
         { key, declared, resolved, broken, coverageRatio: number,
-          unreferencedSymbols: { file, symbol, kind }[],    // 전체
+          unreferencedSymbols: { file, symbol, kind }[],    // full array
           unreferencedTotal: number }                        // === unreferencedSymbols.length
         ```
 
-        의미 전환 (link-coverage → symbol-coverage) 은 §6 분리된 결정. 카드 본문에는 위 shape
-        하나만.
+        A future migration from link-coverage to symbol-coverage is tracked
+        separately; this card documents only the shape above.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-001b
       guarantee: >-
-        mode='uncovered' (`ed check coverage --uncovered`): 성공 시 `data` 는 다음
-        shape:
+        mode='uncovered' (`ed check coverage --uncovered`): on success the
+        `data` matches the shape:
 
         ```jsonc
 
-        // uncovered 전체 array (CLI 의 slice(0, 100) 제거).
+        // uncovered is the full array (no CLI-side slice).
 
-        { totalSymbols, coveredSymbols, coverageRatio: number|null,
-          uncovered: { file, symbol, kind }[],    // 전체
+        { totalSymbols, coveredSymbols, coverageRatio: number | null,
+          uncovered: { file, symbol, kind }[],    // full array
           uncoveredTotal: number }                 // === uncovered.length
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-001c
-      guarantee: |-
-        mode='suggest' (`ed check coverage --suggest`): 성공 시 `data` 는 다음 shape:
+      guarantee: >-
+        mode='suggest' (`ed check coverage --suggest`): on success the `data`
+        matches the shape:
+
         ```jsonc
+
         {
           suggestions: {
-            key,                                           // op 의 suggestedKey
-            type: 'domain'|'brief'|'spec',
+            key,                                           // the op's suggestedKey
+            type: 'domain' | 'brief' | 'spec',
             parent?: string,
-            files: string[],                               // op 의 array 그대로 (count 변환 X)
-            symbols: { file, symbol, kind }[],             // op 의 array 그대로
+            files: string[],                               // arrays returned verbatim by the op (no count conversion)
+            symbols: { file, symbol, kind }[],             // arrays returned verbatim by the op
             reason: string,
             suggestedGlossary?: string[]
           }[],
           total
         }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): 세 모드 모두 성공 시 (coverage 결과 또는 빈 array 포함 정상 emit).
+        - 0 (EXIT.OK): every mode succeeds (a coverage result, possibly with
+        empty arrays, is emitted).
 
-        - thrown 매핑 (mode='card' 만): CardNotFoundError → 3 (EXIT.NOT_FOUND).
-        mode='uncovered'/'suggest' 는 thrown 매핑 없음.
+        - thrown mapping (mode='card' only): CardNotFoundError → 3
+        (EXIT.NOT_FOUND). Modes 'uncovered' and 'suggest' have no thrown
+        mapping.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: mode='card' 에서 주어진 key 가 DB 에 없음.
-      behavior: stderr `{level:'error', code:'card-not-found', message}` + exit 3.
+    - violation: mode='card' is selected and no card exists for the requested key.
+      behavior: >-
+        stderr emits `{level:'error', code:'card-not-found', message}` and the
+        process exits 3.
 ---
