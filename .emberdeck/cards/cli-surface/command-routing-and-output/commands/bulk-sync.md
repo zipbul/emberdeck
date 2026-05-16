@@ -11,20 +11,27 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed bulk sync [PATH]`
+
         {
           synced: number,
-          mode: 'file'|'directory',
+          mode: 'file' | 'directory',
           path: string,
-          failed: { filePath: string, error: string }[]   // 성공 시 빈 배열. CLI 가 op 의 `error: unknown` 을 `errorMessage(e)` 로 string 변환.
+          failed: { filePath: string, error: string }[]   // empty when every file was synced; the CLI converts the op's `error: unknown` to a string via errorMessage(e).
         }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
@@ -32,20 +39,23 @@ spec:
       guarantee: >-
         - 0 (EXIT.OK): failed.length === 0.
 
-        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data 정상 emit, exit 만
-        2).
+        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data is still emitted;
+        only the exit code differs).
 
-        - thrown 매핑: `CliUsageError` (PATH 미존재) → 2; per-file 실패는 throw 아님,
-        `failed[]` 누적.
+        - thrown mapping: CliUsageError (the supplied PATH does not exist) → 2;
+        per-file failures are not thrown, they accumulate in failed[].
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: per-file 파싱/sync 실패.
-      behavior: failed[] 에 누적 + stdout 정상 emit + exit 2.
+    - violation: A per-file parse or sync step fails.
+      behavior: >-
+        The offending entry accumulates in failed[]; stdout still emits the data
+        shape; the process exits 2 whenever failed.length > 0.
 ---
