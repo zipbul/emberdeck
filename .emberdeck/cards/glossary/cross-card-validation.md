@@ -12,18 +12,13 @@ brief:
   context:
     problem: >
       Cards declare glossary words at creation; over time the glossary store
-      changes (renames,
-
-      removes) but card declarations may not. Without ongoing cross-validation
-      the project ends up
-
-      with cards referencing terms that no longer exist, undermining the
-      glossary as a single source
-
-      of design vocabulary.
+      changes (renames, removes) but card declarations may not. Without ongoing
+      cross-validation the project ends up with cards referencing terms that no
+      longer exist, undermining the glossary as a single source of design
+      vocabulary.
     impact:
       - statement: >-
-          Stale glossary references create user confusion about what a term
+          Stale glossary references create operator confusion about what a term
           means today.
       - statement: Without a drift signal CI cannot catch broken references.
   scope:
@@ -66,10 +61,8 @@ brief:
   design:
     overview: >
       validateCardGlossaryField queries the glossary store for each declared
-      word and returns the
-
-      unresolved set. The drift detector consumes this output to report
-      glossary_broken per card.
+      word and returns the unresolved set. The drift detector consumes this
+      output to report glossary_broken per card.
     components:
       - name: validateCardGlossaryField
         responsibility: Per-card validation of declared glossary words against the store.
@@ -85,7 +78,9 @@ brief:
       - id: DI-001
         statement: validateCardGlossaryField never auto-modifies card content.
       - id: DI-002
-        statement: glossary_broken is one of the documented two drift types.
+        statement: >-
+          glossary_broken is one of the two driftTypes detected by checkDrift;
+          drift detection itself is read-only and never transitions card status.
   policy:
     - id: R-001
       subject: validateCardGlossaryField
@@ -97,12 +92,12 @@ brief:
   external:
     - id: C-001
       statement: >-
-        glossary_broken is one of the two driftTypes documented in project
-        memory.
+        The two driftType values (broken_link, glossary_broken) and their
+        read-only semantics are jointly defined with the drift-detection spec
+        card.
       reference:
-        title: project_drift_taxonomy memory entry
-        locator: >-
-          /home/revil/.claude/projects/-home-revil-projects-zipbul-emberdeck/memory/project_drift_taxonomy.md
+        title: spec analysis/drift-detection
+        locator: analysis/drift-detection
   compatibility:
     guarantees:
       - subject: validateCardGlossaryField return shape
