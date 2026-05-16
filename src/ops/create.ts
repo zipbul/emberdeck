@@ -68,7 +68,9 @@ export interface CreateCardResult {
   fullKey: string;
   /** Complete data of the created card. */
   card: CardFile;
-
+  /** Relation targets that failed to persist (FK violation under concurrent contention).
+   *  Empty array when every relation row was inserted. */
+  failedRelationTargets: string[];
 }
 
 /**
@@ -174,6 +176,7 @@ export async function createCard(
       const searchableBody = buildSearchableText(frontmatter);
 
       const now = new Date().toISOString();
+      let failedRelationTargets: string[] = [];
 
       return safeWriteOperation({
         dbAction: () => {
@@ -207,13 +210,13 @@ export async function createCard(
 
             cardRepo.upsert(row);
             if (input.relations && input.relations.length > 0) {
-              relationRepo.replaceForCard(fullKey, input.relations);
+              failedRelationTargets = relationRepo.replaceForCard(fullKey, input.relations);
             }
             if (input.tags && input.tags.length > 0) {
               classRepo.replaceTags(fullKey, input.tags.map((t) => t.toLowerCase()));
             }
           });
-          return { filePath, fullKey, card } as CreateCardResult;
+          return { filePath, fullKey, card, failedRelationTargets };
         },
         fileAction: async () => {
           await mkdir(dirname(filePath), { recursive: true });

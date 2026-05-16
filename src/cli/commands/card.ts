@@ -30,6 +30,7 @@ import { findCardsByGlossaryWord } from '../../ops/glossary';
 import { parsePositiveInt, collectCsv, collectRepeated } from '../parsers';
 import { confirmDestructive } from '../confirm';
 import { CliUsageError } from '../usage-error';
+import { EXIT } from '../exit-codes';
 import { atomicWrite } from '../../fs/writer';
 import { parseJsonInput } from '../parse-input';
 
@@ -243,6 +244,7 @@ export async function cardCreateAction(
       throw new CliUsageError('--summary or --from with summary field required');
     }
     const result = await createCard(rt.ctx, input);
+    const failedRelationTargets = result.failedRelationTargets;
     return {
       data: {
         key: result.fullKey,
@@ -250,7 +252,9 @@ export async function cardCreateAction(
         status: result.card.frontmatter.status,
         type: result.card.frontmatter.type,
         parent: result.card.frontmatter.parent ?? null,
+        failedRelationTargets,
       },
+      ...(failedRelationTargets.length > 0 ? { exitCode: EXIT.VALIDATION_FAILURE } : {}),
     };
   }, cmd);
 }
@@ -291,13 +295,16 @@ export async function cardUpdateAction(
       throw new CliUsageError('card update: no changes specified — pass --field/--summary/--patch/--glossary/--tag');
     }
     const result = await updateCard(rt.ctx, key, fields);
+    const failedRelationTargets = result.failedRelationTargets;
     return {
       data: {
         key: result.card.frontmatter.key,
         filePath: result.filePath,
         status: result.card.frontmatter.status,
         validationNotes: result.warnings ?? [],
+        failedRelationTargets,
       },
+      ...(failedRelationTargets.length > 0 ? { exitCode: EXIT.VALIDATION_FAILURE } : {}),
     };
   }, cmd);
 }

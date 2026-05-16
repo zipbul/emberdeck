@@ -249,9 +249,15 @@ async function* upsertCardsInTierOrder(
  * Syncs an externally modified card file to the DB.
  * Invoked by CLI sync commands (`ed sync`) and as the compensation step
  * for failed file writes in create/update operations.
+ *
+ * Returns the list of relation targets that failed to persist (FK
+ * violation under concurrent contention). Empty array on a clean sync.
   * @spec card-storage/persistence/sync
  */
-export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string): Promise<void> {
+export async function syncCardFromFile(
+  ctx: EmberdeckContext,
+  filePath: string,
+): Promise<{ partialRelations: string[] }> {
   const cardFile = await readCardFile(filePath);
   const key = parseFullKey(cardFile.frontmatter.key);
   const now = new Date().toISOString();
@@ -274,6 +280,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     updatedAt: now,
   };
 
+  let partialRelations: string[] = [];
   ctx.db.transaction((tx) => {
     const d = txDb(tx);
     const cardRepo = new DrizzleCardRepository(d);
@@ -281,11 +288,12 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
     const classRepo = new DrizzleClassificationRepository(d);
 
     cardRepo.upsert(row);
-    relationRepo.replaceForCard(key, cardFile.frontmatter.relations ?? []);
+    partialRelations = relationRepo.replaceForCard(key, cardFile.frontmatter.relations ?? []);
     classRepo.replaceTags(key, cardFile.frontmatter.tags ?? []);
     // codeLink rows are populated by `ed spec sync` from source @spec annotations,
     // not from card content. Card bulk-sync does not touch code_link.
   });
+  return { partialRelations };
 }
 
 /**

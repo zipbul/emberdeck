@@ -118,6 +118,9 @@ export interface UpdateCardResult {
   card: CardFile;
   /** Warnings (e.g. type change forced status to draft). */
   warnings?: string[];
+  /** Relation targets that failed to persist (FK violation under concurrent contention).
+   *  Empty array when every relation row was inserted. */
+  failedRelationTargets: string[];
 }
 
 /**
@@ -276,6 +279,7 @@ export async function updateCard(
       const card: CardFile = { filePath, frontmatter: next };
 
       const now = new Date().toISOString();
+      let failedRelationTargets: string[] = [];
 
       const result = await safeWriteOperation({
         dbAction: () => {
@@ -322,7 +326,7 @@ export async function updateCard(
               changelogRepo.insert({ cardKey: key, field: 'parent', oldValue: prev.parent ?? null, newValue: fields.parent, changedAt: now, changedBy });
             }
             if (fields.relations !== undefined) {
-              relationRepo.replaceForCard(key, next.relations ?? []);
+              failedRelationTargets = relationRepo.replaceForCard(key, next.relations ?? []);
               changelogRepo.insert({ cardKey: key, field: 'relations', oldValue: prev.relations ? JSON.stringify(prev.relations) : null, newValue: next.relations ? JSON.stringify(next.relations) : null, changedAt: now, changedBy });
             }
             if (fields.tags !== undefined) {
@@ -333,7 +337,7 @@ export async function updateCard(
               changelogRepo.insert({ cardKey: key, field: 'glossary', oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null, newValue: next.glossary ? JSON.stringify(next.glossary) : null, changedAt: now, changedBy });
             }
           });
-          const r: UpdateCardResult = { filePath, card };
+          const r: UpdateCardResult = { filePath, card, failedRelationTargets };
           if (warnings.length > 0) r.warnings = warnings;
           return r;
         },
