@@ -28,7 +28,7 @@ import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
-import { serializeNamespaces } from './sync';
+import { serializeNamespaces } from '../card/json-fields';
 
 /**
  * Input parameters passed to `createCard`.

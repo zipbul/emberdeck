@@ -14,25 +14,13 @@ import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { txDb } from '../db/connection';
 import { readGlossary } from '../glossary/io';
-import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json-fields';
+import { parseStringArrayJson, parseCrossDomainDependencies, serializeNamespaces, parseNamespaces } from '../card/json-fields';
 import { batchedAllSettled } from '../util/batch';
 import { errorMessage } from '../util/error';
 
-/**
- * Serialize the principle/domain/brief/spec namespace blocks from frontmatter for DB storage.
- * Returns null when the card has no namespace structures (typical for plain markdown cards).
- *
- * Exported so create.ts and update.ts can stop reimplementing the same
- * 6-line inline IIFE around `JSON.stringify({...})` per row build.
- */
-export function serializeNamespaces(fm: CardFrontmatter): string | null {
-  const ns: Record<string, unknown> = {};
-  if (fm.principle) ns.principle = fm.principle;
-  if (fm.domain) ns.domain = fm.domain;
-  if (fm.brief) ns.brief = fm.brief;
-  if (fm.spec) ns.spec = fm.spec;
-  return Object.keys(ns).length === 0 ? null : JSON.stringify(ns);
-}
+// serializeNamespaces / parseNamespaces live in src/card/json-fields.ts so
+// every card-row JSON-column reader and writer (parseCrossDomainDependencies,
+// parseStringArrayJson, parseNamespaces, serializeNamespaces) is in one place.
 
 /**
  * Recursively collect absolute paths of all `*.md` card files under `targetDir`.
@@ -63,15 +51,6 @@ function typeHierarchyViolationMessage(
   return null;
 }
 
-function parseNamespaces(json: string | null): { principle?: unknown; domain?: unknown; brief?: unknown; spec?: unknown } {
-  if (!json) return {};
-  try {
-    const parsed = JSON.parse(json);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
 export interface BulkSyncResult {
   synced: number;
   errors: Array<{ filePath: string; error: unknown }>;

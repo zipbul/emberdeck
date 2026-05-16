@@ -35,7 +35,8 @@ import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleChangelogRepository, CHANGED_BY } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
-import { syncCardFromFile, serializeNamespaces } from './sync';
+import { syncCardFromFile } from './sync';
+import { serializeNamespaces } from '../card/json-fields';
 import { buildSearchableText } from '../card/searchable-text';
 
 /**
