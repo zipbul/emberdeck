@@ -3,7 +3,7 @@ import { eq, and, desc, isNull, gte } from 'drizzle-orm';
 import type { EmberdeckDb } from './connection';
 import type { CardRepository, CardRow, CardListFilter, SearchOptions } from './repository';
 import { FtsSyntaxError } from '../card/errors';
-import { card } from './schema';
+import { card, cardTag, tag } from './schema';
 
 export class DrizzleCardRepository implements CardRepository {
   constructor(private db: EmberdeckDb) {}
@@ -56,31 +56,31 @@ export class DrizzleCardRepository implements CardRepository {
     if (filter?.roots) conditions.push(isNull(card.parent));
     if (filter?.updatedSince) conditions.push(gte(card.updatedAt, filter.updatedSince));
 
-    // tag filter requires JOIN
+    // tag filter requires JOIN through card_tag → tag
     if (filter?.tag) {
-      const tagName = filter.tag.toLowerCase();
-      const rows = this.db.$client
-        .prepare(
-          `SELECT c.key, c.summary, c.status, c.type, c.parent,
-                  c.namespaces_json AS namespacesJson,
-                  c.body,
-                  c.glossary_json AS glossaryJson,
-                  c.file_path AS filePath, c.updated_at AS updatedAt
-           FROM card c
-           JOIN card_tag ct ON c.key = ct.card_key
-           JOIN tag t ON ct.tag_id = t.id
-           WHERE t.name = ?${filter.status ? ' AND c.status = ?' : ''}${filter.type ? ' AND c.type = ?' : ''}${filter.parent ? ' AND c.parent = ?' : ''}${filter.roots ? ' AND c.parent IS NULL' : ''}${filter.updatedSince ? ' AND c.updated_at >= ?' : ''}${filter.sortBy === 'updated_at' ? ' ORDER BY c.updated_at DESC' : ''}`,
-        )
-        .all(
-          ...[
-            tagName,
-            ...(filter.status ? [filter.status] : []),
-            ...(filter.type ? [filter.type] : []),
-            ...(filter.parent ? [filter.parent] : []),
-            ...(filter.updatedSince ? [filter.updatedSince] : []),
-          ],
-        ) as CardRow[];
-      return rows;
+      conditions.push(eq(tag.name, filter.tag.toLowerCase()));
+      const where = and(...conditions);
+      const base = this.db
+        .select({
+          key: card.key,
+          summary: card.summary,
+          status: card.status,
+          type: card.type,
+          parent: card.parent,
+          namespacesJson: card.namespacesJson,
+          body: card.body,
+          glossaryJson: card.glossaryJson,
+          filePath: card.filePath,
+          updatedAt: card.updatedAt,
+        })
+        .from(card)
+        .innerJoin(cardTag, eq(cardTag.cardKey, card.key))
+        .innerJoin(tag, eq(tag.id, cardTag.tagId))
+        .where(where);
+      if (filter.sortBy === 'updated_at') {
+        return base.orderBy(desc(card.updatedAt)).all() as CardRow[];
+      }
+      return base.all() as CardRow[];
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
