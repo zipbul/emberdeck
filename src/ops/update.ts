@@ -73,18 +73,6 @@ function assertCompleteNamespace(field: 'principle' | 'domain' | 'brief' | 'spec
  * Partial update fields passed to `updateCard`.
  * Fields set to `undefined` are left unchanged. `null` deletes the field.
  */
-/**
- * Search-and-replace patch for card body content.
- * Each patch's `old` must appear exactly once in the body at the time it is applied.
- * Patches are applied sequentially in array order.
- */
-export interface BodyPatch {
-  /** Text to find in the current body. Must appear exactly once at apply time. */
-  old: string;
-  /** Replacement text. */
-  new: string;
-}
-
 export interface UpdateCardFields {
   /** New summary. If undefined, kept as-is. */
   summary?: string;
