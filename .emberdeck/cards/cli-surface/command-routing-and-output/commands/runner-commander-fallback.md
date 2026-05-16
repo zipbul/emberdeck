@@ -13,32 +13,41 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        commander.parseAsync 가 commander.help/commander.version 외 CommanderError
-        를 던졌고 어떤 subcommand action 도 dispatch 안 됨; CliRuntime 없음.
+        commander.parseAsync threw a CommanderError other than commander.help or
+        commander.version, so no subcommand action was dispatched and no
+        CliRuntime was built.
       derives: cli-surface/command-routing-and-output#G-004
   postconditions:
+    - id: POST-001
+      guarantee: >-
+        This fallback path produces no stdout data shape; success and failure
+        both leave stdout empty. The fallback exists only to translate
+        CommanderError exit into the canonical stderr JSON-line plus exit-code
+        contract before the process terminates.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): commander.help / commander.version (정상 도움말/버전 출력 경로;
-        stdout 은 commander 의 도움말 텍스트, 본 카드는 stderr 무출력).
-
-        - 2 (EXIT.VALIDATION_FAILURE): 그 외 모든 CommanderError
-        (InvalidArgumentError / 누락 positional / 알 수 없는 옵션).
-
-        - stdout: 본 fallback 경로에서 data shape 없음 (실패 경로 — stdout 무출력).
+        Exit codes: 0 (EXIT.OK) for commander.help and commander.version paths
+        (commander itself writes the help or version text to stdout; this
+        fallback emits no stderr line). 2 (EXIT.VALIDATION_FAILURE) for any
+        other CommanderError (InvalidArgumentError, missing positional, unknown
+        option, etc.). stdout MUST be empty on the failure path.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
     - violation: >-
-        commander.help / commander.version 외의 CommanderError
-        (InvalidArgumentError / 누락 positional / 알 수 없는 옵션).
+        A CommanderError other than commander.help or commander.version
+        (InvalidArgumentError, missing positional, unknown option).
       behavior: >-
-        stderr 에 한 줄 `{level:'error', code:'cli-usage-error', message:<commander
-        msg>}` JSON-line + exit 2 (VALIDATION_FAILURE). stdout 무출력.
+        stderr emits a single `{level:'error', code:'cli-usage-error',
+        message:<commander message>}` JSON-line and the process exits 2
+        (VALIDATION_FAILURE); stdout is empty.
 ---

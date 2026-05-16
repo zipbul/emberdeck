@@ -12,17 +12,23 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed validate cards`
+
         {
-          summary: { total: number, byCode: Record<string, number> },   // 키는 kebab 에러 코드 값
-          // summary.byCode 는 items[].issues + fileLevelIssues 모두 합산
+          summary: { total: number, byCode: Record<string, number> },   // keys are kebab error-code values
+          // summary.byCode aggregates items[].issues plus fileLevelIssues
           // summary.total === sum(items[i].issues.length) + fileLevelIssues.length
           items: {
             key,
@@ -40,7 +46,7 @@ spec:
                   | 'glossary-unused'
                   | 'broken-chain',
               message: string,
-              details?: Record<string, unknown>   // 안 키는 camelCase
+              details?: Record<string, unknown>   // keys inside details are camelCase
             }[]
           }[],
           fileLevelIssues: {
@@ -52,26 +58,33 @@ spec:
             key?: string
           }[]
         }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): summary.total === 0 (모든 카드 정합).
+        - 0 (EXIT.OK): summary.total === 0 (every card consistent).
 
-        - 2 (EXIT.VALIDATION_FAILURE): summary.total > 0 (위반 1건 이상; data 는 정상
-        emit, exit 만 2).
+        - 2 (EXIT.VALIDATION_FAILURE): summary.total > 0 (≥1 violation; data is
+        still emitted, only the exit code differs).
 
-        - thrown 매핑: 없음 (read-only); 빌드/IO 에러는 부모 runner 의 일반 매핑.
+        - thrown mapping: none (read-only); build or IO errors fall through to
+        the parent runner's generic mapping.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 정합 위반 1건 이상 (items[].issues 또는 fileLevelIssues 비어있지 않음).
-      behavior: stdout 정상 data emit + exit 2; stderr 무출력 (data 채널이 진단).
+    - violation: >-
+        ≥1 consistency violation found (items[].issues or fileLevelIssues
+        non-empty).
+      behavior: >-
+        stdout emits the data shape normally and exits 2; stderr is empty
+        because the data channel itself reports the diagnostics.
 ---
