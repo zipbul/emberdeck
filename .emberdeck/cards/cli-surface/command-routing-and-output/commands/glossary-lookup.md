@@ -11,34 +11,46 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed glossary lookup [word]`
-        // word 인자: 0 또는 1 element. 무인자: 전체.
+
+        // The word argument is zero or one element. Without an argument, every
+        entry is returned.
+
         { entries: { word, definition }[], total: number }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): lookup 항상 (단어 미존재 시 entries:[] + total:0).
-        - thrown 매핑: 없음 (read-only).
+      guarantee: >-
+        - 0 (EXIT.OK): lookup always succeeds; an unknown word produces
+        entries=[] and total=0.
+
+        - thrown mapping: none.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: word 인자가 2개 이상 (commander 가 사전 거부).
+    - violation: More than one word positional was passed (commander rejects upstream).
       behavior: >-
-        runner-commander-fallback 경로 stderr `{level:'error',
-        code:'cli-usage-error', ...}` + exit 2.
+        Falls through the runner-commander-fallback path: stderr emits
+        `{level:'error', code:'cli-usage-error', ...}` and the process exits 2.
 ---
