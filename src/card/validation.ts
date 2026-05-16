@@ -10,7 +10,8 @@ export type SpecSourceBindingResolver = (
   ctx: EmberdeckContext,
   cardKey: string,
 ) => Promise<string[]>;
-import type { BriefBody, CardFrontmatter, CardType, CardStatus, SpecBody } from './types';
+import type { BriefBody, CardFrontmatter, CardType, SpecBody } from './types';
+import { isCardType, isCardStatus } from './types';
 import { validateBriefRefs } from '../brief/validate-refs';
 import { validateSpecRefs } from '../spec/validate-refs';
 import { validatePrincipleCard } from '../principle/validate';
@@ -67,7 +68,7 @@ export function validateCardInput(input: ValidationInput): void {
     if (typeof type !== 'string') {
       throw new CardValidationError(`Invalid card type: must be a string (got ${typeof type})`);
     }
-    if (!CARD_TYPES.includes(type as CardType)) {
+    if (!isCardType(type)) {
       throw new CardValidationError(
         `Invalid card type "${type}" (expected one of: ${CARD_TYPES.join(', ')})`,
       );
@@ -79,7 +80,7 @@ export function validateCardInput(input: ValidationInput): void {
     if (typeof status !== 'string') {
       throw new CardValidationError(`Invalid card status: must be a string (got ${typeof status})`);
     }
-    if (!CARD_STATUSES.includes(status as CardStatus)) {
+    if (!isCardStatus(status)) {
       throw new CardValidationError(
         `Invalid card status "${status}" (expected one of: ${CARD_STATUSES.join(', ')})`,
       );

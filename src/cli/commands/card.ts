@@ -6,7 +6,7 @@ import { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
 import { run } from '../runner';
 import type { CliRuntime } from '../context';
-import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
+import { CARD_TYPES, CARD_STATUSES, isCardType, isCardStatus, type CardType, type CardStatus } from '../../card/types';
 import {
   getCard,
   listCards,
@@ -37,17 +37,17 @@ import { parseJsonInput } from '../parse-input';
 // ── helpers ──
 
 function validateCardType(value: string): CardType {
-  if (!CARD_TYPES.includes(value as CardType)) {
+  if (!isCardType(value)) {
     throw new CliUsageError(`invalid --type '${value}'. Allowed: ${CARD_TYPES.join('|')}`);
   }
-  return value as CardType;
+  return value;
 }
 
 function validateCardStatus(value: string): CardStatus {
-  if (!CARD_STATUSES.includes(value as CardStatus)) {
+  if (!isCardStatus(value)) {
     throw new CliUsageError(`invalid status '${value}'. Allowed: ${CARD_STATUSES.join('|')}`);
   }
-  return value as CardStatus;
+  return value;
 }
 
 async function readBodyFromOption(value: string | undefined): Promise<string | undefined> {

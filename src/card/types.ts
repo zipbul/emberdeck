@@ -9,6 +9,11 @@ export type CardStatus = 'draft' | 'active' | 'drifted';
 
 export const CARD_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'drifted'];
 
+/** Type-guard: narrow an unknown string to CardStatus. */
+export function isCardStatus(value: unknown): value is CardStatus {
+  return typeof value === 'string' && (CARD_STATUSES as readonly string[]).includes(value);
+}
+
 /**
  * Card type — strict 4-tier hierarchy (principle/domain/brief/spec).
  *
@@ -23,6 +28,11 @@ export const CARD_STATUSES: ReadonlyArray<CardStatus> = ['draft', 'active', 'dri
 export type CardType = 'principle' | 'domain' | 'brief' | 'spec';
 
 export const CARD_TYPES: ReadonlyArray<CardType> = ['principle', 'domain', 'brief', 'spec'];
+
+/** Type-guard: narrow an unknown string to CardType. */
+export function isCardType(value: unknown): value is CardType {
+  return typeof value === 'string' && (CARD_TYPES as readonly string[]).includes(value);
+}
 
 /**
  * A record linking a card to a source code symbol (gildash integration).

@@ -9,7 +9,7 @@ import type { CliRuntime } from '../context';
 import { bulkCreateCards } from '../../ops/bulk-create';
 import { bulkSyncCards, syncCardFromFile } from '../../ops/sync';
 import type { CreateCardInput } from '../../ops/create';
-import { CARD_TYPES, CARD_STATUSES, type CardType, type CardStatus } from '../../card/types';
+import { CARD_TYPES, CARD_STATUSES, isCardType, isCardStatus } from '../../card/types';
 import { CliUsageError } from '../usage-error';
 import { parseJsonInput } from '../parse-input';
 import { errorMessage } from '../../util/error';
@@ -35,7 +35,7 @@ function validateBulkInput(items: unknown[]): ValidatedBulk {
       out.rejected.push({ inputIndex: i, key: it.key, error: `item[${i}] '${it.key}' missing 'type'` });
       return;
     }
-    if (!CARD_TYPES.includes(it.type as CardType)) {
+    if (!isCardType(it.type)) {
       out.rejected.push({
         inputIndex: i,
         key: it.key,
@@ -43,7 +43,7 @@ function validateBulkInput(items: unknown[]): ValidatedBulk {
       });
       return;
     }
-    if (it.status !== undefined && !CARD_STATUSES.includes(it.status as CardStatus)) {
+    if (it.status !== undefined && !isCardStatus(it.status)) {
       out.rejected.push({
         inputIndex: i,
         key: it.key,
