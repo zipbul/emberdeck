@@ -871,7 +871,7 @@ describe('delete cascade', () => {
 // ── ACTIVATION GUARD ON FIELD CHANGES ──
 
 describe('activation guard on active card field changes', () => {
-  it('should reject removing codeLinks from an active spec card', async () => {
+  it('activates a spec card without a card-side codeLinks field (source bindings live in @spec annotations)', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
@@ -879,12 +879,14 @@ describe('activation guard on active card field changes', () => {
       summary: 'Active spec',
       type: 'spec',
       parent: '_br',
-            spec: makeTestSpec('src/a.ts', 'fn'),
+      spec: makeTestSpec('src/a.ts', 'fn'),
     });
     await updateCardStatus(tc.ctx, 'guard-spec', 'active');
-
-    // Note: source bindings are managed via `ed spec sync` annotations, not
-    // via `updateCard` — there is no codeLinks field on the card anymore.
+    // Source bindings are managed via `ed spec sync` annotations, not via
+    // updateCard — there is no codeLinks field on the card anymore. The
+    // assertion is that activation succeeds (no throw above) and the row's
+    // status is now 'active'.
+    expect(tc.ctx.cardRepo.findByKey('guard-spec')?.status).toBe('active');
   });
 
 

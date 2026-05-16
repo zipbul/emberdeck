@@ -104,9 +104,12 @@ describe('createCard', () => {
 
   // ── Edge ──────────────────────────────────────────────────────────────
 
-  it("should default body to empty string when body is undefined", async () => {
+  it("should default the body column to empty string when no namespace is supplied", async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'no-body', summary: 'No body', type: 'spec' });
+    // The indexed row's `body` column is derived from the namespace; with no
+    // namespace fields it must be the empty string, not undefined / null.
+    expect(tc.ctx.cardRepo.findByKey('no-body')?.body).toBe('');
   });
 
   it('should omit tags field from frontmatter when tags is empty array', async () => {

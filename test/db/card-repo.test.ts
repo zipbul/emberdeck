@@ -89,8 +89,9 @@ describe('DrizzleCardRepository', () => {
 
   it('should preserve null body when upsert stores null body and findByKey is called', () => {
     // Arrange / Act
-    repo.upsert(makeRow({ key: 'k2', filePath: '/b.json' }));
+    repo.upsert(makeRow({ key: 'k2', filePath: '/b.json', body: null }));
     // Assert
+    expect(repo.findByKey('k2')?.body).toBeNull();
   });
 
   it('should return null on findByKey after deleteByKey removes the existing key', () => {

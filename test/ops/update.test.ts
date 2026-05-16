@@ -68,10 +68,14 @@ describe('updateCard', () => {
     await expect(updateCard(tc.ctx, 'upd-nop', {})).rejects.toThrow(/no fields/);
   });
 
-  it('should preserve existing body when body field is not in update fields', async () => {
+  it('should preserve existing body when no namespace field is in the update payload', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'upd-body-prsv', summary: 'Preserve', type: 'spec' });
+    const before = tc.ctx.cardRepo.findByKey('upd-body-prsv')?.body;
     await updateCard(tc.ctx, 'upd-body-prsv', { summary: 'Changed' });
+    // The body column is derived from the namespace; an update that touches
+    // only `summary` must leave the derived body untouched.
+    expect(tc.ctx.cardRepo.findByKey('upd-body-prsv')?.body).toBe(before);
   });
 
   it('should update status in DB when updateCardStatus is called', async () => {
