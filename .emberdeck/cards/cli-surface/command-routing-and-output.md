@@ -87,9 +87,9 @@ brief:
       given: ed analyze invocation in normal mode.
       when: The runner completes successfully.
       then: >-
-        stdout contains the analyze-specific JSON (health / coverage / drift /
-        glossary fields at the top level, no envelope wrapper); stderr empty;
-        exit 0.
+        stdout contains the analyze-specific JSON (health, coverage, drifted,
+        glossary, unlinkedSymbols at the top level, all camelCase, no envelope
+        wrapper); stderr empty; exit 0.
       covers:
         - G-001
     - id: S-H-02
@@ -97,16 +97,16 @@ brief:
       given: ed card create with --quiet.
       when: The command succeeds.
       then: >-
-        stdout contains only the created card key string (or a minimal JSON
-        payload); stderr empty; exit 0.
+        stdout contains the single-line compact JSON of the command's natural
+        shape; stderr empty; exit 0.
       covers:
         - G-005
     - id: S-H-03
       kind: happy
       given: >-
-        An external editor wrote a malformed card file; user runs `ed card
-        list`.
-      when: Auto-sync at runner entry hits the malformed file.
+        An external editor wrote a malformed card file; the operator runs `ed
+        card list`.
+      when: Auto-sync at runner entry encounters the malformed file.
       then: >-
         stderr contains a single card-sync-failed JSON-line for that file;
         stdout contains the normal card list (excluding the unsynced card); exit
@@ -117,7 +117,9 @@ brief:
       kind: failure
       given: A command receives an unknown card key.
       when: The runner catches CardNotFoundError.
-      then: 'stdout is empty; stderr contains ''Card not found: <key>''; exit 3.'
+      then: >-
+        stdout is empty; stderr emits a single `{level:'error',
+        code:'card-not-found', message}` JSON-line; exit 3.
       covers:
         - G-002
         - G-004
@@ -125,7 +127,9 @@ brief:
       kind: failure
       given: A command invoked with malformed input.
       when: A CliUsageError is thrown.
-      then: stdout is empty; stderr contains the usage error message; exit 2.
+      then: >-
+        stdout is empty; stderr emits a single `{level:'error',
+        code:'cli-usage-error', message}` JSON-line; exit 2.
       covers:
         - G-002
         - G-004
@@ -133,35 +137,43 @@ brief:
     overview: >-
       The runner builds the runtime context, runs auto-sync, invokes the command
       action, and dispatches output: success → stdout JSON of the command's
-      natural shape; failure → stderr text + exit code. Auto-sync per-file
+      natural shape; failure → stderr JSON-line + exit code. Auto-sync per-file
       failures stream to stderr as JSON-lines independent of the command
       outcome. Output helpers expose `emitResult(data)` for stdout and
-      `emitWarning(obj)` / `emitError(message, code)` for stderr. Each command's
-      spec card declares its stdout shape and the set of exit codes it can
-      produce.
+      `emitWarning({code, message, details?})` plus `emitError({code, message,
+      details?})` for stderr; each helper writes a single canonical JSON-line.
+      Each command's spec card declares its stdout shape and the set of exit
+      codes it can produce.
     components:
       - name: runner
         responsibility: >-
           Build runtime context, run auto-sync, invoke action, route
-          success/failure to stdout/stderr, exit with command-declared code.
+          success/failure to stdout/stderr, exit with the kebab-code-mapped exit
+          code.
         interacts_with:
           - output
           - setup
           - ensureCardsSynced
       - name: output
         responsibility: >-
-          emitResult writes JSON to stdout. emitError writes a line to stderr.
-          emitWarning writes a JSON-line to stderr. No envelope helpers.
+          emitResult writes JSON to stdout. emitWarning writes one
+          `{level:'warning', code, message, details?}` JSON-line to stderr.
+          emitError writes one `{level:'error', code, message, details?}`
+          JSON-line to stderr. emitVerbose writes one `{level:'verbose', ...}`
+          JSON-line. No envelope helpers.
         interacts_with:
           - runner
       - name: command-tree
         responsibility: >-
           commander.js based command tree under src/cli/commands grouped by
-          topic. Each command returns its natural data; runner emits it.
+          topic. Each command returns its natural data; the runner emits it.
         interacts_with:
           - runner
       - name: errors-mapper
-        responsibility: Map known error classes to exit codes and stderr messages.
+        responsibility: >-
+          Map known error classes to kebab error codes and through
+          ERROR_CODE_TO_EXIT to exit codes; emit one stderr JSON-line per thrown
+          error.
         interacts_with:
           - runner
     data_flow: []
@@ -169,16 +181,18 @@ brief:
       - id: DI-001
         statement: >-
           On success: stdout is valid JSON of the command's spec-declared shape;
-          stderr may contain auto-sync JSON-lines but no fatal text.
+          stderr may contain auto-sync JSON-lines but no level:error text.
       - id: DI-002
         statement: >-
-          On failure: stdout is empty (no JSON written); stderr contains exactly
-          one final error line; exit code is non-zero per the error class map.
+          On thrown failure: stdout is empty (no JSON written); stderr contains
+          exactly one final level:error JSON-line; exit code is non-zero per the
+          kebab-code → exit map.
       - id: DI-003
         statement: >-
-          Exit codes are taken from the EXIT enum and match the error class →
-          code map. Each command's spec card lists which codes it can produce;
-          the runner never invents codes.
+          Exit codes are taken from the EXIT enum and selected via
+          ERROR_CODE_TO_EXIT keyed by the kebab error code (not by class name).
+          Each command's spec card lists which codes it can produce; the runner
+          never invents codes.
       - id: DI-004
         statement: >-
           Auto-sync warnings stream to stderr as JSON-lines (one
@@ -199,9 +213,16 @@ brief:
       subject: Error mapping
       keyword: SHALL
       predicate: >-
-        map CardNotFoundError to exit 3, validation/usage errors to 2, conflicts
-        to 4, IO to 5, config-missing to 6, transient to 7, generic to 1, SIGINT
-        to 130.
+        map every thrown error through toCliError to a kebab error code and
+        through ERROR_CODE_TO_EXIT to an exit code: `card-not-found` and
+        `glossary-not-found` → 3; `card-already-exists` and `rename-same-path` →
+        4; `invalid-card-key`, `validation-error`, `parent-validation-error`,
+        `fts-syntax-error`, `activation-guard-failed`, `cli-usage-error`,
+        `config-parse-error`, `config-validation-error`, `glossary-parse-error`,
+        `glossary-validation-error` → 2; `gildash-init-failed` and
+        `config-missing-file` → 6; `stdout-write-failed` → 5;
+        `compensation-failed`, `internal-error`, `output-encode-failed` → 1;
+        SIGINT → 130.
       governs:
         - S-F-01
         - S-F-02
@@ -209,8 +230,8 @@ brief:
       subject: Every subcommand on failure
       keyword: MUST
       predicate: >-
-        write the error message to stderr only; stdout MUST NOT contain JSON or
-        any other output on the failure path.
+        emit a single canonical level:error JSON-line on stderr; stdout MUST NOT
+        contain JSON or any other output on the failure path.
       governs:
         - S-F-01
         - S-F-02
@@ -234,17 +255,19 @@ brief:
   external:
     - id: C-001
       statement: >-
-        Per-command output shapes and exit-code policies are documented in the
-        SKILL `<commands>` and per-command response sections; the SKILL is the
-        agent-facing index of the individual spec cards.
+        Per-command stdout shapes and exit-code policies are jointly authored
+        with the per-command spec cards under
+        cli-surface/command-routing-and-output/commands/; that subtree is the
+        authoritative contract surface.
       reference:
-        title: emberdeck SKILL.md
-        locator: >-
-          /home/revil/projects/zipbul/emberdeck/.claude/skills/emberdeck/SKILL.md
+        title: spec cli-surface/command-routing-and-output/runner-and-output
+        locator: cli-surface/command-routing-and-output/runner-and-output
   compatibility:
     guarantees:
       - subject: Per-command stdout shape
-        version_range: post-envelope (no version field; spec card is the contract)
+        version_range: >-
+          post-envelope (no version field; the per-command spec card is the
+          contract)
         breaks_if: >-
           A command's spec-declared shape changes; consumers must read the spec
           card for the contract.
@@ -278,8 +301,8 @@ brief:
       type: binary
       measure:
         predicate: >-
-          --quiet emits only the core payload on stdout and silences non-fatal
-          stderr.
+          --quiet emits only the compact core payload on stdout and silences
+          non-fatal stderr.
         method: CLI integration test capturing stdout vs stderr under --quiet.
         reference: test/cli/
       verifies:
@@ -300,7 +323,7 @@ brief:
       - option: Uniform JSON envelope on every command (v1 design).
         pros:
           - One parser handles every command.
-          - Single SKILL section documents the wrapper.
+          - Single section documents the wrapper.
         cons:
           - >-
             `errors[]` mixed three distinct concerns (per-link / structural /
@@ -329,8 +352,8 @@ brief:
           - Breaking change for v1 consumers.
           - No generic parser; consumers must know each command's shape.
           - >-
-            stderr JSON-lines format needs documenting (mitigated by R-004 +
-            SKILL doc).
+            stderr JSON-lines format needs documenting (mitigated by R-004 plus
+            the per-command spec cards).
     chosen:
       option: Per-command natural shapes with stderr for cross-cutting diagnostics.
       reasoning: >-
