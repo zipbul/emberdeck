@@ -11,39 +11,53 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed card search <query>`
-        // op `searchCards` 가 FTS5 매칭. OP-10 가 snippet/rank 항상 반환 (모든 매치에).
+
+        // searchCards runs the indexed text-search over card body content;
+        every match carries snippet and rank.
+
         {
           items: {
             ...CardSummary,           // key, summary, type, status, parent
-            snippet: string,           // FTS5 snippet (매치 위치 짧은 발췌)
-            rank: number               // BM25 score (낮을수록 강함)
+            snippet: string,           // short excerpt around the match
+            rank: number               // relevance score (lower is stronger)
           }[],
           total
         }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): FTS5 쿼리 성공 (빈 결과 포함).
-        - thrown 매핑: FtsSyntaxError → 2 (EXIT.VALIDATION_FAILURE).
+      guarantee: >-
+        - 0 (EXIT.OK): the search query parsed and ran successfully (an empty
+        result set is still success).
+
+        - thrown mapping: FtsSyntaxError → 2 (EXIT.VALIDATION_FAILURE).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 'query 가 FTS5 문법 위반 (예: 닫히지 않은 인용부호).'
-      behavior: stderr `{level:'error', code:'fts-syntax-error', message}` + exit 2.
+    - violation: Query violates the search-index syntax (e.g. an unmatched quote).
+      behavior: >-
+        stderr emits `{level:'error', code:'fts-syntax-error', message}` and the
+        process exits 2.
 ---
