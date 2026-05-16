@@ -12,43 +12,55 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed card context <key> [--depth N]`
+
         {
           key,
-          // card.frontmatter 의 핵심 필드 (card get 과 동일 layout 으로 root flat):
+          // core frontmatter fields (same flat layout as `ed card get`):
           summary, status, type, parent: string|null,
           glossary: string[], relations?: string[], tags?: string[],
           principle?, domain?, brief?, spec?,
           upstream:   CardSummary[],
           downstream: CardSummary[],
-          parentChain: CardSummary[],           // root → 현 카드 직전 (op 가 직접 반환, OP-12)
-          related?: { card: CardSummary, depth: number, direction: 'forward'|'backward' }[],   // depth>1 시 BFS
+          parentChain: CardSummary[],           // root → directly-above the requested card
+          related?: { card: CardSummary, depth: number, direction: 'forward'|'backward' }[],   // populated when depth > 1 (BFS over the relation graph)
           truncated?: boolean,
           codeLinks: { resolved: number, total: number }
         }
+
+        // CLI --depth defaults to 1; the ops layer default is 3.
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: |-
-        - 0 (EXIT.OK): context 조회 성공.
-        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND).
+        - 0 (EXIT.OK): context lookup succeeded.
+        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 주어진 key 의 카드가 없음.
-      behavior: stderr `{level:'error', code:'card-not-found', message}` + exit 3.
+    - violation: No card exists for the requested key.
+      behavior: >-
+        stderr emits `{level:'error', code:'card-not-found', message}` and the
+        process exits 3.
 ---
