@@ -101,7 +101,12 @@ export async function bulkCreateCards(
     }
   }
 
-  // Phase 2: apply relations for successfully created cards.
+  // Phase 2: apply relations for successfully created cards. A phase-2 failure
+  // does NOT remove the entry from created[] — the row was committed in phase
+  // 1 and remains on disk. Instead the failure is reported separately:
+  //   - errors[] gets the relation-update message (with the same inputIndex)
+  //   - partialKeys[] lists the keys whose relations did not land
+  // Callers can rerun `ed card update KEY --field relations=...` to recover.
   const partialKeys: string[] = [];
   if (pendingRelations.length > 0) {
     for (const { key, filePath, input } of pendingRelations) {
@@ -114,8 +119,6 @@ export async function bulkCreateCards(
           filePath,
           message: `relation update failed: ${errorMessage(err)}`,
         });
-        const idx = created.findIndex((c) => c.key === key);
-        if (idx !== -1) created.splice(idx, 1);
         partialKeys.push(key);
       }
     }

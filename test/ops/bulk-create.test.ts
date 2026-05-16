@@ -153,8 +153,11 @@ describe('bulkCreateCards', () => {
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'pk-orphan', summary: 'Orphan', type: 'spec', relations: ['nonexistent-card'] },
     ]);
+    // The phase-1 row is committed and stays in created[]; partialKeys[]
+    // flags it as "row exists but its relations did not land", and errors[]
+    // carries the relation-update message.
     expect(result.partialKeys).toContain('pk-orphan');
-    expect(result.created.find((c) => c.key === 'pk-orphan')).toBeUndefined();
+    expect(result.created.find((c) => c.key === 'pk-orphan')).toBeDefined();
     expect(result.errors.some((e) => e.key === 'pk-orphan' && e.message.includes('relation'))).toBe(true);
     expect(tc.ctx.cardRepo.findByKey('pk-orphan')).not.toBeNull();
   });
