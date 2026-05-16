@@ -15,6 +15,7 @@ import { DrizzleChangelogRepository, CHANGED_BY } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { card as cardTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
+import { batchedAllSettled } from '../util/batch';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 
@@ -324,27 +325,22 @@ export async function resetEmberdeck(
   let cardsDeleted = 0;
   const failedFileDeletes: string[] = [];
 
-  // Delete all card files + DB entries.
-  // File deletes parallelized in batches to amortize fs round-trips.
-  // Per-file failures collected into failedFileDeletes so they surface on the result.
-  const pending: Array<{ filePath: string; promise: Promise<unknown> }> = [];
-  const FILE_BATCH = 20;
-  const drain = async (): Promise<void> => {
-    const results = await Promise.allSettled(pending.map((p) => p.promise));
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') failedFileDeletes.push(pending[i]!.filePath);
-    });
-    pending.length = 0;
-  };
+  // Phase 1: delete every row from the indexed cache. A DB-delete failure on a
+  // single row is unusual (the row may already be gone); skip and continue.
+  const filesToUnlink: string[] = [];
   for (const card of allCards) {
     try {
       ctx.cardRepo.deleteByKey(card.key);
       cardsDeleted++;
-      pending.push({ filePath: card.filePath, promise: deleteCardFile(card.filePath) });
-      if (pending.length >= FILE_BATCH) await drain();
+      filesToUnlink.push(card.filePath);
     } catch { /* skip DB delete failure (rare; row may already be gone) */ }
   }
-  if (pending.length > 0) await drain();
+
+  // Phase 2: unlink the card files with bounded parallelism. Per-file failures
+  // surface on the result as failedFileDeletes; they do not abort the loop.
+  for await (const { item, result } of batchedAllSettled(filesToUnlink, 20, deleteCardFile)) {
+    if (result.status === 'rejected') failedFileDeletes.push(item);
+  }
 
   // Prune orphan tags
   ctx.classificationRepo.pruneOrphans();
