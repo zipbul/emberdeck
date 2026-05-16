@@ -1,9 +1,10 @@
 import jsyaml from 'js-yaml';
 import { errorMessage } from '../util/error';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
+import { atomicWriteSync } from '../fs/writer';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -115,12 +116,5 @@ export function writeGlossary(ctx: EmberdeckContext, entries: GlossaryEntry[]): 
     : [];
   const yaml = sorted.length === 0 ? '' : jsyaml.dump(sorted, { lineWidth: 80, noRefs: true });
 
-  const tmpPath = path + '.tmp.' + Math.random().toString(36).slice(2, 10);
-  writeFileSync(tmpPath, yaml, 'utf-8');
-  try {
-    renameSync(tmpPath, path);
-  } catch (err) {
-    try { unlinkSync(tmpPath); } catch { /* best-effort */ }
-    throw err;
-  }
+  atomicWriteSync(path, yaml);
 }
