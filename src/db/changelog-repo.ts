@@ -14,7 +14,7 @@ export const CHANGED_BY = {
 } as const;
 
 export class DrizzleChangelogRepository implements ChangelogRepository {
-  constructor(private db: EmberdeckDb) {}
+  constructor(private readonly db: EmberdeckDb) {}
 
   insert(entry: Omit<ChangelogRow, 'id'>): void {
     this.db

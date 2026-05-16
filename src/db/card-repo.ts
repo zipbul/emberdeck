@@ -6,7 +6,7 @@ import { FtsSyntaxError } from '../card/errors';
 import { card, cardTag, tag } from './schema';
 
 export class DrizzleCardRepository implements CardRepository {
-  constructor(private db: EmberdeckDb) {}
+  constructor(private readonly db: EmberdeckDb) {}
 
   findByKey(key: string): CardRow | null {
     const row = this.db.select().from(card).where(eq(card.key, key)).get();

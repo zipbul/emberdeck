@@ -5,7 +5,7 @@ import type { ClassificationRepository } from './repository';
 import { tag, cardTag } from './schema';
 
 export class DrizzleClassificationRepository implements ClassificationRepository {
-  constructor(private db: EmberdeckDb) {}
+  constructor(private readonly db: EmberdeckDb) {}
 
   replaceTags(cardKey: string, names: string[]): void {
     this.db.delete(cardTag).where(eq(cardTag.cardKey, cardKey)).run();

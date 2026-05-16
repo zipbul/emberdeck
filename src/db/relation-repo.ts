@@ -6,7 +6,7 @@ import type { RelationRepository, RelationRow } from './repository';
 import { cardRelation } from './schema';
 
 export class DrizzleRelationRepository implements RelationRepository {
-  constructor(private db: EmberdeckDb) {}
+  constructor(private readonly db: EmberdeckDb) {}
 
   replaceForCard(cardKey: string, relations: string[]): string[] {
     // Delete only the relations owned by this card:

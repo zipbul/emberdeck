@@ -7,7 +7,7 @@ import type { CodeLink } from '../card/types';
 import { codeLink } from './schema';
 
 export class DrizzleCodeLinkRepository implements CodeLinkRepository {
-  constructor(private db: EmberdeckDb) {}
+  constructor(private readonly db: EmberdeckDb) {}
 
   replaceForCard(cardKey: string, links: CodeLink[]): void {
     this.db.delete(codeLink).where(eq(codeLink.cardKey, cardKey)).run();
