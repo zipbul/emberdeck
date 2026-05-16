@@ -12,19 +12,14 @@ brief:
   context:
     problem: >
       Cards are read in many shapes: by exact key, by filter (type, status, tag,
-      glossary, symbol),
-
-      by free text, by parent-child tree, by neighborhood context, and as a
-      relation graph. Without
-
-      a unified read surface every caller would re-implement joins and
-      pagination, drifting from a
-
-      single source of truth.
+      glossary, symbol, file, root subtree, updatedSince timestamp), by free
+      text, by parent-child tree, by neighborhood context, and as a relation
+      graph. Without a unified read surface every caller would re-implement
+      joins and pagination, drifting from a single source of truth.
     impact:
       - statement: >-
           Inconsistent read surfaces produce subtly different results across the
-          CLI, causing user confusion.
+          CLI, causing operator confusion.
       - statement: >-
           Search performance degrades quickly without an explicit index
           strategy.
@@ -32,12 +27,15 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Provide getCard, listCards, searchCards, getCardTree, getCardContext,
-          listCardRelations, getRelationGraph as the only read entry points.
+          Provide getCard, getCards (batch), listCards, searchCards,
+          getCardTree, getCardContext, listCardRelations, getRelationGraph,
+          findCardsByGlossaryWord, and findCardsBySymbol as the read entry
+          points.
       - id: G-002
         statement: >-
           Filters compose orthogonally so combined filters return the
-          intersection.
+          intersection; CardListFilter accepts type, status, parent, tag,
+          glossary, symbol, file, roots (subtree restriction), and updatedSince.
       - id: G-003
         statement: Search rejects malformed queries with a clear error.
     non_goals:
@@ -47,120 +45,161 @@ brief:
         statement: Cross-project federation.
     assumptions:
       - id: A-001
-        statement: Full-text search uses the SQLite FTS5 extension.
-        verification: Check schema.ts for fts5 table declaration.
-        reevaluate_when: A platform without FTS5 must be supported.
+        statement: >-
+          An indexed full-text search facility is available and is the backing
+          store for searchCards.
+        verification: Inspect schema for the search virtual-table declaration.
+        reevaluate_when: >-
+          A platform without an equivalent text-search facility must be
+          supported.
   flow:
     - id: S-H-01
       kind: happy
       given: A list call with type=brief and status=active.
       when: listCards runs.
-      then: A paginated list of brief active cards is returned with has_more flag.
+      then: >-
+        A paginated list of brief active cards is returned with the hasMore flag
+        and the explicit limit + offset values.
       covers:
         - G-001
         - G-002
     - id: S-H-02
       kind: happy
-      given: A search call with a valid FTS query string.
+      given: A search call with a valid text-search query string.
       when: searchCards runs.
       then: A ranked list of matching cards is returned.
       covers:
         - G-001
     - id: S-F-01
       kind: failure
-      given: A search call with malformed FTS syntax.
+      given: A search call with malformed search syntax.
       when: searchCards runs.
-      then: An FtsSyntaxError is thrown with exit code 2.
+      then: An FtsSyntaxError is thrown and the runner exits 2.
       covers:
         - G-003
   design:
     overview: >
       Each read returns a typed result shape. listCards composes WHERE clauses
-      from independent
-
-      filter inputs. searchCards delegates to FTS5 with explicit syntax
-      validation up front.
-
-      getCardTree and getCardContext recurse through parent and relation tables
-      with a configurable
-
-      depth ceiling (default 3 per project decisions).
+      from independent filter inputs and surfaces explicit limit, offset, and
+      hasMore in its result envelope (default limit is 50). searchCards
+      delegates to the indexed text-search facility with explicit syntax
+      validation up front. getCardTree caps traversal at depth (default 10,
+      capped at 20) and exposes a truncated marker on nodes whose unvisited
+      subtree was skipped. getCardContext defaults to depth 3 at the ops layer;
+      the CLI exposes default depth 1. getRelationGraph defaults to depth 3 and
+      returns forward + reverse hops within that ceiling. getCards is the batch
+      read variant: unknown keys are returned in notFound[] rather than
+      throwing. findCardsByGlossaryWord and findCardsBySymbol are alternate
+      filtered listings selected by the CLI --glossary / --symbol flags
+      (mutually exclusive with --tag).
     components:
       - name: getCard
         responsibility: Single-card lookup with optional history.
         interacts_with:
           - getCardContext
+      - name: getCards
+        responsibility: >-
+          Batch lookup; unknown keys are collected in notFound[] rather than
+          throwing.
+        interacts_with:
+          - getCard
       - name: listCards
-        responsibility: Filtered list with composable predicates and pagination.
+        responsibility: >-
+          Filtered list with composable predicates and explicit pagination
+          (default limit 50).
         interacts_with: []
       - name: searchCards
-        responsibility: FTS5-backed search with explicit syntax check.
+        responsibility: Text-search-backed search with explicit syntax check and ranking.
         interacts_with: []
       - name: getCardTree
-        responsibility: Parent-child traversal capped at depth.
+        responsibility: >-
+          Parent-child traversal capped at depth (default 10, capped at 20) with
+          truncated markers.
         interacts_with: []
       - name: getCardContext
-        responsibility: Neighborhood traversal (parent BFS plus relations) capped at depth.
+        responsibility: >-
+          Neighborhood traversal (parent BFS plus relations) capped at depth
+          (ops default 3, CLI default 1).
         interacts_with:
           - getCard
       - name: getRelationGraph
-        responsibility: Forward and reverse relations for a card.
+        responsibility: Forward and reverse relations within a depth ceiling (default 3).
         interacts_with: []
+      - name: findCardsByGlossaryWord
+        responsibility: >-
+          Listing variant that selects every card whose glossary field contains
+          the given word.
+        interacts_with:
+          - listCards
+      - name: findCardsBySymbol
+        responsibility: >-
+          Listing variant that selects every card whose binding cache references
+          the given symbol; matchType distinguishes codeLink-backed hits.
+        interacts_with:
+          - listCards
     data_flow: []
     invariants:
       - id: DI-001
         statement: Filter composition is intersection (AND), never union.
       - id: DI-002
-        statement: Tree and context traversals respect a depth ceiling to bound work.
+        statement: >-
+          Tree and context traversals respect their depth ceilings (tree
+          min(req, 20) default 10; context default 3 ops / 1 CLI; relation graph
+          default 3) and surface truncation explicitly when the ceiling is
+          reached.
   policy:
     - id: R-001
       subject: searchCards
       keyword: MUST
       predicate: >-
-        validate FTS syntax before query execution and throw FtsSyntaxError on
-        failure.
+        validate search syntax before query execution and throw FtsSyntaxError
+        on failure.
       governs:
         - S-F-01
     - id: R-002
       subject: listCards filter composition
       keyword: SHALL
-      predicate: behave as conjunction across orthogonal filters.
+      predicate: >-
+        behave as conjunction across orthogonal filters; --tag is mutually
+        exclusive with --symbol and --glossary at the CLI layer.
       governs:
         - S-H-01
         - S-H-02
   external:
     - id: C-001
-      statement: BFS depth ceiling default of 3 follows the project roadmap decision.
+      statement: >-
+        Per-command stdout shapes for the read commands (card-get, card-list,
+        card-search, card-tree, card-context, card-relations) are jointly
+        authored with the per-command spec cards under cli-surface.
       reference:
-        title: project_roadmap_decisions memory entry
-        locator: >-
-          /home/revil/.claude/projects/-home-revil-projects-zipbul-emberdeck/memory/project_roadmap_decisions.md
+        title: spec cli-surface/command-routing-and-output/commands/card-list
+        locator: cli-surface/command-routing-and-output/commands/card-list
   compatibility:
     guarantees:
-      - subject: Read entry points public signatures
+      - subject: Read entry-point public signatures
         version_range: 1.x
         breaks_if: A required filter is added without a default.
   limits:
     - id: KL-001
       statement: >-
-        searchCards relevance ranking depends on FTS5 default tokenizer;
+        Search relevance ranking depends on the default tokenizer;
         locale-specific tokenization is not configured.
     - id: KL-002
       statement: >-
-        getRelationGraph returns one hop only; multi-hop is the responsibility
-        of getCardContext.
+        getRelationGraph returns at most depth-3 hops; deeper traversal is the
+        responsibility of getCardContext invoked with a larger depth.
   criteria:
     - id: SC-001
       type: binary
       measure:
-        predicate: Combined type and status filters return intersection.
+        predicate: Combined type and status filters return the intersection.
         method: Integration test that asserts filter composition behavior.
       verifies:
         - S-H-01
     - id: SC-002
       type: binary
       measure:
-        predicate: Malformed FTS query exits 2 with FtsSyntaxError.
+        predicate: A malformed search query exits 2 with FtsSyntaxError.
         method: CLI-level test invoking ed card search with a broken query.
       verifies:
         - S-F-01
@@ -173,16 +212,16 @@ brief:
         cons:
           - Result type cannot be tightened per use case
           - forcing every caller to handle a union.
-      - option: External search engine (Meilisearch).
+      - option: External search engine (e.g. Meilisearch).
         pros:
           - Better relevance.
         cons:
           - Adds a server dependency.
     chosen:
-      option: Narrow read entry points backed by SQLite plus FTS5.
+      option: Narrow read entry points backed by the embedded text-search facility.
       reasoning: >-
-        Matches single-user CLI deployment, keeps result shapes precise per use
-        case.
+        Matches single-user CLI deployment and keeps result shapes precise per
+        use case.
     addresses:
       - KL-001
       - KL-002
