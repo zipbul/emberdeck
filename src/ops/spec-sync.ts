@@ -16,7 +16,12 @@ import { join, relative, dirname } from 'node:path';
  * that the tag matches the card's type, so authors can use whichever tag fits
  * their narrative (a brief annotation linking to a spec card is allowed).
  */
-const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as const;
+/**
+ * Card tier names whose source bindings flow through `@spec`-family annotations
+ * into the code_link cache. Exported so the CLI validate path can build the same
+ * filter without duplicating the literal tuple.
+ */
+export const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as const;
 
 
 /**

@@ -7,6 +7,7 @@ import { run } from '../runner';
 import type { CliRuntime } from '../context';
 import { validateCards, ensureCardsSynced, detectKeyMismatches } from '../../ops/sync';
 import { validateCodeLinks, type BrokenLink } from '../../ops/link';
+import { TRACKED_ANNOTATION_TAGS } from '../../ops/spec-sync';
 import { CardNotFoundError } from '../../card/errors';
 
 // ── shape helpers ──
@@ -168,10 +169,11 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
   // spec-sync tracks @spec/@brief/@principle/@domain annotations into the
   // code_link cache (all 4 tiers can carry source bindings). validate-links
   // must check every type, not just spec, or non-spec bindings rot silently.
-  const TRACKED_LINK_TYPES = new Set(['spec', 'brief', 'principle', 'domain']);
+  // Reuses TRACKED_ANNOTATION_TAGS from spec-sync to keep the tier list single-sourced.
+  const trackedTypes = new Set<string>(TRACKED_ANNOTATION_TAGS);
   const targets = explicitRow
     ? [explicitRow]
-    : rt.ctx.cardRepo.list().filter((c) => TRACKED_LINK_TYPES.has(c.type) && !mismatchedKeys.has(c.key));
+    : rt.ctx.cardRepo.list().filter((c) => trackedTypes.has(c.type) && !mismatchedKeys.has(c.key));
 
   for (const t of targets) {
     try {
