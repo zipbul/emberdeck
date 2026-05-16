@@ -1,8 +1,8 @@
 ---
 key: analysis/impact-and-aggregate/impact-and-regression
 summary: >-
-  preChangeCheck and regressionGuard implement risk_level scoring and CI
-  threshold gating.
+  preChangeCheck and regressionGuard implement riskLevel scoring with hot-file
+  fan-in promotion and CI threshold gating.
 status: active
 type: spec
 parent: analysis/impact-and-aggregate
@@ -12,29 +12,38 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        Caller passes a list of repo-relative file paths (or a threshold for
-        regression).
+        Caller passes a list of repo-relative file paths (or, for
+        regressionGuard, a threshold in [0,1]).
       derives: analysis/impact-and-aggregate#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        preChangeCheck returns risk_level (low / medium / high / critical) and
-        per-card linkType (direct / transitive).
+        preChangeCheck returns riskLevel (low | medium | high | critical) and
+        per-card linkType (direct | transitive). Fan-in promotion bumps
+        riskLevel one tier when any touched file has fan-in at or above a
+        hot-file threshold; the promotion is applied at most once per call.
       keyword: MUST
       derives: analysis/impact-and-aggregate#G-001
     - id: POST-002
       guarantee: >-
-        regressionGuard exits with code 2 when drifted ratio exceeds the
-        configured threshold.
+        regressionGuard exits with code 2 when the drifted ratio strictly
+        exceeds the configured threshold; exits 0 when ratio is at or under
+        threshold. The violating ratio is returned in the result data when exit
+        is non-zero.
       keyword: SHALL
       derives: analysis/impact-and-aggregate#G-002
   invariants:
     - id: INV-001
-      statement: risk_level is monotonic in affected_count and broken-link count.
+      statement: >-
+        riskLevel is monotonic in affectedCount and broken-link count; a
+        hot-file fan-in match can only promote the level upward, never demote.
       always_holds: per-call
   failures:
-    - violation: A passed file path is not under the project root.
+    - violation: >-
+        A passed file path is not under the project root or is excluded by
+        configured ignorePatterns.
       behavior: >-
-        preChangeCheck excludes the file silently; affected_cards reflects only
-        known files.
+        preChangeCheck excludes the file silently; affectedCards reflects only
+        the remaining known files and newUncoveredFiles reflects the post-ignore
+        set.
 ---
