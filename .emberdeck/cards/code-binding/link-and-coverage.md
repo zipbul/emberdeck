@@ -156,9 +156,12 @@ brief:
         locator: code-binding/link-and-coverage/resolve-and-validate
   compatibility:
     guarantees:
-      - subject: gildash version
-        version_range: 0.26.x
-        breaks_if: A new gildash major changes adopted API signatures.
+      - subject: link-and-coverage entry-point signatures
+        version_range: 1.x
+        breaks_if: >-
+          A new major version of the underlying code-index dependency changes
+          the adopted API signatures (reindex, getSymbolsByFile, getAffected,
+          getDependents), or this brief reshapes its public entry points.
   limits:
     - id: KL-001
       statement: >-
