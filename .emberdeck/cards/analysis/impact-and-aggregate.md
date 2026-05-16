@@ -23,7 +23,7 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Provide preChangeCheck producing risk_level and affected_cards for a
+          Provide preChangeCheck producing riskLevel and affectedCards for a
           list of files.
       - id: G-002
         statement: >-
@@ -31,46 +31,51 @@ brief:
           configured threshold.
       - id: G-003
         statement: >-
-          Provide checkInteractions that surfaces shared symbol or shared file
-          conflicts between cards.
+          Provide checkInteractions that surfaces shared-symbol, shared-file,
+          and import-dependency conflicts between cards.
       - id: G-004
         statement: >-
-          Provide analyze that aggregates health, coverage, drift, glossary and
-          unlinked symbols.
+          Provide analyze that aggregates health, coverage, drifted cards,
+          glossary, and unlinkedSymbols.
     non_goals:
       - id: NG-001
         statement: Real-time monitoring of changes.
       - id: NG-002
-        statement: Suggesting which cards to fix first beyond risk_level ordering.
+        statement: Suggesting which cards to fix first beyond riskLevel ordering.
     assumptions:
       - id: A-001
         statement: >-
           Files passed to preChangeCheck use repo-relative paths matching
-          gildash conventions.
+          code-index conventions.
         verification: Inspect impact.ts path normalization.
         reevaluate_when: Path conventions change.
   flow:
     - id: S-H-01
       kind: happy
-      given: A preChangeCheck call for two files that touch one card each.
+      given: >-
+        A preChangeCheck call for two files that each touch exactly one card
+        with low overall fan-in.
       when: preChangeCheck runs.
-      then: risk_level low and affected_cards list both cards with linkType direct.
+      then: >-
+        riskLevel is low and affectedCards lists both cards with linkType
+        direct.
       covers:
         - G-001
     - id: S-H-02
       kind: happy
       given: A repository with eight active cards and two drifted, threshold 0.3.
       when: regressionGuard runs.
-      then: Exit 0 because ratio 0.2 is under threshold.
+      then: Exit 0 because ratio 0.25 is at or under threshold.
       covers:
         - G-002
     - id: S-H-03
       kind: happy
-      given: An analyze call with healthy state.
+      given: An analyze call against a healthy repository.
       when: analyze runs.
       then: >-
-        One JSON object is returned with health, coverage, drift, glossary, and
-        unlinked_symbols populated.
+        One JSON object is returned populating health, coverage, drifted,
+        glossary, and unlinkedSymbols; as a hygiene side effect, code-index
+        changelog entries older than the retention window are pruned.
       covers:
         - G-004
     - id: S-F-01
@@ -82,38 +87,52 @@ brief:
         - G-002
     - id: S-F-02
       kind: failure
-      given: Two specs whose code_link caches both reference the same symbol.
+      given: Two specs whose binding caches both reference the same symbol.
       when: checkInteractions runs over both keys.
-      then: A shared-symbol conflict entry is reported with the offending symbol.
+      then: >-
+        A sharedSymbols conflict entry is reported with the offending symbol;
+        importDependencies and potentialConflicts are populated when applicable.
       covers:
         - G-003
   design:
     overview: >
-      preChangeCheck walks the input files and the DB code_link cache to compute
-      affected_cards and an aggregate risk_level (low / medium / high /
-      critical). regressionGuard uses card-storage counts plus a project
-      threshold. checkInteractions diffs the code_link cache across input keys
-      for shared symbols, shared files, and imports. analyze composes the four
-      read sources into one aggregate envelope.
+      preChangeCheck walks the input files and the binding cache to compute
+      affectedCards and an aggregate riskLevel (low / medium / high / critical)
+      from a tiered set of thresholds: affected-count tiers, broken-link counts,
+      and a fan-in promotion step that bumps the level one tier when any touched
+      file has fan-in at or above a hot-file threshold. regressionGuard compares
+      the drifted/total ratio against a configured threshold (range 0 to 1).
+      checkInteractions diffs the binding cache across input keys for
+      sharedSymbols, sharedFiles, importDependencies, and potentialConflicts.
+      analyze composes the four read sources into one aggregate object and, as a
+      hygiene side effect, prunes code-index changelog entries older than the
+      configured retention window.
     components:
       - name: preChangeCheck
-        responsibility: Compute affected cards and risk_level from a file list.
+        responsibility: >-
+          Compute affectedCards and riskLevel from a file list using
+          affected-count tiers, broken-link counts, and hot-file fan-in
+          promotion; surface newUncoveredFiles after ignore-pattern filtering.
         interacts_with:
           - code-binding
       - name: regressionGuard
-        responsibility: Compare drifted ratio against threshold and exit accordingly.
+        responsibility: >-
+          Compare drifted/total ratio against a configured threshold in [0,1]
+          and exit accordingly.
         interacts_with:
           - card-storage
       - name: checkInteractions
         responsibility: >-
-          Detect shared symbol, file, or import conflicts between two or more
-          cards.
+          Detect sharedSymbols, sharedFiles, importDependencies, and
+          potentialConflicts between two or more cards; unknown card keys
+          produce empty entries rather than throwing.
         interacts_with:
           - code-binding
       - name: analyze
         responsibility: >-
-          Aggregate health, coverage, drift, glossary, and unlinked_symbols into
-          one JSON object.
+          Aggregate health, coverage, drifted (with pagination metadata),
+          glossary, and unlinkedSymbols into one JSON object; prune
+          retention-aged code-index changelog entries as a hygiene side effect.
         interacts_with:
           - card-storage
           - code-binding
@@ -121,22 +140,28 @@ brief:
     data_flow: []
     invariants:
       - id: DI-001
-        statement: risk_level is monotonic in affected_count and broken-link count.
+        statement: >-
+          riskLevel is monotonic in affectedCount and broken-link count; a
+          hot-file fan-in match can only promote the level upward, never demote.
       - id: DI-002
         statement: >-
-          regressionGuard always returns the violating ratio when it exits
+          regressionGuard returns the violating ratio whenever it exits
           non-zero.
   policy:
     - id: R-001
       subject: preChangeCheck
       keyword: MUST
-      predicate: classify each affected card with linkType (direct / transitive).
+      predicate: >-
+        classify each affected card with linkType (direct or transitive) and
+        apply the hot-file fan-in promotion exactly once per call.
       governs:
         - S-H-01
     - id: R-002
       subject: regressionGuard
       keyword: SHALL
-      predicate: exit 2 when the drifted ratio exceeds the configured threshold.
+      predicate: >-
+        exit 2 when the drifted ratio strictly exceeds the configured threshold;
+        exit 0 when ratio is at or under threshold.
       governs:
         - S-F-01
         - S-H-02
@@ -145,22 +170,21 @@ brief:
   external:
     - id: C-001
       statement: >-
-        Threshold semantics align with the analyze and check coverage outputs in
-        the response shapes contract.
+        riskLevel enum and threshold semantics are jointly defined with the
+        per-command shape contracts in cli-surface.
       reference:
-        title: emberdeck SKILL response_shapes section
-        locator: >-
-          /home/revil/projects/zipbul/emberdeck/.claude/skills/emberdeck/SKILL.md
+        title: spec cli-surface/command-routing-and-output/commands/check-impact
+        locator: cli-surface/command-routing-and-output/commands/check-impact
   compatibility:
     guarantees:
       - subject: preChangeCheck and regressionGuard public signatures
         version_range: 1.x
-        breaks_if: risk_level enum changes or threshold semantics change.
+        breaks_if: riskLevel enum changes or threshold semantics change.
   limits:
     - id: KL-001
       statement: >-
-        risk_level is heuristic; it ranks suggested attention but is not a
-        formal guarantee.
+        riskLevel is heuristic; it ranks suggested attention but is not a formal
+        guarantee.
     - id: KL-002
       statement: >-
         checkInteractions is pairwise per call; multi-way conflict graphs
@@ -169,22 +193,29 @@ brief:
     - id: SC-001
       type: binary
       measure:
-        predicate: regressionGuard exits 2 when ratio exceeds threshold.
+        predicate: regressionGuard exits 2 when ratio strictly exceeds threshold.
         method: CLI integration test against a fixture with controlled ratios.
       verifies:
         - S-F-01
     - id: SC-002
       type: binary
       measure:
-        predicate: checkInteractions detects a shared symbol across two specs.
-        method: Integration test with two specs whose code_link caches share a target.
+        predicate: >-
+          checkInteractions detects a shared symbol across two specs and
+          populates importDependencies and potentialConflicts when applicable.
+        method: Integration test with two specs whose binding caches share a target.
       verifies:
         - S-F-02
     - id: SC-003
       type: binary
       measure:
-        predicate: analyze returns all five top-level data keys in a single envelope.
-        method: Snapshot test of the analyze JSON output.
+        predicate: >-
+          analyze returns all five top-level data keys (health, coverage,
+          drifted, glossary, unlinkedSymbols) in a single object and the
+          retention-prune side effect runs without error.
+        method: >-
+          Snapshot test of the analyze JSON output combined with an assertion
+          that retention-aged changelog entries are absent after the call.
       verifies:
         - S-H-03
         - S-H-01
@@ -200,7 +231,9 @@ brief:
         pros:
           - Always-on feedback.
         cons:
-          - Conflicts with the gildash pinned non-watch policy.
+          - >-
+            Conflicts with the pinned non-watch policy for the code-index
+            dependency.
     chosen:
       option: >-
         Discrete entry points sharing a common card-storage and code-binding

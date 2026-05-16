@@ -40,9 +40,16 @@ spec:
     - id: POST-003
       guarantee: >-
         Exit codes come from the EXIT enum (`src/cli/exit-codes.ts`) and are
-        chosen per error class: CardNotFoundError → 3, CliUsageError → 2,
-        ConflictError → 4, IO errors → 5, ConfigMissing → 6, transient → 7,
-        SIGINT → 130, generic → 1.
+        chosen per kebab error code via the ERROR_CODE_TO_EXIT map:
+        `card-not-found` → 3; `card-already-exists` and `rename-same-path` → 4;
+        `invalid-card-key`, `validation-error`, `parent-validation-error`,
+        `fts-syntax-error`, `activation-guard-failed`, `cli-usage-error`,
+        `config-parse-error`, `config-validation-error`, `glossary-parse-error`,
+        `glossary-validation-error` → 2; `glossary-not-found` → 3;
+        `gildash-init-failed` and `config-missing-file` → 6;
+        `stdout-write-failed` → 5; `compensation-failed`, `internal-error`,
+        `output-encode-failed` → 1; SIGINT → 130. Unknown codes fall through to
+        1 (generic).
       keyword: SHALL
       derives: cli-surface/command-routing-and-output#G-002
     - id: POST-004
@@ -69,10 +76,11 @@ spec:
       always_holds: per-call
     - id: INV-002
       statement: >-
-        run invokes the card-storage/persistence file-to-DB auto-sync
+        run invokes the card-storage/persistence file-to-cache auto-sync
         (ensureCardsSynced, derives card-storage/persistence#G-004) after
         buildRuntime and before delegating to the CommandFn, so every command
-        observes a DB consistent with the on-disk card files at command start.
+        observes an indexed cache consistent with the on-disk card files at
+        command start.
       always_holds: per-call
     - id: INV-003
       statement: >-
@@ -112,8 +120,43 @@ spec:
         directly — only the runner calls emitResult.
     - violation: A SIGINT or SIGTERM is received during command execution.
       behavior: >-
-        Best-effort cleanup runs; stderr emits a single 'SIGINT received,
-        exiting' line; process exits with code 130. stdout is whatever was
-        already written (potentially partial JSON) — consumers MUST check exit
-        code.
+        Best-effort cleanup runs; stderr emits `{level:error, code:sigint,
+        message:'<SIG> received, exiting'}`; process exits 130. stdout is
+        whatever was already written (potentially partial JSON) — consumers MUST
+        check exit code.
+    - violation: >-
+        stdout write fails after the command completed successfully (broken pipe
+        excepted; disk-full or other IO error).
+      behavior: >-
+        stderr emits `{level:error, code:stdout-write-failed, message}`; process
+        exits 5.
+    - violation: >-
+        JSON encoding of the command result fails (e.g. BigInt, circular
+        reference, or other non-serializable value).
+      behavior: >-
+        stderr emits `{level:error, code:output-encode-failed, message}`;
+        process exits 1.
+    - violation: >-
+        ed init or any command that loads config encounters a missing
+        `.emberdeck.jsonc` file.
+      behavior: >-
+        stderr emits `{level:error, code:config-missing-file, message}`; process
+        exits 6.
+    - violation: Config file is present but cannot be parsed.
+      behavior: >-
+        stderr emits `{level:error, code:config-parse-error, message}`; process
+        exits 2.
+    - violation: >-
+        Config file is parsed but contains an invalid value (e.g.
+        regressionThreshold outside [0,1], unknown top-level key, wrong type for
+        a known field).
+      behavior: >-
+        stderr emits `{level:error, code:config-validation-error, message}`;
+        process exits 2.
+    - violation: >-
+        Compensation logic itself fails after a forward action error
+        (CompensationError).
+      behavior: >-
+        stderr emits `{level:error, code:compensation-failed, message,
+        details:{originalError, compensationError}}`; process exits 1.
 ---
