@@ -265,12 +265,11 @@ brief:
   compatibility:
     guarantees:
       - subject: Per-command stdout shape
-        version_range: >-
-          post-envelope (no version field; the per-command spec card is the
-          contract)
+        version_range: 1.x
         breaks_if: >-
-          A command's spec-declared shape changes; consumers must read the spec
-          card for the contract.
+          A command's spec-declared shape changes; consumers must read the
+          per-command spec card for the authoritative contract. No legacy v1
+          envelope dual-emission is supported.
     migration_path: >-
       v1 envelope consumers cannot read v2 stdout without rewriting. Migration
       is a single breaking step; no dual emission is supported.
