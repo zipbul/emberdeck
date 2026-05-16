@@ -11,40 +11,48 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
 
         ```jsonc
 
         // stdout shape for `ed card export <key> [--out FILE | --in-place]`
 
-        // OP-15 가 exportCardToFile 을 `{filePath, bytes}` 반환으로 변경, 모든 모드 bytes
-        일관.
+        // exportCardToFile returns { filePath, bytes } uniformly across modes;
+        the CLI adds `content` only in stdout mode.
 
-        { key, mode: 'in-place'|'file'|'stdout',
-          filePath?: string,    // mode='file'|'in-place'
-          bytes: number,         // 모든 모드 (직렬화된 content 의 byte 길이)
-          content?: string }     // mode='stdout' 만 (jq 친화)
+        { key, mode: 'in-place' | 'file' | 'stdout',
+          filePath?: string,     // present when mode is 'file' or 'in-place'
+          bytes: number,          // byte length of the serialized content (every mode)
+          content?: string }      // present only when mode is 'stdout' (jq-friendly)
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): export 성공 (파일 write 또는 stdout content 채움).
-        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND).
+      guarantee: >-
+        - 0 (EXIT.OK): export succeeded (the target file was written, or stdout
+        content was populated).
+
+        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 주어진 key 의 카드가 없음.
-      behavior: stderr `{level:'error', code:'card-not-found', message}` + exit 3.
+    - violation: No card exists for the requested key.
+      behavior: >-
+        stderr emits `{level:'error', code:'card-not-found', message}` and the
+        process exits 3.
 ---
