@@ -57,7 +57,7 @@ import { CARD_TYPES, CARD_STATUSES } from './types';
  *
  * @param input - The input object to validate. `undefined` fields are skipped.
  * @throws {CardValidationError} On size limit violation.
-  * @spec card-model/schema-and-validation/validate-card-input
+ * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateCardInput(input: ValidationInput): void {
   const { key, summary, tags, relations, type, status } = input;
@@ -159,7 +159,7 @@ const MAX_PARENT_DEPTH = 20;
 
 /**
  * Validates that the parent card exists in the DB.
-  * @spec card-model/schema-and-validation/parent-and-hierarchy
+ * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateParentExists(ctx: EmberdeckContext, parentKey: string): void {
   if (!ctx.cardRepo.existsByKey(parentKey)) {
@@ -173,7 +173,7 @@ export function validateParentExists(ctx: EmberdeckContext, parentKey: string): 
  * - domain: must be root (no parent allowed) — bounded contexts are top-level
  * - brief: parent MUST be domain (no brief recursion; siblings absorb bloat instead)
  * - spec: parent must be brief or spec (sub-spec recursion allowed)
-  * @spec card-model/schema-and-validation/parent-and-hierarchy
+ * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateParentType(ctx: EmberdeckContext, cardType: CardType, parentKey: string): void {
   const parent = ctx.cardRepo.findByKey(parentKey);
@@ -207,7 +207,7 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
 
 /**
  * Detects circular parent references by walking the ancestor chain (max 20 depth).
-  * @spec card-model/schema-and-validation/parent-and-hierarchy
+ * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, parentKey: string): void {
   let current: string | null = parentKey;
@@ -222,7 +222,7 @@ export function validateParentCycle(ctx: EmberdeckContext, cardKey: string, pare
 
 /**
  * Validates that all relation targets exist in the DB and none is a self-reference.
-  * @spec card-model/schema-and-validation/parent-and-hierarchy
+ * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, relations: string[]): void {
   for (const target of relations) {
@@ -243,7 +243,7 @@ export function validateRelationTargets(ctx: EmberdeckContext, cardKey: string, 
  * - principle / domain children should be: nothing for principle, brief for domain.
  * - brief: only spec children allowed.
  * - spec: only spec children allowed.
-  * @spec card-model/schema-and-validation/parent-and-hierarchy
+ * @spec card-model/schema-and-validation/parent-and-hierarchy
  */
 export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string, newType: CardType): void {
   const children = ctx.cardRepo.findChildren(cardKey);
@@ -302,7 +302,7 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
  * - spec: requires `spec` namespace; binding to source is via `@spec card-key`
  *         JSDoc annotations populated into the code_link table by `ed spec sync`.
  *         parent MUST exist and be a brief or spec card (4-tier hierarchy).
-  * @spec card-lifecycle/status-and-safe-write/update-card-status
+ * @spec card-lifecycle/status-and-safe-write/update-card-status
  */
 export async function validateActivationGuard(
   ctx: EmberdeckContext,
@@ -463,7 +463,7 @@ export async function validateActivationGuard(
 /**
  * Re-validates activation guard when type changes on an active card.
  * Returns 'draft' if the new type's conditions are unmet, otherwise returns the current status.
-  * @spec card-lifecycle/status-and-safe-write/update-card-status
+ * @spec card-lifecycle/status-and-safe-write/update-card-status
  */
 export async function validateTypeChangeActivation(
   ctx: EmberdeckContext,

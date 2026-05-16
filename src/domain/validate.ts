@@ -17,7 +17,7 @@ import { CardValidationError } from '../card/errors';
  * Validate that a domain card has a non-empty domain namespace.
  *
  * @throws {CardValidationError} when domain namespace is missing or empty.
-  * @spec card-model/schema-and-validation/validate-card-input
+ * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateDomainCard(fm: CardFrontmatter): void {
   if (fm.type !== 'domain') {

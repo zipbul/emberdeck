@@ -3,7 +3,7 @@ import type { GlossaryEntry } from './io';
 
 /**
  * Validate a single glossary entry (word + definition limits).
-  * @spec glossary/cross-card-validation/validate-and-match
+ * @spec glossary/cross-card-validation/validate-and-match
  */
 export function validateGlossaryEntry(entry: { word: string; definition: string }): void {
   if (!entry.word || entry.word.length === 0) {
@@ -27,7 +27,7 @@ export function validateGlossaryEntry(entry: { word: string; definition: string 
 /**
  * Validate the glossary field on a card against the glossary entries.
  * Only called when the glossary field is explicitly provided (not undefined).
-  * @spec glossary/cross-card-validation/validate-and-match
+ * @spec glossary/cross-card-validation/validate-and-match
  */
 export function validateCardGlossaryField(
   glossary: string[],

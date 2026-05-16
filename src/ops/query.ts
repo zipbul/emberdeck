@@ -174,7 +174,7 @@ export interface GetCardResult {
  * @param options - Optional: includeHistory to get changelog.
  * @returns The complete frontmatter + body, optionally with history.
  * @throws {CardNotFoundError} When the file does not exist.
-  * @spec card-storage/queries/get-list-search
+ * @spec card-storage/queries/get-list-search
  */
 export async function getCard(
   ctx: EmberdeckContext,
@@ -208,7 +208,7 @@ export interface GetCardsResult {
  * @param fullKeys - Array of card keys to retrieve.
  * @param options - Optional: includeHistory to get changelog for each card.
  * @returns Cards that were found and a list of keys that were not found.
-  * @spec card-storage/queries/get-list-search
+ * @spec card-storage/queries/get-list-search
  */
 export async function getCards(
   ctx: EmberdeckContext,
@@ -366,7 +366,7 @@ export interface CardTreeNode {
  * @param maxDepth - Maximum tree depth (default 10, capped at 20).
  * @returns Recursive tree structure.
  * @throws {CardNotFoundError} When the root card does not exist.
-  * @spec card-storage/queries/tree-context
+ * @spec card-storage/queries/tree-context
  */
 export function getCardTree(
   ctx: EmberdeckContext,

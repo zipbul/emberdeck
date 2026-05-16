@@ -28,7 +28,7 @@ function configurePragmas(db: EmberdeckDb): void {
 
 /**
  * Open a new DB + configure pragmas + run migrations.
-  * @spec card-storage/persistence/db-connection
+ * @spec card-storage/persistence/db-connection
  */
 export function createEmberdeckDb(path: string): EmberdeckDb {
   if (path !== ':memory:') {
@@ -48,7 +48,7 @@ export function createEmberdeckDb(path: string): EmberdeckDb {
 
 /**
  * Run only emberdeck migrations on an existing DB (for CLI integration).
-  * @spec card-storage/persistence/db-connection
+ * @spec card-storage/persistence/db-connection
  */
 export function migrateEmberdeck(db: EmberdeckDb): void {
   migrate(db, { migrationsFolder: getMigrationsFolder() });
@@ -63,7 +63,7 @@ export function closeDb(db: EmberdeckDb): void {
  * Helper to cast a transaction object to EmberdeckDb.
  * drizzle-orm's transaction type does not exactly match EmberdeckDb,
  * requiring the `as unknown as EmberdeckDb` pattern — this function centralizes that cast.
-  * @spec card-storage/persistence/db-connection
+ * @spec card-storage/persistence/db-connection
  */
 export function txDb(tx: unknown): EmberdeckDb {
   return tx as EmberdeckDb;

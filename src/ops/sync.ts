@@ -252,7 +252,7 @@ async function* upsertCardsInTierOrder(
  *
  * Returns the list of relation targets that failed to persist (FK
  * violation under concurrent contention). Empty array on a clean sync.
-  * @spec card-storage/persistence/sync
+ * @spec card-storage/persistence/sync
  */
 export async function syncCardFromFile(
   ctx: EmberdeckContext,
@@ -302,7 +302,7 @@ export async function syncCardFromFile(
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
  * File reads/writes are executed in bounded parallel batches via `batchedAllSettled`.
  * Each file's DB write is atomic, guaranteed by the transaction inside `syncCardFromFile`.
-  * @spec card-storage/persistence/sync
+ * @spec card-storage/persistence/sync
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,
@@ -397,7 +397,7 @@ export function detectKeyMismatches(
  * Validates consistency between the file list in cardsDir (or dirPath) and DB rows.
  * Performs read-only structural validation: hierarchy, relations, glossary,
  * orphans, key mismatches, content drift.
-  * @spec card-storage/persistence/sync
+ * @spec card-storage/persistence/sync
  */
 export async function validateCards(
   ctx: EmberdeckContext,
@@ -664,7 +664,7 @@ export async function validateCards(
 /**
  * Build a CardFile from the DB row + auxiliary tables. Pure — does NOT touch the filesystem.
  * Used by both exportCardToFile (which writes to disk) and CLI `card export` (which renders to STDOUT).
-  * @spec card-storage/persistence/sync
+ * @spec card-storage/persistence/sync
  */
 export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFile {
   const key = parseFullKey(fullKey);
@@ -720,7 +720,7 @@ export async function exportCardToFile(
 /**
  * Removes a card from the DB when its file has been externally deleted.
  * Invoked by CLI sync commands when a tracked card file is missing.
-  * @spec card-storage/persistence/sync
+ * @spec card-storage/persistence/sync
  */
 export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void {
   const existing = ctx.cardRepo.findByFilePath(filePath);

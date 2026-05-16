@@ -17,7 +17,7 @@ export interface SafeWriteOptions<T> {
  * No locking / retry: emberdeck assumes single-process invocation. SQLite WAL
  * handles its own write serialization within a process; cross-process safety
  * is not a feature.
-  * @spec card-lifecycle/status-and-safe-write/safe-write
+ * @spec card-lifecycle/status-and-safe-write/safe-write
  */
 export async function safeWriteOperation<T>(
   options: SafeWriteOptions<T>,

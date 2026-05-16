@@ -11,7 +11,7 @@
  *
  * Known limitation: \b word boundaries do not split camelCase or snake_case
  * identifiers. "Job" will not match inside "processJob" or "job_queue".
-  * @spec glossary/cross-card-validation/validate-and-match
+ * @spec glossary/cross-card-validation/validate-and-match
  */
 export function buildGlossaryMatcher(
   entries: Array<{ word: string }>,
