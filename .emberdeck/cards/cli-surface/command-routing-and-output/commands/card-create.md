@@ -11,45 +11,63 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed card create <key> --type T [...]`
-        { key, filePath, status, type, parent: string|null }
+
+        { key, filePath, status, type, parent: string | null }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): card 신규 생성 + 파일 write + DB row insert 성공.
-        - thrown 매핑: CardAlreadyExistsError → 4 (EXIT.CONFLICT).
+      guarantee: >-
+        - 0 (EXIT.OK): the card was created, the file was written, and the
+        indexed-cache row was inserted successfully.
+
+        - thrown mapping: CardAlreadyExistsError → 4 (EXIT.CONFLICT);
+        CardValidationError / ParentValidationError / ActivationGuardError → 2
+        (EXIT.VALIDATION_FAILURE).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 동일 key 카드가 이미 존재.
+    - violation: A card with the same key already exists.
       behavior: >-
-        stderr `{level:'error', code:'card-already-exists', message, details?}`
-        + exit 4.
-    - violation: card 입력 schema validation 실패 (잘못된 type/namespace body)
+        stderr emits `{level:'error', code:'card-already-exists', message,
+        details?}` and the process exits 4.
+    - violation: >-
+        Card input schema validation failed (invalid type / namespace body /
+        cross-reference).
       behavior: >-
-        CardValidationError → stderr {code:'validation-error', message} + exit
-        2.
-    - violation: parent 검증 실패 (parent 미존재 / 4-tier 위반)
+        CardValidationError → stderr `{code:'validation-error', message}` and
+        the process exits 2.
+    - violation: >-
+        Parent validation failed (parent does not exist or the four-tier
+        hierarchy rule is violated).
       behavior: >-
-        ParentValidationError → stderr {code:'parent-validation-error', message}
-        + exit 2.
-    - violation: status 가 'active' 로 시작 시 활성화 가드 미달
+        ParentValidationError → stderr `{code:'parent-validation-error',
+        message}` and the process exits 2.
+    - violation: >-
+        status='active' on creation but the activation guard preconditions are
+        not met.
       behavior: >-
-        ActivationGuardError → stderr {code:'activation-guard-failed',
-        details:{unmetConditions}} + exit 2.
+        ActivationGuardError → stderr `{code:'activation-guard-failed', message,
+        details:{unmetConditions}}` and the process exits 2.
 ---
