@@ -11,7 +11,7 @@ import {
 import { GlossaryNotFoundError } from '../glossary/errors';
 import { validateGlossaryEntry } from '../glossary/validation';
 import { deleteCardFile } from '../fs/writer';
-import { DrizzleChangelogRepository } from '../db/changelog-repo';
+import { DrizzleChangelogRepository, CHANGED_BY } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { card as cardTable } from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -240,7 +240,7 @@ export async function renameGlossary(
               oldValue: oldWord,
               newValue: newWord,
               changedAt: now,
-              changedBy: 'agent',
+              changedBy: CHANGED_BY.AGENT,
             });
           }
         });

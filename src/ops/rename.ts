@@ -10,7 +10,7 @@ import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { syncCardFromFile } from './sync';
 import { DrizzleCardRepository } from '../db/card-repo';
-import { DrizzleChangelogRepository } from '../db/changelog-repo';
+import { DrizzleChangelogRepository, CHANGED_BY } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 
 /**
@@ -142,7 +142,7 @@ export async function renameCard(
               oldValue: oldKey,
               newValue: newFullKey,
               changedAt: now,
-              changedBy: 'agent',
+              changedBy: CHANGED_BY.AGENT,
             });
           });
 

@@ -314,7 +314,7 @@ export async function updateCard(
             cardRepo.upsert(row);
 
             // Record changelog for changed fields
-            const changedBy = 'agent';
+            const changedBy = CHANGED_BY.AGENT;
             if (fields.summary !== undefined && fields.summary !== prev.summary) {
               changelogRepo.insert({ cardKey: key, field: 'summary', oldValue: prev.summary, newValue: fields.summary, changedAt: now, changedBy });
             }
@@ -440,7 +440,7 @@ export async function updateCardStatus(
                 oldValue: oldStatus,
                 newValue,
                 changedAt: now,
-                changedBy: 'agent',
+                changedBy: CHANGED_BY.AGENT,
               });
             }
           });

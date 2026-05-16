@@ -4,6 +4,15 @@ import type { EmberdeckDb } from './connection';
 import type { ChangelogRepository, ChangelogRow } from './repository';
 import { cardChangelog } from './schema';
 
+/**
+ * Canonical values for the `changed_by` column. Ops paths that record a
+ * changelog entry import CHANGED_BY.AGENT instead of repeating the string.
+ */
+export const CHANGED_BY = {
+  /** Mutation initiated by an automation agent (the default for CLI runs). */
+  AGENT: 'agent',
+} as const;
+
 export class DrizzleChangelogRepository implements ChangelogRepository {
   constructor(private db: EmberdeckDb) {}
 
