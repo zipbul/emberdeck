@@ -33,6 +33,15 @@
     natural per-command JSON shape on stdout with stderr JSON-line diagnostics.
     Term retained as the historical reference used by command spec cards under
     cli-surface/command-routing-and-output/commands/.
+- word: single-file-rule
+  definition: >-
+    Card authoring rule: an invariant becomes a card only when verifying it
+    requires reading more than one source file; single-file invariants stay in
+    code.
+- word: single-process
+  definition: >-
+    The invocation model ed CLI assumes: one process at a time, no cross-process
+    lock or retry; safe-write compensation relies on this assumption.
 - word: spec-annotation
   definition: >-
     A `/** @spec card-key */` JSDoc tag in source code declaring that the
