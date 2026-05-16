@@ -4,6 +4,8 @@ import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSym
 import { matchesAnyGlob } from '../util/glob';
 import { readGlossary } from '../glossary/io';
 import { buildGlossaryMatcher } from '../glossary/cross-validate';
+import { DrizzleCodeLinkRepository } from '../db/code-link-repo';
+import { txDb } from '../db/connection';
 import { join, relative, dirname } from 'node:path';
 
 /**
@@ -144,7 +146,9 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
         ...existing.map((l) => ({ kind: l.kind, file: l.file, symbol: l.symbol })),
         ...additions,
       ];
-      ctx.codeLinkRepo.replaceForCard(cardKey, newLinks);
+      ctx.db.transaction((tx) => {
+        new DrizzleCodeLinkRepository(txDb(tx)).replaceForCard(cardKey, newLinks);
+      });
       created += cardCreated;
     }
   }
@@ -242,7 +246,9 @@ export async function syncSymbolChanges(
             ? { kind: l.kind, file: l.file, symbol: change.symbolName }
             : { kind: l.kind, file: l.file, symbol: l.symbol },
         );
-        ctx.codeLinkRepo.replaceForCard(link.cardKey, newLinks);
+        ctx.db.transaction((tx) => {
+          new DrizzleCodeLinkRepository(txDb(tx)).replaceForCard(link.cardKey, newLinks);
+        });
         applied.push({
           cardKey: link.cardKey,
           oldSymbol: oldName,
@@ -257,7 +263,9 @@ export async function syncSymbolChanges(
             ? { kind: l.kind, file: change.filePath, symbol: change.symbolName }
             : { kind: l.kind, file: l.file, symbol: l.symbol },
         );
-        ctx.codeLinkRepo.replaceForCard(link.cardKey, newLinks);
+        ctx.db.transaction((tx) => {
+          new DrizzleCodeLinkRepository(txDb(tx)).replaceForCard(link.cardKey, newLinks);
+        });
         applied.push({
           cardKey: link.cardKey,
           oldSymbol: oldName,
