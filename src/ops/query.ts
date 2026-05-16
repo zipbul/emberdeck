@@ -276,13 +276,17 @@ export function searchCards(
   query: string,
   options?: SearchCardsOptions,
 ): SearchCardMatch[] {
-  // Push limit/offset to the repo so DB doesn't materialize the entire ranked
-  // scan when the caller only wants a page. type/status filters can't be pushed
-  // down (they apply after FTS match), so they remain post-filters.
-  const results = ctx.cardRepo.search(query, {
-    ...(options?.limit !== undefined ? { limit: options.limit } : {}),
-    ...(options?.offset !== undefined ? { offset: options.offset } : {}),
-  }) as SearchHitRow[];
+  // Push limit/offset down to the repo ONLY when no type/status post-filter
+  // applies. Otherwise the DB would cap the ranked scan at `limit` rows BEFORE
+  // type/status filtering removes some, returning fewer than `limit` matches
+  // (or zero) even when matching rows exist further down the ranking.
+  const hasPostFilter = Boolean(options?.type || options?.status);
+  const repoOptions: { limit?: number; offset?: number } = {};
+  if (!hasPostFilter) {
+    if (options?.limit !== undefined) repoOptions.limit = options.limit;
+    if (options?.offset !== undefined) repoOptions.offset = options.offset;
+  }
+  const results = ctx.cardRepo.search(query, repoOptions) as SearchHitRow[];
   const filtered = options
     ? results.filter((row) => {
         if (options.type && row.type !== options.type) return false;
@@ -291,7 +295,15 @@ export function searchCards(
       })
     : results;
 
-  return filtered.map(({ body: _body, snippet, rank, ...rest }) => ({
+  // When DB pagination was bypassed, apply limit/offset in TS after filtering.
+  const paged = hasPostFilter
+    ? filtered.slice(
+        options?.offset ?? 0,
+        options?.limit !== undefined ? (options.offset ?? 0) + options.limit : undefined,
+      )
+    : filtered;
+
+  return paged.map(({ body: _body, snippet, rank, ...rest }) => ({
     ...rest,
     snippet: snippet ?? '',
     rank: rank ?? 0,
