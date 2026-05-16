@@ -291,7 +291,6 @@ export async function updateCard(
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 
-  return (async () => {
       const current = await readCardFileOrThrow(filePath, key, { checkKey: true });
 
       const prev = current.frontmatter;
@@ -404,7 +403,7 @@ export async function updateCard(
         },
       });
       return result;
-    })();}
+}
 
 /**
  * Changes only the card's status.
@@ -427,7 +426,6 @@ export async function updateCardStatus(
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
 
-  return (async () => {
       const current = await readCardFileOrThrow(filePath, key, { checkKey: true });
 
       // Activation guard for active status
@@ -500,4 +498,4 @@ export async function updateCardStatus(
           await syncCardFromFile(ctx, filePath);
         },
       }) as Promise<UpdateCardResult & { oldStatus: CardStatus }>;
-    })();}
+}

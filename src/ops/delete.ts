@@ -54,7 +54,6 @@ export async function deleteCard(
   const filePath = buildCardPath(ctx.cardsDir, key);
   const force = options?.force ?? false;
 
-  return (async () => {
       // Guard on DB existence, not file existence.
       // The file may have been externally deleted; we still need to clean up DB records.
       if (!ctx.cardRepo.existsByKey(key)) {
@@ -251,4 +250,4 @@ export async function deleteCard(
           }
         },
       });
-    })();}
+}

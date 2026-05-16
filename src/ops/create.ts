@@ -113,7 +113,6 @@ export async function createCard(
   const filePath = buildCardPath(ctx.cardsDir, slug);
   const status = input.status ?? 'draft';
 
-  return (async () => {
       // Reject both file-exists AND DB-row-exists. Checking only file leaves a
       // hole where an externally-deleted card file lets createCard upsert over
       // a live DB row, silently changing card identity.
@@ -221,4 +220,4 @@ export async function createCard(
           ctx.cardRepo.deleteByKey(fullKey);
         },
       });
-    })();}
+}

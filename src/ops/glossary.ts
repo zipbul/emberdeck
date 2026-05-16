@@ -52,7 +52,6 @@ export async function defineGlossary(
     validateGlossaryEntry(entry);
   }
 
-  return (async () => {
     const existing = readGlossary(ctx);
     const existingMap = new Map(existing.map((e) => [e.word, e]));
 
@@ -80,7 +79,6 @@ export async function defineGlossary(
 
     writeGlossary(ctx, existing);
     return { results };
-  })();
 }
 
 // ── lookup_glossary ──────────────────────────────────────────────────────
@@ -135,7 +133,6 @@ export async function removeGlossary(
     throw new GlossaryValidationError('word must not be empty');
   }
 
-  return (async () => {
     const entries = readGlossary(ctx);
     const idx = entries.findIndex((e) => e.word === word);
     if (idx === -1) {
@@ -147,7 +144,6 @@ export async function removeGlossary(
 
     const affectedCardKeys = cardsContainingGlossaryWord(ctx, word).map((c) => c.key);
     return { removed: word, affectedCardKeys };
-  })();
 }
 
 // ── rename_glossary ──────────────────────────────────────────────────────
@@ -195,7 +191,6 @@ export async function renameGlossary(
     );
   }
 
-  return (async () => {
     const entries = readGlossary(ctx);
     const oldEntry = entries.find((e) => e.word === oldWord);
     if (!oldEntry) {
@@ -276,7 +271,6 @@ export async function renameGlossary(
       affectedCardKeys: affectedCards.map((c) => c.key),
       fileWriteFailures,
     };
-  })();
 }
 
 // ── find_cards_by_glossary_word ───────────────────────────────────────────

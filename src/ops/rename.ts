@@ -70,7 +70,6 @@ export async function renameCard(
 
   if (oldFilePath === newFilePath) throw new CardRenameSamePathError();
 
-  return (async () => {
         if (!(await Bun.file(oldFilePath).exists())) throw new CardNotFoundError(oldKey);
         if (await Bun.file(newFilePath).exists()) throw new CardAlreadyExistsError(newFullKey);
 
@@ -218,4 +217,4 @@ export async function renameCard(
           result.failedReferenceUpdates = failedReferenceUpdates;
         }
         return result;
-      })();}
+}
