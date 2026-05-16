@@ -1,8 +1,9 @@
 ---
 key: card-lifecycle/mutation-workflows/update-card
 summary: >-
-  updateCard applies field, patch, body, glossary, and tag updates with
-  replace-namespace semantics on patch.
+  updateCard applies summary, field, patch, glossary, and tag updates with
+  replace-namespace semantics on patch; there is no body update field — body is
+  derived from the namespace.
 status: active
 type: spec
 parent: card-lifecycle/mutation-workflows

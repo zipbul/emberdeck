@@ -85,13 +85,13 @@ brief:
       delegates to the indexed text-search facility with explicit syntax
       validation up front. getCardTree caps traversal at depth (default 10,
       capped at 20) and exposes a truncated marker on nodes whose unvisited
-      subtree was skipped. getCardContext defaults to depth 3 at the ops layer;
-      the CLI exposes default depth 1. getRelationGraph defaults to depth 3 and
-      returns forward + reverse hops within that ceiling. getCards is the batch
-      read variant: unknown keys are returned in notFound[] rather than
-      throwing. findCardsByGlossaryWord and findCardsBySymbol are alternate
-      filtered listings selected by the CLI --glossary / --symbol flags
-      (mutually exclusive with --tag).
+      subtree was skipped. getCardContext defaults to depth 1 at both ops and
+      CLI layers. getRelationGraph defaults to depth 3 and returns forward +
+      reverse hops within that ceiling. getCards is the batch read variant:
+      unknown keys are returned in notFound[] rather than throwing.
+      findCardsByGlossaryWord and findCardsBySymbol are alternate filtered
+      listings selected by the CLI --glossary / --symbol flags (mutually
+      exclusive with --tag).
     components:
       - name: getCard
         responsibility: Single-card lookup with optional history.
@@ -119,7 +119,7 @@ brief:
       - name: getCardContext
         responsibility: >-
           Neighborhood traversal (parent BFS plus relations) capped at depth
-          (ops default 3, CLI default 1).
+          (default 1 at both ops and CLI layers).
         interacts_with:
           - getCard
       - name: getRelationGraph
@@ -144,9 +144,9 @@ brief:
       - id: DI-002
         statement: >-
           Tree and context traversals respect their depth ceilings (tree
-          min(req, 20) default 10; context default 3 ops / 1 CLI; relation graph
-          default 3) and surface truncation explicitly when the ceiling is
-          reached.
+          min(req, 20) default 10; context default 1 at both ops and CLI;
+          relation graph default 3) and surface truncation explicitly when the
+          ceiling is reached.
   policy:
     - id: R-001
       subject: searchCards

@@ -45,8 +45,8 @@ spec:
         and glossary both cleared) but one or more `.md` file unlinks failed
         (failedFileDeletes is populated; the operator must clean up).
 
-        - thrown mapping: none (general IO failures fall through to the parent
-        runner's mapping → exit 5).
+        - thrown mapping: none (unmapped IO errors fall through to the parent
+        runner's toCliError default branch as `internal-error` → exit 1).
 
         - Missing --yes: commander rejects upstream → runner-commander-fallback
         path with stderr `{level:'error', code:'cli-usage-error', ...}` and exit
