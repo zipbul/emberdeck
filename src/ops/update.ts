@@ -35,7 +35,7 @@ import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { DrizzleChangelogRepository, CHANGED_BY } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
-import { syncCardFromFile } from './sync';
+import { syncCardFromFile, serializeNamespaces } from './sync';
 import { buildSearchableText } from '../card/searchable-text';
 
 /**
@@ -298,14 +298,7 @@ export async function updateCard(
               status: next.status,
               type: next.type,
               parent: next.parent ?? null,
-              namespacesJson: (() => {
-                const nsObj: Record<string, unknown> = {};
-                if (next.principle) nsObj.principle = next.principle;
-                if (next.domain) nsObj.domain = next.domain;
-                if (next.brief) nsObj.brief = next.brief;
-                if (next.spec) nsObj.spec = next.spec;
-                return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
-              })(),
+              namespacesJson: serializeNamespaces(next),
               body: buildSearchableText(next),
               glossaryJson: next.glossary ? JSON.stringify(next.glossary) : '[]',
               filePath,
@@ -414,14 +407,7 @@ export async function updateCardStatus(
                   status,
                   type: current.frontmatter.type,
                   parent: current.frontmatter.parent ?? null,
-                  namespacesJson: (() => {
-                    const nsObj: Record<string, unknown> = {};
-                    if (current.frontmatter.principle) nsObj.principle = current.frontmatter.principle;
-                    if (current.frontmatter.domain) nsObj.domain = current.frontmatter.domain;
-                    if (current.frontmatter.brief) nsObj.brief = current.frontmatter.brief;
-                    if (current.frontmatter.spec) nsObj.spec = current.frontmatter.spec;
-                    return Object.keys(nsObj).length === 0 ? null : JSON.stringify(nsObj);
-                  })(),
+                  namespacesJson: serializeNamespaces(current.frontmatter),
                   body: buildSearchableText(current.frontmatter),
                   glossaryJson: current.frontmatter.glossary
                     ? JSON.stringify(current.frontmatter.glossary)

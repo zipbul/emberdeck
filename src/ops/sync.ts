@@ -21,8 +21,11 @@ import { errorMessage } from '../util/error';
 /**
  * Serialize the principle/domain/brief/spec namespace blocks from frontmatter for DB storage.
  * Returns null when the card has no namespace structures (typical for plain markdown cards).
+ *
+ * Exported so create.ts and update.ts can stop reimplementing the same
+ * 6-line inline IIFE around `JSON.stringify({...})` per row build.
  */
-function serializeNamespaces(fm: CardFrontmatter): string | null {
+export function serializeNamespaces(fm: CardFrontmatter): string | null {
   const ns: Record<string, unknown> = {};
   if (fm.principle) ns.principle = fm.principle;
   if (fm.domain) ns.domain = fm.domain;

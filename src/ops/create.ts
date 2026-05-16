@@ -28,6 +28,7 @@ import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
+import { serializeNamespaces } from './sync';
 
 /**
  * Input parameters passed to `createCard`.
@@ -193,14 +194,7 @@ export async function createCard(
               status,
               type: input.type,
               parent: input.parent ?? null,
-              namespacesJson: (() => {
-                const ns: Record<string, unknown> = {};
-                if (frontmatter.principle) ns.principle = frontmatter.principle;
-                if (frontmatter.domain) ns.domain = frontmatter.domain;
-                if (frontmatter.brief) ns.brief = frontmatter.brief;
-                if (frontmatter.spec) ns.spec = frontmatter.spec;
-                return Object.keys(ns).length === 0 ? null : JSON.stringify(ns);
-              })(),
+              namespacesJson: serializeNamespaces(frontmatter),
               body: searchableBody,
               glossaryJson: input.glossary && input.glossary.length > 0
                 ? JSON.stringify(input.glossary)
