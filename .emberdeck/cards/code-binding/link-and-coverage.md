@@ -65,15 +65,6 @@ brief:
       then: Twenty symbols are reported as uncovered.
       covers:
         - G-002
-    - id: S-F-01
-      kind: failure
-      given: A cached code_link points at a symbol that has been removed from source.
-      when: validateCodeLinks runs.
-      then: >-
-        The link is reported broken with the offending file plus symbol
-        identified.
-      covers:
-        - G-001
     - id: S-H-03
       kind: happy
       given: >-
@@ -83,6 +74,15 @@ brief:
       then: The private function appears in the uncovered list.
       covers:
         - G-002
+    - id: S-F-01
+      kind: failure
+      given: A cached code_link points at a symbol that has been removed from source.
+      when: validateCodeLinks runs.
+      then: >-
+        The link is reported broken with the offending file plus symbol
+        identified.
+      covers:
+        - G-001
   design:
     overview: >
       ensureReindexed maintains a fresh gildash snapshot. resolveCardCodeLinks
