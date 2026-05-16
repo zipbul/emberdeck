@@ -46,9 +46,7 @@ brief:
         statement: >-
           gildash is pinned to a stable version and watch mode is disabled per
           project policy.
-        verification: >-
-          Inspect package.json for the pinned gildash version and
-          project_gildash_integration_policy memory.
+        verification: Inspect package.json for the pinned gildash version.
         reevaluate_when: gildash major version changes.
   flow:
     - id: S-H-01
@@ -117,8 +115,10 @@ brief:
     invariants:
       - id: DI-001
         statement: >-
-          All link queries use ensureReindexed to read a current gildash
-          snapshot.
+          All link queries use ensureReindexed to read a current code-index
+          snapshot; ensureReindexed runs at most once per runtime context
+          lifetime so every link query within one ed invocation observes the
+          same snapshot.
       - id: DI-002
         statement: >-
           The code_link cache is the sole inclusion test for coverage
@@ -147,22 +147,31 @@ brief:
   external:
     - id: C-001
       statement: >-
-        gildash adopted APIs and deliberately-not-adopted APIs are listed in the
-        project memory and treated as the integration contract.
+        The set of code-index APIs the link-and-coverage components consume
+        (reindex, getSymbolsByFile, getAffected, getDependents) is the
+        integration contract; replacing the code-index dependency requires
+        re-implementing only that set.
       reference:
-        title: project_gildash_integration_policy memory entry
-        locator: >-
-          /home/revil/.claude/projects/-home-revil-projects-zipbul-emberdeck/memory/project_gildash_integration_policy.md
+        title: spec code-binding/link-and-coverage/resolve-and-validate
+        locator: code-binding/link-and-coverage/resolve-and-validate
   compatibility:
     guarantees:
       - subject: gildash version
         version_range: 0.26.x
         breaks_if: A new gildash major changes adopted API signatures.
   limits:
+    - id: KL-001
+      statement: >-
+        Broken-link reason is one of symbol-not-found or gildash-unavailable;
+        the file-not-indexed branch declared on the BrokenLink reason union is
+        reserved for future use and not currently emitted by validateCodeLinks.
     - id: KL-002
       statement: >-
         Link resolution is per-snapshot; concurrent source edits during a query
-        may produce stale results.
+        may produce stale results until the next runtime context starts.
+        ensureReindexed runs at most once per runtime context lifetime, so a
+        second `ed` invocation is required to observe new source state after
+        edits.
   criteria:
     - id: SC-001
       type: binary
