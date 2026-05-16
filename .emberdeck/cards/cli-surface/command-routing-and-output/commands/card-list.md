@@ -11,34 +11,60 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed card list [filters] [--limit N] [--offset N]`
+
         { items: CardSummary[], total, limit, offset, hasMore }
+
         // CardSummary = { key, summary, type, status, parent: string|null }
+
+        // limit defaults to 50 when --limit is omitted; offset defaults to 0;
+        hasMore is true when offset + items.length < total.
+
+        // To enumerate every card in one call pass --limit large enough to
+        cover total, or page using offset + hasMore.
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): filter / pagination 적용 후 결과 반환 (빈 배열도 성공).
-        - thrown 매핑: 없음 (read-only). 빌드/IO 에러는 부모 runner 의 일반 매핑.
+      guarantee: >-
+        - 0 (EXIT.OK): filter and pagination applied; result returned (an empty
+        items array is still a success).
+
+        - thrown mapping: none (read-only). Build or IO errors fall through to
+        the parent runner's generic mapping.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
+      always_holds: per-call
+    - id: INV-002
+      statement: >-
+        Pagination defaults are explicit in the result envelope: every
+        successful call surfaces limit, offset, and hasMore so callers can tell
+        whether items is the complete set or a page. Default limit (50) MUST be
+        carried in the result, not hidden.
       always_holds: per-call
   failures:
-    - violation: '잘못된 filter 값 (예: status 가 enum 외).'
+    - violation: Invalid filter value (e.g. status not in the enum).
       behavior: >-
-        commander 가 사전 거부 → runner-commander-fallback 경로로 stderr
-        `{level:'error', code:'cli-usage-error', ...}` + exit 2.
+        commander rejects the invocation upstream, taking the
+        runner-commander-fallback path: stderr `{level:'error',
+        code:'cli-usage-error', ...}` and exit 2.
 ---

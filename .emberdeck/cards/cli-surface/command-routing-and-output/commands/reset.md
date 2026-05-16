@@ -12,13 +12,15 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출. --yes
-        미지정 시 commander 가 사전 거부.
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action; --yes is required, commander rejects
+        the invocation otherwise.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
 
         ```jsonc
 
@@ -26,28 +28,42 @@ spec:
 
         { cardsDeleted: number, glossaryCleared: boolean, failedFileDeletes:
         string[] }
-                // failedFileDeletes 는 best-effort file unlink 실패한 카드 파일 경로. 비어있으면 reset 완전 성공.
+
+        // failedFileDeletes holds the file paths of cards whose best-effort
+        unlink failed. Empty means complete success.
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): 모든 카드 삭제 + glossary clear 성공 (failedFileDeletes 빈 배열).
+      guarantee: >-
+        - 0 (EXIT.OK): every card row was removed from the indexed cache and the
+        glossary was cleared, and every per-card file unlink succeeded
+        (failedFileDeletes is empty).
 
-                - 2 (EXIT.VALIDATION_FAILURE): DB 는 정합 (cards/glossary 모두 cleared) 이지만 일부 .md 파일 unlink 실패 (failedFileDeletes 채워짐 — 후속 수동 정리 필요).
-        - thrown 매핑: 없음 (IO 실패는 부모 runner 의 일반 매핑 → exit 5).
-        - --yes 누락 시 commander 거부 → exit 2 (runner-commander-fallback).
+        - 2 (EXIT.VALIDATION_FAILURE): the indexed cache is consistent (cards
+        and glossary both cleared) but one or more `.md` file unlinks failed
+        (failedFileDeletes is populated; the operator must clean up).
+
+        - thrown mapping: none (general IO failures fall through to the parent
+        runner's mapping → exit 5).
+
+        - Missing --yes: commander rejects upstream → runner-commander-fallback
+        path with stderr `{level:'error', code:'cli-usage-error', ...}` and exit
+        2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: '--yes 플래그 누락.'
+    - violation: '--yes flag is missing.'
       behavior: >-
-        commander 가 사전 거부 → runner-commander-fallback 경로 stderr `{level:'error',
-        code:'cli-usage-error', ...}` + exit 2.
+        commander rejects the invocation upstream, taking the
+        runner-commander-fallback path: stderr `{level:'error',
+        code:'cli-usage-error', ...}` and exit 2.
 ---
