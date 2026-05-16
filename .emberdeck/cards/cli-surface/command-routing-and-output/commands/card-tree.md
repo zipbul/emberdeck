@@ -11,38 +11,49 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` is the root TreeNode directly (no enclosing object):
 
         ```jsonc
 
         // stdout shape for `ed card tree <key> [--depth N]`
 
-        TreeNode  // root 그대로
+        TreeNode
 
         // TreeNode = { key, type, status, summary, depth: number, truncated?:
         boolean, children: TreeNode[] }
+
+        // --depth defaults to 10 and is capped at 20; nodes that have unvisited
+        children at the ceiling set truncated=true.
 
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): tree walk 성공 (maxDepth 도달 시 truncated:true).
-        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND).
+      guarantee: >-
+        - 0 (EXIT.OK): tree walk succeeded (nodes reaching maxDepth carry
+        truncated=true).
+
+        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: root key 가 DB 에 없음.
-      behavior: stderr `{level:'error', code:'card-not-found', message}` + exit 3.
+    - violation: No card exists for the requested root key.
+      behavior: >-
+        stderr emits `{level:'error', code:'card-not-found', message}` and the
+        process exits 3.
 ---
