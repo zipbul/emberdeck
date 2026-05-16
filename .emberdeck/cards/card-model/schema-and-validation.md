@@ -12,7 +12,7 @@ glossary:
 brief:
   context:
     problem: >
-      Cards arrive from CLI flags, --from YAML files, --patch payloads, and
+      Cards arrive from CLI flags, --from JSON files, --patch payloads, and
       bulk-sync of on-disk markdown. Without strict validation the system
       accepts cards whose parent type violates the four-tier rule, whose
       required fields are missing, or whose internal cross-references (covers,
@@ -41,7 +41,8 @@ brief:
       - id: G-003
         statement: >-
           Enforce the four-tier hierarchy at write time so principle and domain
-          are root, brief parent is domain, spec parent is brief or spec.
+          are root, brief parent is domain, and spec parent is brief or spec;
+          reject type changes that would orphan or mis-tier any direct child.
     non_goals:
       - id: NG-001
         statement: >-
@@ -57,16 +58,16 @@ brief:
           Every mutation path in card-lifecycle calls validation before invoking
           storage.
         verification: >-
-          Grep for createCard, updateCard, bulkCreateCards entrypoints and trace
-          call to validateCardInput.
+          Grep for createCard, updateCard, bulkCreateCards entry points and
+          trace the call to validateCardInput.
         reevaluate_when: >-
-          A new write entrypoint is added that bypasses ops/create or
+          A new write entry point is added that bypasses ops/create or
           ops/update.
   flow:
     - id: S-H-01
       kind: happy
       given: >-
-        A YAML card input with type=brief, parent=an existing domain key, all
+        A card input with type=brief, parent=an existing domain key, all
         required brief fields populated, and self-consistent
         flow/policy/criteria cross-refs.
       when: validateCardInput runs from createCard.
@@ -79,18 +80,21 @@ brief:
     - id: S-F-01
       kind: failure
       given: >-
-        A spec card input whose policy.governs lists a flow id that does not
+        A brief card input whose policy.governs lists a flow id that does not
         appear in brief.flow on the same card.
       when: validateCardInput runs.
       then: >-
         A CardValidationError is thrown identifying the unresolved
-        cross-reference, no row is written.
+        cross-reference; no row is written.
       covers:
         - G-002
     - id: S-F-02
       kind: failure
-      given: A brief card input whose parent points at another brief.
-      when: validateCardInput runs.
+      given: >-
+        A brief card input whose parent points at another brief, or an
+        updateCard call that changes a domain's type to brief when the domain
+        has active children.
+      when: validateCardInput or validateChildrenHierarchy runs.
       then: >-
         A ParentValidationError is thrown citing the four-tier hierarchy rule
         and no row is written.
@@ -99,18 +103,14 @@ brief:
   design:
     overview: >
       Validation is layered. A generic frontmatter validator checks shared
-      fields (key, type, status,
-
-      summary). Then a type-discriminated dispatcher invokes one of four body
-      validators
-
+      fields (key, type, status, summary) and enforces the field-length bounds.
+      Then a type-discriminated dispatcher invokes one of four body validators
       (principle, domain, brief, spec). Each body validator runs structural
-      checks on its required
-
-      fields and then runs intra-card cross-reference resolution. Hierarchy
-      rules are checked once
-
-      the parent card is loaded by the lifecycle layer.
+      checks on its required fields and then runs intra-card cross-reference
+      resolution. Hierarchy rules are checked once the parent card is loaded by
+      the lifecycle layer. On a type change the storage layer additionally
+      invokes validateChildrenHierarchy and rejects the update when any direct
+      child's type would become invalid under the new parent type.
     components:
       - name: validateCardInput
         responsibility: >-
@@ -120,6 +120,7 @@ brief:
           - type-dispatcher
           - brief-refs-validator
           - spec-refs-validator
+          - validateChildrenHierarchy
       - name: type-dispatcher
         responsibility: Selects the correct body validator based on the type discriminant.
         interacts_with:
@@ -127,13 +128,23 @@ brief:
           - spec-refs-validator
       - name: brief-refs-validator
         responsibility: >-
-          Resolves brief.flow.covers, policy.governs, criteria.verifies,
-          rationale.addresses against declared ids on the same card.
+          Resolves brief.flow.covers, policy.governs, criteria.verifies, and
+          rationale.addresses against declared ids on the same card. Accumulates
+          every violation and throws a single CardValidationError listing them
+          all (not first-fail).
         interacts_with: []
       - name: spec-refs-validator
         responsibility: >-
           Validates spec body required minimums and the `derives` format (and
-          target existence when a brief lookup is supplied).
+          target existence when a brief lookup is supplied). Accumulates every
+          violation and throws a single CardValidationError listing them all.
+        interacts_with: []
+      - name: validateChildrenHierarchy
+        responsibility: >-
+          Invoked from updateCard when type changes on an existing card: walks
+          the direct children and throws ParentValidationError if any child's
+          existing type would violate the four-tier rule under the proposed new
+          type.
         interacts_with: []
     data_flow:
       - from: validateCardInput
@@ -152,7 +163,13 @@ brief:
       - id: DI-002
         statement: >-
           All declared list-item ids in a brief or spec resolve within the same
-          card body before persistence.
+          card body before persistence; the error message accumulates every
+          unresolved reference rather than aborting on the first one.
+      - id: DI-003
+        statement: >-
+          On a type change to an existing card, every direct child's
+          type-vs-parent relationship is re-validated; a type change that would
+          make any child invalid is rejected.
   policy:
     - id: R-001
       subject: Every write entry point
@@ -166,27 +183,26 @@ brief:
       subject: Type-specific body validators
       keyword: SHALL
       predicate: >-
-        throw a CardValidationError naming the offending field path on first
-        violation.
+        throw a single CardValidationError listing every offending field path;
+        do not abort on the first violation.
       governs:
         - S-F-01
     - id: R-003
-      subject: Parent type checks
+      subject: Hierarchy checks
       keyword: MUST
       predicate: >-
-        throw ParentValidationError when proposed parent violates the four-tier
-        hierarchy rule.
+        throw ParentValidationError when a proposed parent (on create) or a
+        proposed type change (on update) violates the four-tier hierarchy rule.
       governs:
         - S-F-02
   external:
     - id: C-001
       statement: >-
-        Validation rules derive from the four-tier card taxonomy decision
-        documented in the project memory.
+        Per-validator contract shape is jointly authored with the
+        validate-card-input spec card.
       reference:
-        title: project_card_taxonomy_evolution memory entry
-        locator: >-
-          /home/revil/.claude/projects/-home-revil-projects-zipbul-emberdeck/memory/project_card_taxonomy_evolution.md
+        title: spec card-model/schema-and-validation/validate-card-input
+        locator: card-model/schema-and-validation/validate-card-input
   compatibility:
     guarantees:
       - subject: validateCardInput public signature
@@ -195,7 +211,7 @@ brief:
           A required field is added without a migration path for existing card
           files.
     migration_path: >-
-      Use bulk-sync after schema additions; warn paths surface through
+      Use bulk-sync after schema additions; warnings surface through
       validateCards.
   limits:
     - id: KL-001
@@ -204,18 +220,33 @@ brief:
         check is performed at storage write time.
     - id: KL-002
       statement: >-
-        Cross-card relations (relations array) are not validated here;
-        broken-relation warnings are produced by validateCards integrity sweep.
+        Cross-card relations (the relations array) are not validated here;
+        broken-relation warnings are produced by the validate-cards integrity
+        sweep.
+    - id: KL-003
+      statement: >-
+        Maximum field lengths are enforced numerically: summary at most 300
+        chars, card key at most 200 chars, array items at most 100 entries, each
+        relation target at most 200 chars, body at most 100000 chars, list-item
+        content fields (e.g. statement, condition, guarantee) at most 100 chars.
+        Violations surface as CardValidationError before persistence.
+    - id: KL-004
+      statement: >-
+        Parent-chain ancestor traversal is bounded at 20 hops; cycle detection
+        within the four-tier hierarchy is unreachable in practice but the bound
+        prevents pathological loops in case of accidental graph corruption.
   criteria:
     - id: SC-001
       type: binary
       measure:
         predicate: >-
           An invalid type-specific cross-reference always throws
-          CardValidationError before any storage call.
+          CardValidationError before any storage call, and the error message
+          lists every unresolved reference.
         method: >-
-          integration test that submits a spec with policy.governs pointing at
-          an undefined flow id and asserts no DB row is created.
+          Integration test that submits a brief with policy.governs pointing at
+          multiple undefined flow ids and asserts both ids are named in the
+          error.
       verifies:
         - S-F-01
     - id: SC-002
@@ -223,15 +254,16 @@ brief:
       measure:
         predicate: >-
           A brief whose parent is not a domain always throws
-          ParentValidationError.
-        method: integration test on createCard.
+          ParentValidationError; a type change on a domain to brief with active
+          children throws ParentValidationError naming the children.
+        method: Two integration tests on createCard and updateCard.
       verifies:
         - S-F-02
     - id: SC-003
       type: binary
       measure:
         predicate: A complete valid card body persists without warnings.
-        method: integration test on createCard happy path.
+        method: Integration test on the createCard happy path.
       verifies:
         - S-H-01
   rationale:
