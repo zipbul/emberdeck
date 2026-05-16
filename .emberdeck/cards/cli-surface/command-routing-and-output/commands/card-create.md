@@ -25,15 +25,23 @@ spec:
 
         // stdout shape for `ed card create <key> --type T [...]`
 
-        { key, filePath, status, type, parent: string | null }
+        {
+          key, filePath, status, type, parent: string | null,
+          failedRelationTargets: string[]    // relation targets that did not persist under concurrent contention (FK violation); empty on clean create.
+        }
 
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): the card was created, the file was written, and the
-        indexed-cache row was inserted successfully.
+        - 0 (EXIT.OK): the card was created, the file was written, the
+        indexed-cache row was inserted, and every relation target persisted
+        (failedRelationTargets is empty).
+
+        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 (the
+        card exists but at least one relation target failed under concurrent
+        contention; data is still emitted, exit signals the partial state).
 
         - thrown mapping: CardAlreadyExistsError → 4 (EXIT.CONFLICT);
         CardValidationError / ParentValidationError / ActivationGuardError → 2

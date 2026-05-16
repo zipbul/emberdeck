@@ -26,16 +26,26 @@ spec:
         // stdout shape for `ed card update <key> [--field ... | --summary ... |
         --patch FILE | --glossary W | --tag T]`
 
-        { key, filePath, status,
-          validationNotes: string[] }   // non-fatal field warnings, e.g. "status changed to draft because type changed" when a type change on an active card would invalidate it.
+        {
+          key, filePath, status,
+          validationNotes: string[],            // non-fatal field warnings, e.g. "status changed to draft because type changed" when a type change on an active card would invalidate it.
+          failedRelationTargets: string[]       // relation targets that did not persist under concurrent contention (FK violation); empty on a clean update.
+        }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): the patch was applied and the indexed cache plus the file
-        write succeeded (validationNotes being non-empty does not change the
-        exit code).
+        - 0 (EXIT.OK): the patch was applied, the indexed cache plus the file
+        write succeeded, and every relation target persisted
+        (failedRelationTargets is empty). validationNotes being non-empty does
+        not change the exit code.
+
+        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 (the
+        card update went through but at least one relation target failed under
+        concurrent contention; data is still emitted, exit signals the partial
+        state).
 
         - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND);
         CardValidationError / ParentValidationError / ActivationGuardError → 2
