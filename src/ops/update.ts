@@ -32,7 +32,7 @@ import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
 import { DrizzleClassificationRepository } from '../db/classification-repo';
-import { DrizzleChangelogRepository } from '../db/changelog-repo';
+import { DrizzleChangelogRepository, CHANGED_BY } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
