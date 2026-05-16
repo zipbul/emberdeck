@@ -11,38 +11,54 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed glossary remove <word>`
+
         { word: string, affectedCardKeys: string[] }
+
+        // affectedCardKeys lists every card whose glossary field referenced the
+        removed word; the cards themselves are NOT mutated and their status is
+        unchanged. They will surface as glossary-broken on the next check-drift.
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): 단어 제거 성공.
+        - 0 (EXIT.OK): the word was removed from the glossary store.
 
-        - thrown 매핑: GlossaryNotFoundError → 3 (EXIT.NOT_FOUND) (word missing —
-        errors.ts 의 분리 매핑); GlossaryValidationError → 2
-        (EXIT.VALIDATION_FAILURE) (기타 검증).
+        - thrown mapping: GlossaryNotFoundError → 3 (EXIT.NOT_FOUND) when the
+        word does not exist; GlossaryValidationError → 2
+        (EXIT.VALIDATION_FAILURE) for other validation failures.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: word 가 glossary.yaml 에 없음.
-      behavior: stderr `{level:'error', code:'glossary-not-found', message}` + exit 3.
-    - violation: word 인자 형식 오류 (빈 문자열 등 op validation)
+    - violation: The requested word does not exist in the glossary store.
       behavior: >-
-        GlossaryValidationError → stderr {code:'glossary-validation-error',
-        message} + exit 2.
+        stderr emits `{level:'error', code:'glossary-not-found', message}` and
+        the process exits 3.
+    - violation: >-
+        The word argument fails op-level validation (empty string, exceeding
+        length, etc).
+      behavior: >-
+        GlossaryValidationError → stderr `{code:'glossary-validation-error',
+        message}` and the process exits 2.
 ---
