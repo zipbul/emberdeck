@@ -1,7 +1,7 @@
-import { parseCrossDomainDependencies } from '../card/json-fields';
 import { mkdir, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+import { parseCrossDomainDependencies } from '../card/json-fields';
 import type { EmberdeckContext } from '../config';
 import type { CardFile } from '../card/types';
 import { parseFullKey, normalizeSlug, buildCardPath } from '../card/card-key';
