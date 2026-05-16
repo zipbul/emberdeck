@@ -8,6 +8,7 @@ import type { CliRuntime } from '../context';
 import { syncSpecAnnotations, syncSymbolChanges } from '../../ops/spec-sync';
 import { CliUsageError } from '../usage-error';
 import { errorMessage } from '../../util/error';
+import { DrizzleSystemMetadataRepository } from '../../db/system-metadata-repo';
 
 /** @spec cli-surface/command-routing-and-output/commands/spec-sync */
 export async function specSyncAction(_opts: unknown, cmd: Command): Promise<void> {
@@ -28,6 +29,7 @@ export async function specSyncAction(_opts: unknown, cmd: Command): Promise<void
 export async function specSyncSymbolsAction(opts: { since?: string }, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const META_KEY = 'last_symbol_sync_at';
+    const metadataRepo = new DrizzleSystemMetadataRepository(rt.ctx.db);
     let since: string;
     let sinceSource: 'flag' | 'last-sync' | 'default-24h';
     if (opts.since) {
@@ -38,11 +40,9 @@ export async function specSyncSymbolsAction(opts: { since?: string }, cmd: Comma
       since = opts.since;
       sinceSource = 'flag';
     } else {
-      const row = rt.ctx.db.$client
-        .prepare('SELECT value FROM system_metadata WHERE key = ?')
-        .get(META_KEY) as { value: string } | undefined;
-      if (row?.value) {
-        since = row.value;
+      const stored = metadataRepo.get(META_KEY);
+      if (stored) {
+        since = stored;
         sinceSource = 'last-sync';
       } else {
         since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -57,11 +57,7 @@ export async function specSyncSymbolsAction(opts: { since?: string }, cmd: Comma
     const skipped = [...result.skipped];
     let nextSyncMarker: string | null = now;
     try {
-      rt.ctx.db.$client
-        .prepare(
-          'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
-        )
-        .run(META_KEY, now, now);
+      metadataRepo.upsert(META_KEY, now, now);
     } catch (e) {
       nextSyncMarker = null;
       skipped.push({

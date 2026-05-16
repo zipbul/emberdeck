@@ -143,4 +143,11 @@ export class DrizzleCardRepository implements CardRepository {
     return this.db.select().from(card).where(eq(card.parent, key)).all() as CardRow[];
   }
 
+  updateKeyAndPath(oldKey: string, newKey: string, newFilePath: string, updatedAt: string): void {
+    this.db
+      .update(card)
+      .set({ key: newKey, filePath: newFilePath, updatedAt })
+      .where(eq(card.key, oldKey))
+      .run();
+  }
 }

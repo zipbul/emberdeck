@@ -13,6 +13,8 @@ import { validateGlossaryEntry } from '../glossary/validation';
 import { deleteCardFile } from '../fs/writer';
 import { DrizzleChangelogRepository } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
+import { card as cardTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 
@@ -213,25 +215,27 @@ export async function renameGlossary(
 
     writeGlossary(ctx, entries);
 
-    // DB transaction: update all affected cards' glossary_json.
-    // Prepare statement once per transaction instead of per row.
+    // DB transaction: update every affected card's glossary_json plus a
+    // changelog row, all through the repository abstraction so a mock context
+    // can intercept the writes during tests.
     try {
       if (affectedCards.length > 0) {
         const now = new Date().toISOString();
         ctx.db.transaction((tx) => {
           const d = txDb(tx);
           const changelogRepo = new DrizzleChangelogRepository(d);
-          const updateStmt = ctx.db.$client.prepare(
-            'UPDATE card SET glossary_json = ?, updated_at = ? WHERE key = ?',
-          );
 
-          for (const card of affectedCards) {
-            const glossary = parseStringArrayJson(card.glossaryJson);
+          for (const affected of affectedCards) {
+            const glossary = parseStringArrayJson(affected.glossaryJson);
             const updated = glossary.map((w: string) => (w === oldWord ? newWord : w));
-            updateStmt.run(JSON.stringify(updated), now, card.key);
+            d
+              .update(cardTable)
+              .set({ glossaryJson: JSON.stringify(updated), updatedAt: now })
+              .where(eq(cardTable.key, affected.key))
+              .run();
 
             changelogRepo.insert({
-              cardKey: card.key,
+              cardKey: affected.key,
               field: 'glossary',
               oldValue: oldWord,
               newValue: newWord,

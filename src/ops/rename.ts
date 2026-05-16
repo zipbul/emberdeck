@@ -9,6 +9,9 @@ import { CardNotFoundError, CardAlreadyExistsError, CardRenameSamePathError } fr
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
 import { syncCardFromFile } from './sync';
+import { DrizzleCardRepository } from '../db/card-repo';
+import { DrizzleChangelogRepository } from '../db/changelog-repo';
+import { txDb } from '../db/connection';
 
 /**
  * Result returned on successful `renameCard`.
@@ -130,13 +133,10 @@ export async function renameCard(
           // UPDATE the key in-place + changelog inside a single transaction.
           // FK ON UPDATE CASCADE propagates to all referencing tables
           // (relations, tags, codeLinks, changelog), preserving incoming relations.
-          ctx.db.$client.transaction(() => {
-            ctx.db.$client.run(
-              `UPDATE card SET key = ?, file_path = ?, updated_at = ? WHERE key = ?`,
-              [newFullKey, newFilePath, now, oldKey],
-            );
-
-            ctx.changelogRepo.insert({
+          ctx.db.transaction((tx) => {
+            const d = txDb(tx);
+            new DrizzleCardRepository(d).updateKeyAndPath(oldKey, newFullKey, newFilePath, now);
+            new DrizzleChangelogRepository(d).insert({
               cardKey: newFullKey,
               field: 'key',
               oldValue: oldKey,
@@ -144,7 +144,7 @@ export async function renameCard(
               changedAt: now,
               changedBy: 'agent',
             });
-          })();
+          });
 
           // Update referencing cards' files (relations, parent)
           for (const ref of referencingCards) {

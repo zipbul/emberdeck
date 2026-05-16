@@ -68,6 +68,8 @@ export interface CardRepository {
   /** Push limit/offset down to FTS5. Without pagination at the DB the CLI fetches every match before slicing. */
   search(query: string, options?: SearchOptions): CardRow[];
   findChildren(key: string): CardRow[];
+  /** Update card.key and file_path in place; FK ON UPDATE CASCADE propagates to relation/tag/code-link/changelog tables. */
+  updateKeyAndPath(oldKey: string, newKey: string, newFilePath: string, updatedAt: string): void;
 }
 
 export interface RelationRepository {
