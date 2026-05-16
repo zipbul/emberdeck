@@ -1,6 +1,15 @@
 import { CardValidationError, ParentValidationError, ActivationGuardError } from './errors';
-import { ensureReindexed, makeSymbolFileCache, listAllIndexedFilesWithProject } from '../ops/link';
 import type { EmberdeckContext } from '../config';
+
+/**
+ * Caller-injected resolver for the spec source-binding portion of the
+ * activation guard. The card layer never depends on ops; ops callers pass
+ * `validateSpecSourceBindings` from `src/ops/activation-source-binding`.
+ */
+export type SpecSourceBindingResolver = (
+  ctx: EmberdeckContext,
+  cardKey: string,
+) => Promise<string[]>;
 import type { BriefBody, CardFrontmatter, CardType, CardStatus, SpecBody } from './types';
 import { validateBriefRefs } from '../brief/validate-refs';
 import { validateSpecRefs } from '../spec/validate-refs';
@@ -306,6 +315,7 @@ export async function validateActivationGuard(
     spec?: SpecBody;
     key?: string;
   },
+  resolveSpecSourceBindings?: SpecSourceBindingResolver,
 ): Promise<void> {
   // 4-tier hierarchy enforcement at activation time (strict).
   // Active brief MUST have parent=domain. Active spec MUST have parent=brief|spec.
@@ -435,35 +445,13 @@ export async function validateActivationGuard(
   }
 
   // Binding to source is via `@spec card-key` annotations in code; the
-  // populated DB rows live in the code_link table (kept as a cache of the
-  // annotation scan). Source is the SoT — the card itself does not list links.
-  if (card.key) {
-    await ensureReindexed(ctx);
-    // Aggregate across all gildash projects (monorepo support). Default-arg
-    // listIndexedFiles() only sees the primary project, missing source in
-    // multi-project repos. listAllIndexedFilesWithProject is the centralized
-    // aggregator already used by spec-sync / coverage paths.
-    const indexedFiles = listAllIndexedFilesWithProject(ctx);
-    // Empty index = "no information" — neither demand annotations nor try to
-    // resolve. Matches drift-detection semantics elsewhere.
-    if (indexedFiles.length > 0) {
-      const links = ctx.codeLinkRepo.findByCardKey(card.key);
-      if (links.length === 0) {
-        unmet.push(
-          `spec card has no source bindings — add at least one '@spec ${card.key}' JSDoc annotation`,
-        );
-      } else {
-        const cache = makeSymbolFileCache(ctx);
-        for (const link of links) {
-          try {
-            if (!cache.find(link.file, link.symbol)) {
-              unmet.push(`source binding '${link.file}:${link.symbol}' unresolved`);
-            }
-          } catch {
-            unmet.push(`source binding '${link.file}:${link.symbol}' unresolved`);
-          }
-        }
-      }
+  // populated DB rows live in the binding cache. Source is the SoT — the
+  // card itself does not list links. The resolver is injected by ops callers
+  // so the card layer stays free of any ops dependency.
+  if (card.key && resolveSpecSourceBindings) {
+    const bindingUnmet = await resolveSpecSourceBindings(ctx, card.key);
+    for (const m of bindingUnmet) unmet.push(m);
+    {
     }
   }
 
@@ -490,11 +478,12 @@ export async function validateTypeChangeActivation(
     key?: string;
   },
   newType: CardType,
+  resolveSpecSourceBindings?: SpecSourceBindingResolver,
 ): Promise<string> {
   if (card.status !== 'active') return card.status;
 
   try {
-    await validateActivationGuard(ctx, { ...card, type: newType });
+    await validateActivationGuard(ctx, { ...card, type: newType }, resolveSpecSourceBindings);
     return card.status;
   } catch (e) {
     if (e instanceof ActivationGuardError) {

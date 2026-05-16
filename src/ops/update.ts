@@ -22,6 +22,7 @@ import {
   validateActivationGuard,
   validateTypeChangeActivation,
 } from '../card/validation';
+import { validateSpecSourceBindings } from './activation-source-binding';
 import { readGlossary } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
 // Body section validation removed — namespace is canonical, body is free-form.
@@ -235,6 +236,7 @@ export async function updateCard(
             key,
           },
           fields.type,
+          validateSpecSourceBindings,
         );
         if (newStatus !== next.status) {
           warnings.push(`Type changed to ${fields.type}: status forced to ${newStatus} (activation conditions unmet)`);
@@ -273,7 +275,7 @@ export async function updateCard(
           brief: next.brief,
           spec: next.spec,
           key,
-        });
+        }, validateSpecSourceBindings);
       }
 
       const card: CardFile = { filePath, frontmatter: next };
@@ -385,7 +387,7 @@ export async function updateCardStatus(
           brief: current.frontmatter.brief,
           spec: current.frontmatter.spec,
           key,
-        });
+        }, validateSpecSourceBindings);
       }
 
       const oldStatus = current.frontmatter.status;

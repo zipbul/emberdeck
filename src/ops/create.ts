@@ -15,6 +15,7 @@ import {
   validateRelationTargets,
   validateActivationGuard,
 } from '../card/validation';
+import { validateSpecSourceBindings } from './activation-source-binding';
 import { readGlossary, GlossaryValidationError } from '../glossary/io';
 import { validateCardGlossaryField } from '../glossary/validation';
 // Body section validation (legacy markdown 8/3-section path) has been removed —
@@ -153,7 +154,7 @@ export async function createCard(
           brief: input.brief,
           spec: input.spec,
           key: fullKey,
-        });
+        }, validateSpecSourceBindings);
       }
 
       const frontmatter = {
