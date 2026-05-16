@@ -13,9 +13,11 @@
     "src/card/errors.ts",
     "src/card/json-fields.ts",
     "src/card/searchable-text.ts",
-    // Thin CLI command wrappers covered by cli-surface/runner-and-output spec
-    "src/cli/commands/**",
-    "src/cli/index.ts",
+    // CLI command actions are now individually bound to per-command spec cards
+    // (cli-surface/command-routing-and-output/commands/<key>) via @spec JSDoc on
+    // exported action functions (Phase 2.0). Do NOT ignore src/cli/commands/** or
+    // src/cli/index.ts here — gildash must index them so `ed spec sync` can resolve
+    // the bindings and `ed card set-status active` can pass the activation guard.
     "src/cli/exit-codes.ts",
     "src/cli/usage-error.ts",
     "src/cli/parse-input.ts",
