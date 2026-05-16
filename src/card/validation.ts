@@ -369,13 +369,7 @@ export async function validateActivationGuard(
       ]);
     }
     try {
-      validatePrincipleCard({
-        type: 'principle',
-        key: card.key ?? '',
-        summary: '',
-        status: 'draft',
-        principle: card.principle,
-      } as CardFrontmatter);
+      validatePrincipleCard(card.principle);
     } catch (e) {
       throw new ActivationGuardError(
         'Activation conditions not met',
@@ -387,13 +381,7 @@ export async function validateActivationGuard(
   if (card.type === 'domain') {
     // Pure shape validation (no DB) lives in src/domain/validate.ts.
     try {
-      validateDomainCard({
-        type: 'domain',
-        key: card.key ?? '',
-        summary: '',
-        status: 'draft',
-        domain: card.domain,
-      } as CardFrontmatter);
+      validateDomainCard(card.domain, { selfKey: card.key });
     } catch (e) {
       throw new ActivationGuardError('Activation conditions not met', [(e as Error).message]);
     }

@@ -1,74 +1,60 @@
 import { describe, it, expect } from 'bun:test';
 import { validateDomainCard } from './validate';
-import { CardValidationError } from '../card/errors';
-import type { CardFrontmatter } from '../card/types';
+import type { DomainBody } from '../card/types';
 
-function fm(overrides: Partial<CardFrontmatter> = {}): CardFrontmatter {
-  return {
-    key: 'd',
-    summary: 's',
-    status: 'draft',
-    type: 'domain',
-    domain: { overview: 'over', scope: 'sc' },
-    ...overrides,
-  };
+function body(overrides: Partial<DomainBody> = {}): DomainBody {
+  return { overview: 'over', scope: 'sc', ...overrides };
 }
 
 describe('validateDomainCard', () => {
   it('passes for a fully-formed domain card', () => {
-    expect(() => validateDomainCard(fm())).not.toThrow();
-  });
-
-  it('rejects non-domain type', () => {
-    expect(() => validateDomainCard(fm({ type: 'brief' }))).toThrow(CardValidationError);
+    expect(() => validateDomainCard(body())).not.toThrow();
   });
 
   it('rejects missing domain namespace', () => {
-    expect(() => validateDomainCard(fm({ domain: undefined }))).toThrow(/missing required/);
+    expect(() => validateDomainCard(undefined)).toThrow(/missing required/);
   });
 
   it('rejects empty overview', () => {
-    expect(() => validateDomainCard(fm({ domain: { overview: '   ', scope: 'sc' } }))).toThrow(/overview/);
+    expect(() => validateDomainCard(body({ overview: '   ' }))).toThrow(/overview/);
   });
 
   it('rejects empty scope', () => {
-    expect(() => validateDomainCard(fm({ domain: { overview: 'o', scope: '' } }))).toThrow(/scope/);
+    expect(() => validateDomainCard(body({ overview: 'o', scope: '' }))).toThrow(/scope/);
   });
 
   it('rejects empty cross_domain_dependencies entry', () => {
     expect(() =>
-      validateDomainCard(fm({
-        domain: {
-          overview: 'o',
-          scope: 's',
-          cross_domain_dependencies: [{ domain: '', relationship: 'r' }],
-        },
+      validateDomainCard(body({
+        cross_domain_dependencies: [{ domain: '', relationship: 'r' }],
       })),
     ).toThrow(/non-empty card key/);
   });
 
   it('rejects empty relationship', () => {
     expect(() =>
-      validateDomainCard(fm({
-        domain: {
-          overview: 'o',
-          scope: 's',
-          cross_domain_dependencies: [{ domain: 'other', relationship: '' }],
-        },
+      validateDomainCard(body({
+        cross_domain_dependencies: [{ domain: 'other', relationship: '' }],
       })),
     ).toThrow(/relationship/);
   });
 
-  it('rejects self-reference', () => {
+  it('rejects self-reference when selfKey is supplied', () => {
     expect(() =>
-      validateDomainCard(fm({
-        key: 'self-d',
-        domain: {
-          overview: 'o',
-          scope: 's',
+      validateDomainCard(
+        body({
           cross_domain_dependencies: [{ domain: 'self-d', relationship: 'r' }],
-        },
-      })),
+        }),
+        { selfKey: 'self-d' },
+      ),
     ).toThrow(/self-reference/);
+  });
+
+  it('allows the same domain key when selfKey is omitted', () => {
+    expect(() =>
+      validateDomainCard(body({
+        cross_domain_dependencies: [{ domain: 'self-d', relationship: 'r' }],
+      })),
+    ).not.toThrow();
   });
 });
