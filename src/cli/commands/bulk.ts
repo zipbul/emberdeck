@@ -3,8 +3,7 @@
  */
 
 import { Command } from 'commander';
-import { stat } from 'node:fs/promises';
-import { readFile } from 'node:fs/promises';
+import { stat, readFile } from 'node:fs/promises';
 import { run } from '../runner';
 import type { CliRuntime } from '../context';
 import { bulkCreateCards } from '../../ops/bulk-create';
