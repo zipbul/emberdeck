@@ -92,8 +92,9 @@ export async function deleteCard(
         }
       }
       if (crossDomainDependents.length > 0 && !force) {
+        const refs = crossDomainDependents.map((c) => c.key).join(', ');
         throw new CardValidationError(
-          `Cannot delete card "${key}": ${crossDomainDependents.length} domain card(s) reference it via cross_domain_dependencies (${crossDomainDependents.map((c) => c.key).join(', ')}). Use force=true to remove the entries automatically.`,
+          `Cannot delete card "${key}": ${crossDomainDependents.length} domain card(s) reference it via cross_domain_dependencies (${refs}). Use force=true to remove the entries automatically.`,
         );
       }
 

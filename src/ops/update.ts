@@ -323,14 +323,35 @@ export async function updateCard(
             }
             if (fields.relations !== undefined) {
               failedRelationTargets = relationRepo.replaceForCard(key, next.relations ?? []);
-              changelogRepo.insert({ cardKey: key, field: 'relations', oldValue: prev.relations ? JSON.stringify(prev.relations) : null, newValue: next.relations ? JSON.stringify(next.relations) : null, changedAt: now, changedBy });
+              changelogRepo.insert({
+                cardKey: key,
+                field: 'relations',
+                oldValue: prev.relations ? JSON.stringify(prev.relations) : null,
+                newValue: next.relations ? JSON.stringify(next.relations) : null,
+                changedAt: now,
+                changedBy,
+              });
             }
             if (fields.tags !== undefined) {
               classRepo.replaceTags(key, next.tags ?? []);
-              changelogRepo.insert({ cardKey: key, field: 'tags', oldValue: prev.tags ? JSON.stringify(prev.tags) : null, newValue: next.tags ? JSON.stringify(next.tags) : null, changedAt: now, changedBy });
+              changelogRepo.insert({
+                cardKey: key,
+                field: 'tags',
+                oldValue: prev.tags ? JSON.stringify(prev.tags) : null,
+                newValue: next.tags ? JSON.stringify(next.tags) : null,
+                changedAt: now,
+                changedBy,
+              });
             }
             if (fields.glossary !== undefined) {
-              changelogRepo.insert({ cardKey: key, field: 'glossary', oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null, newValue: next.glossary ? JSON.stringify(next.glossary) : null, changedAt: now, changedBy });
+              changelogRepo.insert({
+                cardKey: key,
+                field: 'glossary',
+                oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null,
+                newValue: next.glossary ? JSON.stringify(next.glossary) : null,
+                changedAt: now,
+                changedBy,
+              });
             }
           });
           const r: UpdateCardResult = { filePath, card, failedRelationTargets };
