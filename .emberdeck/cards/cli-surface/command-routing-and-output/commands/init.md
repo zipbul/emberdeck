@@ -17,8 +17,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: >-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
 
@@ -38,14 +36,19 @@ spec:
         }
 
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): scaffold 항상 성공 (idempotent; 이미 존재 → skipped, --force 시
         덮어쓰기).
 
-        - thrown 매핑: 없음 (IO 실패는 부모 runner 의 일반 매핑 → exit 5).
+        - thrown 매핑: 명령 자체는 emberdeck 에러 클래스를 throw 하지 않음. node fs error
+        (mkdir/writeFile/readFile/appendFile/stat 의 NodeJS.ErrnoException) 는
+        toCliError default branch → `internal-error` exit 1. 별도 IO 에러 클래스 도입 시
+        `permission` 또는 `io-error` (exit 5) 매핑 가능 — 별도 PR.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -53,6 +56,9 @@ spec:
         disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
       always_holds: per-call
   failures:
-    - violation: 디렉터리 write permission 부재.
-      behavior: stderr `{level:'error', code:'permission-or-io', message}` + exit 5.
+    - violation: 디렉터리 write permission 부재 또는 일반 fs IO 실패.
+      behavior: >-
+        stderr `{level:'error', code:'internal-error', message,
+        details:{class}}` + exit 1 (node fs error → toCliError default branch).
+        별도 IO 에러 클래스 도입 후에는 `permission`/`io-error` exit 5 로 매핑 가능.
 ---

@@ -2,7 +2,7 @@
 key: cli-surface/command-routing-and-output/commands/card-delete
 summary: >-
   Per-command CLI-shape spec for 'ed card delete'; declares detached-children +
-  removed-refs shape (POST-001) and 0/3/4 exit policy (POST-002).
+  removed-refs shape (POST-001) and 0/2/3 exit policy (POST-002).
 status: draft
 type: spec
 parent: cli-surface/command-routing-and-output
@@ -32,9 +32,11 @@ spec:
         - 0 (EXIT.OK): 삭제 성공 (파일 unlink + DB row delete + 자식 detach + cross-ref
         정리).
 
-        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND);
-        CardHasDependentsError / ConflictError → 4 (EXIT.CONFLICT) (force 없이
-        자식/참조 존재 시).
+        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND); CardValidationError
+        → 2 (EXIT.VALIDATION_FAILURE) when children exist and `--force` absent,
+        or cross-domain refs exist and `--force` absent. 의미적으로 conflict (exit 4)
+        가 자연이지만 op 가 단일 CardValidationError 로 모든 검증 실패를 묶음. 분리는 별도 PR
+        (CardHasDependentsError → exit 4 도입).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -44,10 +46,12 @@ spec:
         disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
       always_holds: per-call
   failures:
-    - violation: force=false 인데 자식 카드 또는 cross_domain_dependencies 참조 존재.
+    - violation: force=false 인데 자식 카드 존재 또는 cross_domain_dependencies 참조 존재.
       behavior: >-
-        stderr `{level:'error', code:'card-has-dependents', message, details?}`
-        + exit 4.
-    - violation: key 에 해당하는 카드 미존재
-      behavior: CardNotFoundError → stderr {code:'card-not-found'} + exit 3.
+        CardValidationError → stderr `{level:'error', code:'validation-error',
+        message}` + exit 2.
+    - violation: key 에 해당하는 카드 미존재.
+      behavior: >-
+        CardNotFoundError → stderr `{level:'error', code:'card-not-found',
+        message}` + exit 3.
 ---
