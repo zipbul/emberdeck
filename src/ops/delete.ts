@@ -11,6 +11,7 @@ import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 import { errorMessage } from '../util/error';
+import { emitWarning } from '../cli/output';
 
 export interface DeleteCardOptions {
   /** If true, delete even when children exist (children's parent is set to null). */
@@ -219,16 +220,35 @@ export async function deleteCard(
           // - referencing cards: forward relation rows to this card were CASCADE deleted
           // Their files are unmodified (deleteCardFile runs before best-effort updates),
           // so re-syncing from file restores the correct DB state.
+          //
+          // Per-card re-sync failures during rollback are observable: each one
+          // is surfaced as a warning JSON-line on stderr so operators see the
+          // partial-rollback state instead of silently losing the signal.
+          // (level:warning so the original error still drives the exit code.)
+          const compensationFailures: Array<{ cardKey: string; reason: string }> = [];
           if (force && children.length > 0) {
             for (const child of children) {
-              try { await syncCardFromFile(ctx, child.filePath); } catch { /* best-effort */ }
+              try {
+                await syncCardFromFile(ctx, child.filePath);
+              } catch (e) {
+                compensationFailures.push({ cardKey: child.key, reason: errorMessage(e) });
+              }
             }
           }
           for (const refKey of referencingCardKeys) {
             try {
               const refRow = ctx.cardRepo.findByKey(refKey);
               if (refRow) await syncCardFromFile(ctx, refRow.filePath);
-            } catch { /* best-effort */ }
+            } catch (e) {
+              compensationFailures.push({ cardKey: refKey, reason: errorMessage(e) });
+            }
+          }
+          if (compensationFailures.length > 0) {
+            emitWarning({
+              code: 'compensation-partial',
+              message: `deleteCard rollback could not re-sync ${compensationFailures.length} cascaded card(s); operator must reconcile`,
+              details: { failures: compensationFailures },
+            });
           }
         },
       });
