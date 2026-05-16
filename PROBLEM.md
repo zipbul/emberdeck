@@ -966,7 +966,7 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
 - [x] 코드분석: `grep -n "exitOverride" src/cli/index.ts` → 0 매치. `parsers.ts:12` 가 `throw new InvalidArgumentError`. commander 가 자체적으로 stderr write + `process.exit(1)`.
 - [x] 재현: `bun cli.ts card list --limit abc >/dev/null 2>&1; echo $?` → 1. stderr 에 plaintext.
 - [x] 사실검증: 옛 line 12/26-51 → 6차 동일.
-- **Verdict**: STILL VALID.
+- **Verdict**: ✅ **RESOLVED** by envelope-removal commit `5f481af` (Phase 2.7): `src/cli/index.ts` 가 `program.exitOverride()` + `main()` try/catch → `emitError({code:'cli-usage-error'})` + `process.exit(EXIT.VALIDATION_FAILURE)`. `commander.help` / `commander.version` 은 `process.exit(EXIT.OK)`.
 
 ### H-006. commander argument errors (missing positional, missing required option, unknown flag) JSON envelope 우회
 **Severity**: high | **Status**: verified (= H-005 와 같은 root)
@@ -975,7 +975,7 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
 - [x] 코드분석: H-005 와 동일 root cause (exitOverride 없음). missing positional/required option/unknown flag 모두 commander 내부 path → plaintext.
 - [x] 재현: `bun cli.ts card get 2>&1 | head -1` → `error: missing required argument 'key'`. JSON envelope 없음.
 - [x] 사실검증: H-005 와 같은 메커니즘. 별도 변화 없음.
-- **Verdict**: STILL VALID.
+- **Verdict**: ✅ **RESOLVED** by envelope-removal commit `5f481af` (Phase 2.7) — same fix as H-005. commander argument errors (missing positional / unknown flag / InvalidArgumentError) 모두 main() catch 에서 `emitError({code:'cli-usage-error'})` + exit 2.
 
 ### H-007. `bulk sync`, `regression`, `rename` 의 다수 error code 가 ERROR_CODE_TO_EXIT 미매핑 → exit 1
 **Severity**: medium | **Status**: verified
@@ -1992,7 +1992,7 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
 - [x] 코드분석: 테스트 파일 잔존. status field 의 `toContain(['ok','partial','error'])` 패턴은 행동 검증이 아니라 schema 검증.
 - [x] 재현: 정적.
 - [x] 사실검증: 메커니즘 동일.
-- **Verdict**: STILL VALID.
+- **Verdict**: ✅ **RESOLVED** by envelope-removal commits `5f481af` (Phase 2 — envelope keys 제거) + `2ee7f45` (Phase 3 — test/cli/* v2 매핑). `test/cli/json-envelope-schema.test.ts` 파일 자체 삭제됨 (Phase 2.5). 새 검증: stdout 의 per-command shape + stderr JSON-line. `parsed.status` 같은 envelope assertion 모두 v2 매핑 (`exitCode === N` + `parseJsonLines(stderr)`) 으로 교체.
 
 ### L-007. `coverage-analysis.test.ts` 가 hardcoded `/tmp` path
 **Severity**: low | **Status**: verified
@@ -2524,7 +2524,7 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
 - [x] 코드분석: `output.ts:46-54` ok: `errors: []` hardcoded. `:78-87` err: `errors: []` + 별도 `error` 객체. `:93-102` unknown: `errors: []` + 별도 `error`. partial 만 errors 채움.
 - [x] 재현: `bun cli.ts analyze | jq '.errors, .error'` → `[]` + (없음). `bun cli.ts card get nonexist | jq '.errors, .error'` → `[]` + `{"code": "CARD_NOT_FOUND", "message": ...}` — errors[] 는 비고, error 단수에 정보. partial 만 errors 활용 — envelope 비대칭 확정.
 - [x] 사실검증: dynamic reproduction. 메커니즘 동일.
-- **Verdict**: STILL VALID.
+- **Verdict**: ✅ **RESOLVED** by envelope-removal commit `5f481af` (Phase 2.1 — output.ts 전면 교체). 옛 `ok/partial/err/unknown` envelope 헬퍼 모두 제거. 신 출력 = 각 명령의 자연 JSON shape (envelope 없음) + stderr JSON-line `{level, code, message, details?}`. 비대칭 자체가 *제거된 구조* — 재발 불가.
 
 ### N-022. JSONC parse 에러 line/col 폐기 (= J-014 verified)
 **Severity**: medium | **Status**: verified
@@ -2581,7 +2581,7 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
 - [x] 코드분석: `src/cli/output.ts:177` `JSON.stringify(result, null, 2)`. compact mode 분기 없음. `--quiet` 는 stdout 형식 자체를 바꿈 (line-oriented), 일반 JSON mode 는 항상 indent.
 - [x] 재현: `bun cli.ts analyze | head -3` → `{\n  "schemaVersion": {\n    "major": 1,` — 2-space indent + newline 확인. minified 옵션 없음.
 - [x] 사실검증: dynamic. 대용량 응답 시 disk/bandwidth 낭비.
-- **Verdict**: STILL VALID.
+- **Verdict**: ✅ **RESOLVED** by envelope-removal commit `5f481af` (Phase 2.1 — output.ts emitResult). 신 `emitResult(data, ctx)` 가 `ctx.quiet` 분기 → `JSON.stringify(data, null, ctx.quiet ? undefined : 2)`. `--quiet` = compact single-line, default = 2-space pretty. 대용량 응답을 compact 으로 piping 가능.
 
 ### N-035. `validate` 가 analyze 의 unlinked_symbols 등 미surface
 **Severity**: low | **Status**: verified

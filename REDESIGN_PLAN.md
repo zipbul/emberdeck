@@ -224,7 +224,8 @@ ed card delete <key> [--force] [--yes]
     detachedChildren: string[],          // --force 시 parent=null 로 변경된 자식 키. force=false 면 [] (자식 없을 때만 성공)
     removedCrossDomainRefs: string[]     // --force 시 cross_domain_dependencies 에서 이 키 참조가 제거된 도메인 카드 키. force=false 면 []
   }
-  exit: 0; thrown→3, 4.
+  exit: 0; thrown→3 (CardNotFoundError), 2 (CardValidationError when children exist and --force absent, or cross-domain refs exist and --force absent — `code:'validation-error'`).
+  // 의미적으로 conflict (exit 4) 가 자연이지만 op 가 GlossaryValidationError 처럼 단일 `CardValidationError` 로 모든 검증 실패 묶음 → errors.ts 매핑 exit 2. 분리는 별도 PR (CardHasDependentsError → exit 4 도입).
 
 ed card rename <old> <new>
   // failedReferenceUpdates 의 reason 은 op 보강 (OP-11) — 현재 op 의 catch block 이 error 메시지 버림.

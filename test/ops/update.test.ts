@@ -221,6 +221,33 @@ describe('updateCard', () => {
   });
 });
 
+describe('updateCardStatus return shape', () => {
+  let tc: TestContext;
+
+  afterEach(async () => {
+    await tc?.cleanup();
+  });
+
+  it('returns oldStatus = previous status before mutation', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'old-status-card', summary: 'S', type: 'spec' });
+    // Card starts as draft (default).
+    const r = await updateCardStatus(tc.ctx, 'old-status-card', 'drifted');
+    expect(r.oldStatus).toBe('draft');
+    expect(r.card.frontmatter.status).toBe('drifted');
+  });
+
+  it('oldStatus reflects the status at call time across successive transitions', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'chain-card', summary: 'S', type: 'spec' });
+    const first = await updateCardStatus(tc.ctx, 'chain-card', 'drifted');
+    expect(first.oldStatus).toBe('draft');
+    const second = await updateCardStatus(tc.ctx, 'chain-card', 'draft');
+    expect(second.oldStatus).toBe('drifted');
+    expect(second.card.frontmatter.status).toBe('draft');
+  });
+});
+
 
 // Source bindings (code_link rows) are owned by `ed spec sync` reading
 // `@spec card-key` JSDoc tags from source — not by createCard / updateCard.

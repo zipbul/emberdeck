@@ -124,4 +124,24 @@ describe('deleteCard', () => {
     await deleteCard(tc.ctx, 'st-del-src');
     expect(tc.ctx.relationRepo.findByCardKey('st-del-src')).toHaveLength(0);
   });
+
+  it('returns detachedChildren and removedCrossDomainRefs as always-arrays (force=false leaf → empty)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'arrow', summary: 'Arrow', type: 'spec' });
+    const r = await deleteCard(tc.ctx, 'arrow');
+    expect(Array.isArray(r.detachedChildren)).toBe(true);
+    expect(Array.isArray(r.removedCrossDomainRefs)).toBe(true);
+    expect(r.detachedChildren).toEqual([]);
+    expect(r.removedCrossDomainRefs).toEqual([]);
+  });
+
+  it('populates detachedChildren with child keys when --force detaches them', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'parent-x', summary: 'Parent', type: 'brief' });
+    await createCard(tc.ctx, { key: 'parent-x/child-a', summary: 'A', type: 'spec', parent: 'parent-x' });
+    await createCard(tc.ctx, { key: 'parent-x/child-b', summary: 'B', type: 'spec', parent: 'parent-x' });
+    const r = await deleteCard(tc.ctx, 'parent-x', { force: true });
+    expect(r.detachedChildren.sort()).toEqual(['parent-x/child-a', 'parent-x/child-b']);
+    expect(r.removedCrossDomainRefs).toEqual([]);
+  });
 });
