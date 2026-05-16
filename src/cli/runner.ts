@@ -10,7 +10,8 @@
 
 import type { Command } from 'commander';
 import { buildRuntime, type GlobalFlags, type CliRuntime } from './context';
-import { emitResult, emitError, emitVerbose, emitWarning, buildOutputContext } from './output';
+import { errorMessage } from '../util/error';
+import { emitResult, emitError, emitVerbose, emitWarning, buildOutputContext} from './output';
 import { toCliError, ERROR_CODE_TO_EXIT } from './errors';
 import { EXIT, type ExitCode } from './exit-codes';
 import { ensureCardsSynced } from '../ops/sync';
@@ -35,7 +36,14 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
   const onSig = async (sig: string): Promise<void> => {
     if (inSignal) process.exit(EXIT.SIGINT);
     inSignal = true;
-    try { await rt?.cleanup(); } catch { /* best-effort */ }
+    try {
+      await rt?.cleanup();
+    } catch (cleanupErr) {
+      emitWarning({
+        code: 'cleanup-failed',
+        message: errorMessage(cleanupErr),
+      });
+    }
     emitError({ code: 'sigint', message: `${sig} received, exiting` });
     process.exit(EXIT.SIGINT);
   };
@@ -92,7 +100,14 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
     }
   }
 
-  try { await rt?.cleanup(); } catch { /* best-effort */ }
+  try {
+    await rt?.cleanup();
+  } catch (cleanupErr) {
+    emitWarning({
+      code: 'cleanup-failed',
+      message: errorMessage(cleanupErr),
+    });
+  }
   process.off('SIGINT', onSigint);
   process.off('SIGTERM', onSigterm);
   process.exit(exitCode);
