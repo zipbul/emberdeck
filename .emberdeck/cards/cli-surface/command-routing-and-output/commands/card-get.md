@@ -11,31 +11,33 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 CardFrontmatter 필드를 root
-        에 flat 화한 다음 shape:
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` flattens CardFrontmatter fields at the root plus sync metadata:
 
         ```jsonc
 
         // stdout shape for `ed card get <key>` — CardFrontmatter flat (no
-        `frontmatter` wrapper) + sync 메타
+        frontmatter wrapper) plus sync metadata.
 
         {
-          key, summary, status, type, parent: string|null,
+          key, summary, status, type, parent: string | null,
           glossary: string[],
           relations?: string[],
           tags?: string[],
-          principle?, domain?, brief?, spec?,   // type 별 namespace body (CardFrontmatter 와 동일)
-          filePath, updatedAt?,                  // sync 메타 (CardRow 에서)
+          principle?, domain?, brief?, spec?,   // namespace body for the card's type (matches CardFrontmatter)
+          filePath, updatedAt?,                  // sync metadata derived from the indexed card row
           history?: {
             entries: {
-              field: string,         // 'summary'|'type'|'status'|'parent'|'relations'|'tags'|'glossary' 또는 namespace body
-              oldValue: string|null,
-              newValue: string|null,
+              field: string,         // 'summary' | 'type' | 'status' | 'parent' | 'relations' | 'tags' | 'glossary' | namespace body
+              oldValue: string | null,
+              newValue: string | null,
               changedAt: string,
               changedBy: string
             }[]
@@ -46,20 +48,28 @@ spec:
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): card 가 존재하고 frontmatter 조회 성공.
-        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND).
+      guarantee: >-
+        - 0 (EXIT.OK): the card exists and its frontmatter (plus optional
+        history) is returned.
+
+        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 주어진 key 가 DB 에 없음.
+    - violation: >-
+        No card exists for the requested key (also surfaced when the path
+        resolves but the frontmatter key disagrees with the filename slug —
+        readCardFileOrThrow treats key mismatch as not-found at the
+        mutation/read entry).
       behavior: >-
-        runner 가 CardNotFoundError 를 toCliError 로 매핑해 stderr 에 `{level:'error',
-        code:'card-not-found', message, details?}` JSON-line 1줄 + exit 3.
+        Runner maps CardNotFoundError through toCliError, emits one
+        `{level:'error', code:'card-not-found', message, details?}` JSON-line on
+        stderr, and exits 3.
 ---
