@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/check-interactions
 summary: >-
   Per-command CLI-shape spec for 'ed check interactions'; declares per-pair
   sharedSymbols/files + relations shape (POST-001) and exit 0 policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -34,12 +32,14 @@ spec:
           // op 가 reason 안 만들기 때문에 §1.7 에 없음
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: |-
         - 0 (EXIT.OK): interactions report 항상 (read-only).
         - thrown 매핑: 없음 (read-only).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

@@ -4,7 +4,7 @@ summary: >-
   ensureCardsSynced (auto file-to-DB sync at CLI entry with surfaced per-file
   failures), syncCardFromFile, bulkSyncCards, exportCardToFile, and
   validateCards reconcile cards between disk and DB.
-status: draft
+status: active
 type: spec
 parent: card-storage/persistence
 glossary:
@@ -52,13 +52,14 @@ spec:
       guarantee: >-
         Per-file sync failures inside ensureCardsSynced (parse error, I/O error)
         do not abort the remaining files. The function returns the failures as
-        an array of (filePath, error) pairs so the CLI runner can stream them
-        to stderr as CARD_SYNC_FAILED JSON-lines (one object per line). The
+        an array of (filePath, error) pairs so the CLI runner can stream them to
+        stderr as card-sync-failed JSON-lines (one object per line). The
         emission is independent of the command's stdout/outcome and does not
-        affect exit code (see cli-surface/command-routing-and-output/runner-and-output
-        POST-004). Commands that report the same file's failure on their own
-        stderr surface (e.g. `ed bulk sync`) may produce a second line; the
-        runner does not deduplicate.
+        affect exit code (see
+        cli-surface/command-routing-and-output/runner-and-output POST-004).
+        Commands that report the same file's failure on their own stderr surface
+        (e.g. `ed bulk sync`) may produce a second line; the runner does not
+        deduplicate.
       keyword: MUST
       derives: card-storage/persistence#G-004
   invariants:
@@ -99,8 +100,8 @@ spec:
         card.key plus the upsert-only write pattern in syncCardFromFile and
         writeCardFile guarantee each key maps to exactly one filePath at every
         transaction boundary. The schema does not enforce UNIQUE on file_path,
-        but the bijection holds because every write resolves to a single key
-        and overwrites the prior row atomically. Downstream dedup tooling
+        but the bijection holds because every write resolves to a single key and
+        overwrites the prior row atomically. Downstream dedup tooling
         (mergeCardSyncWarnings) relies on this invariant.
       always_holds: cross-call
     - id: INV-006
@@ -125,10 +126,10 @@ spec:
         ensureCardsSynced or bulkSyncCards.
       behavior: >-
         The error is captured into the failures array with the file path.
-        ensureCardsSynced surfaces each failure as a CARD_SYNC_FAILED JSON-line
-        on stderr. bulkSyncCards reports them in its own stdout shape's
-        `failed` array. Either way the bad file stays absent from the DB;
-        validateCards additionally reports it as ORPHAN_FILE in its own stdout.
+        ensureCardsSynced surfaces each failure as a card-sync-failed JSON-line
+        on stderr. bulkSyncCards reports them in its own stdout shape's `failed`
+        array. Either way the bad file stays absent from the DB; validateCards
+        additionally reports it as orphan-file in its own stdout.
     - violation: >-
         A parent and its child both arrive in the same bulk operation on a cold
         DB.

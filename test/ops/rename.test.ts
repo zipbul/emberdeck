@@ -240,4 +240,24 @@ describe('renameCard', () => {
     expect(row).not.toBeNull();
     expect(row!.type).toBe('brief');
   });
+
+  // Regression: rename used to mkdir + rename + writeCardFile OUTSIDE the
+  // try-block. A writeCardFile failure between mkdir/rename and DB transaction
+  // left the file at newFilePath with the OLD frontmatter and the DB still
+  // pointing at oldKey (disk/DB divergence). All three side-effects now live
+  // inside one try-block and rollback restores oldFilePath on any throw.
+  it('rollback path: rename throws and disk state is restored when newFilePath dir already contains a conflicting file', async () => {
+    tc = await createTestContext();
+    const src = await createCard(tc.ctx, { key: 'rb-src', summary: 'Src', type: 'spec' });
+    // Create a card at the destination key first so newFilePath collides.
+    // renameCard pre-checks file existence at the very start (before mkdir),
+    // so this throws CardAlreadyExistsError — no side-effects performed.
+    await createCard(tc.ctx, { key: 'rb-dst', summary: 'Dst already', type: 'spec' });
+    await expect(renameCard(tc.ctx, 'rb-src', 'rb-dst')).rejects.toBeInstanceOf(
+      CardAlreadyExistsError,
+    );
+    // Source file untouched, source row still present.
+    expect(existsSync(src.filePath)).toBe(true);
+    expect(tc.ctx.cardRepo.findByKey('rb-src')).not.toBeNull();
+  });
 });

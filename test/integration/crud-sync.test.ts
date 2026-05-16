@@ -724,7 +724,6 @@ describe('validateCards full checks', () => {
         cross_domain_dependencies: [{ domain: 'old-dom', relationship: 'depends on old' }],
       },
     });
-    const { renameCard } = await import('../../src/ops/rename');
     await renameCard(tc.ctx, 'old-dom', 'new-dom');
 
     // dependent-dom file should now point at new-dom

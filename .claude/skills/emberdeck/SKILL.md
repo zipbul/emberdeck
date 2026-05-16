@@ -1,6 +1,6 @@
 ---
 name: emberdeck
-description: emberdeck 4-tier 카드 시스템 (principle/domain/brief/spec + glossary, SSOT). ed CLI 호출, `.emberdeck/cards/` 파일 접근, 카드/spec/brief/domain/glossary 관련 답변/계획 — 어느 의도라도 즉시 진입. ed 의 mutating 명령 (create/update/delete/rename/set-status/bulk/spec sync/glossary 변경/reset) 은 PreToolUse hook (HC-0) 이 marker 없으면 결정론적으로 차단. 미진입 진행은 SSOT 게이트 우회.
+description: emberdeck 4-tier 카드 시스템 (principle/domain/brief/spec + glossary, SSOT). ed CLI 호출, `.emberdeck/cards/` 파일 접근, 카드/spec/brief/domain/glossary 관련 답변·계획·코드 수정 — 어느 의도라도 즉시 진입. 비-카드 작업 후 카드 작업으로 복귀 시 재진입 필수 (세션 내 반복 진입은 정상). ed 의 mutating 명령 (create/update/delete/rename/set-status/bulk/spec sync/glossary 변경/reset) 은 PreToolUse hook (HC-0) 이 marker 없으면 결정론적으로 차단. 미진입 진행은 SSOT 게이트 우회.
 ---
 
 <hard_constraints>
@@ -17,7 +17,7 @@ PreToolUse hook 두 개가 enforce:
   Why: Skill 은 model-invoked 라 자발성 의존 — hook 이 *결정론적 외부 force*. marker 없이는 ed mutate 불가 = HC-2/3 우회 불가능. read-only 명령 (`get/list/search/tree/context/relations/validate/check/analyze/glossary lookup/init`) 은 gate 외.
 
 **HC-1**: 카드 파일 변경은 오직 `ed` CLI 로만 — `ed card create / update / delete / rename / set-status`, `ed bulk create / sync`. Write/Edit tool 로 `.emberdeck/cards/**` 안 파일 직접 편집 X.
-  Why: ed CLI 는 DB index 와 disk 파일을 atomic 하게 갱신한다. Write 직접 편집 시 disk 만 갱신되고 DB stale → 다음 `ed validate` 까지 lag → 후속 작업의 검증 깨짐. 단축처럼 보이지만 발견 시점 늦어진다.
+  Why: ed CLI 는 카드 인덱스와 disk 파일을 함께 일관 갱신한다. Write 직접 편집 시 disk 만 갱신되고 인덱스가 어긋남 → 다음 `ed validate` 까지 lag → 후속 작업의 검증 깨짐. 단축처럼 보이지만 발견 시점 늦어진다.
 
 **HC-2**: 카드 N (N≥1) 생성/갱신 전 — `<card_analysis>` 한 번에 모든 N 카드 (key, parent, summary, 핵심 POST 요지) 표로 정리해 사용자 확인. batch 명목 / 효율 명목 / "schema 이미 plan 에 있음" 명목 — 어떤 명목으로도 스킵 X.
   Why: 카드 = SSOT. 사용자 confirm 없는 작성은 의도 불일치를 검증 단계에서야 발견시킴 → 재작업 cost > 사전 confirm cost. Scope: 1 카드든 32 카드든 동일하게 적용. (Anthropic Opus 4.7 가이드: scope 를 명시적으로 — 일부 케이스에 generalize 금지.)
@@ -25,8 +25,8 @@ PreToolUse hook 두 개가 enforce:
 **HC-3**: `<self_review>` 항목별 통과 — 한 항목 fail 시 즉시 중단, fix 후 재검토. skip X.
   Why: review 가 작성과 분리돼야 자체 점검이 의미 있음. 작성-중 mental review 는 confirmation bias 로 fail 을 놓친다.
 
-**HC-4**: 카드 commit 전 `ed validate cards` 통과 필수 (warnings 0).
-  Why: commit 이 SSOT 의 publication 시점. 통과 안 한 상태 commit 시 history 가 오염된다 — `git revert` 후 재작업 cost.
+**HC-4**: 카드 commit 전 `ed validate cards` 통과 필수 (exit 0 — issue 0). spec 카드 mutation 이라면 `ed validate links` 도 함께 (broken/ioFailed 0).
+  Why: commit 이 SSOT 의 publication 시점. 통과 안 한 상태 commit 시 history 가 오염된다 — `git revert` 후 재작업 cost. 통과 = stdout 결과의 issue 목록이 비어있고 exit 0.
 </hard_constraints>
 
 <positive_example>
@@ -39,19 +39,18 @@ PreToolUse hook 두 개가 enforce:
 4. `touch /tmp/claude-emberdeck-gate-<session_id>` 로 HC-0 marker write (없이는 hook 이 ed 차단).
 5. `ed card create domain-x --type domain ...` 형태로 ed CLI 실행 (Write tool X).
 6. 세 카드 모두 작성 후 `ed validate cards` 실행.
-6. warnings 0 확인 후 commit.
+7. exit 0 (issue 0) 확인 후 commit.
 
 안티패턴 (실제 발생): "32 카드라 batch 가 효율적" 으로 `<card_analysis>` 스킵 + Write tool 직접 사용. → hook 이 차단 + 재작업. 효율이 아니라 우회.
 </positive_example>
 
 <rules>
 1. 코드 수정 **전** 관련 카드 읽기. 수정 **후** `ed validate links` 실행.
-2. 카드 생성/갱신 = HC-1/HC-2/HC-3/HC-4 (above). 별도 rule X.
-3. `glossary.yaml` 에 항목 ≥1 시 신규 카드의 `glossary` 필드 필수 (주요 토픽만).
-4. 4-tier strict: `principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용.
-5. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 11 의 ignorePatterns 에 명시 추가 (rule 5 우선).
-6. `--patch` 는 namespace 전체 교체 (merge X). 누락 필수 필드 시 `VALIDATION_ERROR`. 부분 업데이트가 필요하면 카드 파일을 ed 가 export → 편집 → `ed bulk sync`. (직접 편집은 HC-1 위반.)
-7. **source ↔ card binding 은 source 가 SoT.** spec 카드의 source 결합은 코드의 `/** @spec card-key */` JSDoc 어노테이션으로만 표현. 카드는 codeLinks/boundary 필드를 갖지 않으며, `ed spec sync` 가 어노테이션을 스캔해 DB code_link 테이블을 채운다.
+2. `glossary.yaml` 에 항목 ≥1 시 신규 카드의 `glossary` 필드 필수 (주요 토픽만).
+3. 4-tier strict: `principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용.
+4. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 11 의 ignorePatterns 에 명시 추가 (rule 4 우선).
+5. `--patch` 는 namespace 전체 교체 (merge X). 누락 필수 필드 시 `validation-error` (stderr JSON-line `level:'error'`, exit 2). 또한 patch JSON 의 최상위 키는 `brief` / `spec` / `principle` / `domain` / `summary` / `type` / `status` / `parent` / `tags` / `relations` / `glossary` 중 하나여야 — namespace 내용물 직접 (예: `{preconditions: ..., postconditions: ...}`) 은 `cli-usage-error` (exit 2). 부분 업데이트 안전 흐름: `ed card get KEY` 로 현 frontmatter 조회 → jq 등으로 대상 namespace 만 추출하여 일부 수정 → `ed card update KEY --patch <new.json>` 으로 전체 namespace 재제출. (`.emberdeck/cards/` 안 .md 파일 직접 편집은 HC-1 위반.)
+6. **source ↔ card binding 은 source 가 SoT.** spec 카드의 source 결합은 코드의 `/** @spec card-key */` JSDoc 어노테이션으로만 표현. 카드는 codeLinks/boundary 필드를 갖지 않으며, `ed spec sync` 가 어노테이션을 스캔해 카드 ↔ symbol 결합 인덱스를 갱신한다.
 </rules>
 
 <constraint_check>
@@ -61,8 +60,8 @@ PreToolUse hook 두 개가 enforce:
 - HC-2 `<card_analysis>` 작성 후 사용자 confirm 받음? [ ]
 - HC-3 `<self_review>` 항목별 통과? [ ]
 - HC-4 commit 전 `ed validate cards` 통과 확인? [ ]
-- Rule 3 glossary 필드 (해당 시)? [ ]
-- Rule 4 4-tier hierarchy 만족? [ ]
+- Rule 2 glossary 필드 (해당 시)? [ ]
+- Rule 3 4-tier hierarchy 만족? [ ]
 </constraint_check>
 
 <route>
@@ -78,23 +77,23 @@ PreToolUse hook 두 개가 enforce:
 </route>
 
 <workflow name="onboarding">
-1. `ed analyze` → 현 상태. `ed spec sync` → 소스 `@spec` 어노테이션 → DB code_link 재구성 (멱등).
+1. `ed analyze` → 현 상태. `ed spec sync` → 소스 `@spec` 어노테이션 → 카드 ↔ symbol 결합 인덱스 재구성 (멱등).
 2. 소스 우선순위 순 읽기: 진입점 → 코어 도메인 → 인프라 → 테스트. 모노레포에서 sample/example/fixture 후순위. 컨텍스트 한도까지. `ed analyze` 의 `unlinked_symbols` 가 우선순위 신호. 각 파일 single-file 테스트 적용. cross-module 만 카드화 후보로 수집.
 3. cross-module 발견을 사용자에게 audit 으로 보여줌. 각 발견의 도메인 분류.
 4. domain outline 사용자 확인 (key, summary, scope IN/OUT).
 5. 각 domain 아래 brief outline (key, parent, summary, 주요 토픽).
 6. glossary 제안 (`<glossary_proposal>` 템플릿) → 확인 → `ed glossary define`.
-7. domain 카드 생성 (`type: domain`).
-8. brief 카드 생성 (`type: brief`, `parent: <domain>`, brief namespace).
-9. spec 카드 생성 (`type: spec`, `parent: <brief|spec>`, spec namespace). 소스 결합은 카드 작성 후 소스에 `/** @spec <card-key> */` JSDoc 직접 추가.
+7. domain 카드 생성 (`type: domain`). 각 카드 전 `<card_analysis>` + `<self_review>`.
+8. brief 카드 생성 (`type: brief`, `parent: <domain>`, brief namespace). 각 카드 전 `<card_analysis>` + `<self_review>`.
+9. spec 카드 생성 (`type: spec`, `parent: <brief|spec>`, spec namespace). 각 카드 전 `<card_analysis>` + `<self_review>`. 소스 결합은 카드 작성 후 소스에 `/** @spec <card-key> */` JSDoc 직접 추가.
 10. 카드 일괄 검토:
     - 각 domain ≥1 brief 자식
     - 각 brief 의 Scope "Covers" 무관 항목 ≥3 → sibling brief 분리
     - production 파일 함수 중 `@spec` 어노테이션 미커버 시 추가 검토
     - glossary 용어와 brief 토픽 양방향 정합
-11. GATE: `ed validate cards` (warnings 0)
+11. GATE: `ed validate cards` (exit 0 — issue 0)
 12. GATE: `ed check coverage --uncovered`. 카드에 binding 안 된 symbol 발견 시 소스에 `@spec` 추가 또는 명시적 ignorePatterns 갱신.
-13. `ed spec sync` → 소스 어노테이션 → DB code_link 동기화. GATE: `ed validate links` (broken 0).
+13. `ed spec sync` → 소스 어노테이션 → 결합 인덱스 동기화. GATE: `ed validate links` (broken 0).
 </workflow>
 
 <workflow name="glossary-backfill">
@@ -114,8 +113,8 @@ PreToolUse hook 두 개가 enforce:
 3. 카드 없는 영역: 도메인 식별 → brief 생성 → spec 생성. 각 카드 전 `<card_analysis>` + `<self_review>`. spec 작성 후 소스에 `/** @spec <key> */` 추가.
 4. 카드 제약 안에서 코드 작성.
 5. 새 도메인 개념: `<glossary_proposal>` → `ed glossary define` → 영향 카드 `--glossary` 갱신.
-6. 기존 spec 스코프 확장 시: spec 본문/glossary 갱신 + `<self_review>` + 소스 `@spec` 어노테이션 추가.
-7. `ed spec sync` → 어노테이션 → DB code_link 동기화.
+6. 기존 spec 스코프 확장 시: `<card_analysis>` + `<self_review>` 후 spec 본문/glossary 갱신 + 소스 `@spec` 어노테이션 추가.
+7. `ed spec sync` → 어노테이션 → 결합 인덱스 동기화.
 8. GATE: `ed validate links` (broken 0)
 </workflow>
 
@@ -133,38 +132,39 @@ glossary 추가 기준 — 4 모두 충족 시:
 
 | 명령 | 시점 | 사용자 확인 |
 |------|------|------------|
-| `ed glossary define WORD=DEF [--from f.yaml]` | 새 도메인 개념. 1회 ≤50개. all-or-nothing. | 예 |
+| `ed glossary define [WORD=DEF ...] [--from f.json]` | 새 도메인 개념. positional pair (variadic) 또는 `--from` (JSON only). 1회 ≤50개. all-or-nothing. | 예 |
 | `ed glossary lookup [WORD]` | 조회 | X |
 | `ed glossary remove WORD --yes` | 제거. 참조 카드 drifted. | 예 |
 | `ed glossary rename OLD NEW [--def TEXT]` | 리네임. glossary + 카드 glossary 필드 자동. | 예 |
 | `ed reset --yes` | 파괴적: 모든 카드 + glossary 삭제 | 예 |
-| `ed card create KEY --type T --summary S [--parent P] [--from f.yaml] [--glossary W]` | 생성 | 예 |
-| `ed card update KEY [--field name=value] [--patch f.yaml] [--body f.md] [--glossary W]` | 수정. 스칼라(summary/status/parent/type)는 `--field`. namespace 는 `--patch`. | 예 (자명한 변경 외) |
+| `ed init [--project-root <path>] [--cards-dir <path>] [--no-gitignore] [--force]` | emberdeck 환경 초기화 (`.emberdeck.jsonc` + glossary 생성). `--force` 시 기존 config / glossary 덮어쓰기. | 예 (--force 시) |
+| `ed card create KEY --type T --summary S [--parent P] [--from f.json] [--glossary W]` | 생성. `--from` 은 JSON object (single card), STDIN `-` 가능. | 예 |
+| `ed card update KEY [--field name=value] [--summary S] [--patch f.json] [--glossary W] [--tag T]` | 수정. 스칼라(summary/status/parent/type)는 `--field` 또는 `--summary` (shortcut). namespace 는 `--patch` (JSON, 전체 교체). body 직접 갱신 옵션 없음 — body 는 namespace 로부터 derive. | 예 (자명한 변경 외) |
 | `ed card get KEY [--history]` | 조회 | X |
 | `ed card delete KEY [--force] --yes` | 파괴적. `--force`: 자식 cascade + cross_domain_dep 자동 제거. | 예 |
-| `ed card rename OLD NEW` | FK CASCADE + 파일 이동 + 본문/cross_domain_dep 재작성 | 예 |
+| `ed card rename OLD NEW` | 참조 자동 갱신 + 파일 이동 + 본문/cross_domain_dep 재작성 | 예 |
 | `ed card export KEY [--out FILE\|--in-place]` | DB→파일/STDOUT 렌더 | X |
-| `ed card set-status KEY {draft\|active\|drifted\|retired} [--reason TEXT]` | active 시 activation guard | 예 |
+| `ed card set-status KEY {draft\|active\|drifted} [--reason TEXT]` | active 시 activation guard | 예 |
 | `ed card list [--type T] [--status S] [--parent P] [--tag T] [--symbol N] [--file F] [--glossary W]` | `--symbol`/`--glossary` 는 `--tag` 와 상호배타 | X |
-| `ed card search "<query>"` | FTS5. 잘못된 쿼리 → `FTS_SYNTAX_ERROR` (exit 2) | X |
-| `ed card tree KEY [--depth N]` | parent-child 계층 | X |
-| `ed card context KEY [--depth N]` | relations + parent BFS | X |
+| `ed card search "<query>"` | 전문 검색. 잘못된 쿼리 → `fts-syntax-error` (exit 2) | X |
+| `ed card tree KEY [--depth N]` | parent-child 계층. `--depth` default 10, max 20 (초과 시 cap). | X |
+| `ed card context KEY [--depth N]` | relations + parent BFS. `--depth` default 1. | X |
 | `ed card relations KEY` | 직접 forward+reverse | X |
 | `ed validate cards` | 정합성 (계층/orphan/glossary/chain 등). 위반 있으면 exit 2 | X |
-| `ed validate links [KEY]` | DB code_link resolve 검증 (소스 어노테이션 기반) | X |
+| `ed validate links [KEY]` | 코드 결합 resolve 검증 (소스 어노테이션 기반) | X |
 | `ed validate` | cards + links 종합 | X |
-| `ed check drift [KEY] [--max-depth N]` | broken_link / glossary_broken 검출. 읽기 전용 — status 는 변경하지 않음. 명시적 전이는 `ed card set-status <KEY> drifted`. | X |
+| `ed check drift [KEY]` | broken_link / glossary_broken 검출. 읽기 전용 — status 는 변경하지 않음. 명시적 전이는 `ed card set-status <KEY> drifted`. | X |
 | `ed check coverage <KEY>` 또는 `ed check coverage --uncovered\|--suggest` | KEY 위치인자 또는 모드 플래그 둘 중 하나 필수. `--uncovered` 는 카드 binding 안 된 symbol 전체 반환 | X |
-| `ed check impact <files...> [--symbol N]` | 변경 전 영향 분석 | X |
+| `ed check impact <files...> [--symbol <names...>]` | 변경 전 영향 분석. `--symbol` 은 variadic. | X |
 | `ed check regression <files...>` | drifted 비율 vs threshold. fail 시 exit 2 | X |
 | `ed check interactions <keys...>` | shared symbol/file/import + 충돌 | X |
-| `ed spec sync` | 소스 `@spec` JSDoc 어노테이션 → DB code_link 재구성. 사실상 멱등. | X |
-| `ed spec sync-symbols [--since TS]` | renamed/moved 심볼 적용 (DB code_link 갱신) | X |
+| `ed spec sync` | 소스 `@spec` JSDoc 어노테이션 → 카드 ↔ symbol 결합 재구성. 사실상 멱등. | X |
+| `ed spec sync-symbols [--since TS]` | renamed/moved 심볼 적용 (결합 인덱스 갱신) | X |
 | `ed bulk create --from FILE` | JSON 배열 일괄 생성. `failed[]` 있으면 exit 2 | 예 |
 | `ed bulk sync [PATH]` | 카드 파일 → DB. `failed[]` 있으면 exit 2 | X |
 | `ed analyze` | health/coverage/drift/glossary 종합 | X |
 
-모든 명령은 stdout 에 자기 자연 JSON shape 을 emit. 공통 envelope 없음. stderr 는 JSON-lines 단일 형식:
+각 명령은 stdout 에 자기 명령 고유의 JSON shape 을 emit (명령마다 다름, 공통 wrapper 없음). stderr 는 JSON-lines 단일 형식:
 ```
 {"level": "error"|"warning"|"verbose", "code": string, "message": string, "details"?: object}
 ```
@@ -172,13 +172,13 @@ glossary 추가 기준 — 4 모두 충족 시:
 
 exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permission/IO, 6=config_missing, 7=transient, 130=SIGINT. 명령별 exit policy 는 그 명령 spec card 의 POST-002 에 명시.
 
-`--quiet` 동작: 같은 shape compact JSON (single-line `JSON.stringify`, no indent) + stderr `level:'warning'`/`'verbose'` suppress. `level:'error'` 는 그대로 emit. shape 자체는 안 바뀜 (포맷만).
+`--quiet` 동작: 같은 shape compact JSON (single-line, no indent) + stderr `level:'warning'`/`'verbose'` suppress. `level:'error'` 는 그대로 emit. shape 자체는 안 바뀜 (포맷만).
 
 </commands>
 
 <card_fields>
 
-## principle (root, 코드 바인딩 X, status: draft|active|retired)
+## principle (root, 코드 바인딩 X, status: draft|active|drifted)
 
 | 필드 | 필수 | 설명 |
 |------|:---:|------|
@@ -192,7 +192,7 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 | `principle.references` | | `[{title, url}]` |
 | `parent` | ✗ | 금지 (root only) |
 
-## domain (root, status: draft|active|retired)
+## domain (root, status: draft|active|drifted)
 
 | 필드 | 필수 | 설명 |
 |------|:---:|------|
@@ -202,7 +202,7 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 | `domain.cross_domain_dependencies` | | `[{domain: <다른-domain-키>, relationship}]`. 타깃 type 반드시 `domain` |
 | `parent` | ✗ | 금지 |
 
-## brief (parent=domain, status: draft|active|drifted|retired)
+## brief (parent=domain, status: draft|active|drifted)
 
 | 필드 | 필수 | 설명 |
 |------|:---:|------|
@@ -222,7 +222,7 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 
 cross-ref 자동 검증: `flow.covers→goals`, `policy.governs→flow`, `criteria.verifies→flow`, `rationale.addresses→external\|limits`. 모든 goal 은 flow 가 cover, 모든 flow 는 policy/criteria 양쪽에 매핑.
 
-## spec (parent=brief|spec, status: draft|active|drifted|retired)
+## spec (parent=brief|spec, status: draft|active|drifted)
 
 | 필드 | 필수 | 설명 |
 |------|:---:|------|
@@ -236,7 +236,7 @@ cross-ref 자동 검증: `flow.covers→goals`, `policy.governs→flow`, `criter
 
 cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 brief 항목.
 
-**소스 결합**: 카드 자체에는 codeLinks/boundary 필드가 없다. 결합 의도를 표현하려면 소스 코드에 `/** @spec <card-key> */` JSDoc 주석을 함수/클래스/변수 선언 바로 위에 둔다. `ed spec sync` 가 어노테이션을 스캔해 DB code_link 테이블을 채운다. 활성화 가드는 인덱스된 파일이 ≥1 일 때 해당 카드를 가리키는 `@spec` 어노테이션이 ≥1 존재하고 모두 resolve 함을 요구한다.
+**소스 결합**: 카드 자체에는 codeLinks/boundary 필드가 없다. 결합 의도를 표현하려면 소스 코드에 `/** @spec <card-key> */` JSDoc 주석을 함수/클래스/변수 선언 바로 위에 둔다. `ed spec sync` 가 어노테이션을 스캔해 카드 ↔ symbol 결합을 인덱싱한다. 활성화 가드는 인덱스된 파일이 ≥1 일 때 해당 카드를 가리키는 `@spec` 어노테이션이 ≥1 존재하고 모두 resolve 함을 요구한다.
 
 </card_fields>
 
@@ -278,7 +278,7 @@ cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 bri
 
 **brief**:
 - 모든 요구가 single-file 테스트 실패
-- 성공 기준에 숫자 또는 zero-tolerance 임계값
+- 성공 기준 (`brief.criteria`) 은 변형에 맞게 — `numeric` 은 숫자 임계값 + 단위, `binary` 은 zero-tolerance 술어, `verification` 은 검증 방법 + 참조
 - Given/When/Then 구현 모르고도 검증 가능
 - parent=domain
 
@@ -337,7 +337,7 @@ cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 bri
 `ed validate links` broken:
 1. rename → `ed spec sync-symbols`
 2. moved → 같은 명령
-3. 어노테이션이 제거됨 → `ed spec sync` 로 DB 정리
+3. 어노테이션이 제거됨 → `ed spec sync` 로 결합 정리
 
 `ed check drift` driftType 별:
 
@@ -350,41 +350,40 @@ stderr JSON-line `level:'warning'` 코드:
 
 | code | 의미 | 해결 |
 |------|------|------|
-| `card-sync-failed` | 모든 명령 진입 직전 자동 file→DB sync 가 특정 파일을 처리 못 함 (parse error 등). 명령 자체는 진행, exit code 무영향. | `details.filePath` 확인 → 해당 카드 파일 수정 또는 제거 → 다음 명령에서 자동 재시도 |
+| `card-sync-failed` | 모든 명령 진입 직전 자동 disk→인덱스 sync 가 특정 파일을 처리 못 함 (parse error 등). 명령 자체는 진행, exit code 무영향. | `details.filePath` 확인 → 해당 카드 파일 수정 또는 제거 → 다음 명령에서 자동 재시도 |
 
-stdout 의 validate 결과 안 *file-level / per-link 진단* (envelope `errors[]` 아닌 *data shape 안 array*):
+stdout 의 validate 결과 안 *file-level / per-link 진단* (stdout data shape 안 array, exit code 비영향 — exit policy 는 POST-002 별도):
 
 | 위치 | code | 의미 | 해결 |
 |------|------|------|------|
-| `validate cards data.fileLevelIssues[].code` | `orphan-file` | DB row 없는 disk 파일 | `ed bulk sync PATH` |
-| 동 | `stale-db-row` | 파일 사라진 DB row | `ed bulk sync` 또는 `ed card delete KEY` |
+| `validate cards data.fileLevelIssues[].code` | `orphan-file` | 인덱스에 없는 disk 파일 | `ed bulk sync PATH` |
+| 동 | `stale-db-row` | 파일 사라진 인덱스 엔트리 | `ed bulk sync` 또는 `ed card delete KEY` |
 | 동 | `key-mismatch` | frontmatter key ≠ 경로 슬러그 | 파일 이름 또는 frontmatter key 정정 |
 | `validate cards data.items[].issues[].code` | `orphan-card` / `broken-parent` / `type-hierarchy-violation` / `broken-cross-domain-dep` / `broken-relation` / `rework-dependency` / `empty-tree` / `content-mismatch` / `glossary-broken` / `glossary-unused` / `broken-chain` | per-card 검증 위반 — 각자 `<error_recovery>` 표 (위) 참조 | 해당 표 |
 | `validate links data.items[].brokenLinks[].reason` | `gildash-unavailable` / `symbol-not-found` | per-link 검증 — gildash 인덱스 미가용 또는 symbol 없음 | gildash reindex 또는 source `@spec` 위치 갱신 |
 | `validate links data.items[].skipped.reason` | `key-mismatch` | 카드 fan-out 중 key 슬러그 불일치로 skip (나머지는 정상) | frontmatter key 또는 파일명 정정 |
-| `validate links data.items[].ioError.message` | (free-form) | 한 카드 link 검증 중 I/O / 파싱 에러 (주로 TOCTOU) | 파일 권한/존재 복구 후 재실행 |
+| `validate links data.items[].ioError.message` | (free-form) | 한 카드 link 검증 중 I/O / 파싱 에러 (주로 sync 직후 파일 권한 변경 / 삭제 race) | 파일 권한/존재 복구 후 재실행 |
 
-stderr JSON-line `level:'error'` 코드 (thrown command failure 시 한 줄, exit 비-0):
+stderr JSON-line `level:'error'` 코드 (명령 실패 시 한 줄, exit 비-0):
 
 | code | exit | 의미 |
 |------|:---:|------|
 | `card-not-found` | 3 | 명령이 요청한 카드 없음 |
 | `card-already-exists` | 4 | create 시 key 충돌 |
 | `cli-usage-error` | 2 | commander 인자/플래그 오류 (typo, 누락 positional, 알 수 없는 flag) — `ed --help` 확인 |
-| `fts-syntax-error` | 2 | `ed card search` 의 FTS5 syntax 오류 |
+| `fts-syntax-error` | 2 | `ed card search` 의 검색 쿼리 syntax 오류 |
 | `invalid-card-key` | 2 | key 형식 위반 |
 | `validation-error` | 2 | card / op 입력 schema 검증 실패 |
 | `parent-validation-error` | 2 | parent 검증 실패 (parent 미존재 / 4-tier 위반) |
-| `boundary-validation-error` | 2 | spec 카드 boundary glob 위반 (Phase 2.4 후 op 가 throw 시) |
 | `activation-guard-failed` | 2 | `set-status active` 시 가드 미달. `details.unmetConditions` 참조 |
-| `compensation-failed` | 1 | 보상 트랜잭션 실패. `details.{originalError, compensationError}` 참조 |
+| `compensation-failed` | 1 | 에러 발생 후 원복 단계 실패. `details.{originalError, compensationError}` 참조 |
 | `glossary-parse-error` | 2 | glossary 파싱 실패 (YAML / 입력 형식) |
 | `glossary-validation-error` | 2 | glossary 검증 실패 (word/definition limit 초과, 중복 등) |
 | `glossary-not-found` | 3 | `glossary remove`/`rename` 의 word 미존재 |
 | `rename-same-path` | 4 | `card rename` 의 old=new 경로 충돌 |
 | `gildash-init-failed` | 6 | gildash 초기화 실패 (config_missing 카테고리) |
-| `output-encode-failed` | 1 | `JSON.stringify` 실패 (BigInt/circular). 입력 데이터 확인 |
-| `stdout-write-failed` | 5 | stdout I/O 실패 (ENOSPC/EIO 등, EPIPE 제외) |
+| `output-encode-failed` | 1 | 출력 직렬화 실패 (지원 안 되는 값 — BigInt / 순환 참조 등). 입력 데이터 확인 |
+| `stdout-write-failed` | 5 | stdout 쓰기 실패 (디스크 부족 / IO 에러 등, broken pipe 제외) |
 | `internal-error` | 1 | 알 수 없는 에러 클래스 (`details.class?`) |
 | `sigint` | 130 | 사용자가 SIGINT/SIGTERM 으로 중단 |
 
@@ -409,10 +408,10 @@ stderr JSON-line `level:'error'` 코드 (thrown command failure 시 한 줄, exi
 ```
 
 `ed bulk create --from FILE` (batch mutation):
-```json
+```jsonc
 {
-  "created": [{"inputIndex": N, "key": "...", "filePath": "..."}],
-  "failed":  [{"inputIndex": N, "key": "...", "error": "..."}],
+  "created": [{ "inputIndex": N, "key": "...", "filePath": "..." }],
+  "failed":  [{ "inputIndex": N, "key?": "...", "error": "..." }],  // key 는 optional (validation 단계 실패는 key 누락 가능)
   "total":   N
 }
 ```
@@ -423,15 +422,12 @@ stderr JSON-line `level:'error'` 코드 (thrown command failure 시 한 줄, exi
 
 <monorepo>
 gildash 발견한 모든 sub-project 자동 집계 (모든 gildash 쿼리에 라우팅 적용). `--project-root` 는 모노레포 루트 지정.
-DB code_link `file` 은 모노레포 루트 기준 상대 경로 (예: `packages/common/...`).
+코드 결합의 파일 경로는 모노레포 루트 기준 상대 (예: `packages/common/...`).
 파일/심볼 자동 dedup.
 </monorepo>
 
 <critical>
-1. 코드 수정 전 카드 읽기. 수정 후 `ed validate links`. 항상.
-2. 카드 생성/갱신 전 `<self_review>`. 예외 없음.
-3. single-file 테스트.
-4. 4-tier strict.
-5. spec 카드의 source 결합은 카드 필드가 아니라 코드의 `@spec` JSDoc 어노테이션으로만 표현.
-6. `ed` 직접 호출 — 서브에이전트 사용 시 카드 컨텍스트 손실.
+- 코드 수정 후 / spec 카드 mutation 후 — `ed validate links` 항상 실행. 누락 시 stale link 검증 깨짐.
+- 서브에이전트로 `ed` 호출 시 카드 컨텍스트 손실 — 메인 세션에서 직접 호출.
+- 위 hard_constraints / rules / self_review 가 모든 카드 작업의 최종 게이트. 재방문 시 quick reference 로 사용.
 </critical>

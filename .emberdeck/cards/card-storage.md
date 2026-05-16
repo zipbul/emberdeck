@@ -3,7 +3,7 @@ key: card-storage
 summary: >-
   SQLite schema, repositories, file-DB synchronization, and read-side queries
   for cards.
-status: draft
+status: active
 type: domain
 glossary:
   - card-key

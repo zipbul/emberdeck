@@ -3,7 +3,7 @@ key: card-model/schema-and-validation/card-key
 summary: >-
   normalizeSlug, parseFullKey, and buildCardPath enforce the card-key slug
   grammar that gates every card identifier.
-status: draft
+status: active
 type: spec
 parent: card-model/schema-and-validation
 glossary:
@@ -22,8 +22,8 @@ spec:
       derives: card-model/schema-and-validation#G-003
     - id: POST-002
       guarantee: >-
-        buildCardPath joins cardsDir and slug producing the canonical .card.md
-        path.
+        buildCardPath joins cardsDir and slug producing the canonical `.md`
+        card-file path.
       keyword: SHALL
       derives: card-model/schema-and-validation#G-003
   invariants:

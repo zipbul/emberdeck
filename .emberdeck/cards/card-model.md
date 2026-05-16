@@ -3,7 +3,7 @@ key: card-model
 summary: >-
   Card schema, type-specific validation, and markdown serialization that defines
   what a valid card is.
-status: draft
+status: active
 type: domain
 glossary:
   - 4-tier
@@ -16,8 +16,8 @@ domain:
     (principle, domain, brief, spec), their required and optional fields, the
     cross-reference rules
 
-    that bind list items together (covers, governs, verifies, derives),
-    and the on-disk
+    that bind list items together (covers, governs, verifies, derives), and the
+    on-disk
 
     markdown frontmatter representation. This is the grammar of cards: any
     card-shaped value crossing

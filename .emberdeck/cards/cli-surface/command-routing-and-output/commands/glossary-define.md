@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/glossary-define
 summary: >-
   Per-command CLI-shape spec for 'ed glossary define'; declares defined[] +
   failed[] + total shape (POST-001) and 0/2 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -20,7 +20,7 @@ spec:
 
         ```jsonc
 
-        // stdout shape for `ed glossary define [pairs...] [--from f.yaml]`
+        // stdout shape for `ed glossary define [pairs...] [--from f.json]`
 
         { defined: { word, definition, action: 'created'|'updated' }[],
           failed:  { inputIndex, reason }[],

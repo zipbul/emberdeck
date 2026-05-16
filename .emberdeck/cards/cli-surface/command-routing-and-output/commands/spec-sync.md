@@ -4,7 +4,7 @@ summary: >-
   Per-command CLI-shape spec for 'ed spec sync'; declares alreadyLinked +
   linkMissing/unmatched/markerMissing diagnostics shape (POST-001) and exit 0
   policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

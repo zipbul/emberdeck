@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/bulk-sync
 summary: >-
   Per-command CLI-shape spec for 'ed bulk sync'; declares synced + mode +
   failed[] shape (POST-001) and 0/2 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

@@ -8,7 +8,7 @@
 - 카드는 **사람이 검토 가능한 yaml 본문** 으로 *명시 작성*. batch 라도 동일. 32 카드면 32 카드 명시 작성.
 
 ## 공식 명령 (이것만)
-- 단일: `ed card create KEY --type T --summary S [--parent P] [--from f.yaml]`
+- 단일: `ed card create KEY --type T --summary S [--parent P] [--from f.json]`
 - 배치: `ed bulk create --from FILE` (FILE = JSON array, *내가 명시 작성한 staging*)
 - 기타 mutation: `ed card update/delete/rename/set-status`, `ed bulk sync`, `ed glossary define/remove/rename`, `ed spec sync`, `ed spec sync-symbols`, `ed reset`
 - read-only: `ed card get/list/search/tree/context/relations/export`, `ed validate`, `ed check *`, `ed analyze`, `ed glossary lookup`, `ed init`
@@ -20,11 +20,14 @@
 4. **marker write**: `touch /tmp/claude-emberdeck-gate-<session_id>`
 5. ed mutation 호출. PreToolUse hook (`check-ed-gate.sh`) 이 marker 검증 + script 우회 패턴 (script 가 `.emberdeck/cards` 접근) deny.
 
+## HC-4 (commit 게이트)
+카드 commit 전 `ed validate cards` exit 0 (issue 0) 필수. 또한 spec 카드 mutation 이라면 `ed validate links` 도 broken/ioFailed 0 확인. 통과 안 한 채 commit = SSOT 오염 history.
+
 ## 안티패턴 (deny 대상)
 - Write/Edit/MultiEdit 로 `.emberdeck/cards/**/*.md` 직접 편집 — PreToolUse deny
 - marker 없이 ed mutation — PreToolUse deny
-- Python / node / ruby / perl / awk 가 `.emberdeck/cards/` 안 .md 파일 read/write — PreToolUse deny
+- Python / node / deno / bun / ruby / perl / awk / sed 등 스크립트 인터프리터가 `.emberdeck/cards/` 경로 또는 `ed bulk create --from` 파이프 접근 — PreToolUse deny (hook 의 bypass 패턴)
 - "32 카드라 효율" 명목으로 script 자동 생성 — self_review 가 catch (execution method 항목)
 
 ## 위반 시 결과
-SSOT-DB 불일치 → 다음 `ed validate` 까지 lag → 후속 작업 검증 깨짐. 효율로 보일 뿐 재작업 cost 항상 더 크다.
+SSOT 와 인덱스 불일치 → 다음 `ed validate` 까지 lag → 후속 작업 검증 깨짐. 효율로 보일 뿐 재작업 cost 항상 더 크다.

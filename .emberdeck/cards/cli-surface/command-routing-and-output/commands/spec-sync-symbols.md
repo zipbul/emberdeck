@@ -4,7 +4,7 @@ summary: >-
   Per-command CLI-shape spec for 'ed spec sync-symbols'; declares applied /
   skipped (4 reasons) / sinceSource / nextSyncMarker shape (POST-001) and exit 0
   policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -16,8 +16,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -40,14 +38,16 @@ spec:
           nextSyncMarker: string|null   // metadata upsert 실패 시 null
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): sync 항상 (skipped 는 실패 아님; metadata-write-failed 는
         nextSyncMarker:null 로만 표현).
 
         - thrown 매핑: 없음.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

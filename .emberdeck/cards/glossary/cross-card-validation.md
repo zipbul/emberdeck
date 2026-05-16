@@ -3,7 +3,7 @@ key: glossary/cross-card-validation
 summary: >-
   Validate that cards reference only existing glossary words and contribute the
   glossary_broken drift signal.
-status: draft
+status: active
 type: brief
 parent: glossary
 glossary:
@@ -85,7 +85,7 @@ brief:
       - id: DI-001
         statement: validateCardGlossaryField never auto-modifies card content.
       - id: DI-002
-        statement: glossary_broken is one of the documented six drift types.
+        statement: glossary_broken is one of the documented two drift types.
   policy:
     - id: R-001
       subject: validateCardGlossaryField
@@ -97,7 +97,7 @@ brief:
   external:
     - id: C-001
       statement: >-
-        glossary_broken is one of the six driftTypes documented in project
+        glossary_broken is one of the two driftTypes documented in project
         memory.
       reference:
         title: project_drift_taxonomy memory entry
@@ -123,6 +123,7 @@ brief:
         method: Integration test with a referencing card and a remove.
       verifies:
         - S-F-01
+        - S-H-01
   rationale:
     alternatives:
       - option: Auto-edit card frontmatter on store changes.

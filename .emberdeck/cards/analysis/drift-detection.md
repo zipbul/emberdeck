@@ -3,7 +3,7 @@ key: analysis/drift-detection
 summary: >-
   broken_link / glossary_broken drift classification as a derived, read-only
   report — status mutation is the user's responsibility.
-status: draft
+status: active
 type: brief
 parent: analysis
 glossary:

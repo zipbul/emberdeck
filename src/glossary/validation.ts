@@ -36,8 +36,8 @@ export function validateCardGlossaryField(
   if (glossary.length === 0) {
     throw new GlossaryValidationError('glossary must contain at least one entry');
   }
-  if (glossary.length > 100) {
-    throw new GlossaryValidationError(`glossary exceeds max 100 entries per card`);
+  if (glossary.length > GLOSSARY_LIMITS.MAX_GLOSSARY_PER_CARD) {
+    throw new GlossaryValidationError(`glossary exceeds max ${GLOSSARY_LIMITS.MAX_GLOSSARY_PER_CARD} entries per card`);
   }
   const seen = new Set<string>();
   for (const word of glossary) {

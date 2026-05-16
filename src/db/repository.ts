@@ -53,6 +53,11 @@ export interface CardListFilter {
 
 // ---- Repository interfaces ----
 
+export interface SearchOptions {
+  limit?: number;
+  offset?: number;
+}
+
 export interface CardRepository {
   findByKey(key: string): CardRow | null;
   findByFilePath(filePath: string): CardRow | null;
@@ -60,7 +65,8 @@ export interface CardRepository {
   deleteByKey(key: string): void;
   existsByKey(key: string): boolean;
   list(filter?: CardListFilter): CardRow[];
-  search(query: string): CardRow[];
+  /** Push limit/offset down to FTS5. Without pagination at the DB the CLI fetches every match before slicing. */
+  search(query: string, options?: SearchOptions): CardRow[];
   findChildren(key: string): CardRow[];
   findAncestors(key: string): CardRow[];
 }

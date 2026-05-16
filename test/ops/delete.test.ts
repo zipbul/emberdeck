@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { existsSync, unlinkSync } from 'node:fs';
 import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { createCard, deleteCard, updateCard } from '../../index';
 import { CardNotFoundError } from '../../index';
@@ -70,7 +71,6 @@ describe('deleteCard', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'nested/del', summary: 'Nested del', type: 'spec' });
     await deleteCard(tc.ctx, 'nested/del');
-    const { join } = await import('node:path');
     const dir = join(tc.cardsDir, 'nested');
     expect(existsSync(dir)).toBe(true);
   });
@@ -143,5 +143,36 @@ describe('deleteCard', () => {
     const r = await deleteCard(tc.ctx, 'parent-x', { force: true });
     expect(r.detachedChildren.sort()).toEqual(['parent-x/child-a', 'parent-x/child-b']);
     expect(r.removedCrossDomainRefs).toEqual([]);
+  });
+
+  // Regression: best-effort cascade failures used to be silently swallowed;
+  // now they're collected into failedChildUpdates / failedRelationUpdates /
+  // failedCrossDomainUpdates arrays so callers can surface them.
+  it('returns failedChildUpdates / failedRelationUpdates / failedCrossDomainUpdates arrays on every call', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'leaf-card', summary: 'L', type: 'spec' });
+    const r = await deleteCard(tc.ctx, 'leaf-card');
+    expect(Array.isArray(r.failedChildUpdates)).toBe(true);
+    expect(Array.isArray(r.failedRelationUpdates)).toBe(true);
+    expect(Array.isArray(r.failedCrossDomainUpdates)).toBe(true);
+    // Leaf with no force, no refs, no cross-domain deps → all three empty.
+    expect(r.failedChildUpdates).toEqual([]);
+    expect(r.failedRelationUpdates).toEqual([]);
+    expect(r.failedCrossDomainUpdates).toEqual([]);
+  });
+
+  it('populates failedChildUpdates when a child file has been externally removed before force-delete', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'gp', summary: 'GP', type: 'brief' });
+    const child = await createCard(tc.ctx, { key: 'gp/child', summary: 'C', type: 'spec', parent: 'gp' });
+    // Externally delete the child file so the parent-removal write fails inside
+    // the best-effort cascade. The DB still detaches the child; the file write
+    // failure should surface on failedChildUpdates rather than vanishing.
+    unlinkSync(child.filePath);
+    const r = await deleteCard(tc.ctx, 'gp', { force: true });
+    expect(r.detachedChildren).toEqual(['gp/child']);
+    expect(r.failedChildUpdates).toHaveLength(1);
+    expect(r.failedChildUpdates[0]!.cardKey).toBe('gp/child');
+    expect(typeof r.failedChildUpdates[0]!.reason).toBe('string');
   });
 });

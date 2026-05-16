@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/card-rename
 summary: >-
   Per-command CLI-shape spec for 'ed card rename'; declares old/new path +
   failedReferenceUpdates shape (POST-001) and 0/2/3/4 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

@@ -3,7 +3,7 @@ key: card-lifecycle
 summary: >-
   CRUD plus status transitions plus safe-write rollback that govern how cards
   change over time.
-status: draft
+status: active
 type: domain
 glossary:
   - activation-guard
@@ -13,14 +13,14 @@ domain:
     Owns the workflows that mutate cards: create, update, delete, rename,
     bulk-create, bulk-sync from
 
-    files, and status transitions (draft to active to drifted to retired).
-    Enforces parent-child rules
+    files, and status transitions (draft to active to drifted). Enforces
+    parent-child rules
 
     at write time, runs the activation guard when promoting a card to active,
     and wraps multi-step
 
-    writes (file plus DB) in a rollback-capable safe-write boundary so
-    partial failures
+    writes (file plus DB) in a rollback-capable safe-write boundary so partial
+    failures
 
     cannot leave the system in an inconsistent state.
   scope: >

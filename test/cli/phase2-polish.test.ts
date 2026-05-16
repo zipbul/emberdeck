@@ -7,6 +7,7 @@ import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runEd, setupTmpProject, parseJsonLines } from './helpers';
+import { setupEmberdeck, teardownEmberdeck } from '../../src/setup';
 
 describe('Phase 2 polish: bulk create partial-success', () => {
   let tmp: string;
@@ -143,7 +144,6 @@ describe('Phase 2 polish: card export STDOUT default', () => {
 describe('Phase 2 polish: spec sync-symbols --since persistence (programmatic)', () => {
   test('system_metadata table stores and retrieves last_symbol_sync_at', async () => {
     // gildash unavailable in CLI test env, so verify persistence via direct DB ops.
-    const { setupEmberdeck, teardownEmberdeck } = await import('../../src/setup');
     const tmp = mkdtempSync(join(tmpdir(), 'meta-'));
     mkdirSync(join(tmp, 'cards'), { recursive: true });
     const ctx = await setupEmberdeck({ cardsDir: join(tmp, 'cards'), dbPath: join(tmp, 'data.db'), projectRoot: tmp });

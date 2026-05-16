@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/card-list
 summary: >-
   Per-command CLI-shape spec for 'ed card list'; declares paginated CardSummary
   items shape (POST-001) and exit 0 policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -24,12 +22,14 @@ spec:
         { items: CardSummary[], total, limit, offset, hasMore }
         // CardSummary = { key, summary, type, status, parent: string|null }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: |-
         - 0 (EXIT.OK): filter / pagination 적용 후 결과 반환 (빈 배열도 성공).
         - thrown 매핑: 없음 (read-only). 빌드/IO 에러는 부모 runner 의 일반 매핑.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

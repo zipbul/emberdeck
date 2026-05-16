@@ -4,7 +4,7 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 import { mockGildash as createMockGildash } from '../fixtures/gildash';
 
-import { createCard, preChangeCheck } from '../../index';
+import { createCard, preChangeCheck, validateCodeLinks } from '../../index';
 import { createMockTestContext, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('preChangeCheck — ignorePatterns', () => {
@@ -51,7 +51,6 @@ describe('validateCodeLinks — batch mode (CLI layer)', () => {
 
   it('should validate all cards when key is omitted (batch pattern)', async () => {
     tc = await createMockTestContext();
-    const { validateCodeLinks } = await import('../../index');
 
     // Create two cards with codeLinks (populated via DB-direct helper)
     await createCard(tc.ctx, { key: 'batch-a', summary: 'A', type: 'spec' });

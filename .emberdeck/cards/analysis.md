@@ -3,7 +3,7 @@ key: analysis
 summary: >-
   Drift detection, impact, regression, interactions, and the analyze aggregate
   over cards plus code state.
-status: draft
+status: active
 type: domain
 glossary:
   - drift

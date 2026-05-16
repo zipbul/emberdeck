@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/bulk-create
 summary: >-
   Per-command CLI-shape spec for 'ed bulk create --from FILE'; declares
   created[] + failed[] + total shape (POST-001) and 0/2 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

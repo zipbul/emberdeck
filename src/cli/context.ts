@@ -5,7 +5,7 @@
 
 import { isErr } from '@zipbul/result';
 import { setupEmberdeck, teardownEmberdeck } from '../setup';
-import { loadConfig, loadConfigFromPath, mergeCliArgs } from '../config-file';
+import { loadConfig, loadConfigFromPath, mergeCliArgs, ConfigLoadError } from '../config-file';
 import type { EmberdeckContext } from '../config';
 import type { OutputContext } from './output';
 import { buildOutputContext } from './output';
@@ -35,7 +35,7 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     : await loadConfig();
 
   if (isErr(configResult)) {
-    throw new Error(`config load failed: ${configResult.data.message}`);
+    throw new ConfigLoadError(`config load failed: ${configResult.data.message}`, configResult.data);
   }
 
   const merged = mergeCliArgs(configResult, {

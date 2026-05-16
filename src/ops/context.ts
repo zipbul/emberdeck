@@ -166,6 +166,9 @@ export async function checkDrift(
 
 // ── check_interactions ──
 
+/** Suggestion label for a card pair that shares code but has no declared relation. */
+const UNDEFINED_RELATION_SUGGESTION = 'related';
+
 export interface SharedSymbol {
   file: string;
   symbol: string;
@@ -322,7 +325,7 @@ export async function checkInteractions(
       if (sharedSymbols.length > 0 && !hasRelation) {
         undefinedRelations.push({
           pair: [keyA, keyB],
-          suggestion: 'related',
+          suggestion: UNDEFINED_RELATION_SUGGESTION,
         });
       }
     }

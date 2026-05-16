@@ -3,7 +3,7 @@ key: card-storage/queries/tree-context
 summary: >-
   getCardTree, getCardContext, and getRelationGraph implement bounded traversals
   over the parent and relation graph.
-status: draft
+status: active
 type: spec
 parent: card-storage/queries
 glossary:

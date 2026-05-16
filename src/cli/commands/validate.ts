@@ -53,7 +53,15 @@ interface LinksItem {
 }
 
 interface ValidateLinksShape {
-  summary: { total: number; ok: number; broken: number; skipped: number; ioFailed: number };
+  summary: {
+    total: number;
+    ok: number;
+    broken: number;
+    /** Draft-card links that didn't resolve. Reported but never gates exit code (draft = intentionally incomplete). */
+    planned: number;
+    skipped: number;
+    ioFailed: number;
+  };
   items: LinksItem[];
 }
 
@@ -123,6 +131,7 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
   let total = 0;
   let okCount = 0;
   let broken = 0;
+  let planned = 0;
   let skipped = 0;
   let ioFailed = 0;
 
@@ -156,9 +165,13 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
     }
   }
 
+  // spec-sync tracks @spec/@brief/@principle/@domain annotations into the
+  // code_link cache (all 4 tiers can carry source bindings). validate-links
+  // must check every type, not just spec, or non-spec bindings rot silently.
+  const TRACKED_LINK_TYPES = new Set(['spec', 'brief', 'principle', 'domain']);
   const targets = explicitRow
     ? [explicitRow]
-    : rt.ctx.cardRepo.list().filter((c) => c.type === 'spec' && !mismatchedKeys.has(c.key));
+    : rt.ctx.cardRepo.list().filter((c) => TRACKED_LINK_TYPES.has(c.type) && !mismatchedKeys.has(c.key));
 
   for (const t of targets) {
     try {
@@ -166,6 +179,7 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
       total += r.declared;
       okCount += r.valid;
       broken += r.broken.length;
+      planned += r.planned.length;
       const item: LinksItem = {
         key: t.key,
         declared: r.declared,
@@ -199,7 +213,7 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
   }
 
   return {
-    summary: { total, ok: okCount, broken, skipped, ioFailed },
+    summary: { total, ok: okCount, broken, planned, skipped, ioFailed },
     items,
   };
 }

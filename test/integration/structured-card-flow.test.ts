@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { createTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, makeTestPrinciple, type TestContext } from '../helpers';
 import { syncCardFromFile, bulkSyncCards } from '../../src/ops/sync';
 import { createCard } from '../../src/ops/create';
-import { updateCardStatus } from '../../src/ops/update';
+import { updateCard, updateCardStatus } from '../../src/ops/update';
 import { serializeCard } from '../../src/card/serialize';
 import { ActivationGuardError } from '../../src/card/errors';
 
@@ -94,7 +94,6 @@ describe('Structured card flow E2E', () => {
 
     let threw = false;
     try {
-      const { updateCard } = await import('../../src/ops/update');
       await updateCard(tc.ctx, 'b2', { brief: broken, status: 'active' });
     } catch (e) {
       threw = true;

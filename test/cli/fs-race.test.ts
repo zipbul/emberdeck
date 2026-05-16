@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, unlinkSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, unlinkSync, readFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnCli as runCli, parseJsonLines } from './helpers';
@@ -74,7 +74,6 @@ describe('external FS modification e2e', () => {
   });
 
   test('aggregate ed validate with an unreadable card file → links.items[].ioError set, not internal-error', async () => {
-    const { chmodSync } = await import('node:fs');
     const seedPath = join(tmp, '.emberdeck/cards/seed.md');
     let r: Awaited<ReturnType<typeof runCli>>;
     try {
@@ -121,7 +120,6 @@ describe('external FS modification e2e', () => {
 
   test('ed validate links with an unreadable spec file → not internal-error', async () => {
     await runCli(['card', 'create', 'spec-x', '--type', 'spec', '--parent', 'seed', '--summary', 's'], tmp);
-    const { chmodSync } = await import('node:fs');
     const specPath = join(tmp, '.emberdeck/cards/spec-x.md');
     let r: Awaited<ReturnType<typeof runCli>>;
     try {

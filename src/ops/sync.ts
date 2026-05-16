@@ -5,6 +5,7 @@ import type { CardRow, RelationRow } from '../db/repository';
 import { parseFullKey } from '../card/card-key';
 import { readCardFile } from '../fs/reader';
 import { writeCardFile } from '../fs/writer';
+import { serializeCard } from '../card/serialize';
 import { CardNotFoundError } from '../card/errors';
 import { buildSearchableText } from '../card/searchable-text';
 import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/types';
@@ -30,7 +31,7 @@ function serializeNamespaces(fm: CardFrontmatter): string | null {
 }
 
 /**
- * Recursively collect absolute paths of all `*.json` files under `targetDir`.
+ * Recursively collect absolute paths of all `*.md` card files under `targetDir`.
  */
 async function listCardFiles(targetDir: string): Promise<string[]> {
   const glob = new Bun.Glob('**/*.md');
@@ -255,7 +256,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
   const key = parseFullKey(cardFile.frontmatter.key);
   const now = new Date().toISOString();
 
-  // Build searchable namespace text for FTS5 (no markdown body — cards are pure JSON).
+  // Build searchable namespace text from the card's frontmatter namespace fields.
   const namespaceText = buildSearchableText(cardFile.frontmatter);
 
   const row: CardRow = {
@@ -288,7 +289,7 @@ export async function syncCardFromFile(ctx: EmberdeckContext, filePath: string):
 }
 
 /**
- * Scans the entire cardsDir (or dirPath) and bulk-syncs all .json files to the DB.
+ * Scans the entire cardsDir (or dirPath) and bulk-syncs all .md card files to the DB.
  *
  * Detects duplicate keys across files and reports them as errors (data loss prevention).
  * File reads/writes are executed in bounded parallel batches via `batchedAllSettled`.
@@ -696,10 +697,16 @@ export async function exportCardToFile(
   fullKey: string,
 ): Promise<{ filePath: string; bytes: number }> {
   const cardFile = buildCardFromDb(ctx, fullKey);
-  const { serializeCard } = await import('../card/serialize');
+  // CardFile.filePath is optional at the type level but buildCardFromDb always
+  // assigns row.filePath (schema NOT NULL). Surface a clear error if that
+  // invariant ever breaks instead of letting `!` produce a runtime crash.
+  if (!cardFile.filePath) {
+    throw new Error(`exportCardToFile: card "${fullKey}" returned without a filePath`);
+  }
+  const filePath = cardFile.filePath;
   const content = serializeCard(cardFile.frontmatter);
-  await writeCardFile(cardFile.filePath!, cardFile);
-  return { filePath: cardFile.filePath!, bytes: Buffer.byteLength(content, 'utf-8') };
+  await writeCardFile(filePath, cardFile);
+  return { filePath, bytes: Buffer.byteLength(content, 'utf-8') };
 }
 
 /**

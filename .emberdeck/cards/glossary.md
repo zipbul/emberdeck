@@ -1,7 +1,7 @@
 ---
 key: glossary
 summary: Domain term lifecycle and cross-card glossary validation.
-status: draft
+status: active
 type: domain
 glossary:
   - drift

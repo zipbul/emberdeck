@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/init
 summary: >-
   Per-command CLI-shape spec for 'ed init'; declares scaffold paths +
   created/skipped shape (POST-001) and exit 0 policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

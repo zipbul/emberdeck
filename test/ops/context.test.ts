@@ -7,6 +7,7 @@ import {
   checkInteractions,
 } from '../../index';
 import { createMockTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { readCardFile } from '../../src/fs/reader';
 
 describe('checkDrift', () => {
   let tc: TestContext;
@@ -195,7 +196,6 @@ describe('checkDrift with gildash — broken link detection', () => {
     // DB row + file remain unchanged
     const row = tc.ctx.cardRepo.findByKey('no-mutate');
     expect(row!.status).toBe('active');
-    const { readCardFile } = await import('../../src/fs/reader');
     const cardFile = await readCardFile(row!.filePath);
     expect(cardFile.frontmatter.status).toBe('active');
   });

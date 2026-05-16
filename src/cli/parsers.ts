@@ -15,6 +15,12 @@ export function parsePositiveInt(name: string): (value: string) => number {
     if (!Number.isFinite(n)) {
       throw new InvalidArgumentError(`${name} out of range (got '${value}')`);
     }
+    // Number.isFinite passes anything below Infinity, including values that
+    // exceed JS safe-integer precision. Reject those so callers don't pass a
+    // silently-truncated limit/offset/depth into the ops layer.
+    if (n > Number.MAX_SAFE_INTEGER) {
+      throw new InvalidArgumentError(`${name} exceeds Number.MAX_SAFE_INTEGER (got '${value}')`);
+    }
     return n;
   };
 }

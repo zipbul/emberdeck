@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/card-create
 summary: >-
   Per-command CLI-shape spec for 'ed card create'; declares created card stub
   shape (POST-001) and 0/4 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

@@ -3,7 +3,7 @@ key: card-model/round-trip
 summary: >-
   Symmetric parse and serialize of card markdown files so on-disk and in-memory
   representations are interchangeable.
-status: draft
+status: active
 type: brief
 parent: card-model
 glossary:

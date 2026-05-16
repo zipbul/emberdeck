@@ -3,7 +3,7 @@ key: glossary/lifecycle/define-and-lookup
 summary: >-
   defineGlossary enforces the all-or-nothing batch contract with a 50-entry cap;
   lookupGlossary provides read access.
-status: draft
+status: active
 type: spec
 parent: glossary/lifecycle
 glossary:

@@ -10,6 +10,7 @@ import { DrizzleClassificationRepository } from '../src/db/classification-repo';
 import { DrizzleCodeLinkRepository } from '../src/db/code-link-repo';
 import { DrizzleChangelogRepository } from '../src/db/changelog-repo';
 import { mockGildash } from './fixtures/gildash';
+import { createCard } from '../src/ops/create';
 import type {
   BriefBody,
   CodeLink,
@@ -128,7 +129,6 @@ export async function ensure4tierScaffold(
   domainKey = '_dom',
   briefKey = '_br',
 ): Promise<{ domain: string; brief?: string }> {
-  const { createCard } = await import('../src/ops/create');
   if (!ctx.cardRepo.findByKey(domainKey)) {
     await createCard(ctx, { key: domainKey, summary: 'scaffold domain', type: 'domain' });
   }

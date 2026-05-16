@@ -38,7 +38,9 @@ export interface RenameCardResult {
  * 5. Records key change in changelog.
  * 6. If the DB update fails, restores the file to its original state.
  *
- * Locks both keys in alphabetical order to prevent deadlocks.
+ * Single-process only — no cross-process locking is held during the rename
+ * (the `system_lock` schema table is reserved but unused). Concurrent ed
+ * invocations on the same key can interleave.
  *
  * @param ctx - Context created by `setupEmberdeck()`.
  * @param fullKey - The original fullKey to rename.
@@ -103,18 +105,28 @@ export async function renameCard(
         }
 
         await mkdir(dirname(newFilePath), { recursive: true });
-        await rename(oldFilePath, newFilePath);
-
-        const current = await readCardFile(newFilePath);
-        const card: CardFile = {
-          filePath: newFilePath,
-          frontmatter: { ...current.frontmatter, key: newFullKey },
-        };
-        await writeCardFile(newFilePath, card);
 
         const now = new Date().toISOString();
         const failedReferenceUpdates: Array<{ cardKey: string; reason: string }> = [];
+        // Track which side-effects have happened so the catch block can roll
+        // them back individually. Previously the OS rename + writeCardFile were
+        // outside the try; a failure between them left the file at newFilePath
+        // with the OLD frontmatter and the DB untouched (disk/DB divergence).
+        let osRenameDone = false;
+        let frontmatterRewritten = false;
+        let card: CardFile;
         try {
+          await rename(oldFilePath, newFilePath);
+          osRenameDone = true;
+
+          const current = await readCardFile(newFilePath);
+          card = {
+            filePath: newFilePath,
+            frontmatter: { ...current.frontmatter, key: newFullKey },
+          };
+          await writeCardFile(newFilePath, card);
+          frontmatterRewritten = true;
+
           // UPDATE the key in-place + changelog inside a single transaction.
           // FK ON UPDATE CASCADE propagates to all referencing tables
           // (relations, tags, codeLinks, changelog), preserving incoming relations.
@@ -180,16 +192,24 @@ export async function renameCard(
               });
             }
           }
-        } catch (dbErr) {
-          // DB update failed -> restore file to original state
-          await rename(newFilePath, oldFilePath);
-          const orig = await readCardFile(oldFilePath);
-          const restored: CardFile = {
-            filePath: oldFilePath,
-            frontmatter: { ...orig.frontmatter, key: oldKey },
-          };
-          await writeCardFile(oldFilePath, restored);
-          throw dbErr;
+        } catch (err) {
+          // Roll back whatever has happened so disk + DB end up matching the
+          // pre-call state. Each step guarded — best-effort, all errors swallowed
+          // so the original error reaches the caller.
+          if (osRenameDone) {
+            try {
+              await rename(newFilePath, oldFilePath);
+              if (frontmatterRewritten) {
+                const orig = await readCardFile(oldFilePath);
+                const restored: CardFile = {
+                  filePath: oldFilePath,
+                  frontmatter: { ...orig.frontmatter, key: oldKey },
+                };
+                await writeCardFile(oldFilePath, restored);
+              }
+            } catch { /* best-effort rollback */ }
+          }
+          throw err;
         }
 
         const result: RenameCardResult = { oldFilePath, newFilePath, newFullKey, card };

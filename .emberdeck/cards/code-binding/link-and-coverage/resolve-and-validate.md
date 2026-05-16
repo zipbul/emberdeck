@@ -1,9 +1,9 @@
 ---
 key: code-binding/link-and-coverage/resolve-and-validate
 summary: >-
-  ensureReindexed, resolveCardCodeLinks, and findCardsBySymbol read the
-  cached code_link rows and ask gildash to verify each symbol still exists.
-status: draft
+  ensureReindexed, resolveCardCodeLinks, and findCardsBySymbol read the cached
+  code_link rows and ask gildash to verify each symbol still exists.
+status: active
 type: spec
 parent: code-binding/link-and-coverage
 glossary:
@@ -28,8 +28,8 @@ spec:
   invariants:
     - id: INV-001
       statement: >-
-        All link reads see a consistent gildash snapshot for the duration of
-        the call.
+        All link reads see a consistent gildash snapshot for the duration of the
+        call.
       always_holds: per-call
     - id: INV-002
       statement: >-
@@ -39,10 +39,8 @@ spec:
   failures:
     - violation: The card has no rows in the code_link cache.
       behavior: >-
-        resolveCardCodeLinks returns an empty array; validateCodeLinks
-        returns declared=0 / valid=0 / broken=[] / planned=[].
+        resolveCardCodeLinks returns an empty array; validateCodeLinks returns
+        declared=0 / valid=0 / broken=[] / planned=[].
     - violation: gildash is unavailable (no projectRoot configured).
-      behavior: >-
-        Link resolution returns empty results; callers handle as
-        no-coverage.
+      behavior: Link resolution returns empty results; callers handle as no-coverage.
 ---

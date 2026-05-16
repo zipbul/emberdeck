@@ -1,9 +1,9 @@
 ---
 key: code-binding/link-and-coverage
 summary: >-
-  Resolve cached code_link rows against the gildash index and surface
-  symbols that no card covers.
-status: draft
+  Resolve cached code_link rows against the gildash index and surface symbols
+  that no card covers.
+status: active
 type: brief
 parent: code-binding
 glossary:
@@ -12,24 +12,24 @@ glossary:
 brief:
   context:
     problem: >
-      Source `@spec` annotations are the binding source of truth; they
-      populate the DB code_link cache via spec sync. Without a single
-      resolution path that consumes that cache, every reader (drift,
-      coverage, validate links) re-implements the gildash lookup, producing
-      inconsistent broken-link counts and divergent coverage views.
+      Source `@spec` annotations are the binding source of truth; they populate
+      the DB code_link cache via spec sync. Without a single resolution path
+      that consumes that cache, every reader (drift, coverage, validate links)
+      re-implements the gildash lookup, producing inconsistent broken-link
+      counts and divergent coverage views.
     impact:
       - statement: >-
           Inconsistent link resolution gives different drift answers across
           commands, eroding trust in the analyze output.
       - statement: >-
-          Without a coverage view of indexed symbols versus the code_link
-          cache, important contracts go uncovered with no visibility.
+          Without a coverage view of indexed symbols versus the code_link cache,
+          important contracts go uncovered with no visibility.
   scope:
     goals:
       - id: G-001
         statement: >-
-          Resolve every cached code_link row against gildash producing a
-          valid / broken / unresolved classification.
+          Resolve every cached code_link row against gildash producing a valid /
+          broken / unresolved classification.
       - id: G-002
         statement: >-
           Surface symbols not bound to any card via the code_link cache so
@@ -39,13 +39,13 @@ brief:
         statement: Drift status transitions (delegated to analysis).
       - id: NG-002
         statement: >-
-          Maintaining the source `@spec` annotations themselves (delegated
-          to code-binding/annotation-roundtrip).
+          Maintaining the source `@spec` annotations themselves (delegated to
+          code-binding/annotation-roundtrip).
     assumptions:
       - id: A-001
         statement: >-
-          gildash is pinned to a stable version and watch mode is disabled
-          per project policy.
+          gildash is pinned to a stable version and watch mode is disabled per
+          project policy.
         verification: >-
           Inspect package.json for the pinned gildash version and
           project_gildash_integration_policy memory.
@@ -54,8 +54,8 @@ brief:
     - id: S-H-01
       kind: happy
       given: >-
-        A spec card whose code_link cache has three rows, all of which point
-        at currently indexed symbols.
+        A spec card whose code_link cache has three rows, all of which point at
+        currently indexed symbols.
       when: validateCodeLinks runs.
       then: All three resolve as valid; broken count is zero.
       covers:
@@ -69,9 +69,7 @@ brief:
         - G-002
     - id: S-F-01
       kind: failure
-      given: >-
-        A cached code_link points at a symbol that has been removed from
-        source.
+      given: A cached code_link points at a symbol that has been removed from source.
       when: validateCodeLinks runs.
       then: >-
         The link is reported broken with the offending file plus symbol
@@ -102,8 +100,8 @@ brief:
           - getUncoveredSymbols
       - name: resolveCardCodeLinks
         responsibility: >-
-          Resolve each cached code_link row against gildash returning
-          per-link status.
+          Resolve each cached code_link row against gildash returning per-link
+          status.
         interacts_with:
           - validateCodeLinks
       - name: validateCodeLinks
@@ -113,9 +111,7 @@ brief:
         responsibility: Compute covered vs. total symbol counts for a single card.
         interacts_with: []
       - name: getUncoveredSymbols
-        responsibility: >-
-          List symbols across the project that no card's code_link cache
-          covers.
+        responsibility: List symbols across the project that no card's code_link cache covers.
         interacts_with: []
     data_flow: []
     invariants:
@@ -143,16 +139,16 @@ brief:
       subject: getUncoveredSymbols and suggestCardScope
       keyword: MUST
       predicate: >-
-        derive inclusion from the code_link cache; symbol visibility MUST
-        NOT influence the result.
+        derive inclusion from the code_link cache; symbol visibility MUST NOT
+        influence the result.
       governs:
         - S-H-02
         - S-H-03
   external:
     - id: C-001
       statement: >-
-        gildash adopted APIs and deliberately-not-adopted APIs are listed in
-        the project memory and treated as the integration contract.
+        gildash adopted APIs and deliberately-not-adopted APIs are listed in the
+        project memory and treated as the integration contract.
       reference:
         title: project_gildash_integration_policy memory entry
         locator: >-
@@ -165,15 +161,15 @@ brief:
   limits:
     - id: KL-002
       statement: >-
-        Link resolution is per-snapshot; concurrent source edits during a
-        query may produce stale results.
+        Link resolution is per-snapshot; concurrent source edits during a query
+        may produce stale results.
   criteria:
     - id: SC-001
       type: binary
       measure:
         predicate: >-
-          Removing a symbol that a cached code_link points at produces a
-          broken link result on the very next validateCodeLinks call.
+          Removing a symbol that a cached code_link points at produces a broken
+          link result on the very next validateCodeLinks call.
         method: Integration test that mutates source then queries.
       verifies:
         - S-F-01
@@ -188,6 +184,8 @@ brief:
           annotation; assert it appears in result.uncovered.
       verifies:
         - S-H-03
+        - S-H-01
+        - S-H-02
   rationale:
     alternatives:
       - option: Re-implement symbol indexing inside emberdeck.

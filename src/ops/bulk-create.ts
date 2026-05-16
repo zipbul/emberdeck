@@ -2,6 +2,7 @@ import { errorMessage } from '../util/error';
 import type { EmberdeckContext } from '../config';
 import type { CreateCardInput } from './create';
 import { createCard } from './create';
+import { updateCard } from './update';
 
 /**
  * Result of a bulk card creation operation.
@@ -103,7 +104,6 @@ export async function bulkCreateCards(
   // Phase 2: apply relations for successfully created cards.
   const partialKeys: string[] = [];
   if (pendingRelations.length > 0) {
-    const { updateCard } = await import('../ops/update');
     for (const { key, filePath, input } of pendingRelations) {
       try {
         await updateCard(ctx, key, { relations: input.relations });

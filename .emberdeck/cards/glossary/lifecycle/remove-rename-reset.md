@@ -3,7 +3,7 @@ key: glossary/lifecycle/remove-rename-reset
 summary: >-
   removeGlossary and renameGlossary cascade across cards; resetEmberdeck wipes
   both glossary and cards.
-status: draft
+status: active
 type: spec
 parent: glossary/lifecycle
 glossary:

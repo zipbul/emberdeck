@@ -3,7 +3,7 @@ key: card-model/round-trip/parse-and-serialize
 summary: >-
   parseCardMarkdown and serializeCardMarkdown form the canonical round-trip used
   by sync, export, and bulk-create.
-status: draft
+status: active
 type: spec
 parent: card-model/round-trip
 glossary:

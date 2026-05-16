@@ -3,7 +3,7 @@ key: card-lifecycle/mutation-workflows/delete-rename-bulk
 summary: >-
   deleteCard, renameCard, and bulkCreateCards complete the mutation set with
   cascade and rollback semantics.
-status: draft
+status: active
 type: spec
 parent: card-lifecycle/mutation-workflows
 glossary:

@@ -2,6 +2,8 @@ import type { EmberdeckContext } from '../config';
 import type { CodeLink, CardType } from '../card/types';
 import { ensureReindexed, GILDASH_ANNOTATION_LIMIT, gildashProjectNames, makeSymbolFileCache, listAllIndexedFilesWithProject } from './link';
 import { matchesAnyGlob } from '../util/glob';
+import { readGlossary } from '../glossary/io';
+import { buildGlossaryMatcher } from '../glossary/cross-validate';
 import { join, relative, dirname } from 'node:path';
 
 /**
@@ -520,8 +522,6 @@ export async function suggestCardScope(
   const maxDepth = options?.maxDepth ?? 3;
 
   // Build glossary matcher for suggestedGlossary
-  const { readGlossary } = await import('../glossary/io');
-  const { buildGlossaryMatcher } = await import('../glossary/cross-validate');
   const glossaryEntries = readGlossary(ctx);
   const glossaryMatcher = buildGlossaryMatcher(glossaryEntries);
 

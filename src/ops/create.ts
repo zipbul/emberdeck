@@ -110,8 +110,12 @@ export async function createCard(
   const status = input.status ?? 'draft';
 
   return (async () => {
-      const exists = await Bun.file(filePath).exists();
-      if (exists) {
+      // Reject both file-exists AND DB-row-exists. Checking only file leaves a
+      // hole where an externally-deleted card file lets createCard upsert over
+      // a live DB row, silently changing card identity.
+      const fileExists = await Bun.file(filePath).exists();
+      const dbExists = ctx.cardRepo.existsByKey(fullKey);
+      if (fileExists || dbExists) {
         throw new CardAlreadyExistsError(fullKey);
       }
 

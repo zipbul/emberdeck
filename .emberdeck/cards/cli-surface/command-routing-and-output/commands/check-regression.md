@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/check-regression
 summary: >-
   Per-command CLI-shape spec for 'ed check regression'; declares pass/fail +
   driftedRatio shape (POST-001) and 0/2 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -28,9 +26,9 @@ spec:
           affected: { key, status, driftType? }[]
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): passOrFail === 'pass' (driftedRatio <= threshold).
 
@@ -38,6 +36,8 @@ spec:
         threshold; data 정상 emit, exit 만 2).
 
         - thrown 매핑: 없음 (read-only).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

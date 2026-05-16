@@ -1,16 +1,16 @@
 ---
 key: cli-surface
 summary: >-
-  Command routing, JSON-envelope output, error mapping, exit codes, and project
-  setup loading.
-status: draft
+  Command routing, per-command stdout JSON shape, error mapping, exit codes, and
+  project setup loading.
+status: active
 type: domain
 glossary:
   - json-envelope
 domain:
   overview: >
     Owns everything the user touches: command routing under the ed binary, the
-    JSON-envelope output
+    per-command stdout JSON shape
 
     contract returned by every command, --quiet behavior, error-class to
     exit-code mapping,
@@ -24,8 +24,8 @@ domain:
     teardownEmberdeck) that initializes the runtime context every command
     depends on.
   scope: >
-    IN: ed binary command tree, JSON-envelope shape with schemaVersion plus
-    status plus data plus
+    IN: ed binary command tree, per-command stdout JSON shape status plus data
+    plus
 
     warnings plus errors, exit-code mapping (0/1/2/3/4/5/6/7/130), --quiet,
     parse-input helpers,

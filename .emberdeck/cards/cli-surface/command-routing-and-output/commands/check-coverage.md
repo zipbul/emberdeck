@@ -4,7 +4,7 @@ summary: >-
   Per-command CLI-shape spec for 'ed check coverage' (3 modes: card / uncovered
   / suggest); declares mode-specific shapes (POST-001a/b/c) and 0/3 exit policy
   (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

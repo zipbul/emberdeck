@@ -3,7 +3,7 @@ key: card-lifecycle/status-and-safe-write/safe-write
 summary: >-
   safeWriteOperation runs a forward action with compensations executed in
   reverse order on failure.
-status: draft
+status: active
 type: spec
 parent: card-lifecycle/status-and-safe-write
 glossary:

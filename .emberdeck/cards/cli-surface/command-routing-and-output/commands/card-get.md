@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/card-get
 summary: >-
   Per-command CLI-shape spec for 'ed card get <key>'; declares flat frontmatter
   stdout shape (POST-001) and 0/3 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -30,7 +30,7 @@ spec:
           relations?: string[],
           tags?: string[],
           principle?, domain?, brief?, spec?,   // type 별 namespace body (CardFrontmatter 와 동일)
-          filePath, updatedAt,                  // sync 메타 (CardRow 에서)
+          filePath, updatedAt?,                  // sync 메타 (CardRow 에서)
           history?: {
             entries: {
               field: string,         // 'summary'|'type'|'status'|'parent'|'relations'|'tags'|'glossary' 또는 namespace body

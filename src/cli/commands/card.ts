@@ -315,13 +315,21 @@ export async function cardDeleteAction(
       prompt: `card delete will REMOVE card '${key}' (file + index entry)${opts.force ? ' and detach all children' : ''}. Type "yes" to proceed: `,
     });
     const result = await deleteCard(rt.ctx, key, { force: opts.force });
+    const failedTotal =
+      result.failedChildUpdates.length +
+      result.failedRelationUpdates.length +
+      result.failedCrossDomainUpdates.length;
     return {
       data: {
         key,
         filePath: result.filePath,
         detachedChildren: result.detachedChildren,
         removedCrossDomainRefs: result.removedCrossDomainRefs,
+        failedChildUpdates: result.failedChildUpdates,
+        failedRelationUpdates: result.failedRelationUpdates,
+        failedCrossDomainUpdates: result.failedCrossDomainUpdates,
       },
+      exitCode: failedTotal > 0 ? 2 : 0,
     };
   }, cmd);
 }
@@ -358,9 +366,15 @@ export async function cardSearchAction(
   await run(async (rt: CliRuntime) => {
     if (opts.type) validateCardType(opts.type);
     if (opts.status) validateCardStatus(opts.status);
+    // Pre-filter at the DB by passing limit+offset; type/status filters still
+    // apply post-fetch (they can't push to FTS), so request a generous window
+    // (limit + offset) and slice locally — this still bounds DB work when the
+    // caller wants only a small page.
     const all = searchCards(rt.ctx, query, {
       type: opts.type as CardType | undefined,
       status: opts.status as CardStatus | undefined,
+      limit: limit + offset,
+      offset: 0,
     });
     const total = all.length;
     const items = all.slice(offset, offset + limit).map((row) => ({

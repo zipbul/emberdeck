@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/glossary-lookup
 summary: >-
   Per-command CLI-shape spec for 'ed glossary lookup'; declares entries[] +
   total shape (POST-001) and exit 0 policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -24,12 +22,14 @@ spec:
         // word 인자: 0 또는 1 element. 무인자: 전체.
         { entries: { word, definition }[], total: number }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: |-
         - 0 (EXIT.OK): lookup 항상 (단어 미존재 시 entries:[] + total:0).
         - thrown 매핑: 없음 (read-only).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

@@ -1,7 +1,7 @@
 import { eq, and, desc, isNull, gte } from 'drizzle-orm';
 
 import type { EmberdeckDb } from './connection';
-import type { CardRepository, CardRow, CardListFilter } from './repository';
+import type { CardRepository, CardRow, CardListFilter, SearchOptions } from './repository';
 import { FtsSyntaxError } from '../card/errors';
 import { card } from './schema';
 
@@ -100,12 +100,17 @@ export class DrizzleCardRepository implements CardRepository {
     return this.db.select().from(card).all() as CardRow[];
   }
 
-  search(query: string): CardRow[] {
+  search(query: string, options?: SearchOptions): CardRow[] {
     if (!query) return [];
+    // Push limit/offset to FTS5 so a large result set isn't fully materialized
+    // when the caller only wants the first page. When neither is given, return
+    // the full ranked list (back-compat: prior callers didn't paginate at the
+    // DB layer).
+    const hasPaging = options?.limit !== undefined || options?.offset !== undefined;
+    const limit = options?.limit;
+    const offset = options?.offset ?? 0;
     try {
-      return this.db.$client
-        .prepare(
-          `SELECT c.key, c.summary, c.status, c.type, c.parent,
+      const sql = `SELECT c.key, c.summary, c.status, c.type, c.parent,
                   c.namespaces_json AS namespacesJson,
                   c.body,
                   c.glossary_json AS glossaryJson,
@@ -115,9 +120,10 @@ export class DrizzleCardRepository implements CardRepository {
            FROM card c
            JOIN card_fts f ON c.rowid = f.rowid
            WHERE card_fts MATCH ?
-           ORDER BY rank`,
-        )
-        .all(query) as CardRow[];
+           ORDER BY rank${hasPaging ? ` LIMIT ? OFFSET ?` : ''}`;
+      return this.db.$client
+        .prepare(sql)
+        .all(...(hasPaging ? [query, limit ?? -1, offset] : [query])) as CardRow[];
     } catch (e) {
       // FTS5 syntax errors → throw FtsSyntaxError so CLI shows a usage-style
       // message instead of silently returning [] (which previously masked

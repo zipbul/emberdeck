@@ -3,7 +3,7 @@ key: code-binding/annotation-roundtrip
 summary: >-
   Source @spec annotation scan into DB code_link rows plus rename/move
   propagation so the cache tracks the live source.
-status: draft
+status: active
 type: brief
 parent: code-binding
 glossary:
@@ -12,15 +12,15 @@ glossary:
 brief:
   context:
     problem: >
-      Source is the binding source of truth: every `/** @spec card-key */`
-      JSDoc tag in code declares one binding. The DB `code_link` table is a
-      cache of that scan so queries (drift, coverage, impact) don't reparse
-      source every call. Without a sync the cache drifts from source. Symbol
-      renames or moves invalidate cache rows unless explicitly tracked.
+      Source is the binding source of truth: every `/** @spec card-key */` JSDoc
+      tag in code declares one binding. The DB `code_link` table is a cache of
+      that scan so queries (drift, coverage, impact) don't reparse source every
+      call. Without a sync the cache drifts from source. Symbol renames or moves
+      invalidate cache rows unless explicitly tracked.
     impact:
       - statement: >-
-          A new `@spec` tag added in source is invisible to drift / coverage
-          / impact until the cache is reconciled.
+          A new `@spec` tag added in source is invisible to drift / coverage /
+          impact until the cache is reconciled.
       - statement: >-
           A symbol rename without sync silently breaks every cached link
           targeting the old name.
@@ -47,9 +47,13 @@ brief:
   flow:
     - id: S-H-01
       kind: happy
-      given: A source file containing two `@spec` annotations not present in the DB cache.
+      given: >-
+        A source file containing two `@spec` annotations not present in the DB
+        cache.
       when: syncSpecAnnotations runs.
-      then: The two missing rows are added to the corresponding card's code_link cache.
+      then: >-
+        The two missing rows are added to the corresponding card's code_link
+        cache.
       covers:
         - G-001
     - id: S-H-02
@@ -67,16 +71,16 @@ brief:
       when: syncSpecAnnotations runs.
       then: >-
         The annotation is reported as unmatched (no cache row written); CLI
-        returns a partial-status envelope with `UNMATCHED_ANNOTATION`.
+        returns the `unmatched` array of the spec sync result.
       covers:
         - G-001
   design:
     overview: >
-      syncSpecAnnotations parses source for `@spec` tags and reconciles the
-      DB code_link table — adding missing rows, leaving existing rows alone,
-      and reporting annotations whose card key is unknown. syncSymbolChanges
-      queries gildash for renames and moves since a stored watermark and
-      applies the diff to the cache.
+      syncSpecAnnotations parses source for `@spec` tags and reconciles the DB
+      code_link table — adding missing rows, leaving existing rows alone, and
+      reporting annotations whose card key is unknown. syncSymbolChanges queries
+      gildash for renames and moves since a stored watermark and applies the
+      diff to the cache.
     components:
       - name: syncSpecAnnotations
         responsibility: Read `@spec` tags from source and reconcile DB code_link rows.
@@ -94,8 +98,8 @@ brief:
           source generation.
       - id: DI-002
         statement: >-
-          syncSpecAnnotations is idempotent — re-running with no source
-          change leaves the cache byte-identical.
+          syncSpecAnnotations is idempotent — re-running with no source change
+          leaves the cache byte-identical.
   policy:
     - id: R-001
       subject: syncSpecAnnotations
@@ -109,6 +113,7 @@ brief:
       predicate: only apply changes reported by gildash (no heuristic guesses).
       governs:
         - S-H-02
+        - S-H-01
   external:
     - id: C-001
       statement: JSDoc tag conventions follow standard TypeScript JSDoc parsing.
@@ -124,8 +129,8 @@ brief:
   limits:
     - id: KL-001
       statement: >-
-        syncSymbolChanges only sees what gildash reports; out-of-band edits
-        are invisible until a reindex.
+        syncSymbolChanges only sees what gildash reports; out-of-band edits are
+        invisible until a reindex.
     - id: KL-002
       statement: >-
         The cache snapshot at any moment reflects only annotations that were
@@ -136,8 +141,8 @@ brief:
       type: binary
       measure:
         predicate: >-
-          syncSpecAnnotations on a source set with no annotation changes
-          since the previous run produces zero `created` rows.
+          syncSpecAnnotations on a source set with no annotation changes since
+          the previous run produces zero `created` rows.
         method: Integration test asserting created=0 on idempotent re-run.
       verifies:
         - S-H-01
@@ -145,30 +150,37 @@ brief:
       type: binary
       measure:
         predicate: >-
-          An `@spec missing-card` annotation surfaces as an
-          `UNMATCHED_ANNOTATION` partial-status entry.
+          An `@spec missing-card` annotation surfaces as an `unmatched` array
+          entry on the spec sync result.
         method: CLI test asserting the partial envelope.
       verifies:
         - S-F-01
+        - S-H-02
   rationale:
     alternatives:
       - option: Card-side codeLinks list as source of truth.
         pros:
           - Bindings are queryable without parsing source.
         cons:
-          - Two SoTs drift apart; reviewing code can't tell which contracts apply
-          - Forces an awkward second authoring surface (the codeLinks list) parallel to the code itself.
+          - >-
+            Two SoTs drift apart; reviewing code can't tell which contracts
+            apply
+          - >-
+            Forces an awkward second authoring surface (the codeLinks list)
+            parallel to the code itself.
       - option: Parse source on every drift query (no cache).
         pros:
           - No reconciliation step.
         cons:
           - Every query pays the parse cost
-          - drift / coverage / impact become O(source-size) instead of O(matched-cards).
+          - >-
+            drift / coverage / impact become O(source-size) instead of
+            O(matched-cards).
     chosen:
       option: Source-as-SoT with a sync-maintained DB cache.
       reasoning: >-
-        The annotation lives next to the code so reviewers see the contract.
-        The cache buys query latency without changing the SoT.
+        The annotation lives next to the code so reviewers see the contract. The
+        cache buys query latency without changing the SoT.
     addresses:
       - KL-001
       - KL-002

@@ -18,6 +18,7 @@ import {
 import { GildashInitError } from '../setup';
 import { GlossaryParseError, GlossaryValidationError } from '../glossary/io';
 import { GlossaryNotFoundError } from '../glossary/errors';
+import { ConfigLoadError } from '../config-file';
 import { CliUsageError } from './usage-error';
 import { EXIT, type ExitCode } from './exit-codes';
 import { errorMessage } from '../util/error';
@@ -47,6 +48,9 @@ export const ERROR_CODE_TO_EXIT: Record<string, ExitCode> = {
   'glossary-not-found': EXIT.NOT_FOUND,
   // Setup
   'gildash-init-failed': EXIT.CONFIG_MISSING,
+  'config-missing-file': EXIT.CONFIG_MISSING,
+  'config-parse-error': EXIT.VALIDATION_FAILURE,
+  'config-validation-error': EXIT.VALIDATION_FAILURE,
   // CLI usage
   'cli-usage-error': EXIT.VALIDATION_FAILURE,
   // Compensation / internal
@@ -55,14 +59,6 @@ export const ERROR_CODE_TO_EXIT: Record<string, ExitCode> = {
   // Output / IO
   'output-encode-failed': EXIT.GENERIC_ERROR,
   'stdout-write-failed': EXIT.PERMISSION_OR_IO,
-  // Legacy UPPER_SNAKE — kept until callers stop throwing these; will be
-  // removed once a grep confirms no ops layer emits them.
-  'not-found': EXIT.NOT_FOUND,
-  'conflict': EXIT.CONFLICT,
-  'permission': EXIT.PERMISSION_OR_IO,
-  'io-error': EXIT.PERMISSION_OR_IO,
-  'validation-failure': EXIT.VALIDATION_FAILURE,
-  'config-missing': EXIT.CONFIG_MISSING,
 };
 
 // Simple class-to-kebab-code map. Lookup TS keys stay UPPER_SNAKE for
@@ -85,6 +81,18 @@ const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
 /** @spec cli-surface/command-routing-and-output/runner-and-output */
 export function toCliError(e: unknown): CliErrorLine {
   // Errors that carry structured details first.
+  if (e instanceof ConfigLoadError) {
+    const codeMap: Record<string, string> = {
+      FILE_NOT_FOUND: 'config-missing-file',
+      PARSE_ERROR: 'config-parse-error',
+      VALIDATION_ERROR: 'config-validation-error',
+    };
+    return {
+      code: codeMap[e.configError.code] ?? 'config-validation-error',
+      message: e.message,
+      ...(e.configError.filePath ? { details: { filePath: e.configError.filePath } } : {}),
+    };
+  }
   if (e instanceof ActivationGuardError) {
     return {
       code: 'activation-guard-failed',

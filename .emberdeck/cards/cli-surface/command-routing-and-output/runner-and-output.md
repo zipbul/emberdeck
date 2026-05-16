@@ -3,8 +3,8 @@ key: cli-surface/command-routing-and-output/runner-and-output
 summary: >-
   run wraps every subcommand action; emitResult writes stdout JSON of the
   command's natural shape; emitError writes stderr text + exit code; emitWarning
-  streams CARD_SYNC_FAILED JSON-lines to stderr.
-status: draft
+  streams card-sync-failed JSON-lines to stderr.
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -26,10 +26,15 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        On failure (thrown error or command-declared non-zero exit) the runner
-        emits a single `level:error` JSON-line on stderr via toCliError
+        On a thrown failure path (the action raised an uncaught error) the
+        runner emits a single `level:error` JSON-line on stderr via toCliError
         (`{level:error, code, message, details?}`) and exits with the
-        spec-declared code. stdout MUST be empty on the failure path.
+        spec-declared code. stdout MUST be empty on the thrown failure path.
+        NOTE: per-item validation failures (e.g. bulk-create one item rejected)
+        are NOT thrown — actions return `{ data, exitCode: 2 }` and stdout still
+        emits the data shape with `failed[]`/`failedReferenceUpdates[]`/etc.
+        populated. The CI gate signal is the non-zero exit code; consumers MUST
+        use exit code, not stdout content, to detect failure.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-004
     - id: POST-003

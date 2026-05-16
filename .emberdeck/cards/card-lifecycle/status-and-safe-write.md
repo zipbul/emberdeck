@@ -3,7 +3,7 @@ key: card-lifecycle/status-and-safe-write
 summary: >-
   Status transitions including activation guard plus the safe-write rollback
   wrapper that protects multi-step writes.
-status: draft
+status: active
 type: brief
 parent: card-lifecycle
 glossary:
@@ -11,11 +11,11 @@ glossary:
 brief:
   context:
     problem: >
-      Promoting a card from draft to active without verifying that all
-      required fields and (for specs) source `@spec` bindings resolve
-      admits broken contracts. Any multi-step write (file plus DB plus
-      changelog) partially failing leaves disk and DB diverged, violating
-      the source-of-truth promise.
+      Promoting a card from draft to active without verifying that all required
+      fields and (for specs) source `@spec` bindings resolve admits broken
+      contracts. Any multi-step write (file plus DB plus changelog) partially
+      failing leaves disk and DB diverged, violating the source-of-truth
+      promise.
     impact:
       - statement: >-
           A draft promoted to active without satisfied invariants instantly
@@ -59,8 +59,8 @@ brief:
     - id: S-F-01
       kind: failure
       given: >-
-        A draft spec whose cached code_link rows include a symbol that no
-        longer resolves in gildash.
+        A draft spec whose cached code_link rows include a symbol that no longer
+        resolves in gildash.
       when: updateCardStatus is called with active.
       then: ActivationGuardError is thrown, the card stays draft.
       covers:
@@ -100,8 +100,8 @@ brief:
     invariants:
       - id: DI-001
         statement: >-
-          No card reaches active state with unresolved required fields or
-          broken source bindings.
+          No card reaches active state with unresolved required fields or broken
+          source bindings.
       - id: DI-002
         statement: >-
           Any thrown error inside safeWriteOperation results in zero observable
@@ -153,8 +153,8 @@ brief:
       measure:
         predicate: A spec with a broken source binding cannot be transitioned to active.
         method: >-
-          Integration test that removes the source `@spec` target symbol
-          then calls set-status active.
+          Integration test that removes the source `@spec` target symbol then
+          calls set-status active.
       verifies:
         - S-F-01
     - id: SC-002
@@ -166,6 +166,8 @@ brief:
         method: Integration test injecting a throw between DB write and file write.
       verifies:
         - S-F-02
+        - S-H-01
+        - S-H-02
   rationale:
     alternatives:
       - option: Optimistic active transition without re-validation.

@@ -3,7 +3,7 @@ key: card-lifecycle/mutation-workflows/create-card
 summary: >-
   createCard composes validation, parent resolution, file write, DB write, and
   changelog within a safe-write boundary.
-status: draft
+status: active
 type: spec
 parent: card-lifecycle/mutation-workflows
 glossary:

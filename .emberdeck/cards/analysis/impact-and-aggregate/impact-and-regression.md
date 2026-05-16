@@ -3,7 +3,7 @@ key: analysis/impact-and-aggregate/impact-and-regression
 summary: >-
   preChangeCheck and regressionGuard implement risk_level scoring and CI
   threshold gating.
-status: draft
+status: active
 type: spec
 parent: analysis/impact-and-aggregate
 glossary:
@@ -18,8 +18,8 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        preChangeCheck returns risk_level (low / medium / high / critical)
-        and per-card linkType (direct / transitive).
+        preChangeCheck returns risk_level (low / medium / high / critical) and
+        per-card linkType (direct / transitive).
       keyword: MUST
       derives: analysis/impact-and-aggregate#G-001
     - id: POST-002

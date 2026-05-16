@@ -3,7 +3,7 @@ key: card-storage/queries/get-list-search
 summary: >-
   getCard, getCards, listCards, and searchCards form the read entry points for
   single, batch, filtered, and full-text retrieval.
-status: draft
+status: active
 type: spec
 parent: card-storage/queries
 glossary:

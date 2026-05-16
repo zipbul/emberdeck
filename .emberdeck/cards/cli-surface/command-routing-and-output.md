@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output
 summary: >-
   ed binary command tree, per-command output shape contract, error class to
   exit-code mapping, and quiet/stderr behavior.
-status: draft
+status: active
 type: brief
 parent: cli-surface
 glossary:
@@ -108,7 +108,7 @@ brief:
         list`.
       when: Auto-sync at runner entry hits the malformed file.
       then: >-
-        stderr contains a single CARD_SYNC_FAILED JSON-line for that file;
+        stderr contains a single card-sync-failed JSON-line for that file;
         stdout contains the normal card list (excluding the unsynced card); exit
         0.
       covers:
@@ -182,7 +182,7 @@ brief:
       - id: DI-004
         statement: >-
           Auto-sync warnings stream to stderr as JSON-lines (one
-          CARD_SYNC_FAILED object per line) regardless of the command's outcome.
+          card-sync-failed object per line) regardless of the command's outcome.
           They do not influence exit code.
   policy:
     - id: R-001

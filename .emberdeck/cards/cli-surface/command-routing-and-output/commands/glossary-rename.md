@@ -4,7 +4,7 @@ summary: >-
   Per-command CLI-shape spec for 'ed glossary rename'; declares oldWord/newWord
   + affectedCardKeys + failedFileWrites shape (POST-001) and 0/2/3/4 exit policy
   (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

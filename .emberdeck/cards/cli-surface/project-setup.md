@@ -3,7 +3,7 @@ key: cli-surface/project-setup
 summary: >-
   Project root discovery, config-file loading, and setupEmberdeck plus
   teardownEmberdeck lifecycle that initializes the runtime context.
-status: draft
+status: active
 type: brief
 parent: cli-surface
 glossary:
@@ -30,7 +30,9 @@ brief:
           Discover the project root from the working directory upward to the
           nearest .emberdeck or package.json.
       - id: G-002
-        statement: Load .emberdeck/config.yaml when present and merge with CLI flags.
+        statement: >-
+          Load .emberdeck.jsonc or .emberdeck.json when present and merge with
+          CLI flags.
       - id: G-003
         statement: >-
           Provide setupEmberdeck and teardownEmberdeck that own the runtime
@@ -50,9 +52,7 @@ brief:
   flow:
     - id: S-H-01
       kind: happy
-      given: >-
-        A working directory inside a project with .emberdeck/config.yaml
-        present.
+      given: A working directory inside a project with .emberdeck.jsonc present.
       when: setupEmberdeck runs.
       then: >-
         A runtime context is returned with config-file values overridden by CLI
@@ -79,7 +79,7 @@ brief:
         - G-001
     - id: S-F-02
       kind: failure
-      given: A malformed .emberdeck/config.yaml.
+      given: A malformed .emberdeck.jsonc.
       when: loadConfig runs.
       then: A ConfigError is thrown identifying the offending field.
       covers:
@@ -102,7 +102,7 @@ brief:
         interacts_with:
           - setupEmberdeck
       - name: loadConfig
-        responsibility: Parse and validate .emberdeck/config.yaml.
+        responsibility: Parse and validate .emberdeck.jsonc or .emberdeck.json.
         interacts_with:
           - mergeCliArgs
       - name: mergeCliArgs
@@ -182,6 +182,8 @@ brief:
         method: Resource leak test that asserts open handle count.
       verifies:
         - S-H-02
+        - S-H-01
+        - S-F-02
   rationale:
     alternatives:
       - option: Implicit context construction inside each command.

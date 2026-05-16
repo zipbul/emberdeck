@@ -48,7 +48,7 @@ export async function initAction(
       const config = `// Emberdeck configuration
 // See \`ed --help\` for available commands.
 {
-  // Where card files live (.json)
+  // Where card files live (.md with YAML frontmatter)
   "cardsDir": ${JSON.stringify(cardsDirRel)},
 
   // Project root for source code analysis. Set to the directory containing
@@ -149,7 +149,9 @@ export async function resetAction(opts: { yes?: boolean }, cmd: Command): Promis
       data: {
         cardsDeleted: result.cardsDeleted,
         glossaryCleared: result.glossaryCleared,
+        failedFileDeletes: result.failedFileDeletes,
       },
+      exitCode: result.failedFileDeletes.length > 0 ? 2 : 0,
     };
   }, cmd);
 }

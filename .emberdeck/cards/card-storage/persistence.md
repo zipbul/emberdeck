@@ -3,7 +3,7 @@ key: card-storage/persistence
 summary: >-
   SQLite schema, repository layer, and bidirectional file-DB synchronization
   that persist cards.
-status: draft
+status: active
 type: brief
 parent: card-storage
 glossary:
@@ -144,7 +144,7 @@ brief:
           Per-context idempotent file-to-DB sync invoked once at CLI command
           entry. Deletes DB rows whose filePath is missing on disk, then upserts
           every existing card file. Errors on individual files are swallowed;
-          validateCards remains the surface that reports them via ORPHAN_FILE.
+          validateCards remains the surface that reports them via orphan-file.
         interacts_with:
           - CardRepository
           - schema

@@ -5,3 +5,6 @@ node_modules
 dist
 .gildash
 coverage/
+
+# skill description optimization workspace (temporary artifacts)
+.claude/skills/emberdeck-workspace/

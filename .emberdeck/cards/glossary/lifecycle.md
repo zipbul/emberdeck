@@ -3,7 +3,7 @@ key: glossary/lifecycle
 summary: >-
   Define, lookup, remove, and rename glossary entries with cascading updates to
   cards that reference them.
-status: draft
+status: active
 type: brief
 parent: glossary
 glossary:
@@ -178,6 +178,8 @@ brief:
         method: Integration test creating three referencing cards then renaming.
       verifies:
         - S-H-02
+        - S-H-01
+        - S-F-02
   rationale:
     alternatives:
       - option: Per-entry define (no batch).

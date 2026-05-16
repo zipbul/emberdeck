@@ -12,8 +12,10 @@ import {
   buildDefaultConfig,
   DEFAULT_CARDS_DIR,
   DEFAULT_DB_PATH,
+  ConfigLoadError,
   type EmberdeckFileConfig,
 } from '../src/config-file';
+import { toCliError } from '../src/cli/errors';
 
 // ── helpers ──
 
@@ -251,5 +253,44 @@ describe('buildDefaultConfig', () => {
     expect(config.dbPath).toBe(resolve('/base', DEFAULT_DB_PATH));
     expect(config.projectRoot).toBe('/base');
     expect(config.analysisIgnore).toBeUndefined();
+  });
+});
+
+// Regression: ConfigLoadError used to be a plain `new Error(...)` throw, which
+// toCliError mapped to `internal-error` exit 1. The error class now carries the
+// underlying ConfigError.code so toCliError emits a specific code per kind:
+//   FILE_NOT_FOUND   → config-missing-file (exit 6)
+//   PARSE_ERROR      → config-parse-error (exit 2)
+//   VALIDATION_ERROR → config-validation-error (exit 2)
+describe('ConfigLoadError → toCliError mapping', () => {
+  it('FILE_NOT_FOUND → code:config-missing-file', () => {
+    const err = new ConfigLoadError('config load failed: missing', {
+      code: 'FILE_NOT_FOUND',
+      message: 'missing',
+      filePath: '/no/such/.emberdeck.jsonc',
+    });
+    const cli = toCliError(err);
+    expect(cli.code).toBe('config-missing-file');
+    expect(cli.details).toEqual({ filePath: '/no/such/.emberdeck.jsonc' });
+  });
+
+  it('PARSE_ERROR → code:config-parse-error', () => {
+    const err = new ConfigLoadError('config load failed: bad', {
+      code: 'PARSE_ERROR',
+      message: 'bad',
+      filePath: '/x.jsonc',
+    });
+    expect(toCliError(err).code).toBe('config-parse-error');
+  });
+
+  it('VALIDATION_ERROR → code:config-validation-error', () => {
+    const err = new ConfigLoadError('config load failed: bad-key', {
+      code: 'VALIDATION_ERROR',
+      message: 'bad-key',
+    });
+    const cli = toCliError(err);
+    expect(cli.code).toBe('config-validation-error');
+    // No filePath supplied → no details.
+    expect(cli.details).toBeUndefined();
   });
 });

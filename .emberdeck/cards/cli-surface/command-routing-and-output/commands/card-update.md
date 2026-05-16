@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/card-update
 summary: >-
   Per-command CLI-shape spec for 'ed card update'; declares updated card shape
   with validationNotes (POST-001) and 0/2/3 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:

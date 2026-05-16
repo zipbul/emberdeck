@@ -3,7 +3,7 @@ key: analysis/drift-detection/check-drift
 summary: >-
   checkDrift runs the broken_link and glossary_broken detectors per card and
   reports drift as a derived field; it never mutates card status.
-status: draft
+status: active
 type: spec
 parent: analysis/drift-detection
 glossary:

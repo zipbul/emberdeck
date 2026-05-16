@@ -32,11 +32,23 @@ export interface DeleteCardOptions {
  * @throws {CardValidationError} When the card has children and force is false.
   * @spec card-lifecycle/mutation-workflows/delete-rename-bulk
  */
+export interface DeleteCardResult {
+  filePath: string;
+  detachedChildren: string[];
+  removedCrossDomainRefs: string[];
+  /** Children whose file write to remove the parent field failed (DB has detached, file still names old parent). */
+  failedChildUpdates: Array<{ cardKey: string; reason: string }>;
+  /** Referencing cards whose file write to remove this key from relations failed. */
+  failedRelationUpdates: Array<{ cardKey: string; reason: string }>;
+  /** Domain cards whose cross_domain_dependencies file write failed. */
+  failedCrossDomainUpdates: Array<{ cardKey: string; reason: string }>;
+}
+
 export async function deleteCard(
   ctx: EmberdeckContext,
   fullKey: string,
   options?: DeleteCardOptions,
-): Promise<{ filePath: string; detachedChildren: string[]; removedCrossDomainRefs: string[] }> {
+): Promise<DeleteCardResult> {
   const key = parseFullKey(fullKey);
   const filePath = buildCardPath(ctx.cardsDir, key);
   const force = options?.force ?? false;
@@ -89,6 +101,11 @@ export async function deleteCard(
       const removedCrossDomainRefs: string[] = force
         ? crossDomainDependents.map((d) => d.key)
         : [];
+      // File-write failures during best-effort cascades. Surfaced on the result
+      // so callers learn which files still point at the deleted key.
+      const failedChildUpdates: Array<{ cardKey: string; reason: string }> = [];
+      const failedRelationUpdates: Array<{ cardKey: string; reason: string }> = [];
+      const failedCrossDomainUpdates: Array<{ cardKey: string; reason: string }> = [];
 
       return safeWriteOperation({
         dbAction: () => {
@@ -101,14 +118,23 @@ export async function deleteCard(
             // After cascade, only mappings are deleted; tags themselves may remain
             classRepo.pruneOrphans();
           });
-          return { filePath, detachedChildren, removedCrossDomainRefs };
+          return {
+            filePath,
+            detachedChildren,
+            removedCrossDomainRefs,
+            failedChildUpdates,
+            failedRelationUpdates,
+            failedCrossDomainUpdates,
+          };
         },
         fileAction: async () => {
           // Delete the card file first — if this fails, no side-effect files
           // have been modified yet, so compensation restores DB cleanly.
           await deleteCardFile(filePath);
 
-          // Best effort: update children files (remove parent field)
+          // Best effort: update children files (remove parent field). Per-child
+          // failures are pushed into failedChildUpdates so callers see them on
+          // the result rather than getting silent disk/DB divergence.
           if (force && children.length > 0) {
             for (const child of children) {
               try {
@@ -116,8 +142,11 @@ export async function deleteCard(
                 const updated = { ...childFile.frontmatter };
                 delete updated.parent;
                 await writeCardFile(child.filePath, { ...childFile, frontmatter: updated });
-              } catch {
-                // Best effort — child file may not exist
+              } catch (e) {
+                failedChildUpdates.push({
+                  cardKey: child.key,
+                  reason: e instanceof Error ? e.message : String(e),
+                });
               }
             }
           }
@@ -138,8 +167,11 @@ export async function deleteCard(
                 }
                 await writeCardFile(refRow.filePath, { ...refFile, frontmatter: updated });
               }
-            } catch {
-              // Best effort — file may not exist
+            } catch (e) {
+              failedRelationUpdates.push({
+                cardKey: refKey,
+                reason: e instanceof Error ? e.message : String(e),
+              });
             }
           }
 
@@ -165,8 +197,11 @@ export async function deleteCard(
                 // Sync the rewritten file back to DB so namespacesJson refreshes.
                 await syncCardFromFile(ctx, dep.filePath);
               }
-            } catch {
-              // Best effort — dependent file may have been removed concurrently
+            } catch (e) {
+              failedCrossDomainUpdates.push({
+                cardKey: dep.key,
+                reason: e instanceof Error ? e.message : String(e),
+              });
             }
           }
         },

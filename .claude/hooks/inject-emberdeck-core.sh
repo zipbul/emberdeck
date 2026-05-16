@@ -13,7 +13,7 @@ prompt=$(echo "$input" | jq -r '.prompt // ""')
 # Keywords that indicate card-system intent. Conservative (avoid false-positive
 # on every Korean prompt) — must contain at least one of the explicit emberdeck
 # concepts or an ed CLI invocation pattern.
-keyword_re='카드|spec|brief|domain|principle|glossary|emberdeck|\.emberdeck|ed card|ed bulk|ed validate|ed check|ed spec|ed glossary|ed analyze|ed init|ed reset|Phase 1\.|Phase 2\.|Phase 3\.|Phase 4\.'
+keyword_re='카드|spec|brief|domain|principle|glossary|emberdeck|\.emberdeck|ed card|ed bulk|ed validate|ed check|ed spec|ed glossary|ed analyze|ed init|ed reset'
 
 if ! echo "$prompt" | grep -qE "$keyword_re"; then
   # Not card-related — no injection.

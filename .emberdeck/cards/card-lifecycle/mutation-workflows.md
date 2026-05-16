@@ -3,7 +3,7 @@ key: card-lifecycle/mutation-workflows
 summary: >-
   Create, update, delete, rename, and bulk-create workflows that own atomic card
   mutations and their parent rules.
-status: draft
+status: active
 type: brief
 parent: card-lifecycle
 glossary:
@@ -181,9 +181,9 @@ brief:
   limits:
     - id: KL-001
       statement: >-
-        Rename cascade only updates references stored in the DB; source
-        `@spec` annotations in code remain authored by humans and are
-        reconciled into the cache by `ed spec sync` on the next run.
+        Rename cascade only updates references stored in the DB; source `@spec`
+        annotations in code remain authored by humans and are reconciled into
+        the cache by `ed spec sync` on the next run.
     - id: KL-002
       statement: >-
         bulkCreateCards is serial; concurrent bulk operations are not supported
@@ -218,6 +218,7 @@ brief:
         method: Integration test asserting empty disk and DB after error.
       verifies:
         - S-F-01
+        - S-H-01
   rationale:
     alternatives:
       - option: Direct repository access from CLI commands.

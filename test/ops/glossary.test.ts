@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 
+import { validateCardGlossaryField } from '../../src/glossary/validation';
+import { GLOSSARY_LIMITS } from '../../src/glossary/io';
 import {
   defineGlossary,
   lookupGlossary,
@@ -571,6 +573,31 @@ describe('Glossary', () => {
       const result = await resetEmberdeck(tc.ctx);
       expect(result.cardsDeleted).toBe(0);
       expect(result.glossaryCleared).toBe(true);
+    });
+
+    // Regression: file-delete failures during reset used to vanish silently.
+    // The result now exposes `failedFileDeletes` as an always-present array so
+    // callers see which card files failed to unlink.
+    it('returns failedFileDeletes (empty when no file errors)', async () => {
+      tc = await createTestContext();
+      await createCard(tc.ctx, { key: 'r1', summary: 'r1', type: 'spec' });
+      const result = await resetEmberdeck(tc.ctx);
+      expect(Array.isArray(result.failedFileDeletes)).toBe(true);
+      expect(result.failedFileDeletes).toEqual([]);
+    });
+  });
+
+  // Regression L17: per-card glossary length cap used to be a literal 100
+  // at the validate site. It now lives on GLOSSARY_LIMITS.MAX_GLOSSARY_PER_CARD
+  // so the source of truth is the constants table.
+  describe('validateCardGlossaryField — per-card cap', () => {
+    it('rejects more than MAX_GLOSSARY_PER_CARD entries', () => {
+      const tooMany = Array.from(
+        { length: GLOSSARY_LIMITS.MAX_GLOSSARY_PER_CARD + 1 },
+        (_, i) => `w${i}`,
+      );
+      const entries = tooMany.map((w) => ({ word: w, definition: w }));
+      expect(() => validateCardGlossaryField(tooMany, entries)).toThrow(/max .* entries per card/);
     });
   });
 });

@@ -4,7 +4,7 @@ summary: >-
   Per-command CLI-shape spec for the commander error fallback (not a
   subcommand); failure-only path with stderr JSON-line and 0/2 exit policy
   (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -18,8 +18,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-004
   postconditions:
     - id: POST-002
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
       guarantee: >-
         - 0 (EXIT.OK): commander.help / commander.version (정상 도움말/버전 출력 경로;
         stdout 은 commander 의 도움말 텍스트, 본 카드는 stderr 무출력).
@@ -28,6 +26,8 @@ spec:
         (InvalidArgumentError / 누락 positional / 알 수 없는 옵션).
 
         - stdout: 본 fallback 경로에서 data shape 없음 (실패 경로 — stdout 무출력).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

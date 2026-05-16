@@ -303,6 +303,8 @@ function cardsContainingGlossaryWord(ctx: EmberdeckContext, word: string): CardR
 export interface ResetResult {
   cardsDeleted: number;
   glossaryCleared: boolean;
+  /** Card files whose unlink failed during reset. Reported but not blocking. */
+  failedFileDeletes: string[];
 }
 
 /**
@@ -316,22 +318,29 @@ export async function resetEmberdeck(
 ): Promise<ResetResult> {
   const allCards = ctx.cardRepo.list();
   let cardsDeleted = 0;
+  const failedFileDeletes: string[] = [];
 
   // Delete all card files + DB entries.
   // File deletes parallelized in batches to amortize fs round-trips.
-  const fileDeletes: Promise<unknown>[] = [];
+  // Per-file failures collected into failedFileDeletes so they surface on the result.
+  const pending: Array<{ filePath: string; promise: Promise<unknown> }> = [];
   const FILE_BATCH = 20;
+  const drain = async (): Promise<void> => {
+    const results = await Promise.allSettled(pending.map((p) => p.promise));
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') failedFileDeletes.push(pending[i]!.filePath);
+    });
+    pending.length = 0;
+  };
   for (const card of allCards) {
     try {
       ctx.cardRepo.deleteByKey(card.key);
       cardsDeleted++;
-      fileDeletes.push(deleteCardFile(card.filePath).catch(() => {}));
-      if (fileDeletes.length >= FILE_BATCH) {
-        await Promise.allSettled(fileDeletes.splice(0));
-      }
-    } catch { /* skip */ }
+      pending.push({ filePath: card.filePath, promise: deleteCardFile(card.filePath) });
+      if (pending.length >= FILE_BATCH) await drain();
+    } catch { /* skip DB delete failure (rare; row may already be gone) */ }
   }
-  if (fileDeletes.length > 0) await Promise.allSettled(fileDeletes);
+  if (pending.length > 0) await drain();
 
   // Prune orphan tags
   ctx.classificationRepo.pruneOrphans();
@@ -343,7 +352,7 @@ export async function resetEmberdeck(
     glossaryCleared = true;
   } catch { /* skip */ }
 
-  return { cardsDeleted, glossaryCleared };
+  return { cardsDeleted, glossaryCleared, failedFileDeletes };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────

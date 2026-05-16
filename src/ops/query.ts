@@ -246,7 +246,13 @@ export function listCards(ctx: EmberdeckContext, filter?: CardListFilter): CardS
 export interface SearchCardsOptions {
   type?: CardType;
   status?: CardStatus;
+  /** Push pagination to the DB so an unbounded ranked scan isn't materialized. */
+  limit?: number;
+  offset?: number;
 }
+
+/** Full-text search hit row from CardRepository.search — extends CardRow with FTS metadata. */
+type SearchHitRow = CardRow & { snippet?: string; rank?: number };
 
 /** FTS5 match metadata appended to each search hit. */
 export interface SearchCardMatch extends CardSummaryRow {
@@ -270,7 +276,13 @@ export function searchCards(
   query: string,
   options?: SearchCardsOptions,
 ): SearchCardMatch[] {
-  const results = ctx.cardRepo.search(query);
+  // Push limit/offset to the repo so DB doesn't materialize the entire ranked
+  // scan when the caller only wants a page. type/status filters can't be pushed
+  // down (they apply after FTS match), so they remain post-filters.
+  const results = ctx.cardRepo.search(query, {
+    ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+    ...(options?.offset !== undefined ? { offset: options.offset } : {}),
+  }) as SearchHitRow[];
   const filtered = options
     ? results.filter((row) => {
         if (options.type && row.type !== options.type) return false;
@@ -279,13 +291,10 @@ export function searchCards(
       })
     : results;
 
-  return filtered.map(({ body: _body, ...rest }) => ({
+  return filtered.map(({ body: _body, snippet, rank, ...rest }) => ({
     ...rest,
-    // Until card-repo emits snippet/rank natively, surface empty/0 so the
-    // shape is stable. The repo enhancement is tracked separately; consumers
-    // can rely on the fields existing.
-    snippet: (rest as unknown as { snippet?: string }).snippet ?? '',
-    rank: (rest as unknown as { rank?: number }).rank ?? 0,
+    snippet: snippet ?? '',
+    rank: rank ?? 0,
   }));
 }
 

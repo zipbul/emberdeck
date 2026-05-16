@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/reset
 summary: >-
   Per-command CLI-shape spec for 'ed reset --yes'; declares cardsDeleted +
   glossaryCleared shape (POST-001) and 0/2 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -17,22 +17,28 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
+      guarantee: >-
+        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+
+        ```jsonc
+
+        // stdout shape for `ed reset --yes`
+
+        { cardsDeleted: number, glossaryCleared: boolean, failedFileDeletes:
+        string[] }
+                // failedFileDeletes 는 best-effort file unlink 실패한 카드 파일 경로. 비어있으면 reset 완전 성공.
+        ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
-        ```jsonc
-        // stdout shape for `ed reset --yes`
-        { cardsDeleted: number, glossaryCleared: boolean }
-        // op 의 `dbReset: true` 는 항상 true 상수 (정보 0) — 제거.
-        ```
     - id: POST-002
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
       guarantee: |-
-        - 0 (EXIT.OK): 모든 카드 삭제 + glossary clear 성공.
+        - 0 (EXIT.OK): 모든 카드 삭제 + glossary clear 성공 (failedFileDeletes 빈 배열).
+
+                - 2 (EXIT.VALIDATION_FAILURE): DB 는 정합 (cards/glossary 모두 cleared) 이지만 일부 .md 파일 unlink 실패 (failedFileDeletes 채워짐 — 후속 수동 정리 필요).
         - thrown 매핑: 없음 (IO 실패는 부모 runner 의 일반 매핑 → exit 5).
         - --yes 누락 시 commander 거부 → exit 2 (runner-commander-fallback).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

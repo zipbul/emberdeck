@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -72,7 +72,6 @@ describe('DB corruption / fault tolerance e2e', () => {
   });
 
   test('readonly data.db → write op reports error', async () => {
-    const { chmodSync } = await import('node:fs');
     chmodSync(join(tmp, '.emberdeck/data.db'), 0o400);
     try {
       const r = await runCli(['card', 'create', 'p', '--type', 'brief', '--summary', 's'], tmp);

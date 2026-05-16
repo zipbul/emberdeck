@@ -279,7 +279,7 @@ export interface DomainBody {
 // ── CardFrontmatter ───────────────────────────────────────────
 
 /**
- * Top-level structure of a `.json` file.
+ * Top-level structure of a card's `.md` file frontmatter.
  * Type-specific structured bodies live under `principle` / `domain` / `brief` / `spec` namespace keys.
  */
 export interface CardFrontmatter {
@@ -313,7 +313,7 @@ export interface CardFrontmatter {
 
 /**
  * Complete representation of a card read from a file.
- * Cards are pure JSON (frontmatter only); there is no separate body section.
+ * Cards are `.md` files with structured YAML frontmatter; body is optional free-form prose.
  */
 export interface CardFile {
   /** Parsed frontmatter object. */

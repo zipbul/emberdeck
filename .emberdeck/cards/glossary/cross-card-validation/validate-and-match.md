@@ -3,7 +3,7 @@ key: glossary/cross-card-validation/validate-and-match
 summary: >-
   validateCardGlossaryField returns broken word references and
   buildGlossaryMatcher provides matching for downstream advisory checks.
-status: draft
+status: active
 type: spec
 parent: glossary/cross-card-validation
 glossary:

@@ -4,7 +4,7 @@ summary: >-
   Per-command CLI-shape spec for 'ed validate cards'; declares summary +
   items[].issues[] + fileLevelIssues[] shape (POST-001) and 0/2 exit policy
   (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -16,8 +16,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -55,9 +53,9 @@ spec:
           }[]
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): summary.total === 0 (모든 카드 정합).
 
@@ -65,6 +63,8 @@ spec:
         emit, exit 만 2).
 
         - thrown 매핑: 없음 (read-only); 빌드/IO 에러는 부모 runner 의 일반 매핑.
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

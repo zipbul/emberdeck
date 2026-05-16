@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/card-search
 summary: >-
   Per-command CLI-shape spec for 'ed card search'; declares FTS5 items with
   snippet/rank shape (POST-001) and 0/2 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: |-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
         ```jsonc
@@ -31,12 +29,14 @@ spec:
           total
         }
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: |-
         - 0 (EXIT.OK): FTS5 쿼리 성공 (빈 결과 포함).
         - thrown 매핑: FtsSyntaxError → 2 (EXIT.VALIDATION_FAILURE).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

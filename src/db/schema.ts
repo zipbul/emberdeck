@@ -24,12 +24,13 @@ export const card = sqliteTable(
   },
   (table) => [
     index('idx_card_status').on(table.status),
-    // file_path is functionally unique (each card file ↔ one row), but the
-    // unique constraint is enforced only at the application layer via the
-    // (key → file_path) bijection in syncCardFromFile / writeCardFile. Tools
-    // that rely on file_path as a dedup key (e.g. mergeCardSyncWarnings in
-    // src/cli/runner.ts) assume this invariant.
-    index('idx_card_file_path').on(table.filePath),
+    // file_path is functionally unique (each card file ↔ one row). The unique
+    // constraint is now enforced at the DB layer so a buggy upsert cannot
+    // create two rows pointing at the same file (previously application-layer
+    // only via the (key → file_path) bijection in syncCardFromFile /
+    // writeCardFile). Tools that rely on file_path as a dedup key (e.g.
+    // mergeCardSyncWarnings in src/cli/runner.ts) keep working unchanged.
+    uniqueIndex('idx_card_file_path').on(table.filePath),
     index('idx_card_type').on(table.type),
     index('idx_card_parent').on(table.parent),
     foreignKey({ columns: [table.parent], foreignColumns: [table.key] })
@@ -106,10 +107,12 @@ export const cardChangelog = sqliteTable(
 );
 
 /**
- * Cross-process advisory lock for serialization of mutations across multiple
- * `ed` CLI invocations. SQLite UNIQUE on `name` provides atomic acquisition.
- * Stale-lock recovery uses (pid, start_time_ticks) to defeat PID recycling.
- * See system_lock table.
+ * Reserved table for a future cross-process advisory lock. The schema column
+ * shape supports atomic acquisition via SQLite UNIQUE on `name` plus stale-lock
+ * recovery via (pid, start_time_ticks), but the runtime currently performs no
+ * lock acquire/release. emberdeck assumes single-process invocation today; see
+ * `src/ops/safe.ts` for the explicit no-locking contract. The table is kept so
+ * future cross-process safety can be added without a schema migration.
  */
 export const systemLock = sqliteTable('system_lock', {
   name: text('name').primaryKey(),

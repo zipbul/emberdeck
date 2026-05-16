@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import type { EmberdeckContext } from '../config';
 import { setupEmberdeck, teardownEmberdeck } from '../setup';
 import { makeCardRow as makeCard } from '../../test/fixtures/card-row';
+import { makeTestBrief, makeTestSpec } from '../../test/helpers';
 import { ParentValidationError, ActivationGuardError, CardValidationError } from './errors';
 import {
   validateParentExists,
@@ -392,7 +393,7 @@ describe('validateActivationGuard', () => {
 
   it('brief type with valid namespace + domain parent: passes', async () => {
     setupDomain();
-    const { makeTestBrief } = await import('../../test/helpers');
+    
     await expect(
       validateActivationGuard(ctx, { type: 'brief', parent: '_dom', brief: makeTestBrief() }),
     ).resolves.toBeUndefined();
@@ -413,7 +414,7 @@ describe('validateActivationGuard', () => {
 
   it('spec type with no gildash index passes (binding check is skipped on empty index)', async () => {
     setupBrief();
-    const { makeTestSpec } = await import('../../test/helpers');
+    
     await expect(
       validateActivationGuard(ctx, {
         type: 'spec',
@@ -425,7 +426,7 @@ describe('validateActivationGuard', () => {
 
   it('spec type with codeLinks (gildash=undefined): passes if codeLinks exist', async () => {
     setupBrief();
-    const { makeTestSpec } = await import('../../test/helpers');
+    
     await expect(
       validateActivationGuard(ctx, {
         type: 'spec',
@@ -480,7 +481,7 @@ describe('validateTypeChangeActivation', () => {
   });
 
   it('active spec -> brief: keeps active when brief namespace present', async () => {
-    const { makeTestBrief } = await import('../../test/helpers');
+    
     ctx.cardRepo.upsert(makeCard({ key: '_dom', type: 'domain', filePath: '/_dom.json' }));
     const result = await validateTypeChangeActivation(
       ctx,

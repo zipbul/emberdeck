@@ -3,7 +3,7 @@ key: card-storage/queries
 summary: >-
   Read surface for cards including get, list with filters, full-text search,
   tree, context, and relation graph.
-status: draft
+status: active
 type: brief
 parent: card-storage
 glossary:
@@ -127,6 +127,7 @@ brief:
       predicate: behave as conjunction across orthogonal filters.
       governs:
         - S-H-01
+        - S-H-02
   external:
     - id: C-001
       statement: BFS depth ceiling default of 3 follows the project roadmap decision.
@@ -163,6 +164,7 @@ brief:
         method: CLI-level test invoking ed card search with a broken query.
       verifies:
         - S-F-01
+        - S-H-02
   rationale:
     alternatives:
       - option: Single getCards multi-purpose entry point.

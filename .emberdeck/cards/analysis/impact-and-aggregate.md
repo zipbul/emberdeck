@@ -3,7 +3,7 @@ key: analysis/impact-and-aggregate
 summary: >-
   preChangeCheck risk_level scoring, regression threshold guard, interactions
   conflict detection, and analyze aggregate.
-status: draft
+status: active
 type: brief
 parent: analysis
 glossary:
@@ -11,11 +11,11 @@ glossary:
 brief:
   context:
     problem: >
-      Before changing files the user wants to know what cards are affected
-      and at what risk level. After a batch of changes CI needs to fail
-      when the drifted ratio crosses a threshold. When two cards reference
-      the same code symbol the user wants to see the conflict explicitly.
-      None of these can be answered by per-card drift alone.
+      Before changing files the user wants to know what cards are affected and
+      at what risk level. After a batch of changes CI needs to fail when the
+      drifted ratio crosses a threshold. When two cards reference the same code
+      symbol the user wants to see the conflict explicitly. None of these can be
+      answered by per-card drift alone.
     impact:
       - statement: Without preChangeCheck the user proceeds blind to scope of impact.
       - statement: Without regression threshold CI cannot gate merges on health.
@@ -69,8 +69,8 @@ brief:
       given: An analyze call with healthy state.
       when: analyze runs.
       then: >-
-        One JSON envelope is returned with health, coverage, drift, glossary,
-        and unlinked_symbols populated.
+        One JSON object is returned with health, coverage, drift, glossary, and
+        unlinked_symbols populated.
       covers:
         - G-004
     - id: S-F-01
@@ -89,13 +89,12 @@ brief:
         - G-003
   design:
     overview: >
-      preChangeCheck walks the input files and the DB code_link cache to
-      compute affected_cards and an aggregate risk_level
-      (low / medium / high / critical). regressionGuard uses card-storage
-      counts plus a project threshold. checkInteractions diffs the
-      code_link cache across input keys for shared symbols, shared files,
-      and imports. analyze composes the four read sources into one
-      aggregate envelope.
+      preChangeCheck walks the input files and the DB code_link cache to compute
+      affected_cards and an aggregate risk_level (low / medium / high /
+      critical). regressionGuard uses card-storage counts plus a project
+      threshold. checkInteractions diffs the code_link cache across input keys
+      for shared symbols, shared files, and imports. analyze composes the four
+      read sources into one aggregate envelope.
     components:
       - name: preChangeCheck
         responsibility: Compute affected cards and risk_level from a file list.
@@ -114,7 +113,7 @@ brief:
       - name: analyze
         responsibility: >-
           Aggregate health, coverage, drift, glossary, and unlinked_symbols into
-          one JSON envelope.
+          one JSON object.
         interacts_with:
           - card-storage
           - code-binding
@@ -140,6 +139,9 @@ brief:
       predicate: exit 2 when the drifted ratio exceeds the configured threshold.
       governs:
         - S-F-01
+        - S-H-02
+        - S-H-03
+        - S-F-02
   external:
     - id: C-001
       statement: >-
@@ -182,9 +184,11 @@ brief:
       type: binary
       measure:
         predicate: analyze returns all five top-level data keys in a single envelope.
-        method: Snapshot test of the analyze JSON envelope.
+        method: Snapshot test of the analyze JSON output.
       verifies:
         - S-H-03
+        - S-H-01
+        - S-H-02
   rationale:
     alternatives:
       - option: Composite single command (analyze + impact + regression in one call).

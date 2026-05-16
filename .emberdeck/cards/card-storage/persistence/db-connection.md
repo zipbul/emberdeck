@@ -3,7 +3,7 @@ key: card-storage/persistence/db-connection
 summary: >-
   createEmberdeckDb, migrateEmberdeck, and closeDb own the SQLite connection
   lifecycle and schema migrations.
-status: draft
+status: active
 type: spec
 parent: card-storage/persistence
 glossary:

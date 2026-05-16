@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/card-export
 summary: >-
   Per-command CLI-shape spec for 'ed card export'; declares mode +
   filePath/bytes/content shape (POST-001) and 0/3 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -15,8 +15,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: >-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
 
@@ -32,12 +30,14 @@ spec:
           bytes: number,         // 모든 모드 (직렬화된 content 의 byte 길이)
           content?: string }     // mode='stdout' 만 (jq 친화)
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: |-
         - 0 (EXIT.OK): export 성공 (파일 write 또는 stdout content 채움).
         - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

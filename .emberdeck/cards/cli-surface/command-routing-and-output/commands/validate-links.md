@@ -3,7 +3,7 @@ key: cli-surface/command-routing-and-output/commands/validate-links
 summary: >-
   Per-command CLI-shape spec for 'ed validate links'; declares per-card link
   breakdown shape (POST-001) and 0/2 exit policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -20,7 +20,7 @@ spec:
         ```jsonc
         // stdout shape for `ed validate links [key]`
         {
-          summary: { total, ok, broken, skipped, ioFailed },
+          summary: { total, ok, broken, skipped, ioFailed, planned },
           items: {
             key, declared, resolved,
             brokenLinks?:  { file, symbol, reason: 'gildash-unavailable'|'symbol-not-found' }[],

@@ -4,7 +4,7 @@ summary: >-
   Per-command CLI-shape spec for 'ed analyze'; declares
   health/coverage/drifted/glossary/unlinkedSymbols composite shape (POST-001)
   and exit 0 policy (POST-002).
-status: draft
+status: active
 type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
@@ -16,8 +16,6 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
       guarantee: >-
         성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
 
@@ -32,7 +30,7 @@ spec:
             codeStats?: { files: number, symbols: number },
             codeCycles?: {
               count: number,                  // 전체 cycle 수
-              samples: string[][]             // 최대 op 의 MAX_CYCLE_SAMPLES 만큼 (현재 20). count 는 전체.
+              samples: string[][]             // 최대 op 의 MAX_CYCLE_SAMPLES 만큼. count 는 전체.
             }
           },
           coverage: { totalSymbols, coveredSymbols, coverageRatio: number|null },    // 다른 명령과 통일
@@ -48,12 +46,14 @@ spec:
         }
 
         ```
-    - id: POST-002
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-002
+      derives: cli-surface/command-routing-and-output#G-001
+    - id: POST-002
       guarantee: |-
         - 0 (EXIT.OK): analyze report 항상 (read-only; 어떤 결과도 실패 아님).
         - thrown 매핑: 없음 (read-only).
+      keyword: MUST
+      derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-

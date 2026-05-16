@@ -31,6 +31,25 @@ export interface ConfigError {
   filePath?: string;
 }
 
+/**
+ * Thrown by buildRuntime when loadConfig returns Err. Carries the underlying
+ * ConfigError code so toCliError can pick the right stderr code + exit code:
+ *   FILE_NOT_FOUND   → exit 6 (config-missing)
+ *   PARSE_ERROR      → exit 2 (config-parse-error)
+ *   VALIDATION_ERROR → exit 2 (config-validation-error)
+ *
+ * Distinct from internal-error so automation can branch on the failure class.
+ */
+export class ConfigLoadError extends Error {
+  constructor(
+    message: string,
+    public readonly configError: ConfigError,
+  ) {
+    super(message);
+    this.name = 'ConfigLoadError';
+  }
+}
+
 // ── Defaults ──
 
 export const DEFAULT_CARDS_DIR = '.emberdeck/cards';

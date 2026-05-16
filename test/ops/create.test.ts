@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'bun:test';
-import { existsSync } from 'node:fs';
+import { existsSync, unlinkSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 
 import { createCard } from '../../index';
 import {
@@ -157,7 +158,6 @@ describe('createCard', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 're-create', summary: 'First', type: 'spec' });
     tc.ctx.cardRepo.deleteByKey('re-create');
-    const { rm } = await import('node:fs/promises');
     const filePath = `${tc.cardsDir}/re-create.md`;
     await rm(filePath, { force: true });
     const result = await createCard(tc.ctx, { key: 're-create', summary: 'Second', type: 'spec' });
@@ -188,5 +188,21 @@ describe('createCard — codeLinks', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'cr-nocl', summary: 'No CL', type: 'spec' });
     expect(tc.ctx.codeLinkRepo.findByCardKey('cr-nocl')).toHaveLength(0);
+  });
+
+  // Regression: previously createCard only checked file existence. A DB row
+  // whose file was externally deleted let a subsequent createCard upsert over
+  // it, silently changing card identity. Now both file AND DB row are checked.
+  it('throws CardAlreadyExistsError when DB row exists even if file is missing', async () => {
+    tc = await createTestContext();
+    const first = await createCard(tc.ctx, { key: 'dup-db', summary: 'first', type: 'spec' });
+    // Simulate external deletion of the card file (DB row still present).
+    unlinkSync(first.filePath);
+    expect(existsSync(first.filePath)).toBe(false);
+    expect(tc.ctx.cardRepo.existsByKey('dup-db')).toBe(true);
+    // createCard must now reject the duplicate key even though the file is gone.
+    await expect(
+      createCard(tc.ctx, { key: 'dup-db', summary: 'second', type: 'spec' }),
+    ).rejects.toBeInstanceOf(CardAlreadyExistsError);
   });
 });

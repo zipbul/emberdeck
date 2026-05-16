@@ -3,7 +3,7 @@ key: card-model/schema-and-validation/validate-card-input
 summary: >-
   validateCardInput is the gatekeeper that runs the full type-discriminated
   validation pipeline before any persistence.
-status: draft
+status: active
 type: spec
 parent: card-model/schema-and-validation
 glossary:
@@ -54,6 +54,6 @@ spec:
         A spec.preconditions.derives reference does not follow the
         `brief-key#item-id` format.
       behavior: >-
-        validateSpecRefs throws CardValidationError identifying the
-        malformed reference.
+        validateSpecRefs throws CardValidationError identifying the malformed
+        reference.
 ---

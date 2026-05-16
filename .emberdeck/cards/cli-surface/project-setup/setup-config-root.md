@@ -3,7 +3,7 @@ key: cli-surface/project-setup/setup-config-root
 summary: >-
   setupEmberdeck plus teardownEmberdeck plus loadConfig plus findPackageRoot own
   the runtime context lifecycle.
-status: draft
+status: active
 type: spec
 parent: cli-surface/project-setup
 glossary:
@@ -43,7 +43,7 @@ spec:
   failures:
     - violation: No .emberdeck found upward from cwd.
       behavior: setupEmberdeck throws a config-missing error; CLI exit code 6.
-    - violation: .emberdeck/config.yaml is malformed.
+    - violation: .emberdeck.jsonc or .emberdeck.json is malformed.
       behavior: >-
         loadConfig throws an error identifying the offending field; setup fails
         before DB open.

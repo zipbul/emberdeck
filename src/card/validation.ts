@@ -1,5 +1,5 @@
 import { CardValidationError, ParentValidationError, ActivationGuardError } from './errors';
-import { ensureReindexed, makeSymbolFileCache } from '../ops/link';
+import { ensureReindexed, makeSymbolFileCache, listAllIndexedFilesWithProject } from '../ops/link';
 import type { EmberdeckContext } from '../config';
 import type { BriefBody, CardFrontmatter, CardType, CardStatus, SpecBody } from './types';
 import { validateBriefRefs } from '../brief/validate-refs';
@@ -439,7 +439,11 @@ export async function validateActivationGuard(
   // annotation scan). Source is the SoT — the card itself does not list links.
   if (card.key) {
     await ensureReindexed(ctx);
-    const indexedFiles = ctx.gildash.listIndexedFiles();
+    // Aggregate across all gildash projects (monorepo support). Default-arg
+    // listIndexedFiles() only sees the primary project, missing source in
+    // multi-project repos. listAllIndexedFilesWithProject is the centralized
+    // aggregator already used by spec-sync / coverage paths.
+    const indexedFiles = listAllIndexedFilesWithProject(ctx);
     // Empty index = "no information" — neither demand annotations nor try to
     // resolve. Matches drift-detection semantics elsewhere.
     if (indexedFiles.length > 0) {

@@ -3,7 +3,7 @@ key: card-model/schema-and-validation/parent-and-hierarchy
 summary: >-
   Parent existence, type, and cycle checks plus children hierarchy enforce the
   four-tier rule at write time.
-status: draft
+status: active
 type: spec
 parent: card-model/schema-and-validation
 glossary:
@@ -34,5 +34,7 @@ spec:
     - violation: Proposed parent type violates the four-tier rule.
       behavior: validateParentType throws ParentValidationError.
     - violation: relations entry references a non-existent card.
-      behavior: validateRelationTargets surfaces a warning rather than throwing.
+      behavior: >-
+        validateRelationTargets throws CardValidationError naming the missing
+        target.
 ---

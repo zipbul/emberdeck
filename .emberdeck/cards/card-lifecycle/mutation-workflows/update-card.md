@@ -3,7 +3,7 @@ key: card-lifecycle/mutation-workflows/update-card
 summary: >-
   updateCard applies field, patch, body, glossary, and tag updates with
   replace-namespace semantics on patch.
-status: draft
+status: active
 type: spec
 parent: card-lifecycle/mutation-workflows
 glossary:

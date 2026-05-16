@@ -3,7 +3,7 @@ key: analysis/impact-and-aggregate/interactions-and-analyze
 summary: >-
   checkInteractions detects shared symbol or shared file conflicts; analyze
   aggregates health, coverage, drift, and glossary.
-status: draft
+status: active
 type: spec
 parent: analysis/impact-and-aggregate
 glossary:
@@ -24,8 +24,8 @@ spec:
       derives: analysis/impact-and-aggregate#G-003
     - id: POST-002
       guarantee: >-
-        analyze returns an envelope with health, coverage, drifted, glossary,
-        and unlinked_symbols populated in one call.
+        analyze returns a single JSON object with health, coverage, drifted,
+        glossary, and unlinked_symbols populated in one call.
       keyword: SHALL
       derives: analysis/impact-and-aggregate#G-004
   invariants:

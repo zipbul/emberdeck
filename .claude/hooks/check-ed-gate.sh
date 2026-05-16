@@ -16,7 +16,7 @@ cmd=$(echo "$input" | jq -r '.tool_input.command // ""')
 # Match emberdeck mutating ed commands only. Read-only ones (get/list/search/tree/
 # context/relations/export-to-stdout/validate/check/analyze/glossary lookup/init)
 # do NOT need the gate.
-mutating_re='(^|[[:space:];&|]+)ed[[:space:]]+(card[[:space:]]+(create|update|delete|rename|set-status)|bulk[[:space:]]+(create|sync)|glossary[[:space:]]+(define|remove|rename)|spec[[:space:]]+(sync|sync-symbols)|reset)([[:space:]]|$)'
+mutating_re='(^|[[:space:];&|]+)([^[:space:];&|]*/)?ed[[:space:]]+(card[[:space:]]+(create|update|delete|rename|set-status)|bulk[[:space:]]+(create|sync)|glossary[[:space:]]+(define|remove|rename)|spec[[:space:]]+(sync|sync-symbols)|reset)([[:space:]]|$)'
 
 # Script-bypass pattern: scripting languages (python/node/ruby/perl/awk) that
 # touch `.emberdeck/cards/` directly OR that pipe into `ed bulk create --from`.

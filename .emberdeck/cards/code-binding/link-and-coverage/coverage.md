@@ -1,9 +1,9 @@
 ---
 key: code-binding/link-and-coverage/coverage
 summary: >-
-  getLinkCoverage, getUncoveredSymbols, and suggestCardScope produce
-  coverage metrics from the code_link cache.
-status: draft
+  getLinkCoverage, getUncoveredSymbols, and suggestCardScope produce coverage
+  metrics from the code_link cache.
+status: active
 type: spec
 parent: code-binding/link-and-coverage
 glossary:
@@ -16,15 +16,15 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        getUncoveredSymbols returns gildash-indexed symbols that are not
-        bound by any card's code_link cache, narrowed by caller-supplied
+        getUncoveredSymbols returns gildash-indexed symbols that are not bound
+        by any card's code_link cache, narrowed by caller-supplied
         kinds/files/excludePatterns and project ignorePatterns.
       keyword: MUST
       derives: code-binding/link-and-coverage#G-002
     - id: POST-002
       guarantee: >-
-        suggestCardScope produces card suggestions with type, files,
-        symbols, and reason.
+        suggestCardScope produces card suggestions with type, files, symbols,
+        and reason.
       keyword: SHALL
       derives: code-binding/link-and-coverage#G-002
     - id: POST-003
@@ -35,8 +35,8 @@ spec:
       derives: code-binding/link-and-coverage#G-002
     - id: POST-004
       guarantee: >-
-        coverageRatio is null when no symbols are indexed; otherwise it
-        equals coveredSymbols divided by totalSymbols.
+        coverageRatio is null when no symbols are indexed; otherwise it equals
+        coveredSymbols divided by totalSymbols.
       keyword: MUST
       derives: code-binding/link-and-coverage#G-002
   invariants:
