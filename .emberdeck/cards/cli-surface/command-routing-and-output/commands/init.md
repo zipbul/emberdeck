@@ -12,13 +12,17 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출. (init 은
-        emberdeck 프로젝트 미존재 상태에서도 호출 가능 — 부모 runner 가 init 특수경로 처리.)
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action. init can be invoked when no
+        emberdeck project exists yet; setupEmberdeck falls back to
+        buildDefaultConfig when no config file is present, and the indexed-cache
+        handle plus cards directory are auto-created.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
 
         ```jsonc
 
@@ -26,12 +30,12 @@ spec:
         [--no-gitignore] [--force]`
 
         {
-          projectRoot: string,      // 절대 경로
-          cardsDir:    string,      // 절대 경로
-          configPath:  string,      // 절대 경로
-          glossaryPath:string,      // 절대 경로
-          created: string[],        // cwd 기준 상대 경로 (사람이 읽기 친화)
-          skipped: string[],        // cwd 기준 상대 경로 (이미 존재해서 건너뜀)
+          projectRoot: string,      // absolute path
+          cardsDir:    string,      // absolute path
+          configPath:  string,      // absolute path
+          glossaryPath:string,      // absolute path
+          created: string[],        // cwd-relative paths (human-friendly)
+          skipped: string[],        // cwd-relative paths skipped because the target already existed
           gitignoreUpdated: boolean
         }
 
@@ -40,25 +44,30 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): scaffold 항상 성공 (idempotent; 이미 존재 → skipped, --force 시
-        덮어쓰기).
+        - 0 (EXIT.OK): the scaffold succeeded (idempotent; an existing target is
+        recorded in skipped[], --force overwrites).
 
-        - thrown 매핑: 명령 자체는 emberdeck 에러 클래스를 throw 하지 않음. node fs error
-        (mkdir/writeFile/readFile/appendFile/stat 의 NodeJS.ErrnoException) 는
-        toCliError default branch → `internal-error` exit 1. 별도 IO 에러 클래스 도입 시
-        `permission` 또는 `io-error` (exit 5) 매핑 가능 — 별도 PR.
+        - thrown mapping: the command itself does not throw emberdeck error
+        classes. Node fs errors (the NodeJS.ErrnoException raised by mkdir /
+        writeFile / readFile / appendFile / stat) fall through to the toCliError
+        default branch → `internal-error` exit 1. Introducing a dedicated IO
+        error class would map this to exit 5 (permission/io-error).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 디렉터리 write permission 부재 또는 일반 fs IO 실패.
+    - violation: >-
+        Directory write permission is missing or another generic fs IO error is
+        raised.
       behavior: >-
-        stderr `{level:'error', code:'internal-error', message,
-        details:{class}}` + exit 1 (node fs error → toCliError default branch).
-        별도 IO 에러 클래스 도입 후에는 `permission`/`io-error` exit 5 로 매핑 가능.
+        stderr emits `{level:'error', code:'internal-error', message,
+        details:{class}}` and the process exits 1 (the node fs error falls
+        through to the toCliError default branch). A dedicated IO error class
+        would let this map to exit 5 (permission / io-error).
 ---
