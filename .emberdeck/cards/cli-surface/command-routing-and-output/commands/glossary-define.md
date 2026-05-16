@@ -11,46 +11,57 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
 
         ```jsonc
 
         // stdout shape for `ed glossary define [pairs...] [--from f.json]`
 
-        { defined: { word, definition, action: 'created'|'updated' }[],
+        { defined: { word, definition, action: 'created' | 'updated' }[],
           failed:  { inputIndex, reason }[],
           total: number }
-        // CLI 가 op 의 `validateGlossaryEntry` (src/ops/glossary.ts:48) 를 재사용해서
-        per-entry 사전 검증.
+        // The CLI reuses the validateGlossaryEntry helper for per-entry
+        validation; entries that pass
 
-        // 통과한 entry 만 일괄 `defineGlossary` 호출, 실패는 `failed[]` 누적. op 는
-        all-or-nothing throw 그대로.
+        // are submitted in one defineGlossary batch (all-or-nothing inside the
+        op) and entries that
+
+        // fail the per-entry check accumulate in failed[] without aborting the
+        rest of the batch.
 
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): failed.length === 0 (모든 entry 성공).
+        - 0 (EXIT.OK): failed.length === 0 (every entry persisted).
 
-        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data 정상 emit, exit 만
-        2).
+        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data is still emitted;
+        the partial-failure signal is the exit code).
 
-        - thrown 매핑: 없음 (per-entry 실패는 failed[] 에 누적).
+        - thrown mapping: none (per-entry failures accumulate in failed[]).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: per-entry 검증 실패 (word 형식 / definition 빈값).
-      behavior: failed[] 누적 + stdout 정상 emit + exit 2.
+    - violation: >-
+        Per-entry validation failed (e.g. malformed word, empty definition,
+        length-limit violation).
+      behavior: >-
+        The offending entry is appended to failed[] with its inputIndex and
+        reason; stdout still emits the data shape, and the process exits 2.
 ---
