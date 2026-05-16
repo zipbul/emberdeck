@@ -9,6 +9,7 @@ import { validateCards, ensureCardsSynced, detectKeyMismatches } from '../../ops
 import { validateCodeLinks, type BrokenLink } from '../../ops/link';
 import { TRACKED_ANNOTATION_TAGS } from '../../ops/spec-sync';
 import { CardNotFoundError } from '../../card/errors';
+import { errorMessage } from '../../util/error';
 
 // ── shape helpers ──
 
@@ -160,7 +161,7 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
         key: '__internal__',
         declared: 0,
         resolved: 0,
-        ioError: { message: e instanceof Error ? e.message : String(e) },
+        ioError: { message: errorMessage(e) },
       });
       ioFailed++;
     }
@@ -203,7 +204,7 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
       }
       items.push(item);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message = errorMessage(e);
       items.push({
         key: t.key,
         declared: 0,

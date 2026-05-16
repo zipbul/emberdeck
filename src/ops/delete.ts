@@ -10,6 +10,7 @@ import { DrizzleClassificationRepository } from '../db/classification-repo';
 import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
+import { errorMessage } from '../util/error';
 
 export interface DeleteCardOptions {
   /** If true, delete even when children exist (children's parent is set to null). */
@@ -145,7 +146,7 @@ export async function deleteCard(
               } catch (e) {
                 failedChildUpdates.push({
                   cardKey: child.key,
-                  reason: e instanceof Error ? e.message : String(e),
+                  reason: errorMessage(e),
                 });
               }
             }
@@ -170,7 +171,7 @@ export async function deleteCard(
             } catch (e) {
               failedRelationUpdates.push({
                 cardKey: refKey,
-                reason: e instanceof Error ? e.message : String(e),
+                reason: errorMessage(e),
               });
             }
           }
@@ -200,7 +201,7 @@ export async function deleteCard(
             } catch (e) {
               failedCrossDomainUpdates.push({
                 cardKey: dep.key,
-                reason: e instanceof Error ? e.message : String(e),
+                reason: errorMessage(e),
               });
             }
           }

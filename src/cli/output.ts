@@ -11,6 +11,8 @@
  * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 
+import { errorMessage } from '../util/error';
+
 export interface OutputContext {
   quiet: boolean;
 }
@@ -30,7 +32,7 @@ export async function emitResult(data: unknown, ctx: OutputContext): Promise<voi
   try {
     payload = JSON.stringify(data, null, ctx.quiet ? undefined : 2) + '\n';
   } catch (e) {
-    const err = new Error(`Output encode failed: ${e instanceof Error ? e.message : String(e)}`);
+    const err = new Error(`Output encode failed: ${errorMessage(e)}`);
     (err as { _outputEncode?: boolean })._outputEncode = true;
     throw err;
   }

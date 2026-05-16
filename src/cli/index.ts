@@ -23,6 +23,7 @@ import { registerSpec } from './commands/spec';
 import { registerBulk } from './commands/bulk';
 import { registerSingle } from './commands/single';
 import { emitError } from './output';
+import { errorMessage } from '../util/error';
 import { EXIT } from './exit-codes';
 
 export function buildProgram(): Command {
@@ -73,7 +74,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       process.exit(EXIT.VALIDATION_FAILURE);
     }
     // Defensive: any non-CommanderError that reaches here is a bug.
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = errorMessage(e);
     emitError({ code: 'internal-error', message: msg });
     process.exit(EXIT.GENERIC_ERROR);
   }

@@ -12,6 +12,7 @@ import { syncCardFromFile } from './sync';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleChangelogRepository, CHANGED_BY } from '../db/changelog-repo';
 import { txDb } from '../db/connection';
+import { errorMessage } from '../util/error';
 
 /**
  * Result returned on successful `renameCard`.
@@ -188,7 +189,7 @@ export async function renameCard(
             } catch (e) {
               failedReferenceUpdates.push({
                 cardKey: ref.key,
-                reason: e instanceof Error ? e.message : String(e),
+                reason: errorMessage(e),
               });
             }
           }

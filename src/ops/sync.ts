@@ -16,6 +16,7 @@ import { txDb } from '../db/connection';
 import { readGlossary } from '../glossary/io';
 import { parseStringArrayJson, parseCrossDomainDependencies } from '../card/json-fields';
 import { batchedAllSettled } from '../util/batch';
+import { errorMessage } from '../util/error';
 
 /**
  * Serialize the principle/domain/brief/spec namespace blocks from frontmatter for DB storage.
@@ -176,7 +177,7 @@ async function* upsertCardsInTierOrder(
   for await (const { item: filePath, result } of batchedAllSettled(toRead, 20, readCardFile)) {
     if (result.status === 'rejected') {
       const err = result.reason;
-      yield { filePath, error: err instanceof Error ? err.message : String(err) };
+      yield { filePath, error: errorMessage(err) };
       continue;
     }
     parsed.set(filePath, {
@@ -238,7 +239,7 @@ async function* upsertCardsInTierOrder(
     for await (const { item: filePath, result } of batchedAllSettled(wave, 20, (f) => syncCardFromFile(ctx, f))) {
       if (result.status === 'rejected') {
         const err = result.reason;
-        yield { filePath, error: err instanceof Error ? err.message : String(err) };
+        yield { filePath, error: errorMessage(err) };
       }
     }
     waveStart += wave.length;
