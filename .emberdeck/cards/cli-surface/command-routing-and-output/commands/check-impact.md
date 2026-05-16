@@ -11,47 +11,57 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed check impact <files...> [--symbol N...]`
+
         {
-          riskLevel: 'low'|'medium'|'high'|'critical',
+          riskLevel: 'low' | 'medium' | 'high' | 'critical',
           affectedCards: {
             key, summary,
-            linkType: 'direct'|'transitive',
+            linkType: 'direct' | 'transitive',
             affectedLinks: number,
-            via?: string,                                    // transitive 시 어느 direct 카드 경유
-            linkStatus?: { valid: number, broken: number }   // direct 만 채워짐, transitive 는 undefined
+            via?: string,                                    // populated for transitive entries: the direct card that linked the change in
+            linkStatus?: { valid: number, broken: number }   // populated for direct entries only; transitive entries leave linkStatus undefined
           }[],
           newUncoveredFiles: string[],
           suggestedActions: string[],
-          maxFanIn?: number,                                 // gildash 가용 시
-          maxFanOut?: number,                                // gildash 가용 시
-          directDependents?: string[]                        // input 파일들의 직접 importer
+          maxFanIn?: number,                                 // present when the code-index reports fan-in
+          maxFanOut?: number,                                // present when the code-index reports fan-out
+          directDependents?: string[]                        // direct importers of the input files
         }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
-        - 0 (EXIT.OK): impact report 항상 (read-only; 높은 riskLevel 도 실패 아님).
-        - thrown 매핑: 없음 (read-only).
+      guarantee: >-
+        - 0 (EXIT.OK): the impact report is always returned (read-only; a high
+        riskLevel is not a failure).
+
+        - thrown mapping: none.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: files 인자 0개 (commander 가 사전 거부).
+    - violation: Zero file positionals were passed (commander rejects upstream).
       behavior: >-
-        runner-commander-fallback 경로 stderr `{level:'error',
-        code:'cli-usage-error', ...}` + exit 2.
+        Falls through the runner-commander-fallback path: stderr emits
+        `{level:'error', code:'cli-usage-error', ...}` and the process exits 2.
 ---
