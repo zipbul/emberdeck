@@ -41,7 +41,6 @@ export const ERROR_CODE_TO_EXIT: Record<string, ExitCode> = {
   'parent-validation-error': EXIT.VALIDATION_FAILURE,
   'fts-syntax-error': EXIT.VALIDATION_FAILURE,
   'activation-guard-failed': EXIT.VALIDATION_FAILURE,
-  'boundary-validation-error': EXIT.VALIDATION_FAILURE,
   // Glossary
   'glossary-parse-error': EXIT.VALIDATION_FAILURE,
   'glossary-validation-error': EXIT.VALIDATION_FAILURE,
