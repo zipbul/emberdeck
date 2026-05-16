@@ -126,6 +126,65 @@ export interface UpdateCardResult {
 }
 
 /**
+ * Record one changelog row per changed field. Called inside the dbAction
+ * transaction so changelog inserts roll back atomically with the card row.
+ *
+ * Extracted out of updateCard to keep that function focused on the
+ * orchestration, not the per-field changelog wiring (R2 phase4 #2 split).
+ */
+function recordUpdateChangelog(
+  changelogRepo: DrizzleChangelogRepository,
+  key: string,
+  prev: CardFrontmatter,
+  fields: UpdateCardFields,
+  now: string,
+): void {
+  const changedBy = CHANGED_BY.AGENT;
+  if (fields.summary !== undefined && fields.summary !== prev.summary) {
+    changelogRepo.insert({ cardKey: key, field: 'summary', oldValue: prev.summary, newValue: fields.summary, changedAt: now, changedBy });
+  }
+  if (fields.type !== undefined && fields.type !== (prev.type ?? null)) {
+    changelogRepo.insert({ cardKey: key, field: 'type', oldValue: prev.type ?? null, newValue: fields.type, changedAt: now, changedBy });
+  }
+  if (fields.status !== undefined && fields.status !== prev.status) {
+    changelogRepo.insert({ cardKey: key, field: 'status', oldValue: prev.status, newValue: fields.status, changedAt: now, changedBy });
+  }
+  if (fields.parent !== undefined && fields.parent !== (prev.parent ?? null)) {
+    changelogRepo.insert({ cardKey: key, field: 'parent', oldValue: prev.parent ?? null, newValue: fields.parent, changedAt: now, changedBy });
+  }
+  if (fields.relations !== undefined) {
+    changelogRepo.insert({
+      cardKey: key,
+      field: 'relations',
+      oldValue: prev.relations ? JSON.stringify(prev.relations) : null,
+      newValue: fields.relations ? JSON.stringify(fields.relations) : null,
+      changedAt: now,
+      changedBy,
+    });
+  }
+  if (fields.tags !== undefined) {
+    changelogRepo.insert({
+      cardKey: key,
+      field: 'tags',
+      oldValue: prev.tags ? JSON.stringify(prev.tags) : null,
+      newValue: fields.tags ? JSON.stringify(fields.tags) : null,
+      changedAt: now,
+      changedBy,
+    });
+  }
+  if (fields.glossary !== undefined) {
+    changelogRepo.insert({
+      cardKey: key,
+      field: 'glossary',
+      oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null,
+      newValue: fields.glossary ? JSON.stringify(fields.glossary) : null,
+      changedAt: now,
+      changedBy,
+    });
+  }
+}
+
+/**
  * Partially updates an existing card.
  *
  * - `fields` entries set to `undefined` are left unchanged.
@@ -307,52 +366,13 @@ export async function updateCard(
             };
             cardRepo.upsert(row);
 
-            // Record changelog for changed fields
-            const changedBy = CHANGED_BY.AGENT;
-            if (fields.summary !== undefined && fields.summary !== prev.summary) {
-              changelogRepo.insert({ cardKey: key, field: 'summary', oldValue: prev.summary, newValue: fields.summary, changedAt: now, changedBy });
-            }
-            if (fields.type !== undefined && fields.type !== (prev.type ?? null)) {
-              changelogRepo.insert({ cardKey: key, field: 'type', oldValue: prev.type ?? null, newValue: fields.type, changedAt: now, changedBy });
-            }
-            if (fields.status !== undefined && fields.status !== prev.status) {
-              changelogRepo.insert({ cardKey: key, field: 'status', oldValue: prev.status, newValue: fields.status, changedAt: now, changedBy });
-            }
-            if (fields.parent !== undefined && fields.parent !== (prev.parent ?? null)) {
-              changelogRepo.insert({ cardKey: key, field: 'parent', oldValue: prev.parent ?? null, newValue: fields.parent, changedAt: now, changedBy });
-            }
             if (fields.relations !== undefined) {
               failedRelationTargets = relationRepo.replaceForCard(key, next.relations ?? []);
-              changelogRepo.insert({
-                cardKey: key,
-                field: 'relations',
-                oldValue: prev.relations ? JSON.stringify(prev.relations) : null,
-                newValue: next.relations ? JSON.stringify(next.relations) : null,
-                changedAt: now,
-                changedBy,
-              });
             }
             if (fields.tags !== undefined) {
               classRepo.replaceTags(key, next.tags ?? []);
-              changelogRepo.insert({
-                cardKey: key,
-                field: 'tags',
-                oldValue: prev.tags ? JSON.stringify(prev.tags) : null,
-                newValue: next.tags ? JSON.stringify(next.tags) : null,
-                changedAt: now,
-                changedBy,
-              });
             }
-            if (fields.glossary !== undefined) {
-              changelogRepo.insert({
-                cardKey: key,
-                field: 'glossary',
-                oldValue: prev.glossary ? JSON.stringify(prev.glossary) : null,
-                newValue: next.glossary ? JSON.stringify(next.glossary) : null,
-                changedAt: now,
-                changedBy,
-              });
-            }
+            recordUpdateChangelog(changelogRepo, key, prev, fields, now);
           });
           const r: UpdateCardResult = { filePath, card, failedRelationTargets };
           if (warnings.length > 0) r.warnings = warnings;
