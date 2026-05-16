@@ -11,37 +11,51 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed card set-status <key> <status> [--reason TEXT]`
+
         { key, oldStatus, newStatus }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): 상태 전이 성공.
+        - 0 (EXIT.OK): the status transition succeeded.
 
-        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND);
+        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND);
         ActivationGuardError → 2 (EXIT.VALIDATION_FAILURE).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 'draft → active 전이가 activation guard 위반 (예: 자식 카드 부재 / broken link).'
+    - violation: >-
+        Transition to active leaves the activation guard preconditions unmet
+        (e.g. missing child cards on a domain, broken `@spec` binding on a
+        spec).
       behavior: >-
-        stderr `{level:'error', code:'activation-guard-failed', message,
-        details?}` + exit 2.
-    - violation: key 에 해당하는 카드 미존재
-      behavior: CardNotFoundError → stderr {code:'card-not-found'} + exit 3.
+        ActivationGuardError → stderr `{level:'error',
+        code:'activation-guard-failed', message, details:{unmetConditions}}` and
+        the process exits 2.
+    - violation: No card exists for the requested key.
+      behavior: >-
+        CardNotFoundError → stderr `{level:'error', code:'card-not-found',
+        message}` and the process exits 3.
 ---
