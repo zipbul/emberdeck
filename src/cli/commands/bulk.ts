@@ -86,7 +86,12 @@ export async function bulkCreateAction(opts: { from: string }, cmd: Command): Pr
     }));
     const failed = [...validated.rejected, ...opErrors].sort((a, b) => a.inputIndex - b.inputIndex);
 
-    const data = { created, failed, total: parsed.length };
+    const data = {
+      created,
+      failed,
+      partialKeys: opResult.partialKeys,
+      total: parsed.length,
+    };
     return { data, exitCode: failed.length > 0 ? 2 : 0 };
   }, cmd);
 }
