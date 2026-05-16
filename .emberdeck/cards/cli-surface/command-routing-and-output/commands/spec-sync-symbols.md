@@ -12,51 +12,60 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
-      guarantee: |-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+      guarantee: >-
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
+
         ```jsonc
+
         // stdout shape for `ed spec sync-symbols [--since TS]`
+
         {
-          applied: { cardKey, oldSymbol, newSymbol, file, changeType: 'renamed'|'moved' }[],
+          applied: { cardKey, oldSymbol, newSymbol, file, changeType: 'renamed' | 'moved' }[],
           skipped: {
-            // 4개 reason 의 canonical 정의는 여기 (§1.7). op 의 SymbolSyncResult.skipped 는 처음 3개만 만듦;
-            // CLI 가 `metadata-write-failed` 추가 (op 의 metadata upsert 실패 시).
+            // The op's SymbolSyncResult.skipped produces the first three reasons; the CLI adds
+            // `metadata-write-failed` when the watermark upsert at the end of the run fails.
             reason: 'no-links-referencing-old-symbol'
                   | 'symbol-removed-manual-review-required'
                   | 'card-not-found'
                   | 'metadata-write-failed',
             symbol?: string, file?: string,
-            details?: Record<string, unknown>    // 모든 키 camelCase (D9)
+            details?: Record<string, unknown>    // all keys (including inside details) are camelCase
           }[],
           total: number,            // applied.length + skipped.length
-          since: string,            // 사용된 ISO8601 watermark
-          sinceSource: 'flag'|'last-sync'|'default-24h',
-          nextSyncMarker: string|null   // metadata upsert 실패 시 null
+          since: string,            // the ISO 8601 watermark that was used
+          sinceSource: 'flag' | 'last-sync' | 'default-24h',
+          nextSyncMarker: string | null   // null when the metadata upsert that records the new watermark failed
         }
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): sync 항상 (skipped 는 실패 아님; metadata-write-failed 는
-        nextSyncMarker:null 로만 표현).
+        - 0 (EXIT.OK): sync always (skipped entries are not failures; a
+        metadata-write-failed surfaces only as nextSyncMarker=null in the data).
 
-        - thrown 매핑: 없음.
+        - thrown mapping: none.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: '--since 가 ISO8601 형식 위반.'
+    - violation: '--since does not parse as an ISO 8601 timestamp.'
       behavior: >-
-        commander 가 사전 거부 → runner-commander-fallback 경로로 stderr
-        `{level:'error', code:'cli-usage-error', ...}` + exit 2.
+        commander rejects upstream, taking the runner-commander-fallback path:
+        stderr emits `{level:'error', code:'cli-usage-error', ...}` and the
+        process exits 2.
 ---
