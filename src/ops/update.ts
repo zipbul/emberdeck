@@ -126,6 +126,75 @@ export interface UpdateCardResult {
 }
 
 /**
+ * Apply UpdateCardFields to a copy of the prior frontmatter and return the
+ * merged result. Validates parent existence/type/cycle, relation targets,
+ * namespace shape, and glossary words against the project glossary. Each
+ * undefined field leaves the prior value untouched; null or empty array
+ * deletes the field.
+ *
+ * Pure with respect to side effects on the indexed cache (no writes), but
+ * may throw CardValidationError / ParentValidationError. Extracted from
+ * updateCard to keep the orchestration small (R2 phase4 #2 split).
+ */
+function mergeUpdateFields(
+  ctx: EmberdeckContext,
+  key: string,
+  prev: CardFrontmatter,
+  fields: UpdateCardFields,
+): CardFrontmatter {
+  const next: CardFrontmatter = { ...prev };
+
+  if (fields.summary !== undefined) next.summary = fields.summary;
+  if (fields.type !== undefined) next.type = fields.type;
+  if (fields.parent !== undefined) {
+    if (fields.parent === null) {
+      delete next.parent;
+    } else {
+      validateParentExists(ctx, fields.parent);
+      validateParentType(ctx, next.type, fields.parent);
+      validateParentCycle(ctx, key, fields.parent);
+      next.parent = fields.parent;
+    }
+  }
+  if (fields.tags !== undefined) {
+    if (fields.tags === null || fields.tags.length === 0) delete next.tags;
+    else next.tags = fields.tags.map((t) => t.toLowerCase());
+  }
+  if (fields.relations !== undefined) {
+    if (fields.relations === null || fields.relations.length === 0) delete next.relations;
+    else {
+      validateRelationTargets(ctx, key, fields.relations);
+      next.relations = fields.relations;
+    }
+  }
+  if (fields.principle !== undefined) {
+    if (fields.principle === null) delete next.principle;
+    else { assertCompleteNamespace('principle', fields.principle); next.principle = fields.principle; }
+  }
+  if (fields.domain !== undefined) {
+    if (fields.domain === null) delete next.domain;
+    else { assertCompleteNamespace('domain', fields.domain); next.domain = fields.domain; }
+  }
+  if (fields.brief !== undefined) {
+    if (fields.brief === null) delete next.brief;
+    else { assertCompleteNamespace('brief', fields.brief); next.brief = fields.brief; }
+  }
+  if (fields.spec !== undefined) {
+    if (fields.spec === null) delete next.spec;
+    else { assertCompleteNamespace('spec', fields.spec); next.spec = fields.spec; }
+  }
+  if (fields.glossary !== undefined) {
+    if (fields.glossary.length === 0) {
+      delete next.glossary;
+    } else {
+      validateCardGlossaryField(fields.glossary, readGlossary(ctx));
+      next.glossary = fields.glossary;
+    }
+  }
+  return next;
+}
+
+/**
  * Record one changelog row per changed field. Called inside the dbAction
  * transaction so changelog inserts roll back atomically with the card row.
  *
@@ -226,59 +295,8 @@ export async function updateCard(
       const current = await readCardFileOrThrow(filePath, key, { checkKey: true });
 
       const prev = current.frontmatter;
-      const next: CardFrontmatter = { ...prev };
+      const next = mergeUpdateFields(ctx, key, prev, fields);
       const warnings: string[] = [];
-
-      if (fields.summary !== undefined) next.summary = fields.summary;
-      if (fields.type !== undefined) {
-        next.type = fields.type;
-      }
-      if (fields.parent !== undefined) {
-        if (fields.parent === null) {
-          delete next.parent;
-        } else {
-          validateParentExists(ctx, fields.parent);
-          validateParentType(ctx, next.type, fields.parent);
-          validateParentCycle(ctx, key, fields.parent);
-          next.parent = fields.parent;
-        }
-      }
-      if (fields.tags !== undefined) {
-        if (fields.tags === null || fields.tags.length === 0) delete next.tags;
-        else next.tags = fields.tags.map((t) => t.toLowerCase());
-      }
-      if (fields.relations !== undefined) {
-        if (fields.relations === null || fields.relations.length === 0) delete next.relations;
-        else {
-          validateRelationTargets(ctx, key, fields.relations);
-          next.relations = fields.relations;
-        }
-      }
-      if (fields.principle !== undefined) {
-        if (fields.principle === null) delete next.principle;
-        else { assertCompleteNamespace('principle', fields.principle); next.principle = fields.principle; }
-      }
-      if (fields.domain !== undefined) {
-        if (fields.domain === null) delete next.domain;
-        else { assertCompleteNamespace('domain', fields.domain); next.domain = fields.domain; }
-      }
-      if (fields.brief !== undefined) {
-        if (fields.brief === null) delete next.brief;
-        else { assertCompleteNamespace('brief', fields.brief); next.brief = fields.brief; }
-      }
-      if (fields.spec !== undefined) {
-        if (fields.spec === null) delete next.spec;
-        else { assertCompleteNamespace('spec', fields.spec); next.spec = fields.spec; }
-      }
-      // Glossary validation (M2, M3) — only when explicitly provided
-      const glossaryEntries = readGlossary(ctx);
-      if (fields.glossary !== undefined) {
-        if (fields.glossary.length === 0) delete next.glossary;
-        else {
-          validateCardGlossaryField(fields.glossary, glossaryEntries);
-          next.glossary = fields.glossary;
-        }
-      }
 
       // Type change on active card: re-validate activation, may force to draft
       if (fields.type !== undefined && fields.type !== prev.type) {
