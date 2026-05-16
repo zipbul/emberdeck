@@ -11,50 +11,68 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: runner 가 빌드된 CliRuntime + commander 검증 통과 인자로 이 명령 action 을 호출.
+      condition: >-
+        Runner has built a CliRuntime and forwarded commander-validated
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
-        성공 시 명령은 `{ data, exitCode? }` 를 반환하며 `data` 는 다음 shape:
+        On success the command returns a `{data, exitCode?}` envelope where
+        `data` matches the shape:
 
         ```jsonc
 
-        // stdout shape for `ed card update <key> [--field, --patch, --glossary,
-        --tag]`
+        // stdout shape for `ed card update <key> [--field ... | --summary ... |
+        --patch FILE | --glossary W | --tag T]`
 
         { key, filePath, status,
-          validationNotes: string[] }   // 비-치명 field warnings (예: 'status changed to draft because type changed')
+          validationNotes: string[] }   // non-fatal field warnings, e.g. "status changed to draft because type changed" when a type change on an active card would invalidate it.
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): 패치 적용 + DB / 파일 write 성공 (validationNotes 가 있어도 0).
+        - 0 (EXIT.OK): the patch was applied and the indexed cache plus the file
+        write succeeded (validationNotes being non-empty does not change the
+        exit code).
 
-        - thrown 매핑: CardNotFoundError → 3 (EXIT.NOT_FOUND); CardValidationError
-        / ParentValidationError → 2 (EXIT.VALIDATION_FAILURE).
+        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND);
+        CardValidationError / ParentValidationError / ActivationGuardError → 2
+        (EXIT.VALIDATION_FAILURE).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
     - id: INV-001
       statement: >-
-        부모 spec runner-and-output 의 INV-001~005 (stderr JSON-line 스키마 / stdout
-        disjoint / 엔벨로프 미사용 / --quiet 동작 / failure 시 stdout 무출력) 를 모두 상속.
+        Inherits INV-001..INV-005 from parent spec runner-and-output (canonical
+        stderr JSON-line schema, disjoint stdout/stderr channels, no envelope,
+        --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: 주어진 key 의 카드가 없음.
-      behavior: stderr `{level:'error', code:'card-not-found', message}` + exit 3.
-    - violation: '패치 본문이 카드 schema 와 충돌 (예: 잘못된 type, 잘못된 namespace body).'
+    - violation: No card exists for the requested key.
       behavior: >-
-        stderr `{level:'error', code:'validation-error', message, details?}` +
-        exit 2.
-    - violation: status 를 active 로 변경 시 활성화 가드 미달
+        stderr emits `{level:'error', code:'card-not-found', message}` and the
+        process exits 3.
+    - violation: >-
+        Patch body conflicts with the card schema (invalid type, malformed
+        namespace body, unresolved cross-references).
       behavior: >-
-        ActivationGuardError → stderr {code:'activation-guard-failed',
-        details:{unmetConditions}} + exit 2.
-    - violation: parent 변경 시 4-tier 위반 / parent 미존재
+        CardValidationError → stderr `{level:'error', code:'validation-error',
+        message, details?}` and the process exits 2.
+    - violation: >-
+        Transitioning status to 'active' (either explicitly via --field
+        status=active or implicitly via the activation-critical field
+        re-validation on an already-active card) leaves the activation guard
+        preconditions unmet.
       behavior: >-
-        ParentValidationError → stderr {code:'parent-validation-error'} + exit
-        2.
+        ActivationGuardError → stderr `{code:'activation-guard-failed', message,
+        details:{unmetConditions}}` and the process exits 2.
+    - violation: >-
+        Parent change violates the four-tier hierarchy or the new parent does
+        not exist; or a type change on a card with children would orphan or
+        mis-tier any direct child.
+      behavior: >-
+        ParentValidationError → stderr `{code:'parent-validation-error',
+        message}` and the process exits 2.
 ---
