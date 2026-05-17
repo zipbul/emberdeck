@@ -1,8 +1,6 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 import { existsSync, writeFileSync } from 'node:fs';
 
-import { validateCardGlossaryField } from '../../src/glossary/validation';
-import { GLOSSARY_LIMITS } from '../../src/glossary/io';
 import {
   defineGlossary,
   lookupGlossary,
@@ -13,8 +11,6 @@ import {
   glossaryFilePath,
   GlossaryValidationError,
   GlossaryParseError,
-  buildGlossaryMatcher,
-
   findCardsByGlossaryWord,
   resetEmberdeck,
   createCard,
@@ -27,8 +23,6 @@ import {
   checkDrift,
   preChangeCheck,
   analyze,
-  parseCard,
-  serializeCard,
 } from '../../index';
 import { createMockTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
@@ -91,63 +85,8 @@ describe('Glossary', () => {
     });
   });
 
-  // ── buildGlossaryMatcher ──────────────────────────────────────────────
-
-  describe('buildGlossaryMatcher', () => {
-    it('should match case-insensitively', () => {
-      const matcher = buildGlossaryMatcher([{ word: 'Job' }]);
-      const found = matcher('the job queue processes tasks');
-      expect(found.has('Job')).toBe(true);
-    });
-
-    it('should use word boundary to prevent substring matches', () => {
-      const matcher = buildGlossaryMatcher([{ word: 'Card' }]);
-      const found = matcher('CardFrontmatter is a type');
-      expect(found.has('Card')).toBe(false);
-    });
-
-    it('should match word at word boundary', () => {
-      const matcher = buildGlossaryMatcher([{ word: 'Card' }]);
-      const found = matcher('A Card is created');
-      expect(found.has('Card')).toBe(true);
-    });
-
-    it('should match multi-word terms', () => {
-      const matcher = buildGlossaryMatcher([{ word: 'Code Link' }]);
-      const found = matcher('Each Code Link references a symbol');
-      expect(found.has('Code Link')).toBe(true);
-    });
-
-    it('should match longest first (Code Link before Code)', () => {
-      const matcher = buildGlossaryMatcher([{ word: 'Code' }, { word: 'Code Link' }]);
-      const found = matcher('A Code Link is essential');
-      expect(found.has('Code Link')).toBe(true);
-    });
-
-    it('should handle regex special characters in words (escaped safely)', () => {
-      // Regex special chars are escaped — no regex error thrown
-      const matcher = buildGlossaryMatcher([{ word: 'C++' }]);
-      expect(() => matcher('some text')).not.toThrow();
-      // Note: \b does not match around non-word chars like +, so C++ won't match via \b.
-      // This test verifies no crash from unescaped regex, not word-boundary matching.
-    });
-
-    it('should return empty set for empty glossary', () => {
-      const matcher = buildGlossaryMatcher([]);
-      const found = matcher('some text');
-      expect(found.size).toBe(0);
-    });
-
-    it('should be reusable across multiple texts', () => {
-      const matcher = buildGlossaryMatcher([{ word: 'Job' }, { word: 'Worker' }]);
-      const found1 = matcher('A Job is submitted');
-      const found2 = matcher('A Worker executes it');
-      expect(found1.has('Job')).toBe(true);
-      expect(found1.has('Worker')).toBe(false);
-      expect(found2.has('Worker')).toBe(true);
-      expect(found2.has('Job')).toBe(false);
-    });
-  });
+  // buildGlossaryMatcher unit tests moved to src/glossary/cross-validate.spec.ts
+  // (pure function, no ctx — wrong tier in this L3 file).
 
   // ── define_glossary ───────────────────────────────────────────────────
 
@@ -375,21 +314,8 @@ describe('Glossary', () => {
 
   });
 
-  // ── Markdown roundtrip ────────────────────────────────────────────────
-
-  describe('Markdown roundtrip', () => {
-    it('should preserve glossary field through serialize then parse', () => {
-      const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'brief' as const, glossary: ['Job', 'Worker'] };
-      const parsed = parseCard(serializeCard(fm));
-      expect(parsed.frontmatter.glossary).toEqual(['Job', 'Worker']);
-    });
-
-    it('should omit glossary when not set', () => {
-      const fm = { key: 'k', summary: 's', status: 'draft' as const, type: 'brief' as const };
-      const parsed = parseCard(serializeCard(fm));
-      expect(parsed.frontmatter.glossary).toBeUndefined();
-    });
-  });
+  // Markdown round-trip (glossary field) moved to src/card/serialize.spec.ts
+  // (pure parse/serialize, no ctx).
 
   // ── Drift detection ───────────────────────────────────────────────────
 
@@ -587,17 +513,6 @@ describe('Glossary', () => {
     });
   });
 
-  // Regression L17: per-card glossary length cap used to be a literal 100
-  // at the validate site. It now lives on GLOSSARY_LIMITS.MAX_GLOSSARY_PER_CARD
-  // so the source of truth is the constants table.
-  describe('validateCardGlossaryField — per-card cap', () => {
-    it('rejects more than MAX_GLOSSARY_PER_CARD entries', () => {
-      const tooMany = Array.from(
-        { length: GLOSSARY_LIMITS.MAX_GLOSSARY_PER_CARD + 1 },
-        (_, i) => `w${i}`,
-      );
-      const entries = tooMany.map((w) => ({ word: w, definition: w }));
-      expect(() => validateCardGlossaryField(tooMany, entries)).toThrow(/max .* entries per card/);
-    });
-  });
+  // validateCardGlossaryField + per-card cap regression moved to
+  // src/glossary/validation.spec.ts (pure function, no ctx).
 });

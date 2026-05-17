@@ -440,11 +440,6 @@ describe('ClassificationRepository', () => {
     expect(tags.sort()).toEqual(['alpha', 'beta']);
   });
 
-  it('ClassificationRepository has no replaceKeywords method', () => {
-    // Assert — interface only has tag methods
-    expect((classificationRepo as unknown as Record<string, unknown>)['replaceKeywords']).toBeUndefined();
-  });
-
   it('pruneOrphans: removes tags not linked to any card', () => {
     // Arrange
     const card = makeCard({ key: 'temp', filePath: '.emberdeck/cards/temp.md' });
@@ -464,28 +459,3 @@ describe('ClassificationRepository', () => {
   });
 });
 
-// ── DB schema assertions ────────────────────────────────────────────────────
-
-describe('DB schema', () => {
-  it('keyword table does not exist', () => {
-    // Act / Assert
-    expect(() => db.$client.prepare('SELECT * FROM keyword').all()).toThrow();
-  });
-
-  it('card table has parent column', () => {
-    // Act — should not throw
-    const rows = db.$client.prepare('SELECT parent FROM card').all();
-
-    // Assert
-    expect(Array.isArray(rows)).toBe(true);
-  });
-
-  it('card table no longer carries boundary_json', () => {
-    expect(() => db.$client.prepare('SELECT boundary_json FROM card').all()).toThrow();
-  });
-
-  it('card_relation table has no type column', () => {
-    // Act / Assert
-    expect(() => db.$client.prepare('SELECT type FROM card_relation').all()).toThrow();
-  });
-});

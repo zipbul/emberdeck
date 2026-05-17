@@ -208,6 +208,25 @@ describe('serializeCard', () => {
     const second = serializeCard(parseCard(first).frontmatter);
     expect(second).toBe(first);
   });
+
+  // glossary field round-trip (moved from test/ops/glossary.test.ts —
+  // pure parse/serialize, no ctx needed).
+  it('round-trip preserves glossary field', () => {
+    const fm: CardFrontmatter = {
+      key: 'k', summary: 's', status: 'draft', type: 'brief',
+      glossary: ['Job', 'Worker'],
+    };
+    const parsed = parseCard(serializeCard(fm));
+    expect(parsed.frontmatter.glossary).toEqual(['Job', 'Worker']);
+  });
+
+  it('round-trip omits glossary field when not set', () => {
+    const fm: CardFrontmatter = {
+      key: 'k', summary: 's', status: 'draft', type: 'brief',
+    };
+    const parsed = parseCard(serializeCard(fm));
+    expect(parsed.frontmatter.glossary).toBeUndefined();
+  });
 });
 
 // brief.criteria.measure optional-field preservation across all 3 variants

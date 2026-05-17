@@ -12,14 +12,9 @@ describe('confirm: confirmDestructive', () => {
     const wasTty = process.stdin.isTTY;
     Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
     try {
-      let caught: Error | null = null;
-      try {
-        await confirmDestructive({ yes: false, opName: 'reset', prompt: 'do? ' });
-      } catch (e) {
-        caught = e as Error;
-      }
-      expect(caught).not.toBeNull();
-      expect(caught?.message).toMatch(/reset requires --yes when not running in interactive TTY/);
+      await expect(
+        confirmDestructive({ yes: false, opName: 'reset', prompt: 'do? ' }),
+      ).rejects.toThrow(/reset requires --yes when not running in interactive TTY/);
     } finally {
       Object.defineProperty(process.stdin, 'isTTY', { value: wasTty, configurable: true });
     }

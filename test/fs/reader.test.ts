@@ -43,20 +43,6 @@ describe('readCardFile', () => {
     fileSpy.mockRestore();
   });
 
-  it('should call Bun.file with given filePath once when invoked', async () => {
-    // Arrange
-    const filePath = '/cards/test/card.md';
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_YAML),
-    } as unknown as ReturnType<typeof Bun.file>);
-    // Act
-    await readCardFile(filePath);
-    // Assert
-    expect(fileSpy).toHaveBeenCalledTimes(1);
-    expect(fileSpy).toHaveBeenCalledWith(filePath);
-    fileSpy.mockRestore();
-  });
-
   // NE
   it('should reject when Bun.file().text() rejects', async () => {
     // Arrange
@@ -79,42 +65,15 @@ describe('readCardFile', () => {
     fileSpy.mockRestore();
   });
 
-  it('should call Bun.file with empty string when filePath is empty string', async () => {
-    // Arrange
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_YAML),
-    } as unknown as ReturnType<typeof Bun.file>);
-    // Act
-    await readCardFile('');
-    // Assert
-    expect(fileSpy).toHaveBeenCalledWith('');
-    fileSpy.mockRestore();
-  });
-
-  // ED
-  it('should call Bun.file with single-char filePath when "a" given', async () => {
-    // Arrange
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_YAML),
-    } as unknown as ReturnType<typeof Bun.file>);
-    // Act
-    await readCardFile('a');
-    // Assert
-    expect(fileSpy).toHaveBeenCalledWith('a');
-    fileSpy.mockRestore();
-  });
-
-  // ID
-  it('should return same result when called twice with same mocked output', async () => {
-    // Arrange
-    const fileSpy = spyOn(Bun, 'file').mockReturnValue({
-      text: mock(async () => VALID_CARD_YAML),
-    } as unknown as ReturnType<typeof Bun.file>);
-    // Act
-    const first = await readCardFile('/cards/x.md');
-    const second = await readCardFile('/cards/x.md');
-    // Assert
-    expect(first.frontmatter).toEqual(second.frontmatter);
-    fileSpy.mockRestore();
-  });
 });
+// Notes on removed tests (refactor 2026-05): four tests were deleted as
+// call-pattern assertions that lock implementation rather than behavior:
+//   1. "Bun.file called once with filePath" — couples to call count; behavior
+//      already covered by the filePath-field outcome test above.
+//   2. "Bun.file called with empty string" — pure mock-invocation check, no
+//      outcome assertion. Behavior is "function passes through filePath",
+//      which the outcome test (filePath field) already proves.
+//   3. "Bun.file called with single-char 'a'" — same as (2).
+//   4. "twice with same mock returns same result" — tests the mock's
+//      idempotency, not readCardFile. Real determinism is guaranteed by the
+//      function being pure given its inputs.

@@ -177,17 +177,12 @@ describe('validateCardInput', () => {
   // ── CO-1: validation order — summary checked before other fields ──
 
   it('should throw on summary validation before checking other fields when multiple fields invalid', () => {
-    // Arrange
     const tooManyTags = Array(LIMITS.ARRAY_MAX + 1).fill('t');
-    // Act
-    let thrownError: unknown;
-    try {
-      validateCardInput({ summary: '', tags: tooManyTags });
-    } catch (e) {
-      thrownError = e;
-    }
-    // Assert: CardValidationError with summary message (not tags message)
-    expect(thrownError).toBeInstanceOf(CardValidationError);
-    expect((thrownError as CardValidationError).message).toContain('summary');
+    expect(() => validateCardInput({ summary: '', tags: tooManyTags })).toThrow(
+      expect.objectContaining({
+        name: 'CardValidationError',
+        message: expect.stringContaining('summary'),
+      }),
+    );
   });
 });

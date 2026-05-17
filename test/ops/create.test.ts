@@ -26,14 +26,11 @@ describe('createCard', () => {
   });
 
 
-  it('should save provided body to file when body is given', async () => {
-    tc = await createMockTestContext();
-    await createCard(tc.ctx, {
-      key: 'with-body',
-      summary: 'With body',
-      type: 'spec',
-    });
-  });
+  // Removed: "should save provided body to file when body is given" — the
+  // test body never set a body field (cards have no `body` input — body is
+  // derived from namespace fields), and there was no expect(). The minimal
+  // create test above already covers "create succeeds + file exists" for the
+  // no-namespace case.
 
   it('should save tags to DB when tags are provided', async () => {
     tc = await createMockTestContext();

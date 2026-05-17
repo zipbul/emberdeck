@@ -283,84 +283,81 @@ describe('validateActivationGuard', () => {
   }
 
   it('brief without parent: rejected (4-tier strict)', async () => {
-    try {
-      await validateActivationGuard(ctx, { type: 'brief' });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/parent=domain/);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'brief' })).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/parent=domain/)]),
+      }),
+    );
   });
 
   it('spec without parent: rejected (4-tier strict)', async () => {
-    try {
-      await validateActivationGuard(ctx, { type: 'spec', });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/parent=brief\|spec/);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'spec' })).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/parent=brief\|spec/)]),
+      }),
+    );
   });
 
   it('brief with non-domain parent: rejected (4-tier strict)', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'p-spec', type: 'spec', filePath: '/p-spec.json' }));
-    try {
-      await validateActivationGuard(ctx, { type: 'brief', parent: 'p-spec' });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/parent must be domain/);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'brief', parent: 'p-spec' })).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/parent must be domain/)]),
+      }),
+    );
   });
 
   it('principle/domain with parent: rejected (must be root-level)', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'any-parent', type: 'domain', filePath: '/ap.json' }));
-    try {
-      await validateActivationGuard(ctx, { type: 'principle', parent: 'any-parent', principle: { statement: 's', rationale: 'r', applies_to: '*', enforcement: 'blocking' } });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/root-level/);
-    }
+    await expect(
+      validateActivationGuard(ctx, {
+        type: 'principle',
+        parent: 'any-parent',
+        principle: { statement: 's', rationale: 'r', applies_to: '*', enforcement: 'blocking' },
+      }),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/root-level/)]),
+      }),
+    );
   });
 
   it('brief type: requires brief namespace to activate', async () => {
     setupDomain();
-    try {
-      await validateActivationGuard(ctx, { type: 'brief', parent: '_dom' });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/brief.*namespace/);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'brief', parent: '_dom' })).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
+      }),
+    );
   });
 
   it('domain type with no namespace: throws ActivationGuardError', async () => {
-    try {
-      await validateActivationGuard(ctx, { type: 'domain' });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions[0]).toMatch(/domain.*namespace/);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'domain' })).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/domain.*namespace/)]),
+      }),
+    );
   });
 
   it('domain type with empty overview/scope: throws', async () => {
-    try {
-      await validateActivationGuard(ctx, {
+    await expect(
+      validateActivationGuard(ctx, {
         type: 'domain',
         domain: { overview: '', scope: 'something' },
-      });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-    }
+      }),
+    ).rejects.toBeInstanceOf(ActivationGuardError);
   });
 
   it('domain type with cross_domain_dependencies pointing at non-domain: throws', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'not-a-domain', type: 'spec', filePath: '/n.json' }));
-    try {
-      await validateActivationGuard(ctx, {
+    await expect(
+      validateActivationGuard(ctx, {
         type: 'domain',
         key: 'd',
         domain: {
@@ -368,12 +365,13 @@ describe('validateActivationGuard', () => {
           scope: 's',
           cross_domain_dependencies: [{ domain: 'not-a-domain', relationship: 'r' }],
         },
-      });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.some((m) => m.includes('not-a-domain'))).toBe(true);
-    }
+      }),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringContaining('not-a-domain')]),
+      }),
+    );
   });
 
   it('domain type with valid namespace + valid cross-deps: passes', async () => {
@@ -404,12 +402,9 @@ describe('validateActivationGuard', () => {
 
   it('spec type with undefined codeLinks: throws ActivationGuardError', async () => {
     setupBrief();
-    try {
-      await validateActivationGuard(ctx, { type: 'spec', parent: '_br' });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'spec', parent: '_br' })).rejects.toBeInstanceOf(
+      ActivationGuardError,
+    );
   });
 
   it('spec type with no gildash index passes (binding check is skipped on empty index)', async () => {
@@ -438,30 +433,24 @@ describe('validateActivationGuard', () => {
 
   it('spec type without spec namespace: throws ActivationGuardError', async () => {
     setupBrief();
-    try {
-      await validateActivationGuard(ctx, {
-        type: 'spec',
-        parent: '_br',
-        });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/spec.*namespace/);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'spec', parent: '_br' })).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/spec.*namespace/)]),
+      }),
+    );
   });
 
   it('spec type with non-spec/non-brief parent: rejected', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'p-dom', type: 'domain', filePath: '/p-dom.json' }));
-    try {
-      await validateActivationGuard(ctx, {
-        type: 'spec',
-        parent: 'p-dom',
-        });
-      expect.unreachable('should have thrown');
-    } catch (e) {
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/spec\.parent must be brief or spec/);
-    }
+    await expect(validateActivationGuard(ctx, { type: 'spec', parent: 'p-dom' })).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([
+          expect.stringMatching(/spec\.parent must be brief or spec/),
+        ]),
+      }),
+    );
   });
 });
 

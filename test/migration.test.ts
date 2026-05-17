@@ -65,6 +65,49 @@ describe('migration', () => {
     }
   });
 
+  // ── Schema regression: columns/tables removed by past migrations must stay gone ──
+  // These guard against accidental re-introduction of legacy schema. migration's
+  // existence-checks above prove the modern shape; these prove the legacy shape
+  // did not leak back. (Moved from src/db/repository.spec.ts — schema concerns
+  // belong with the migration layer, not the repo unit.)
+
+  it('removed legacy table `keyword` does not exist after migration', () => {
+    const db = createEmberdeckDb(':memory:');
+    try {
+      expect(() => db.$client.prepare('SELECT * FROM keyword').all()).toThrow();
+    } finally {
+      closeDb(db);
+    }
+  });
+
+  it('removed legacy column `card.boundary_json` does not exist after migration', () => {
+    const db = createEmberdeckDb(':memory:');
+    try {
+      expect(() => db.$client.prepare('SELECT boundary_json FROM card').all()).toThrow();
+    } finally {
+      closeDb(db);
+    }
+  });
+
+  it('removed legacy column `card_relation.type` does not exist after migration', () => {
+    const db = createEmberdeckDb(':memory:');
+    try {
+      expect(() => db.$client.prepare('SELECT type FROM card_relation').all()).toThrow();
+    } finally {
+      closeDb(db);
+    }
+  });
+
+  it('current column `card.parent` exists (covered by `card` table check above; explicit query guards against accidental drop)', () => {
+    const db = createEmberdeckDb(':memory:');
+    try {
+      const rows = db.$client.prepare('SELECT parent FROM card').all();
+      expect(Array.isArray(rows)).toBe(true);
+    } finally {
+      closeDb(db);
+    }
+  });
+
   // HP — closeDb
   it('should throw when a query is attempted after closeDb is called', () => {
     // Arrange
