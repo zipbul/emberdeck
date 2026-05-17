@@ -34,6 +34,45 @@ export interface TestContext {
 }
 
 /**
+ * Higher-order helper that guarantees TestContext cleanup runs even when the
+ * test body or the setup factory throws mid-way.
+ *
+ * Use instead of the `let tc: TestContext` + `afterEach(() => tc?.cleanup())`
+ * pattern when you need the partial-setup-leak protection: if `factory()`
+ * throws after creating some side effects (tmp dir, open DB handle), the
+ * partially-built context is still passed to `cleanup` so resources are not
+ * orphaned. The plain `?.cleanup()` pattern silently skips cleanup when
+ * `factory` throws.
+ *
+ * @example
+ *   it('does X', async () => {
+ *     await withTestContext(createTestContext, async (tc) => {
+ *       const result = await doX(tc.ctx);
+ *       expect(result).toBe(true);
+ *     });
+ *   });
+ */
+export async function withTestContext(
+  factory: () => Promise<TestContext>,
+  fn: (tc: TestContext) => Promise<void>,
+): Promise<void> {
+  let tc: TestContext | undefined;
+  try {
+    tc = await factory();
+    await fn(tc);
+  } finally {
+    if (tc) {
+      try {
+        await tc.cleanup();
+      } catch {
+        // Cleanup-best-effort: the original test error (if any) is the one
+        // worth surfacing; cleanup errors here would mask it.
+      }
+    }
+  }
+}
+
+/**
  * Minimal valid `principle` namespace body for activation tests.
  */
 export function makeTestPrinciple(): PrincipleBody {
