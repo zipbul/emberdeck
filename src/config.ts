@@ -1,4 +1,4 @@
-import type { Gildash } from '@zipbul/gildash';
+import type { IGildashAdapter } from './code-index/adapter';
 import type { EmberdeckDb } from './db/connection';
 import type { CardRepository, RelationRepository, ClassificationRepository, CodeLinkRepository, ChangelogRepository } from './db/repository';
 
@@ -38,6 +38,7 @@ export interface EmberdeckContext {
   ignorePatterns: string[];
   /** Regression guard threshold (0-1). 0 = any drifted card fails */
   regressionThreshold: number;
-  /** Gildash instance. Always initialized (setupEmberdeck throws if Gildash.open fails). */
-  gildash: Gildash;
+  /** Code-index instance, accessed through the narrow port. Always
+   *  initialized (setupEmberdeck throws if the backing engine fails to open). */
+  gildash: IGildashAdapter;
 }

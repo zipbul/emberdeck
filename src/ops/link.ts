@@ -1,4 +1,5 @@
-import type { Gildash, SymbolSearchResult } from '@zipbul/gildash';
+import type { SymbolSearchResult } from '@zipbul/gildash';
+import type { IGildashAdapter } from '../code-index/adapter';
 
 import type { EmberdeckContext } from '../config';
 import type { CodeLink } from '../card/types';
@@ -29,7 +30,7 @@ export class SymbolFileCache {
   private readonly projectNames: Array<string | undefined>;
 
   constructor(
-    private readonly gildash: Gildash,
+    private readonly gildash: IGildashAdapter,
     projectNames?: Array<string | undefined>,
   ) {
     this.projectNames = projectNames && projectNames.length > 0 ? projectNames : [undefined];
