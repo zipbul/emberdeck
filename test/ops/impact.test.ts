@@ -6,7 +6,7 @@ import {
   preChangeCheck,
   regressionGuard,
 } from '../../index';
-import { createMockTestContext as createTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('preChangeCheck', () => {
   let tc: TestContext;
@@ -16,7 +16,7 @@ describe('preChangeCheck', () => {
   });
 
   it('should find directly affected cards by file', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'direct',
       summary: 'Direct',
@@ -31,7 +31,7 @@ describe('preChangeCheck', () => {
   });
 
   it('should filter by symbol when provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'sym-match',
       summary: 'Match',
@@ -48,7 +48,7 @@ describe('preChangeCheck', () => {
   });
 
   it('should find transitive dependents', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'base',
       summary: 'Base',
@@ -71,7 +71,7 @@ describe('preChangeCheck', () => {
   });
 
   it('should calculate risk level as high when 3+ direct cards affected', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     for (let i = 0; i < 3; i++) {
       await createCard(tc.ctx, {
         key: `multi-${i}`,
@@ -86,7 +86,7 @@ describe('preChangeCheck', () => {
   });
 
   it('should calculate risk level as medium when 1-2 direct cards affected', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'med-risk',
       summary: 'Medium',
@@ -99,14 +99,14 @@ describe('preChangeCheck', () => {
   });
 
   it('should return empty results for empty files array', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await preChangeCheck(tc.ctx, []);
     expect(result.affectedCards).toHaveLength(0);
     expect(result.riskLevel).toBe('low');
   });
 
   it('should return empty results for unrelated files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'unrelated',
       summary: 'Unrelated',
@@ -119,7 +119,7 @@ describe('preChangeCheck', () => {
   });
 
   it('should include newUncoveredFiles for files not matched by any card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'covered',
       summary: 'Covered',
@@ -141,14 +141,14 @@ describe('regressionGuard', () => {
   });
 
   it('should pass when no affected cards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await regressionGuard(tc.ctx, ['src/clean.ts']);
     expect(result.passOrFail).toBe('pass');
     expect(result.driftedRatio).toBe(0);
   });
 
   it('should pass when affected cards are not drifted', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'guard-card',
       summary: 'Guard',
@@ -162,7 +162,7 @@ describe('regressionGuard', () => {
   });
 
   it('should fail when affected cards are drifted and threshold is 0', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'drifted-card',
       summary: 'Drifted',
@@ -177,19 +177,19 @@ describe('regressionGuard', () => {
   });
 
   it('should pass with empty changedFiles', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await regressionGuard(tc.ctx, []);
     expect(result.passOrFail).toBe('pass');
   });
 
   it('should return threshold in result', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await regressionGuard(tc.ctx, []);
     expect(result.threshold).toBe(0);
   });
 
   it('should pass when driftedRatio equals threshold (> not >=)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'thresh-clean',
       summary: 'Clean',
@@ -213,7 +213,7 @@ describe('regressionGuard', () => {
   });
 
   it('should fail when driftedRatio exceeds custom threshold', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'thresh2-dirty',
       summary: 'Dirty',
@@ -230,7 +230,7 @@ describe('regressionGuard', () => {
   });
 
   it('should detect drift via driftType while DB status stays active (checkDrift is read-only)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
     await createCard(tc.ctx, {
       key: 'drift-detect',

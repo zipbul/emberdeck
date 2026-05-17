@@ -11,7 +11,16 @@ import { describe, expect, it, afterEach } from 'bun:test';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { createTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, makeTestPrinciple, type TestContext } from '../helpers';
+import {
+  assertRejects,
+  createTestContext,
+  ensure4tierScaffold,
+  makeTestBrief,
+  makeTestSpec,
+  makeTestPrinciple,
+  type TestContext,
+} from '../helpers';
+import { ActivationGuardError } from '../../src/card/errors';
 import { syncCardFromFile, bulkSyncCards } from '../../src/ops/sync';
 import { createCard } from '../../src/ops/create';
 import { updateCard, updateCardStatus } from '../../src/ops/update';
@@ -61,13 +70,11 @@ describe('Structured card flow E2E', () => {
       parent: '_dom',
     });
 
-    // Activation should reject
-    await expect(updateCardStatus(tc.ctx, 'b1', 'active')).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
-      }),
+    const err = await assertRejects(
+      updateCardStatus(tc.ctx, 'b1', 'active'),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]));
   });
 
   it('activates brief with valid namespace and bad refs are caught', async () => {
@@ -88,14 +95,11 @@ describe('Structured card flow E2E', () => {
     const broken = makeTestBrief();
     broken.flow[0]!.covers = ['G-999']; // unknown goal
 
-    await expect(
+    const err = await assertRejects(
       updateCard(tc.ctx, 'b2', { brief: broken, status: 'active' }),
-    ).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/G-999/)]),
-      }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/G-999/)]));
   });
 
   it('activates spec with namespace and binds match codeLinks', async () => {

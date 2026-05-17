@@ -65,15 +65,16 @@ describe('readCardFile', () => {
     fileSpy.mockRestore();
   });
 
+  // ── Boundary inputs (no mock — real Bun.file) ─────────────────────────
+  // Previously these were asserted via toHaveBeenCalledWith on a mocked
+  // Bun.file (call-pattern assertions). Restored here as outcome assertions
+  // against real Bun.file behavior, which is what production code sees.
+
+  it('should reject with ENOENT when filePath is the empty string', async () => {
+    await expect(readCardFile('')).rejects.toThrow(/ENOENT/);
+  });
+
+  it('should reject with ENOENT when filePath is a single character that does not exist', async () => {
+    await expect(readCardFile('a')).rejects.toThrow(/ENOENT/);
+  });
 });
-// Notes on removed tests (refactor 2026-05): four tests were deleted as
-// call-pattern assertions that lock implementation rather than behavior:
-//   1. "Bun.file called once with filePath" — couples to call count; behavior
-//      already covered by the filePath-field outcome test above.
-//   2. "Bun.file called with empty string" — pure mock-invocation check, no
-//      outcome assertion. Behavior is "function passes through filePath",
-//      which the outcome test (filePath field) already proves.
-//   3. "Bun.file called with single-char 'a'" — same as (2).
-//   4. "twice with same mock returns same result" — tests the mock's
-//      idempotency, not readCardFile. Real determinism is guaranteed by the
-//      function being pure given its inputs.

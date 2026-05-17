@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import type { EmberdeckContext } from '../config';
 import { setupEmberdeck, teardownEmberdeck } from '../setup';
 import { makeCardRow as makeCard } from '../../test/fixtures/card-row';
-import { makeTestBrief, makeTestSpec } from '../../test/helpers';
+import { assertRejects, makeTestBrief, makeTestSpec } from '../../test/helpers';
 import { ParentValidationError, ActivationGuardError, CardValidationError } from './errors';
 import {
   validateParentExists,
@@ -283,80 +283,73 @@ describe('validateActivationGuard', () => {
   }
 
   it('brief without parent: rejected (4-tier strict)', async () => {
-    await expect(validateActivationGuard(ctx, { type: 'brief' })).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/parent=domain/)]),
-      }),
+    const err = await assertRejects(
+      validateActivationGuard(ctx, { type: 'brief' }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/parent=domain/)]));
   });
 
   it('spec without parent: rejected (4-tier strict)', async () => {
-    await expect(validateActivationGuard(ctx, { type: 'spec' })).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/parent=brief\|spec/)]),
-      }),
+    const err = await assertRejects(
+      validateActivationGuard(ctx, { type: 'spec' }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/parent=brief\|spec/)]));
   });
 
   it('brief with non-domain parent: rejected (4-tier strict)', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'p-spec', type: 'spec', filePath: '/p-spec.json' }));
-    await expect(validateActivationGuard(ctx, { type: 'brief', parent: 'p-spec' })).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/parent must be domain/)]),
-      }),
+    const err = await assertRejects(
+      validateActivationGuard(ctx, { type: 'brief', parent: 'p-spec' }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/parent must be domain/)]));
   });
 
   it('principle/domain with parent: rejected (must be root-level)', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'any-parent', type: 'domain', filePath: '/ap.json' }));
-    await expect(
+    const err = await assertRejects(
       validateActivationGuard(ctx, {
         type: 'principle',
         parent: 'any-parent',
         principle: { statement: 's', rationale: 'r', applies_to: '*', enforcement: 'blocking' },
       }),
-    ).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/root-level/)]),
-      }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/root-level/)]));
   });
 
   it('brief type: requires brief namespace to activate', async () => {
     setupDomain();
-    await expect(validateActivationGuard(ctx, { type: 'brief', parent: '_dom' })).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
-      }),
+    const err = await assertRejects(
+      validateActivationGuard(ctx, { type: 'brief', parent: '_dom' }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]));
   });
 
   it('domain type with no namespace: throws ActivationGuardError', async () => {
-    await expect(validateActivationGuard(ctx, { type: 'domain' })).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/domain.*namespace/)]),
-      }),
+    const err = await assertRejects(
+      validateActivationGuard(ctx, { type: 'domain' }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/domain.*namespace/)]));
   });
 
   it('domain type with empty overview/scope: throws', async () => {
-    await expect(
+    await assertRejects(
       validateActivationGuard(ctx, {
         type: 'domain',
         domain: { overview: '', scope: 'something' },
       }),
-    ).rejects.toBeInstanceOf(ActivationGuardError);
+      ActivationGuardError,
+    );
   });
 
   it('domain type with cross_domain_dependencies pointing at non-domain: throws', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'not-a-domain', type: 'spec', filePath: '/n.json' }));
-    await expect(
+    const err = await assertRejects(
       validateActivationGuard(ctx, {
         type: 'domain',
         key: 'd',
@@ -366,35 +359,33 @@ describe('validateActivationGuard', () => {
           cross_domain_dependencies: [{ domain: 'not-a-domain', relationship: 'r' }],
         },
       }),
-    ).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringContaining('not-a-domain')]),
-      }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringContaining('not-a-domain')]));
   });
 
   it('domain type with valid namespace + valid cross-deps: passes', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'sibling-dom', type: 'domain', filePath: '/sd.json' }));
-    await expect(
-      validateActivationGuard(ctx, {
-        type: 'domain',
-        key: 'self-dom',
-        domain: {
-          overview: 'over',
-          scope: 'sc',
-          cross_domain_dependencies: [{ domain: 'sibling-dom', relationship: 'r' }],
-        },
-      }),
-    ).resolves.toBeUndefined();
+    const result = await validateActivationGuard(ctx, {
+      type: 'domain',
+      key: 'self-dom',
+      domain: {
+        overview: 'over',
+        scope: 'sc',
+        cross_domain_dependencies: [{ domain: 'sibling-dom', relationship: 'r' }],
+      },
+    });
+    expect(result).toBeUndefined();
   });
 
   it('brief type with valid namespace + domain parent: passes', async () => {
     setupDomain();
-    
-    await expect(
-      validateActivationGuard(ctx, { type: 'brief', parent: '_dom', brief: makeTestBrief() }),
-    ).resolves.toBeUndefined();
+    const result = await validateActivationGuard(ctx, {
+      type: 'brief',
+      parent: '_dom',
+      brief: makeTestBrief(),
+    });
+    expect(result).toBeUndefined();
   });
 
   // `codeLinks` was removed from card schema — bindings are scanned from
@@ -402,54 +393,49 @@ describe('validateActivationGuard', () => {
 
   it('spec type with undefined codeLinks: throws ActivationGuardError', async () => {
     setupBrief();
-    await expect(validateActivationGuard(ctx, { type: 'spec', parent: '_br' })).rejects.toBeInstanceOf(
+    await assertRejects(
+      validateActivationGuard(ctx, { type: 'spec', parent: '_br' }),
       ActivationGuardError,
     );
   });
 
   it('spec type with no gildash index passes (binding check is skipped on empty index)', async () => {
     setupBrief();
-    
-    await expect(
-      validateActivationGuard(ctx, {
-        type: 'spec',
-        parent: '_br',
-        spec: makeTestSpec('src/a.ts', 'x'),
-      }),
-    ).resolves.toBeUndefined();
+    const result = await validateActivationGuard(ctx, {
+      type: 'spec',
+      parent: '_br',
+      spec: makeTestSpec('src/a.ts', 'x'),
+    });
+    expect(result).toBeUndefined();
   });
 
   it('spec type with codeLinks (gildash=undefined): passes if codeLinks exist', async () => {
     setupBrief();
-    
-    await expect(
-      validateActivationGuard(ctx, {
-        type: 'spec',
-        parent: '_br',
-        spec: makeTestSpec('src/foo.ts', 'bar'),
-      }),
-    ).resolves.toBeUndefined();
+    const result = await validateActivationGuard(ctx, {
+      type: 'spec',
+      parent: '_br',
+      spec: makeTestSpec('src/foo.ts', 'bar'),
+    });
+    expect(result).toBeUndefined();
   });
 
   it('spec type without spec namespace: throws ActivationGuardError', async () => {
     setupBrief();
-    await expect(validateActivationGuard(ctx, { type: 'spec', parent: '_br' })).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/spec.*namespace/)]),
-      }),
+    const err = await assertRejects(
+      validateActivationGuard(ctx, { type: 'spec', parent: '_br' }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/spec.*namespace/)]));
   });
 
   it('spec type with non-spec/non-brief parent: rejected', async () => {
     ctx.cardRepo.upsert(makeCard({ key: 'p-dom', type: 'domain', filePath: '/p-dom.json' }));
-    await expect(validateActivationGuard(ctx, { type: 'spec', parent: 'p-dom' })).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([
-          expect.stringMatching(/spec\.parent must be brief or spec/),
-        ]),
-      }),
+    const err = await assertRejects(
+      validateActivationGuard(ctx, { type: 'spec', parent: 'p-dom' }),
+      ActivationGuardError,
+    );
+    expect(err.unmetConditions).toEqual(
+      expect.arrayContaining([expect.stringMatching(/spec\.parent must be brief or spec/)]),
     );
   });
 });

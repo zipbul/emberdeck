@@ -23,19 +23,43 @@ async function readLineFromStdin(): Promise<string> {
   return buf.split('\n')[0] ?? '';
 }
 
-export async function confirmDestructive(opts: {
-  yes: boolean;
-  opName: string;
-  prompt: string;
-  expected?: string;
-}): Promise<void> {
+/**
+ * Optional injection seams used by tests to drive the function without
+ * monkey-patching `process.stdin.isTTY` globally. Production callers omit
+ * `env` and the defaults read from `process` as before.
+ */
+export interface ConfirmEnv {
+  stdinIsTTY: boolean;
+  stderrIsTTY: boolean;
+  readLine: () => Promise<string>;
+  write: (s: string) => void;
+}
+
+function defaultEnv(): ConfirmEnv {
+  return {
+    stdinIsTTY: process.stdin.isTTY ?? false,
+    stderrIsTTY: process.stderr.isTTY ?? false,
+    readLine: readLineFromStdin,
+    write: (s) => { process.stderr.write(s); },
+  };
+}
+
+export async function confirmDestructive(
+  opts: {
+    yes: boolean;
+    opName: string;
+    prompt: string;
+    expected?: string;
+  },
+  env: ConfirmEnv = defaultEnv(),
+): Promise<void> {
   if (opts.yes) return;
-  if (!process.stdin.isTTY || !process.stderr.isTTY) {
+  if (!env.stdinIsTTY || !env.stderrIsTTY) {
     throw new CliUsageError(`${opts.opName} requires --yes when not running in interactive TTY (DESTRUCTIVE op)`);
   }
   const expected = (opts.expected ?? 'yes').toLowerCase();
-  process.stderr.write(opts.prompt);
-  const answer = (await readLineFromStdin()).trim().toLowerCase();
+  env.write(opts.prompt);
+  const answer = (await env.readLine()).trim().toLowerCase();
   if (answer !== expected) {
     throw new CliUsageError(`${opts.opName} aborted by user`);
   }

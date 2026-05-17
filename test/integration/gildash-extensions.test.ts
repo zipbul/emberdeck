@@ -67,7 +67,7 @@ describe('syncSpecAnnotations — 4-tier annotation tags', () => {
     };
 
     tc.ctx.gildash = makeGildash({
-      searchAnnotations: ((q: { tag: string }) => annotationsByTag[q.tag] ?? []) as never,
+      searchAnnotations: (q: { tag: string }) => annotationsByTag[q.tag] ?? [],
       getSymbolsByFile: () => [
         { name: 'fnB', memberName: null, filePath: 'src/x.ts', kind: 'function' },
         { name: 'fnP', memberName: null, filePath: 'src/x.ts', kind: 'function' },

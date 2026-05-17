@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Gildash, SymbolSearchResult } from '@zipbul/gildash';
 
-import { createMockTestContext as createTestContext, type TestContext } from '../helpers';
+import { createMockTestContext, type TestContext } from '../helpers';
 import { writeCardFile } from '../../src/fs/writer';
 import { buildCardPath, normalizeSlug } from '../../index';
 import type { CardFile, CodeLink, CardRow } from '../../index';
@@ -19,7 +19,7 @@ let tc: TestContext;
 let mockSearchSymbols: ReturnType<typeof mock>;
 
 beforeEach(async () => {
-  tc = await createTestContext();
+  tc = await createMockTestContext();
   mockSearchSymbols = mock(() => [] as SymbolSearchResult[]);
   // SymbolFileCache uses getSymbolsByFile; route it through the same mock
   // so existing test cases that configure searchSymbols still drive results.

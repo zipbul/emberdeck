@@ -24,23 +24,34 @@ interface SymbolShape {
   memberName?: string | null;
 }
 
+// `AnyFn` lets tests supply a callback typed however the call site is
+// convenient (e.g. `({ tag }: { tag: string }) => ...`) without forcing
+// every test to cast to `(...args: unknown[]) => unknown`. Param type is
+// `any[]` (not `unknown[]` or `never[]`) so the bivariance accepts both
+// the structured-arg callbacks tests supply AND the loosely-typed internal
+// calls the fixture itself makes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFn = (...args: any[]) => unknown;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyAsyncFn = (...args: any[]) => Promise<unknown>;
+
 export interface MockGildashOverrides {
-  searchAnnotations?: (...args: unknown[]) => unknown[];
-  searchSymbols?: (...args: unknown[]) => unknown;
-  getSymbolChanges?: (...args: unknown[]) => unknown[];
-  getSymbolsByFile?: (...args: unknown[]) => unknown[] | null;
-  getFileInfo?: (...args: unknown[]) => unknown;
-  getDependencies?: (...args: unknown[]) => unknown;
-  listIndexedFiles?: (...args: unknown[]) => unknown[];
+  searchAnnotations?: AnyFn;
+  searchSymbols?: AnyFn;
+  getSymbolChanges?: AnyFn;
+  getSymbolsByFile?: AnyFn;
+  getFileInfo?: AnyFn;
+  getDependencies?: AnyFn;
+  listIndexedFiles?: AnyFn;
   reindex?: () => Promise<void>;
   // Cycle / fan / heritage / pattern surface — used by analyze, impact, etc.
-  hasCycle?: (...args: unknown[]) => Promise<boolean>;
-  getCyclePaths?: (...args: unknown[]) => Promise<unknown[]>;
-  getFanMetrics?: (...args: unknown[]) => Promise<unknown>;
-  getHeritageChain?: (...args: unknown[]) => Promise<unknown>;
-  searchRelations?: (...args: unknown[]) => unknown[];
-  findPattern?: (...args: unknown[]) => Promise<unknown[]>;
-  getDependents?: (...args: unknown[]) => unknown[];
+  hasCycle?: AnyAsyncFn;
+  getCyclePaths?: AnyAsyncFn;
+  getFanMetrics?: AnyAsyncFn;
+  getHeritageChain?: AnyAsyncFn;
+  searchRelations?: AnyFn;
+  findPattern?: AnyAsyncFn;
+  getDependents?: AnyFn;
 }
 
 /**

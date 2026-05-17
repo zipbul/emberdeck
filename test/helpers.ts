@@ -34,6 +34,44 @@ export interface TestContext {
 }
 
 /**
+ * Assert that a promise rejects with a specific error class, and return the
+ * typed error for further assertions.
+ *
+ * Why this exists:
+ *   - `expect(p).rejects.toBeInstanceOf(Class)` runs the assertion but
+ *     bun:test's types don't model `.rejects` as a Promise, so awaiting it
+ *     triggers TS2362-ish "await has no effect" warnings.
+ *   - `expect(p).rejects.toThrow(objectContaining({name: 'X'}))` matches on
+ *     the name string, NOT the constructor — an unrelated class with the
+ *     same `name` field would pass.
+ *   - The try/catch + expect.unreachable pattern is verbose AND silently
+ *     passes if the wrong error class is thrown (test name lies about what
+ *     it locks in).
+ *
+ * This helper does one thing: assert real `instanceof`, return typed error
+ * for downstream property assertions. Use AAA structure:
+ *
+ *   // Act
+ *   const err = await assertRejects(sut(...), ActivationGuardError);
+ *   // Assert
+ *   expect(err.unmetConditions).toEqual(expect.arrayContaining([...]));
+ */
+export async function assertRejects<E extends Error>(
+  promise: Promise<unknown>,
+  errorClass: new (...args: never[]) => E,
+): Promise<E> {
+  try {
+    await promise;
+  } catch (e) {
+    if (e instanceof errorClass) return e;
+    throw new Error(
+      `assertRejects: expected ${errorClass.name} but got ${(e as Error)?.constructor?.name ?? typeof e}: ${(e as Error)?.message ?? String(e)}`,
+    );
+  }
+  throw new Error(`assertRejects: expected ${errorClass.name} but promise resolved`);
+}
+
+/**
  * Higher-order helper that guarantees TestContext cleanup runs even when the
  * test body or the setup factory throws mid-way.
  *

@@ -15,7 +15,8 @@ import { describe, it, expect, afterEach } from 'bun:test';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 
-import { createTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { assertRejects, createTestContext, ensure4tierScaffold, makeTestBrief, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { ActivationGuardError } from '../../src/card/errors';
 import {
   createCard,
   updateCard,
@@ -30,7 +31,6 @@ import {
   validateCards,
   exportCardToFile,
   bulkSyncCards,
-  ActivationGuardError,
 } from '../../index';
 import { readCardFile } from '../../src/fs/reader';
 import { serializeCard } from '../../src/card/serialize';
@@ -789,14 +789,11 @@ describe('brief namespace enforcement (canonical structure path)', () => {
   it('rejects active brief card without brief namespace', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    await expect(
+    const err = await assertRejects(
       createCard(tc.ctx, { key: 'no-ns', summary: 'No namespace', type: 'brief', status: 'active', parent: '_dom' }),
-    ).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
-      }),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]));
   });
 
   it('allows draft brief card without namespace (body and namespace both free until activation)', async () => {
@@ -816,12 +813,11 @@ describe('brief namespace enforcement (canonical structure path)', () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'draft-no-ns', summary: 'Draft', type: 'brief', parent: '_dom' });
-    await expect(updateCardStatus(tc.ctx, 'draft-no-ns', 'active')).rejects.toThrow(
-      expect.objectContaining({
-        name: 'ActivationGuardError',
-        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
-      }),
+    const err = await assertRejects(
+      updateCardStatus(tc.ctx, 'draft-no-ns', 'active'),
+      ActivationGuardError,
     );
+    expect(err.unmetConditions).toEqual(expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]));
   });
 
   it('allows updateCardStatus to active on brief with namespace', async () => {
