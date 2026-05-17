@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { createEmberdeckDb, closeDb } from '../../src/db/connection';
 import { DrizzleCardRepository } from '../../src/db/card-repo';
 import { DrizzleRelationRepository } from '../../src/db/relation-repo';
-import { cardRelation } from '../../src/db/schema';
 import type { EmberdeckDb } from '../../src/db/connection';
 import type { CardRow } from '../../src/db/repository';
 
@@ -242,17 +241,8 @@ describe('DrizzleRelationRepository', () => {
     ).toThrow('disk I/O error');
   });
 
-  // NE — UNIQUE constraint
-  it('should throw UNIQUE constraint error when duplicate (src_card_key, dst_card_key, isReverse) is inserted directly', () => {
-    // Arrange
-    insertCard('src-u');
-    insertCard('dst-u');
-    db.insert(cardRelation).values({ srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run();
-    // Act & Assert
-    expect(() =>
-      db.insert(cardRelation).values({ srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run(),
-    ).toThrow();
-  });
+  // UNIQUE-constraint regression moved to test/migration.test.ts — it bypasses
+  // the repo (raw db.insert) and tests a schema invariant, not repo behavior.
 
   // NE — FK violation silently skipped (no warn, no throw)
   it('should silently skip FK violation without throwing in replaceForCard', () => {

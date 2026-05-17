@@ -16,7 +16,6 @@ import { syncCardFromFile, bulkSyncCards } from '../../src/ops/sync';
 import { createCard } from '../../src/ops/create';
 import { updateCard, updateCardStatus } from '../../src/ops/update';
 import { serializeCard } from '../../src/card/serialize';
-import { ActivationGuardError } from '../../src/card/errors';
 
 let tc: TestContext;
 
@@ -63,15 +62,12 @@ describe('Structured card flow E2E', () => {
     });
 
     // Activation should reject
-    let threw = false;
-    try {
-      await updateCardStatus(tc.ctx, 'b1', 'active');
-    } catch (e) {
-      threw = true;
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/brief.*namespace/);
-    }
-    expect(threw).toBe(true);
+    await expect(updateCardStatus(tc.ctx, 'b1', 'active')).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
+      }),
+    );
   });
 
   it('activates brief with valid namespace and bad refs are caught', async () => {
@@ -92,15 +88,14 @@ describe('Structured card flow E2E', () => {
     const broken = makeTestBrief();
     broken.flow[0]!.covers = ['G-999']; // unknown goal
 
-    let threw = false;
-    try {
-      await updateCard(tc.ctx, 'b2', { brief: broken, status: 'active' });
-    } catch (e) {
-      threw = true;
-      expect(e).toBeInstanceOf(ActivationGuardError);
-      expect((e as ActivationGuardError).unmetConditions.join(' ')).toMatch(/G-999/);
-    }
-    expect(threw).toBe(true);
+    await expect(
+      updateCard(tc.ctx, 'b2', { brief: broken, status: 'active' }),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/G-999/)]),
+      }),
+    );
   });
 
   it('activates spec with namespace and binds match codeLinks', async () => {

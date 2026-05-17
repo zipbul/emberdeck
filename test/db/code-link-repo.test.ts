@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { createEmberdeckDb, closeDb } from '../../src/db/connection';
 import { DrizzleCardRepository } from '../../src/db/card-repo';
 import { DrizzleCodeLinkRepository } from '../../src/db/code-link-repo';
-import { codeLink } from '../../src/db/schema';
 import type { EmberdeckDb } from '../../src/db/connection';
 import type { CardRow } from '../../src/db/repository';
 
@@ -306,14 +305,6 @@ describe('DrizzleCodeLinkRepository', () => {
     expect(repo.findByCardKey('nonexistent-card')).toHaveLength(0);
   });
 
-  // [NE] UNIQUE constraint
-  it('should throw UNIQUE constraint error when duplicate (card_key, kind, file, symbol) is inserted directly', () => {
-    // Arrange
-    insertCard('link-card');
-    db.insert(codeLink).values({ cardKey: 'link-card', kind: 'function', file: 'src/a.ts', symbol: 'fn' }).run();
-    // Act & Assert
-    expect(() =>
-      db.insert(codeLink).values({ cardKey: 'link-card', kind: 'function', file: 'src/a.ts', symbol: 'fn' }).run(),
-    ).toThrow();
-  });
+  // UNIQUE-constraint regression moved to test/migration.test.ts — it bypasses
+  // the repo (raw db.insert) and tests a schema invariant, not repo behavior.
 });

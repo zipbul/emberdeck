@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach } from 'bun:test';
 import {
   createCard,
 } from '../index';
-import { createTestContext, type TestContext } from './helpers';
+import { createMockTestContext as createTestContext, type TestContext } from './helpers';
 
 describe('setupEmberdeck / teardownEmberdeck basic config', () => {
   let tc: TestContext;

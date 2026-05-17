@@ -3,11 +3,9 @@
  */
 
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
-import { writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runEd, setupTmpProject, parseJsonLines } from './helpers';
-import { setupEmberdeck, teardownEmberdeck } from '../../src/setup';
 
 describe('Phase 2 polish: bulk create partial-success', () => {
   let tmp: string;
@@ -141,49 +139,8 @@ describe('Phase 2 polish: card export STDOUT default', () => {
   });
 });
 
-describe('Phase 2 polish: spec sync-symbols --since persistence (programmatic)', () => {
-  test('system_metadata table stores and retrieves last_symbol_sync_at', async () => {
-    // gildash unavailable in CLI test env, so verify persistence via direct DB ops.
-    const tmp = mkdtempSync(join(tmpdir(), 'meta-'));
-    mkdirSync(join(tmp, 'cards'), { recursive: true });
-    const ctx = await setupEmberdeck({ cardsDir: join(tmp, 'cards'), dbPath: join(tmp, 'data.db'), projectRoot: tmp });
-
-    // first read: empty (Bun.SQLite returns null for no rows in some versions)
-    const before = ctx.db.$client
-      .prepare('SELECT value FROM system_metadata WHERE key = ?')
-      .get('last_symbol_sync_at');
-    expect(before ?? null).toBeNull();
-
-    // upsert
-    const ts = '2026-04-27T12:00:00Z';
-    ctx.db.$client
-      .prepare(
-        'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
-      )
-      .run('last_symbol_sync_at', ts, ts);
-
-    const after = ctx.db.$client
-      .prepare('SELECT value FROM system_metadata WHERE key = ?')
-      .get('last_symbol_sync_at') as { value: string };
-    expect(after.value).toBe(ts);
-
-    // upsert overwrites
-    const ts2 = '2026-04-27T13:00:00Z';
-    ctx.db.$client
-      .prepare(
-        'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
-      )
-      .run('last_symbol_sync_at', ts2, ts2);
-
-    const overwritten = ctx.db.$client
-      .prepare('SELECT value FROM system_metadata WHERE key = ?')
-      .get('last_symbol_sync_at') as { value: string };
-    expect(overwritten.value).toBe(ts2);
-
-    await teardownEmberdeck(ctx);
-    rmSync(tmp, { recursive: true, force: true });
-  });
-});
+// system_metadata upsert moved to test/migration.test.ts — DB-layer test
+// with no CLI involvement (used raw db.$client.prepare).
 
 describe('Phase 2 polish: unknown command/option', () => {
   let tmp: string;

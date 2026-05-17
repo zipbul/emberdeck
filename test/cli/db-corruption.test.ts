@@ -31,33 +31,30 @@ describe('DB corruption / fault tolerance e2e', () => {
   });
   afterEach(() => { try { rmSync(tmp, { recursive: true, force: true }); } catch {} });
 
-  test('completely corrupt data.db file → stderr JSON-line error, no crash', async () => {
+  test('completely corrupt data.db → exit non-zero + stderr JSON-line error', async () => {
     writeFileSync(join(tmp, '.emberdeck/data.db'), 'this is not a sqlite file at all');
     try { unlinkSync(join(tmp, '.emberdeck/data.db-wal')); } catch {}
     try { unlinkSync(join(tmp, '.emberdeck/data.db-shm')); } catch {}
 
     const r = await runCli(['card', 'list'], tmp);
-    // Either recovers (exit 0 + per-command JSON on stdout) or errors (stderr JSON-line).
-    if (r.exitCode !== 0) {
-      expect(r.stdout).toBe('');
-      expect(r.stderr).toContain('"level":"error"');
-    } else {
-      JSON.parse(r.stdout); // must parse
-    }
+    // SQLite rejects the header → setupEmberdeck throws → runner surfaces
+    // exit 1 + JSON-line error on stderr.
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('"level":"error"');
   });
 
-  test('truncated data.db (file shorter than SQLite header)', async () => {
+  test('truncated data.db (file shorter than SQLite header) → exit non-zero + stderr error', async () => {
     writeFileSync(join(tmp, '.emberdeck/data.db'), 'SQ');
     try { unlinkSync(join(tmp, '.emberdeck/data.db-wal')); } catch {}
     try { unlinkSync(join(tmp, '.emberdeck/data.db-shm')); } catch {}
 
     const r = await runCli(['card', 'list'], tmp);
-    // Either recovers or emits structured error
-    if (r.exitCode === 0) {
-      JSON.parse(r.stdout);
-    } else {
-      expect(r.stderr).toContain('"level":"error"');
-    }
+    // 2-byte file (still has corrupted header from prior init) → bun:sqlite
+    // rejects on open → structured CLI error.
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('"level":"error"');
   });
 
   test('missing data.db file (after init) → re-creates DB transparently', async () => {
@@ -75,10 +72,11 @@ describe('DB corruption / fault tolerance e2e', () => {
     chmodSync(join(tmp, '.emberdeck/data.db'), 0o400);
     try {
       const r = await runCli(['card', 'create', 'p', '--type', 'brief', '--summary', 's'], tmp);
-      if (r.exitCode !== 0) {
-        expect(r.stdout).toBe('');
-        expect(r.stderr).toContain('"level":"error"');
-      }
+      // Read-only file blocks the DB write → safeWriteOperation surfaces a
+      // structured CLI error (exit 2, JSON-line on stderr).
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stdout).toBe('');
+      expect(r.stderr).toContain('"level":"error"');
     } finally {
       chmodSync(join(tmp, '.emberdeck/data.db'), 0o644);
     }

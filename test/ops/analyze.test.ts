@@ -25,12 +25,12 @@ describe('analyze — coverage field names (canonical kebab/camel per §1.7)', (
   it('coverageRatio is null when totalSymbols is 0 (no indexed code)', async () => {
     tc = await createTestContext();
     const r = await analyze(tc.ctx);
-    // Empty project ⇒ no covered symbols and ratio = null (per §1.7).
-    if (r.coverage.totalSymbols === 0) {
-      expect(r.coverage.coverageRatio).toBeNull();
-    } else {
-      expect(typeof r.coverage.coverageRatio).toBe('number');
-    }
-    expect(typeof r.coverage.coveredSymbols).toBe('number');
+    // Empty project ⇒ Gildash indexes zero TS symbols (the tmp dir has only
+    // package.json + tsconfig.json + an empty src.ts) ⇒ totalSymbols === 0
+    // and ratio is null per §1.7. The previous if/else accepted either
+    // outcome, hiding any regression that started indexing the empty file.
+    expect(r.coverage.totalSymbols).toBe(0);
+    expect(r.coverage.coverageRatio).toBeNull();
+    expect(r.coverage.coveredSymbols).toBe(0);
   });
 });

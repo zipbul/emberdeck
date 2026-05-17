@@ -3,7 +3,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { rm } from 'node:fs/promises';
 import { createEmberdeckDb, closeDb } from '../src/db/connection';
+import { codeLink, cardRelation, card } from '../src/db/schema';
 import type { EmberdeckDb } from '../src/db/connection';
+
+function insertCardRow(db: EmberdeckDb, key: string): void {
+  db.insert(card).values({
+    key,
+    summary: `Card ${key}`,
+    status: 'draft',
+    type: 'spec',
+    parent: null,
+    namespacesJson: null,
+    body: null,
+    glossaryJson: '[]',
+    filePath: `/cards/${key}.md`,
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }).run();
+}
 
 // ---- Tests ----
 
@@ -103,6 +119,80 @@ describe('migration', () => {
     try {
       const rows = db.$client.prepare('SELECT parent FROM card').all();
       expect(Array.isArray(rows)).toBe(true);
+    } finally {
+      closeDb(db);
+    }
+  });
+
+  // ── UNIQUE-constraint regressions (raw inserts; bypass repo) ──────────────
+  // Moved from test/db/{code-link,relation}-repo.test.ts — these bypass the
+  // repository's idempotent `replaceForCard` path and assert the column-level
+  // uniqueness defined in the schema. If migrations ever drop a UNIQUE
+  // constraint accidentally, the repo's INSERT-OR-IGNORE / catch-FK path
+  // would mask it; only a raw duplicate insert surfaces the schema change.
+
+  it('code_link enforces UNIQUE(card_key, kind, file, symbol)', () => {
+    const db = createEmberdeckDb(':memory:');
+    try {
+      insertCardRow(db, 'link-card');
+      db.insert(codeLink).values({ cardKey: 'link-card', kind: 'function', file: 'src/a.ts', symbol: 'fn' }).run();
+      expect(() =>
+        db.insert(codeLink).values({ cardKey: 'link-card', kind: 'function', file: 'src/a.ts', symbol: 'fn' }).run(),
+      ).toThrow();
+    } finally {
+      closeDb(db);
+    }
+  });
+
+  it('card_relation enforces UNIQUE(src_card_key, dst_card_key, is_reverse)', () => {
+    const db = createEmberdeckDb(':memory:');
+    try {
+      insertCardRow(db, 'src-u');
+      insertCardRow(db, 'dst-u');
+      db.insert(cardRelation).values({ srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run();
+      expect(() =>
+        db.insert(cardRelation).values({ srcCardKey: 'src-u', dstCardKey: 'dst-u', isReverse: false }).run(),
+      ).toThrow();
+    } finally {
+      closeDb(db);
+    }
+  });
+
+  // system_metadata upsert (moved from test/cli/phase2-polish.test.ts —
+  // it tested DB-layer upsert semantics on the system_metadata table via
+  // raw SQL, with no CLI involvement. Belongs next to migration since the
+  // table + its upsert pattern is migration-owned).
+  it('system_metadata supports INSERT … ON CONFLICT(key) DO UPDATE upsert', () => {
+    const db = createEmberdeckDb(':memory:');
+    try {
+      const before = db.$client
+        .prepare('SELECT value FROM system_metadata WHERE key = ?')
+        .get('last_symbol_sync_at');
+      expect(before ?? null).toBeNull();
+
+      const ts = '2026-04-27T12:00:00Z';
+      db.$client
+        .prepare(
+          'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+        )
+        .run('last_symbol_sync_at', ts, ts);
+
+      const after = db.$client
+        .prepare('SELECT value FROM system_metadata WHERE key = ?')
+        .get('last_symbol_sync_at') as { value: string };
+      expect(after.value).toBe(ts);
+
+      const ts2 = '2026-04-27T13:00:00Z';
+      db.$client
+        .prepare(
+          'INSERT INTO system_metadata (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
+        )
+        .run('last_symbol_sync_at', ts2, ts2);
+
+      const overwritten = db.$client
+        .prepare('SELECT value FROM system_metadata WHERE key = ?')
+        .get('last_symbol_sync_at') as { value: string };
+      expect(overwritten.value).toBe(ts2);
     } finally {
       closeDb(db);
     }

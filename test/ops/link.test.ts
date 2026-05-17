@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Gildash, SymbolSearchResult } from '@zipbul/gildash';
 
-import { createTestContext, type TestContext } from '../helpers';
+import { createMockTestContext as createTestContext, type TestContext } from '../helpers';
 import { writeCardFile } from '../../src/fs/writer';
 import { buildCardPath, normalizeSlug } from '../../index';
 import type { CardFile, CodeLink, CardRow } from '../../index';
