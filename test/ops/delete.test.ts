@@ -62,7 +62,7 @@ describe('deleteCard', () => {
 
   it('should throw CardNotFoundError when key does not exist', async () => {
     tc = await createTestContext();
-    expect(deleteCard(tc.ctx, 'ghost-del')).rejects.toBeInstanceOf(CardNotFoundError);
+    await expect(deleteCard(tc.ctx, 'ghost-del')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 
   // ── Edge ──────────────────────────────────────────────────────────────

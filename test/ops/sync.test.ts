@@ -134,7 +134,7 @@ describe('syncCardFromFile', () => {
     tc = await createTestContext();
     const filePath = join(tc.cardsDir, 'bad-yaml.md');
     await writeFile(filePath, '---\nNOT VALID YAML: [[\n---\nbody', 'utf-8');
-    expect(syncCardFromFile(tc.ctx, filePath)).rejects.toThrow();
+    await expect(syncCardFromFile(tc.ctx, filePath)).rejects.toThrow();
   });
 });
 

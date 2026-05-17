@@ -100,21 +100,21 @@ describe('renameCard', () => {
   it('should throw CardRenameSamePathError when old and new paths are identical', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'same-slug', summary: 'Same', type: 'spec' });
-    expect(renameCard(tc.ctx, 'same-slug', 'same-slug')).rejects.toBeInstanceOf(
+    await expect(renameCard(tc.ctx, 'same-slug', 'same-slug')).rejects.toBeInstanceOf(
       CardRenameSamePathError,
     );
   });
 
   it('should throw CardNotFoundError when source card does not exist', async () => {
     tc = await createTestContext();
-    expect(renameCard(tc.ctx, 'ghost', 'target')).rejects.toBeInstanceOf(CardNotFoundError);
+    await expect(renameCard(tc.ctx, 'ghost', 'target')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 
   it('should throw CardAlreadyExistsError when target card already exists', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'src-conflict', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'dst-conflict', summary: 'Dst', type: 'spec' });
-    expect(renameCard(tc.ctx, 'src-conflict', 'dst-conflict')).rejects.toBeInstanceOf(
+    await expect(renameCard(tc.ctx, 'src-conflict', 'dst-conflict')).rejects.toBeInstanceOf(
       CardAlreadyExistsError,
     );
   });
@@ -122,7 +122,7 @@ describe('renameCard', () => {
   it('should throw CardKeyError when newKey is invalid', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'valid-src', summary: 'Valid', type: 'spec' });
-    expect(renameCard(tc.ctx, 'valid-src', '')).rejects.toBeInstanceOf(CardKeyError);
+    await expect(renameCard(tc.ctx, 'valid-src', '')).rejects.toBeInstanceOf(CardKeyError);
   });
 
   // ── Edge ──────────────────────────────────────────────────────────────
@@ -140,7 +140,7 @@ describe('renameCard', () => {
   it('should throw CardNotFoundError when source missing even if target exists', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'co-dst', summary: 'Dst exists', type: 'spec' });
-    expect(renameCard(tc.ctx, 'co-src-missing', 'co-dst')).rejects.toBeInstanceOf(
+    await expect(renameCard(tc.ctx, 'co-src-missing', 'co-dst')).rejects.toBeInstanceOf(
       CardNotFoundError,
     );
   });
@@ -191,7 +191,7 @@ describe('renameCard', () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'idp-rnm-src', summary: 'Idp', type: 'spec' });
     await renameCard(tc.ctx, 'idp-rnm-src', 'idp-rnm-dst');
-    expect(renameCard(tc.ctx, 'idp-rnm-src', 'idp-rnm-dst2')).rejects.toBeInstanceOf(
+    await expect(renameCard(tc.ctx, 'idp-rnm-src', 'idp-rnm-dst2')).rejects.toBeInstanceOf(
       CardNotFoundError,
     );
   });

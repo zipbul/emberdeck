@@ -99,7 +99,7 @@ describe('updateCard', () => {
 
   it('should throw CardNotFoundError when key does not exist', async () => {
     tc = await createTestContext();
-    expect(updateCard(tc.ctx, 'nonexistent', { summary: 'X' })).rejects.toBeInstanceOf(
+    await expect(updateCard(tc.ctx, 'nonexistent', { summary: 'X' })).rejects.toBeInstanceOf(
       CardNotFoundError,
     );
   });
@@ -124,7 +124,7 @@ describe('updateCard', () => {
 
   it('should throw CardNotFoundError when updateCardStatus key does not exist', async () => {
     tc = await createTestContext();
-    expect(
+    await expect(
       updateCardStatus(tc.ctx, 'ghost-card', 'active'),
     ).rejects.toBeInstanceOf(CardNotFoundError);
   });

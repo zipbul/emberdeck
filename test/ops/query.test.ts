@@ -32,7 +32,7 @@ describe('getCard', () => {
 
   it('should throw CardNotFoundError when card does not exist', async () => {
     tc = await createTestContext();
-    expect(getCard(tc.ctx, 'nonexistent')).rejects.toBeInstanceOf(CardNotFoundError);
+    await expect(getCard(tc.ctx, 'nonexistent')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 
   it('should return correct frontmatter contents matching what was created', async () => {
@@ -122,7 +122,7 @@ describe('getCards', () => {
 
   it('should throw on invalid key format (not CardNotFoundError)', async () => {
     tc = await createTestContext();
-    expect(getCards(tc.ctx, [''])).rejects.toThrow(CardKeyError);
+    await expect(getCards(tc.ctx, [''])).rejects.toThrow(CardKeyError);
   });
 });
 
@@ -330,7 +330,7 @@ describe('getCardContext', () => {
 
   it('should throw CardNotFoundError when card file does not exist', async () => {
     tc = await createTestContext();
-    expect(getCardContext(tc.ctx, 'ghost-card')).rejects.toBeInstanceOf(CardNotFoundError);
+    await expect(getCardContext(tc.ctx, 'ghost-card')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 });
 

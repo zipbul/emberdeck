@@ -83,21 +83,21 @@ describe('createCard', () => {
   it('should throw CardAlreadyExistsError when key already exists', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'dup-card', summary: 'First', type: 'spec' });
-    expect(createCard(tc.ctx, { key: 'dup-card', summary: 'Second', type: 'spec' })).rejects.toBeInstanceOf(
+    await expect(createCard(tc.ctx, { key: 'dup-card', summary: 'Second', type: 'spec' })).rejects.toBeInstanceOf(
       CardAlreadyExistsError,
     );
   });
 
   it('should throw CardKeyError when key is empty string', async () => {
     tc = await createTestContext();
-    expect(createCard(tc.ctx, { key: '', summary: 'Empty', type: 'spec' })).rejects.toBeInstanceOf(
+    await expect(createCard(tc.ctx, { key: '', summary: 'Empty', type: 'spec' })).rejects.toBeInstanceOf(
       CardKeyError,
     );
   });
 
   it('should throw CardKeyError when key contains path traversal', async () => {
     tc = await createTestContext();
-    expect(
+    await expect(
       createCard(tc.ctx, { key: '../evil', summary: 'Evil', type: 'spec' }),
     ).rejects.toBeInstanceOf(CardKeyError);
   });
@@ -172,7 +172,7 @@ describe('createCard', () => {
   it('should throw CardAlreadyExistsError on second call with same key', async () => {
     tc = await createTestContext();
     await createCard(tc.ctx, { key: 'idp-card', summary: 'First', type: 'spec' });
-    expect(createCard(tc.ctx, { key: 'idp-card', summary: 'Again', type: 'spec' })).rejects.toBeInstanceOf(
+    await expect(createCard(tc.ctx, { key: 'idp-card', summary: 'Again', type: 'spec' })).rejects.toBeInstanceOf(
       CardAlreadyExistsError,
     );
   });
