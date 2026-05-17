@@ -30,7 +30,7 @@ import {
   parseCard,
   serializeCard,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
 describe('Glossary', () => {
   let tc: TestContext;
@@ -43,36 +43,36 @@ describe('Glossary', () => {
 
   describe('I/O', () => {
     it('should return empty array when glossary.yaml does not exist', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(readGlossary(tc.ctx)).toEqual([]);
     });
 
     it('should return empty array when glossary.yaml is empty', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       writeFileSync(glossaryFilePath(tc.ctx), '', 'utf-8');
       expect(readGlossary(tc.ctx)).toEqual([]);
     });
 
     it('should throw GlossaryParseError on malformed YAML', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       writeFileSync(glossaryFilePath(tc.ctx), '{{invalid yaml', 'utf-8');
       expect(() => readGlossary(tc.ctx)).toThrow(GlossaryParseError);
     });
 
     it('should throw GlossaryParseError when YAML is not an array', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       writeFileSync(glossaryFilePath(tc.ctx), 'word: Job\ndefinition: work', 'utf-8');
       expect(() => readGlossary(tc.ctx)).toThrow(GlossaryParseError);
     });
 
     it('should create glossary.yaml on first define_glossary call', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'A unit of work' }] });
       expect(existsSync(glossaryFilePath(tc.ctx))).toBe(true);
     });
 
     it('should write entries sorted alphabetically', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, {
         entries: [
           { word: 'Zebra', definition: 'Z animal' },
@@ -85,7 +85,7 @@ describe('Glossary', () => {
     });
 
     it('should write empty file when all entries removed', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       writeGlossary(tc.ctx, []);
       expect(readGlossary(tc.ctx)).toEqual([]);
     });
@@ -153,7 +153,7 @@ describe('Glossary', () => {
 
   describe('defineGlossary', () => {
     it('should create multiple words in one call', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       const result = await defineGlossary(tc.ctx, {
         entries: [
           { word: 'Job', definition: 'A unit of work' },
@@ -166,7 +166,7 @@ describe('Glossary', () => {
     });
 
     it('should upsert existing word', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'Old def' }] });
       const result = await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'New def' }] });
       expect(result.results[0]!.action).toBe('updated');
@@ -174,26 +174,26 @@ describe('Glossary', () => {
     });
 
     it('should reject empty entries array', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(() => defineGlossary(tc.ctx, { entries: [] })).toThrow(GlossaryValidationError);
     });
 
     it('should reject word exceeding max length', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(() => defineGlossary(tc.ctx, {
         entries: [{ word: 'x'.repeat(101), definition: 'too long' }],
       })).toThrow(GlossaryValidationError);
     });
 
     it('should reject definition exceeding max length', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(() => defineGlossary(tc.ctx, {
         entries: [{ word: 'ok', definition: 'x'.repeat(1001) }],
       })).toThrow(GlossaryValidationError);
     });
 
     it('should reject entire batch when one entry invalid (all-or-nothing)', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(() => defineGlossary(tc.ctx, {
         entries: [
           { word: 'Good', definition: 'valid' },
@@ -205,7 +205,7 @@ describe('Glossary', () => {
     });
 
     it('should reject when total exceeds MAX_ENTRIES', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       for (let batch = 0; batch < 10; batch++) {
         await defineGlossary(tc.ctx, {
           entries: Array.from({ length: 50 }, (_, i) => ({
@@ -223,19 +223,19 @@ describe('Glossary', () => {
 
   describe('lookupGlossary', () => {
     it('should find exact match (case-sensitive)', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(lookupGlossary(tc.ctx, 'Job').found).toBe(true);
     });
 
     it('should not find case-mismatched word', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(lookupGlossary(tc.ctx, 'job').found).toBe(false);
     });
 
     it('should return all entries when no word provided', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, {
         entries: [{ word: 'A', definition: 'a' }, { word: 'B', definition: 'b' }],
       });
@@ -247,19 +247,19 @@ describe('Glossary', () => {
 
   describe('removeGlossary', () => {
     it('should remove existing word', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await removeGlossary(tc.ctx, 'Job');
       expect(readGlossary(tc.ctx)).toHaveLength(0);
     });
 
     it('should reject nonexistent word', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(() => removeGlossary(tc.ctx, 'Nope')).toThrow(/not found/);
     });
 
     it('should report affected card keys', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c1', summary: 'Job card', type: 'brief', glossary: ['Job'] });
       const result = await removeGlossary(tc.ctx, 'Job');
@@ -271,7 +271,7 @@ describe('Glossary', () => {
 
   describe('renameGlossary', () => {
     it('should rename word in glossary and update card DB + file', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'rc', summary: 'Job card', type: 'brief', glossary: ['Job'] });
 
@@ -287,25 +287,25 @@ describe('Glossary', () => {
     });
 
     it('should update definition when provided', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'old' }] });
       await renameGlossary(tc.ctx, 'Job', 'Task', 'new def');
       expect(readGlossary(tc.ctx).find(e => e.word === 'Task')!.definition).toBe('new def');
     });
 
     it('should reject when newWord already exists', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Task', definition: 'b' }] });
       expect(() => renameGlossary(tc.ctx, 'Job', 'Task')).toThrow(/already exists/);
     });
 
     it('should reject when oldWord not found', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(() => renameGlossary(tc.ctx, 'Nope', 'New')).toThrow(/not found/);
     });
 
     it('same-name rename is rejected — definition-only update is `defineGlossary` upsert', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'old' }] });
       expect(() => renameGlossary(tc.ctx, 'Job', 'Job', 'new')).toThrow(/already exists/);
     });
@@ -315,41 +315,41 @@ describe('Glossary', () => {
 
   describe('Card validation', () => {
     it('M1: should reject create_card without glossary when glossary.yaml exists', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' }))
         .toThrow(/glossary field is required/);
     });
 
     it('M1: should reject create_card with empty glossary when glossary.yaml exists', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: [] }))
         .toThrow(/glossary field is required/);
     });
 
     it('should allow create_card without glossary when no glossary.yaml', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       const r = await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       expect(r.fullKey).toBe('c');
     });
 
     it('M2: should reject nonexistent glossary word on create', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: ['Nope'] }))
         .toThrow(/not found in project glossary/);
     });
 
     it('M3: should reject duplicate glossary entries on create', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       expect(() => createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief', glossary: ['Job', 'Job'] }))
         .toThrow(/duplicate/);
     });
 
     it('should store glossary in DB and file on create', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       const r = await createCard(tc.ctx, { key: 'c', summary: 'Job card', type: 'brief', glossary: ['Job'] });
       expect(r.card.frontmatter.glossary).toEqual(['Job']);
@@ -359,7 +359,7 @@ describe('Glossary', () => {
     });
 
     it('should validate glossary on update when provided', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       expect(() => updateCard(tc.ctx, 'c', { glossary: ['Nope'] }))
@@ -367,7 +367,7 @@ describe('Glossary', () => {
     });
 
     it('should allow update without glossary field (no re-validation)', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       const r = await updateCard(tc.ctx, 'c', { summary: 'new' });
       expect(r.card.frontmatter.summary).toBe('new');
@@ -395,7 +395,7 @@ describe('Glossary', () => {
 
   describe('Drift detection', () => {
     it('should detect glossary_broken after word removal', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await ensure4tierScaffold(tc.ctx);
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief(), glossary: ['Job'] });
@@ -405,7 +405,7 @@ describe('Glossary', () => {
     });
 
     it('should NOT mutate active card status — read-only', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await ensure4tierScaffold(tc.ctx);
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', status: 'active', parent: '_dom', brief: makeTestBrief(), glossary: ['Job'] });
@@ -417,7 +417,7 @@ describe('Glossary', () => {
     });
 
     it('should skip draft cards', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
@@ -431,7 +431,7 @@ describe('Glossary', () => {
 
   describe('validateCards', () => {
     it('should report glossary-broken', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await removeGlossary(tc.ctx, 'Job');
@@ -440,7 +440,7 @@ describe('Glossary', () => {
     });
 
     it('should report glossary-unused', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Orphan', definition: 'b' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const result = await validateCards(tc.ctx);
@@ -453,7 +453,7 @@ describe('Glossary', () => {
 
   describe('Read path', () => {
     it('get_card should include glossary field', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const result = await getCard(tc.ctx, 'c');
@@ -461,7 +461,7 @@ describe('Glossary', () => {
     });
 
     it('list_cards should include glossaryJson in response', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const rows = listCards(tc.ctx);
@@ -470,7 +470,7 @@ describe('Glossary', () => {
     });
 
     it('export_card_to_file should include glossary in frontmatter', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await exportCardToFile(tc.ctx, 'c');
@@ -479,7 +479,7 @@ describe('Glossary', () => {
     });
 
     it('sync_card_from_file should parse glossary into DB', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       // Re-sync from file
@@ -490,7 +490,7 @@ describe('Glossary', () => {
     });
 
     it('cards with empty glossary_json should not have glossary field', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await createCard(tc.ctx, { key: 'c', summary: 's', type: 'brief' });
       const result = await getCard(tc.ctx, 'c');
       expect(result.card.frontmatter.glossary).toBeUndefined();
@@ -501,7 +501,7 @@ describe('Glossary', () => {
 
   describe('Integration', () => {
     it('pre_change_check should include glossary entries (M8)', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       const result = await preChangeCheck(tc.ctx, ['src/foo.ts']);
       expect(result.glossary).toBeDefined();
@@ -509,13 +509,13 @@ describe('Glossary', () => {
     });
 
     it('pre_change_check should omit glossary when empty', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       const result = await preChangeCheck(tc.ctx, ['src/foo.ts']);
       expect(result.glossary).toBeUndefined();
     });
 
     it('analyze should include glossary stats', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Orphan', definition: 'b' }] });
       await createCard(tc.ctx, { key: 'c', summary: 'Job', type: 'brief', glossary: ['Job'] });
       const result = await analyze(tc.ctx);
@@ -528,7 +528,7 @@ describe('Glossary', () => {
 
   describe('findCardsByGlossaryWord', () => {
     it('should find cards declaring a specific glossary word', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'a' }, { word: 'Worker', definition: 'b' }] });
       await createCard(tc.ctx, { key: 'c1', summary: 'Job card', type: 'brief', glossary: ['Job'] });
       await createCard(tc.ctx, { key: 'c2', summary: 'Both card', type: 'brief', glossary: ['Job', 'Worker'] });
@@ -544,7 +544,7 @@ describe('Glossary', () => {
     });
 
     it('should return empty array for unknown word', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       expect(findCardsByGlossaryWord(tc.ctx, 'Nope')).toEqual([]);
     });
   });
@@ -553,7 +553,7 @@ describe('Glossary', () => {
 
   describe('resetEmberdeck', () => {
     it('should delete all cards and clear glossary', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await defineGlossary(tc.ctx, { entries: [{ word: 'Job', definition: 'work' }] });
       await createCard(tc.ctx, { key: 'c1', summary: 'Job', type: 'brief', glossary: ['Job'] });
       await createCard(tc.ctx, { key: 'c2', summary: 'Job 2', type: 'brief', glossary: ['Job'] });
@@ -569,7 +569,7 @@ describe('Glossary', () => {
     });
 
     it('should succeed on empty state', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       const result = await resetEmberdeck(tc.ctx);
       expect(result.cardsDeleted).toBe(0);
       expect(result.glossaryCleared).toBe(true);
@@ -579,7 +579,7 @@ describe('Glossary', () => {
     // The result now exposes `failedFileDeletes` as an always-present array so
     // callers see which card files failed to unlink.
     it('returns failedFileDeletes (empty when no file errors)', async () => {
-      tc = await createTestContext();
+      tc = await createMockTestContext();
       await createCard(tc.ctx, { key: 'r1', summary: 'r1', type: 'spec' });
       const result = await resetEmberdeck(tc.ctx);
       expect(Array.isArray(result.failedFileDeletes)).toBe(true);

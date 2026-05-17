@@ -5,7 +5,7 @@ import { createCard, updateCard, updateCardStatus } from '../../index';
 import {
   CardNotFoundError,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
 describe('updateCard', () => {
   let tc: TestContext;
@@ -17,7 +17,7 @@ describe('updateCard', () => {
   // ── Happy Path ──────────────────────────────────────────────────────────
 
   it('should update summary in file and DB when summary field is provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'upd-summary', summary: 'Old', type: 'spec' });
     await updateCard(tc.ctx, 'upd-summary', { summary: 'New summary' });
     const row = tc.ctx.cardRepo.findByKey('upd-summary');
@@ -26,7 +26,7 @@ describe('updateCard', () => {
 
 
   it('should replace tags in DB when tags array is provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'upd-tag', summary: 'Tag', type: 'spec', tags: ['x'] });
     await updateCard(tc.ctx, 'upd-tag', { tags: ['y', 'z'] });
     const tags = tc.ctx.classificationRepo.findTagsByCard('upd-tag');
@@ -35,7 +35,7 @@ describe('updateCard', () => {
   });
 
   it('should replace relations in DB when relations array is provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'upd-rel-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'upd-rel-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'upd-rel-src', {
@@ -46,7 +46,7 @@ describe('updateCard', () => {
   });
 
   it('should update multiple fields simultaneously when several fields provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'upd-multi', summary: 'Multi', type: 'spec' });
     const result = await updateCard(tc.ctx, 'upd-multi', {
       summary: 'Updated multi',
@@ -55,7 +55,7 @@ describe('updateCard', () => {
   });
 
   it('should return { filePath, card } with correct shape', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'upd-shape', summary: 'Shape', type: 'spec' });
     const result = await updateCard(tc.ctx, 'upd-shape', { summary: 'Updated shape' });
     expect(result.filePath).toContain('upd-shape.md');
@@ -63,13 +63,13 @@ describe('updateCard', () => {
   });
 
   it('rejects empty fields object — wasteful no-op write', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'upd-nop', summary: 'No change', type: 'spec' });
     await expect(updateCard(tc.ctx, 'upd-nop', {})).rejects.toThrow(/no fields/);
   });
 
   it('should preserve existing body when no namespace field is in the update payload', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'upd-body-prsv', summary: 'Preserve', type: 'spec' });
     const before = tc.ctx.cardRepo.findByKey('upd-body-prsv')?.body;
     await updateCard(tc.ctx, 'upd-body-prsv', { summary: 'Changed' });
@@ -79,7 +79,7 @@ describe('updateCard', () => {
   });
 
   it('should update status in DB when updateCardStatus is called', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'st-card', summary: 'Status', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'st-card', 'active');
@@ -88,7 +88,7 @@ describe('updateCard', () => {
   });
 
   it('should update status in file frontmatter when updateCardStatus is called', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'st-file', summary: 'Status file', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     const result = await updateCardStatus(tc.ctx, 'st-file', 'active');
@@ -98,14 +98,14 @@ describe('updateCard', () => {
   // ── Negative / Error ───────────────────────────────────────────────────
 
   it('should throw CardNotFoundError when key does not exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(updateCard(tc.ctx, 'nonexistent', { summary: 'X' })).rejects.toBeInstanceOf(
       CardNotFoundError,
     );
   });
 
   it('should throw CardNotFoundError when file exists but frontmatter.key mismatches in updateCard', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const wrongPath = join(tc.ctx.cardsDir, 'mismatch-upd.json');
     await Bun.write(wrongPath, '---\nkey: different-key\nsummary: s\nstatus: draft\ntype: spec\n---\n');
     await expect(
@@ -114,7 +114,7 @@ describe('updateCard', () => {
   });
 
   it('should throw CardNotFoundError when file exists but frontmatter.key mismatches in updateCardStatus', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const wrongPath = join(tc.ctx.cardsDir, 'mismatch-st.json');
     await Bun.write(wrongPath, '---\nkey: different-key\nsummary: s\nstatus: draft\ntype: spec\n---\n');
     await expect(
@@ -123,7 +123,7 @@ describe('updateCard', () => {
   });
 
   it('should throw CardNotFoundError when updateCardStatus key does not exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(
       updateCardStatus(tc.ctx, 'ghost-card', 'active'),
     ).rejects.toBeInstanceOf(CardNotFoundError);
@@ -132,14 +132,14 @@ describe('updateCard', () => {
   // ── Edge ──────────────────────────────────────────────────────────────
 
   it('should remove tags from DB when tags is null', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'tag-null', summary: 'Tag null', type: 'spec', tags: ['y'] });
     await updateCard(tc.ctx, 'tag-null', { tags: null });
     expect(tc.ctx.classificationRepo.findTagsByCard('tag-null')).toHaveLength(0);
   });
 
   it('should remove relations from DB when relations is null', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'rel-null-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'rel-null-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'rel-null-src', {
@@ -150,7 +150,7 @@ describe('updateCard', () => {
   });
 
   it('should remove relations from DB when relations is empty array', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'rel-empty-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'rel-empty-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'rel-empty-src', {
@@ -163,7 +163,7 @@ describe('updateCard', () => {
   // ── Corner ────────────────────────────────────────────────────────────
 
   it('should remove all classifications when tags and relations are all null', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'all-null-src', summary: 'All null', type: 'spec' });
     await createCard(tc.ctx, { key: 'all-null-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'all-null-src', {
@@ -179,7 +179,7 @@ describe('updateCard', () => {
   });
 
   it('should update DB row and file when updateCardStatus is called while DB row is missing', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'st-no-db', summary: 'No DB', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     tc.ctx.cardRepo.deleteByKey('st-no-db');
@@ -195,7 +195,7 @@ describe('updateCard', () => {
   // ── State Transition ──────────────────────────────────────────────────
 
   it('should reflect latest value after multiple consecutive updates', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'multi-upd', summary: 'First', type: 'spec' });
     await updateCard(tc.ctx, 'multi-upd', { summary: 'Second' });
     await updateCard(tc.ctx, 'multi-upd', { summary: 'Third' });
@@ -204,7 +204,7 @@ describe('updateCard', () => {
   });
 
   it('should reflect latest status after multiple status transitions', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'multi-st', summary: 'Status', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'multi-st', 'active');
@@ -216,7 +216,7 @@ describe('updateCard', () => {
   // ── Idempotency ───────────────────────────────────────────────────────
 
   it('should produce identical result when same update is applied twice', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'idp-upd', summary: 'Idempotent', type: 'spec' });
     await updateCard(tc.ctx, 'idp-upd', { summary: 'Same summary' });
     const result = await updateCard(tc.ctx, 'idp-upd', { summary: 'Same summary' });
@@ -233,7 +233,7 @@ describe('updateCardStatus return shape', () => {
   });
 
   it('returns oldStatus = previous status before mutation', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'old-status-card', summary: 'S', type: 'spec' });
     // Card starts as draft (default).
     const r = await updateCardStatus(tc.ctx, 'old-status-card', 'drifted');
@@ -242,7 +242,7 @@ describe('updateCardStatus return shape', () => {
   });
 
   it('oldStatus reflects the status at call time across successive transitions', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'chain-card', summary: 'S', type: 'spec' });
     const first = await updateCardStatus(tc.ctx, 'chain-card', 'drifted');
     expect(first.oldStatus).toBe('draft');

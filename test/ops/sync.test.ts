@@ -15,7 +15,7 @@ import {
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
-import { createTestContext, makeTestSpec, type TestContext } from '../helpers';
+import { createMockTestContext, makeTestSpec, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string) {
   const content = serializeCard(
@@ -34,7 +34,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should create DB card row when syncing a new file', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const filePath = await writeTestCardFile(tc.cardsDir, 'sync-new', 'New sync card');
     await syncCardFromFile(tc.ctx, filePath);
     const row = tc.ctx.cardRepo.findByKey('sync-new');
@@ -43,7 +43,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should update existing DB card row when syncing changed file', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'sync-upd', summary: 'Original', type: 'spec' });
     const filePath = await writeTestCardFile(tc.cardsDir, 'sync-upd', 'Updated by sync');
     await syncCardFromFile(tc.ctx, filePath);
@@ -52,7 +52,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should update DB relations when syncing file that has relations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'sync-rel-dst', summary: 'Dst', type: 'spec' });
     const content = serializeCard(
       {
@@ -71,7 +71,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should update DB tags when syncing file with classification', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const content = serializeCard(
       {
         key: 'sync-cls',
@@ -88,7 +88,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should replace relations with empty array when syncing file with no relations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'sync-norel-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'sync-norel-dst', summary: 'Dst', type: 'spec' });
     const filePathWithRel = join(tc.cardsDir, 'sync-norel-src.md');
@@ -112,7 +112,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should reflect latest values after syncing same file twice', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'sync-twice', 'First sync');
     await syncCardFromFile(tc.ctx, join(tc.cardsDir, 'sync-twice.md'));
     await writeTestCardFile(tc.cardsDir, 'sync-twice', 'Second sync');
@@ -122,7 +122,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should keep exactly one DB row after syncing same file twice', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const filePath = await writeTestCardFile(tc.cardsDir, 'sync-idp', 'Idempotent');
     await syncCardFromFile(tc.ctx, filePath);
     await syncCardFromFile(tc.ctx, filePath);
@@ -131,7 +131,7 @@ describe('syncCardFromFile', () => {
   });
 
   it('should propagate error when card file has invalid YAML frontmatter', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const filePath = join(tc.cardsDir, 'bad-yaml.md');
     await writeFile(filePath, '---\nNOT VALID YAML: [[\n---\nbody', 'utf-8');
     await expect(syncCardFromFile(tc.ctx, filePath)).rejects.toThrow();
@@ -146,14 +146,14 @@ describe('removeCardByFile', () => {
   });
 
   it('should delete DB card row when card with matching filePath exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const { filePath } = await createCard(tc.ctx, { key: 'rm-exists', summary: 'Remove', type: 'spec' });
     removeCardByFile(tc.ctx, filePath);
     expect(tc.ctx.cardRepo.findByKey('rm-exists')).toBeNull();
   });
 
   it('should do nothing when no card matches the given filePath', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const unknownPath = join(tc.cardsDir, 'unknown.md');
     expect(() => removeCardByFile(tc.ctx, unknownPath)).not.toThrow();
   });
@@ -174,7 +174,7 @@ describe('bulkSyncCards', () => {
   });
 
   it('should return synced=3 and empty errors when directory has 3 card files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'bulk-a', 'A');
     await writeTestCardFile(tc.cardsDir, 'bulk-b', 'B');
     await writeTestCardFile(tc.cardsDir, 'bulk-c', 'C');
@@ -184,7 +184,7 @@ describe('bulkSyncCards', () => {
   });
 
   it('should scan specified dirPath instead of ctx.cardsDir', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const altDir = join(tc.cardsDir, 'sub');
     await mkdir(altDir);
     await writeTestCardFile(altDir, 'bulk-sub', 'Sub');
@@ -194,7 +194,7 @@ describe('bulkSyncCards', () => {
   });
 
   it('should default to ctx.cardsDir when dirPath is not provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'bulk-def', 'Default');
     const result = await bulkSyncCards(tc.ctx);
     expect(result.synced).toBe(1);
@@ -202,7 +202,7 @@ describe('bulkSyncCards', () => {
   });
 
   it('should collect failing file in errors and continue processing remaining files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await writeFile(join(tc.cardsDir, 'bad.md'), 'NOT VALID FRONTMATTER AT ALL', 'utf-8');
     await writeTestCardFile(tc.cardsDir, 'bulk-good', 'Good');
     const result = await bulkSyncCards(tc.ctx);
@@ -212,14 +212,14 @@ describe('bulkSyncCards', () => {
   });
 
   it('should return synced=0 and empty errors for an empty directory', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkSyncCards(tc.ctx);
     expect(result.synced).toBe(0);
     expect(result.errors).toHaveLength(0);
   });
 
   it('should upsert existing DB row without creating duplicates', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'bulk-upsert', summary: 'Original', type: 'spec' });
     await writeTestCardFile(tc.cardsDir, 'bulk-upsert', 'Updated by bulk');
     await bulkSyncCards(tc.ctx);
@@ -229,7 +229,7 @@ describe('bulkSyncCards', () => {
   });
 
   it('should produce same synced count and no duplicate rows when called twice', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'bulk-2x', 'Twice');
     const r1 = await bulkSyncCards(tc.ctx);
     const r2 = await bulkSyncCards(tc.ctx);
@@ -241,7 +241,7 @@ describe('bulkSyncCards', () => {
   // Cold-DB FK ordering regression: a parent+child pair dropped onto disk
   // before any DB rows exist must sync without FK violations on the child.
   it('should sync a parent/child pair in dependency order on a cold DB (flat layout)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const dom = serializeCard({ key: 'd', summary: 'd', status: 'draft', type: 'domain' });
     const br = serializeCard({ key: 'b', summary: 'b', status: 'draft', type: 'brief', parent: 'd' });
     await writeFile(join(tc.cardsDir, 'd.md'), dom, 'utf-8');
@@ -258,7 +258,7 @@ describe('bulkSyncCards', () => {
   // Nested-spec FK ordering regression: spec → spec parent chain on a flat
   // layout must topo-sort even when (tier_rank, path_depth) collide.
   it('should sync a nested spec chain (s1 → s2 → s3) in dependency order on a cold DB (flat layout)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const dom = serializeCard({ key: 'd', summary: 'd', status: 'draft', type: 'domain' });
     const br = serializeCard({ key: 'b', summary: 'b', status: 'draft', type: 'brief', parent: 'd' });
     const s1 = serializeCard({ key: 's1', summary: 's1', status: 'draft', type: 'spec', parent: 'b' });
@@ -291,7 +291,7 @@ describe('validateCards', () => {
   });
 
   it('should return all empty arrays when files and DB rows are perfectly in sync', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'val-sync', summary: 'S', type: 'spec' });
     const result = await validateCards(tc.ctx);
     expect(result.staleDbRows).toHaveLength(0);
@@ -300,7 +300,7 @@ describe('validateCards', () => {
   });
 
   it('should report DB row as stale when its file has been deleted', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const { filePath } = await createCard(tc.ctx, { key: 'val-stale', summary: 'Stale', type: 'spec' });
     await unlink(filePath);
     const result = await validateCards(tc.ctx);
@@ -308,7 +308,7 @@ describe('validateCards', () => {
   });
 
   it('should report file as orphan when no corresponding DB row exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const orphanPath = join(tc.cardsDir, 'orphan.md');
     await writeFile(
       orphanPath,
@@ -320,7 +320,7 @@ describe('validateCards', () => {
   });
 
   it('should return all empty arrays when DB is empty and directory is empty', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await validateCards(tc.ctx);
     expect(result.staleDbRows).toHaveLength(0);
     expect(result.orphanFiles).toHaveLength(0);
@@ -328,7 +328,7 @@ describe('validateCards', () => {
   });
 
   it('should detect keyMismatch when DB key does not match file path', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     // Create a card normally
     await createCard(tc.ctx, { key: 'correct-key', summary: 'Correct', type: 'spec' });
     // Manually update the DB key to a different value, creating a mismatch
@@ -342,7 +342,7 @@ describe('validateCards', () => {
   });
 
   it('should report no orphans after bulkSyncCards resolves the orphan files', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'st-orphan', 'Orphan');
     const before = await validateCards(tc.ctx);
     expect(before.orphanFiles).toHaveLength(1);
@@ -353,7 +353,7 @@ describe('validateCards', () => {
 
   // D-2: content-mismatch detection
   it('should report content-mismatch warning when DB status differs from file status', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'cm-status', summary: 'S', type: 'brief' });
     // Directly mutate DB status without updating file
     tc.ctx.db.$client.prepare('UPDATE card SET status = ? WHERE key = ?').run('drifted', 'cm-status');
@@ -364,7 +364,7 @@ describe('validateCards', () => {
   });
 
   it('should report content-mismatch warning when DB summary differs from file summary', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'cm-summ', summary: 'Original', type: 'brief' });
     tc.ctx.db.$client.prepare('UPDATE card SET summary = ? WHERE key = ?').run('Tampered', 'cm-summ');
     const result = await validateCards(tc.ctx);
@@ -374,7 +374,7 @@ describe('validateCards', () => {
   });
 
   it('should report two content-mismatch warnings when both status and summary differ', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'cm-both', summary: 'S', type: 'brief' });
     tc.ctx.db.$client.prepare('UPDATE card SET status = ?, summary = ? WHERE key = ?').run('drifted', 'X', 'cm-both');
     const result = await validateCards(tc.ctx);
@@ -383,7 +383,7 @@ describe('validateCards', () => {
   });
 
   it('should not report content-mismatch when DB and file are in sync', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'cm-ok', summary: 'OK', type: 'brief' });
     const result = await validateCards(tc.ctx);
     const mismatch = result.warnings.filter((w) => w.type === 'content-mismatch');
@@ -391,7 +391,7 @@ describe('validateCards', () => {
   });
 
   it('should skip content-mismatch check for stale DB rows whose file was deleted', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const { filePath } = await createCard(tc.ctx, { key: 'cm-del', summary: 'Del', type: 'brief' });
     await unlink(filePath);
     const result = await validateCards(tc.ctx);
@@ -400,7 +400,7 @@ describe('validateCards', () => {
   });
 
   it('should not modify DB or files — validateCards is read-only', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'ro-orphan', 'Orphan');
     await validateCards(tc.ctx);
     expect(tc.ctx.cardRepo.findByKey('ro-orphan')).toBeNull();
@@ -415,7 +415,7 @@ describe('exportCardToFile', () => {
   });
 
   it('should restore all front-matter fields when round-tripping through DB and file', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'exp-rt-tgt', summary: 'Target card', type: 'spec' });
     const { filePath } = await createCard(tc.ctx, {
       key: 'exp-rt-src',
@@ -435,7 +435,7 @@ describe('exportCardToFile', () => {
   });
 
   it('should include only forward (non-reverse) relations in the exported file', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'exp-fwd-tgt', summary: 'Target', type: 'spec' });
     await createCard(tc.ctx, {
       key: 'exp-fwd-src',
@@ -451,7 +451,7 @@ describe('exportCardToFile', () => {
   });
 
   it('should include tags in the exported file when card has tags', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'exp-tag', summary: 'Tag card', type: 'spec', tags: ['release', 'v2'] });
     const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-tag');
     const text = await Bun.file(exportedPath).text();
@@ -460,7 +460,7 @@ describe('exportCardToFile', () => {
   });
 
   it('should preserve the card body and return the correct file path', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const { filePath } = await createCard(tc.ctx, {
       key: 'exp-body',
       summary: 'Body card',
@@ -471,7 +471,7 @@ describe('exportCardToFile', () => {
   });
 
   it('round-trip export produces identical content', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'exp-ns-rt',
       summary: 'NS round-trip',
@@ -487,7 +487,7 @@ describe('exportCardToFile', () => {
   });
 
   it('round-trips a domain card (namespacesJson preserves overview/scope/cross_domain_dependencies)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'platform-a', summary: 'Domain A', type: 'domain' });
     await createCard(tc.ctx, {
       key: 'platform-b',
@@ -517,17 +517,17 @@ describe('exportCardToFile', () => {
   });
 
   it('should throw CardKeyError when the key format is invalid', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     expect(() => exportCardToFile(tc.ctx, '!!bad key!!')).toThrow(CardKeyError);
   });
 
   it('should throw CardNotFoundError when card does not exist in DB', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(exportCardToFile(tc.ctx, 'no-such-card')).rejects.toThrow(CardNotFoundError);
   });
 
   it('should omit relations field when card only has incoming (reverse) relations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'exp-rev-tgt', summary: 'Reverse target', type: 'spec' });
     await createCard(tc.ctx, {
       key: 'exp-rev-src',
@@ -542,7 +542,7 @@ describe('exportCardToFile', () => {
   });
 
   it('should export minimal front-matter with no optional fields when all are empty', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'exp-min', summary: 'Minimal card', type: 'spec' });
     const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-min');
     const text = await Bun.file(exportedPath).text();
@@ -565,7 +565,7 @@ describe('syncCardFromFile — type', () => {
   });
 
   it('should persist type to DB when syncing a file with type in frontmatter', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const content = serializeCard(
       { key: 'sync-type', summary: 'Type sync', status: 'draft', type: 'brief' },
     );
@@ -591,7 +591,7 @@ describe('exportCardToFile — type round-trip', () => {
   });
 
   it('should include type in exported file when card has type', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'exp-type', summary: 'Type export', type: 'brief' });
 
     const { filePath: exportedPath } = await exportCardToFile(tc.ctx, 'exp-type');

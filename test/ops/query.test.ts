@@ -13,7 +13,7 @@ import {
 } from '../../index';
 import { CardKeyError, CardNotFoundError } from '../../index';
 import { getCardContext } from '../../src/ops/query';
-import { createTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
 describe('getCard', () => {
   let tc: TestContext;
@@ -23,7 +23,7 @@ describe('getCard', () => {
   });
 
   it('should return GetCardResult with card when card exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'q-exists', summary: 'Exists', type: 'spec' });
     const result = await getCard(tc.ctx, 'q-exists');
     expect(result.card.frontmatter.key).toBe('q-exists');
@@ -31,12 +31,12 @@ describe('getCard', () => {
   });
 
   it('should throw CardNotFoundError when card does not exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(getCard(tc.ctx, 'nonexistent')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 
   it('should return correct frontmatter contents matching what was created', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'q-frontmatter',
       summary: 'Frontmatter test',
@@ -49,7 +49,7 @@ describe('getCard', () => {
   });
 
   it('should include history when includeHistory is true', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'q-hist', summary: 'History', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'q-hist', 'active');
@@ -67,7 +67,7 @@ describe('getCards', () => {
   });
 
   it('should return all cards when all keys exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'gc-a', summary: 'A', type: 'spec' });
     await createCard(tc.ctx, { key: 'gc-b', summary: 'B', type: 'brief' });
     const result = await getCards(tc.ctx, ['gc-a', 'gc-b']);
@@ -78,7 +78,7 @@ describe('getCards', () => {
   });
 
   it('should put missing keys in notFound', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'gc-exists', summary: 'Exists', type: 'spec' });
     const result = await getCards(tc.ctx, ['gc-exists', 'gc-ghost']);
     expect(result.cards).toHaveLength(1);
@@ -87,21 +87,21 @@ describe('getCards', () => {
   });
 
   it('should return empty cards and all keys in notFound when none exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await getCards(tc.ctx, ['ghost-x', 'ghost-y']);
     expect(result.cards).toHaveLength(0);
     expect(result.notFound).toEqual(['ghost-x', 'ghost-y']);
   });
 
   it('should return empty result for empty keys array', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await getCards(tc.ctx, []);
     expect(result.cards).toHaveLength(0);
     expect(result.notFound).toHaveLength(0);
   });
 
   it('should include history when includeHistory is true', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'gc-hist', summary: 'Hist', type: 'brief', parent: '_dom', brief: makeTestBrief() });
     await updateCardStatus(tc.ctx, 'gc-hist', 'active');
@@ -112,7 +112,7 @@ describe('getCards', () => {
   });
 
   it('should preserve card order matching input key order', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'gc-z', summary: 'Z', type: 'spec' });
     await createCard(tc.ctx, { key: 'gc-a', summary: 'A', type: 'spec' });
     const result = await getCards(tc.ctx, ['gc-z', 'gc-a']);
@@ -121,7 +121,7 @@ describe('getCards', () => {
   });
 
   it('should throw on invalid key format (not CardNotFoundError)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(getCards(tc.ctx, [''])).rejects.toThrow(CardKeyError);
   });
 });
@@ -134,7 +134,7 @@ describe('listCards', () => {
   });
 
   it('should return all cards when no filter is provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'list-a', summary: 'A', type: 'spec' });
     await createCard(tc.ctx, { key: 'list-b', summary: 'B', type: 'spec' });
     const rows = listCards(tc.ctx);
@@ -142,7 +142,7 @@ describe('listCards', () => {
   });
 
   it('should return only cards with matching status when filter.status is provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'flt-draft', summary: 'Draft', type: 'spec' });
     await createCard(tc.ctx, { key: 'flt-acc', summary: 'Active', type: 'brief', parent: '_dom', brief: makeTestBrief() });
@@ -153,20 +153,20 @@ describe('listCards', () => {
   });
 
   it('should return empty array when no cards exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const rows = listCards(tc.ctx);
     expect(rows).toHaveLength(0);
   });
 
   it('should return empty array when filter status has no matching cards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'flt-none', summary: 'None', type: 'spec' });
     const rows = listCards(tc.ctx, { status: 'drifted' });
     expect(rows).toHaveLength(0);
   });
 
   it('should reflect updated values after updateCard when listing', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'lst-upd', summary: 'Old summary', type: 'spec' });
     await updateCard(tc.ctx, 'lst-upd', { summary: 'New summary' });
     const rows = listCards(tc.ctx);
@@ -175,14 +175,14 @@ describe('listCards', () => {
   });
 
   it('should return exactly one card after creating one card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'one-card', summary: 'One', type: 'spec' });
     const rows = listCards(tc.ctx);
     expect(rows).toHaveLength(1);
   });
 
   it('should return correct count after creating multiple cards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'mc-1', summary: 'MC1', type: 'spec' });
     await createCard(tc.ctx, { key: 'mc-2', summary: 'MC2', type: 'spec' });
     await createCard(tc.ctx, { key: 'mc-3', summary: 'MC3', type: 'spec' });
@@ -192,7 +192,7 @@ describe('listCards', () => {
 
   // P-2: body field stripped from listCards results
   it('should not include body field in listCards results', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'nobody', summary: 'NB', type: 'spec' });
     const rows = listCards(tc.ctx);
     const row = rows.find((r) => r.key === 'nobody');
@@ -201,7 +201,7 @@ describe('listCards', () => {
   });
 
   it('should include all non-body fields in listCards results', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'fields-check', summary: 'FC', type: 'spec' });
     const rows = listCards(tc.ctx);
     const row = rows.find((r) => r.key === 'fields-check')!;
@@ -214,7 +214,7 @@ describe('listCards', () => {
   });
 
   it('should return identical results on repeated calls to listCards', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'idp-lst', summary: 'Idp', type: 'spec' });
     const rows1 = listCards(tc.ctx);
     const rows2 = listCards(tc.ctx);
@@ -231,7 +231,7 @@ describe('searchCards', () => {
   });
 
   it('should return matching card when FTS query matches card summary', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'srch-card', summary: 'Search me', type: 'spec' });
     const rows = searchCards(tc.ctx, 'Search');
     expect(rows).toHaveLength(1);
@@ -240,7 +240,7 @@ describe('searchCards', () => {
 
   // P-2: body field stripped from searchCards results
   it('should not include body field in searchCards results', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'srch-nobody', summary: 'Searchable', type: 'spec' });
     const rows = searchCards(tc.ctx, 'Searchable');
     expect(rows).toHaveLength(1);
@@ -248,7 +248,7 @@ describe('searchCards', () => {
   });
 
   it('should return all non-body fields in searchCards results', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'srch-fields', summary: 'FieldCheck', type: 'brief' });
     const rows = searchCards(tc.ctx, 'FieldCheck');
     expect(rows).toHaveLength(1);
@@ -266,7 +266,7 @@ describe('listCardRelations', () => {
   });
 
   it('should return relation list when card has relations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'lrel-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'lrel-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'lrel-src', {
@@ -278,7 +278,7 @@ describe('listCardRelations', () => {
   });
 
   it('should return empty arrays when card has no relations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'lrel-none', summary: 'No rel', type: 'spec' });
     const rel = listCardRelations(tc.ctx, 'lrel-none');
     expect(rel.forward).toHaveLength(0);
@@ -286,7 +286,7 @@ describe('listCardRelations', () => {
   });
 
   it('should throw CardKeyError when key is invalid', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     expect(() => listCardRelations(tc.ctx, '')).toThrow(CardKeyError);
   });
 });
@@ -299,7 +299,7 @@ describe('getCardContext', () => {
   });
 
   it('should return empty codeLinks, upstream, downstream for isolated card when gildash not configured', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'gctx-a', summary: 'A', type: 'spec' });
     const result = await getCardContext(tc.ctx, 'gctx-a');
     expect(result.card.frontmatter.key).toBe('gctx-a');
@@ -309,7 +309,7 @@ describe('getCardContext', () => {
   });
 
   it('should include downstreamCards when card has outgoing relation', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'gctx-src', summary: 'Src', type: 'spec' });
     await createCard(tc.ctx, { key: 'gctx-dst', summary: 'Dst', type: 'spec' });
     await updateCard(tc.ctx, 'gctx-src', { relations: ['gctx-dst'] });
@@ -319,7 +319,7 @@ describe('getCardContext', () => {
   });
 
   it('should include upstreamCards when another card relates to this card', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'gctx-dep', summary: 'Dep', type: 'spec' });
     await createCard(tc.ctx, { key: 'gctx-tgt', summary: 'Tgt', type: 'spec' });
     await updateCard(tc.ctx, 'gctx-dep', { relations: ['gctx-tgt'] });
@@ -329,7 +329,7 @@ describe('getCardContext', () => {
   });
 
   it('should throw CardNotFoundError when card file does not exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(getCardContext(tc.ctx, 'ghost-card')).rejects.toBeInstanceOf(CardNotFoundError);
   });
 });
@@ -364,7 +364,7 @@ describe('getRelationGraph', () => {
 
   // [HP-1] Linear A->B->C, maxDepth unset -> [B(d1), C(d2)]
   it('should return transitive forward nodes for a linear chain when maxDepth is unset', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await buildLinearChain(tc);
     const nodes = getRelationGraph(tc.ctx, 'grg-a');
     const keys = nodes.map((n) => n.key);
@@ -376,7 +376,7 @@ describe('getRelationGraph', () => {
 
   // [HP-2] Root has no relations -> []
   it('should return empty array when root card has no relations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'grg-solo', summary: 'Solo', type: 'spec' });
     const nodes = getRelationGraph(tc.ctx, 'grg-solo');
     expect(nodes).toHaveLength(0);
@@ -384,7 +384,7 @@ describe('getRelationGraph', () => {
 
   // [HP-3] direction='forward' -> backward relations excluded
   it('should exclude backward relations when direction is forward', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await buildLinearChain(tc);
     const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'forward' });
     expect(nodes.some((n) => n.key === 'grg-c')).toBe(true);
@@ -393,7 +393,7 @@ describe('getRelationGraph', () => {
 
   // [HP-4] direction='backward' -> forward relations excluded
   it('should exclude forward relations when direction is backward', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await buildLinearChain(tc);
     const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'backward' });
     expect(nodes.some((n) => n.key === 'grg-a')).toBe(true);
@@ -402,7 +402,7 @@ describe('getRelationGraph', () => {
 
   // [HP-5] direction='both' (default) -> both forward+backward
   it('should include both forward and backward nodes when direction is both', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await buildLinearChain(tc);
     const nodes = getRelationGraph(tc.ctx, 'grg-b', { direction: 'both' });
     expect(nodes.some((n) => n.key === 'grg-a')).toBe(true);
@@ -411,7 +411,7 @@ describe('getRelationGraph', () => {
 
   // [HP-6] maxDepth=1 -> depth-1 only
   it('should return only depth-1 nodes when maxDepth is 1', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await buildLinearChain(tc);
     const nodes = getRelationGraph(tc.ctx, 'grg-a', { maxDepth: 1 });
     expect(nodes.some((n) => n.key === 'grg-b')).toBe(true);
@@ -420,7 +420,7 @@ describe('getRelationGraph', () => {
 
   // [HP-11] maxDepth=0 -> []
   it('should return empty array when maxDepth is 0', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await buildLinearChain(tc);
     const nodes = getRelationGraph(tc.ctx, 'grg-a', { maxDepth: 0 });
     expect(nodes).toHaveLength(0);
@@ -428,20 +428,20 @@ describe('getRelationGraph', () => {
 
   // [NE-1] Root card not in DB -> []
   it('should return empty array when root card does not exist in DB', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const nodes = getRelationGraph(tc.ctx, 'ghost-card');
     expect(nodes).toHaveLength(0);
   });
 
   // [NE-2] Invalid key format -> CardKeyError throw
   it('should throw CardKeyError when key format is invalid', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     expect(() => getRelationGraph(tc.ctx, '')).toThrow(CardKeyError);
   });
 
   // [CO-1] Diamond A->B, A->C, B->D, C->D -> D returned only once
   it('should include a node only once when it is reachable via multiple paths (diamond)', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'dia-d', summary: 'D', type: 'spec' });
     await createCard(tc.ctx, {
       key: 'dia-b',
@@ -468,7 +468,7 @@ describe('getRelationGraph', () => {
 
   // [ID-1] Same call twice -> identical results
   it('should return identical results on repeated calls with no changes', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await buildLinearChain(tc);
     const r1 = getRelationGraph(tc.ctx, 'grg-a').map((n) => n.key).sort();
     const r2 = getRelationGraph(tc.ctx, 'grg-a').map((n) => n.key).sort();
@@ -477,7 +477,7 @@ describe('getRelationGraph', () => {
 
   // [T2] Cyclic relations: A->B->A should not cause infinite loop
   it('should handle cyclic relations without infinite loop', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'cyc-a', summary: 'Cycle A', type: 'spec' });
     await createCard(tc.ctx, { key: 'cyc-b', summary: 'Cycle B', type: 'spec', relations: ['cyc-a'] });
     // Add reverse relation to create cycle: A->B->A

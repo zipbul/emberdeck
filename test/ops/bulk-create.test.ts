@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'bun:test';
 
 import { bulkCreateCards, createCard } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createMockTestContext, type TestContext } from '../helpers';
 
 describe('bulkCreateCards', () => {
   let tc: TestContext;
@@ -13,7 +13,7 @@ describe('bulkCreateCards', () => {
   // ── Happy Path ──
 
   it('should create multiple cards and return correct arrays', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'card-a', summary: 'Card A', type: 'spec' },
       { key: 'card-b', summary: 'Card B', type: 'spec' },
@@ -26,7 +26,7 @@ describe('bulkCreateCards', () => {
   });
 
   it('should create cards with all optional fields', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'full-card', summary: 'Full card', type: 'spec', tags: ['tag1'] },
     ]);
@@ -36,7 +36,7 @@ describe('bulkCreateCards', () => {
   });
 
   it('should resolve intra-batch relations regardless of order', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       {
         key: 'depends-first',
@@ -56,7 +56,7 @@ describe('bulkCreateCards', () => {
   // ── Partial Success ──
 
   it('should skip failed items and continue creating the rest', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'existing', summary: 'Already exists', type: 'spec' });
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'new-card', summary: 'New card', type: 'spec' },
@@ -71,7 +71,7 @@ describe('bulkCreateCards', () => {
   });
 
   it('should report error for invalid key', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: '../evil', summary: 'Bad key', type: 'spec' },
       { key: 'good-card', summary: 'Good card', type: 'spec' },
@@ -85,14 +85,14 @@ describe('bulkCreateCards', () => {
   // ── Edge Cases ──
 
   it('should return empty arrays for empty input array', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, []);
     expect(result.created).toHaveLength(0);
     expect(result.errors).toHaveLength(0);
   });
 
   it('should handle single card input', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'solo', summary: 'Solo card', type: 'spec' },
     ]);
@@ -103,7 +103,7 @@ describe('bulkCreateCards', () => {
   // ── Mutual Relations ──
 
   it('should create both cards and succeed with mutual relations in same batch', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'a', summary: 'Card A', type: 'spec', relations: ['b'] },
       { key: 'b', summary: 'Card B', type: 'spec', relations: ['a'] },
@@ -121,7 +121,7 @@ describe('bulkCreateCards', () => {
   // ── Duplicate Keys in Same Batch ──
 
   it('should fail second item when batch contains duplicate keys', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'dup', summary: 'A', type: 'spec' },
       { key: 'dup', summary: 'B', type: 'spec' },
@@ -139,7 +139,7 @@ describe('bulkCreateCards', () => {
 
   // partialKeys for Phase 2 relation failures
   it('should include partialKeys as empty array when all relations succeed', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'pk-a', summary: 'A', type: 'spec' },
       { key: 'pk-b', summary: 'B', type: 'spec', relations: ['pk-a'] },
@@ -149,7 +149,7 @@ describe('bulkCreateCards', () => {
   });
 
   it('should report card in partialKeys when Phase 2 relation target does not exist', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'pk-orphan', summary: 'Orphan', type: 'spec', relations: ['nonexistent-card'] },
     ]);
@@ -163,7 +163,7 @@ describe('bulkCreateCards', () => {
   });
 
   it('should have partialKeys empty array when no cards have relations', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await bulkCreateCards(tc.ctx, [
       { key: 'pk-no-rel', summary: 'No rel', type: 'spec' },
     ]);

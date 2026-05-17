@@ -7,7 +7,7 @@ import {
   CardAlreadyExistsError,
   CardKeyError,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createMockTestContext, type TestContext } from '../helpers';
 
 describe('createCard', () => {
   let tc: TestContext;
@@ -19,7 +19,7 @@ describe('createCard', () => {
   // ── Happy Path ──────────────────────────────────────────────────────────
 
   it('should create file and DB card row when given minimal input', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await createCard(tc.ctx, { key: 'my-card', summary: 'My card', type: 'spec' });
     expect(existsSync(result.filePath)).toBe(true);
     expect(tc.ctx.cardRepo.findByKey('my-card')).not.toBeNull();
@@ -27,7 +27,7 @@ describe('createCard', () => {
 
 
   it('should save provided body to file when body is given', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'with-body',
       summary: 'With body',
@@ -36,7 +36,7 @@ describe('createCard', () => {
   });
 
   it('should save tags to DB when tags are provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'tag-card', summary: 'TAG', type: 'spec', tags: ['foo', 'bar'] });
     const tags = tc.ctx.classificationRepo.findTagsByCard('tag-card');
     expect(tags).toContain('foo');
@@ -44,7 +44,7 @@ describe('createCard', () => {
   });
 
   it('should create bidirectional DB relations when relations are provided', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'target-card', summary: 'Target', type: 'spec' });
     await createCard(tc.ctx, {
       key: 'src-card',
@@ -58,14 +58,14 @@ describe('createCard', () => {
   });
 
   it('should create subdirectory automatically when key contains path separator', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await createCard(tc.ctx, { key: 'a/b', summary: 'Nested', type: 'spec' });
     expect(existsSync(result.filePath)).toBe(true);
     expect(result.filePath).toContain('a/b.md');
   });
 
   it('should return correct { filePath, fullKey, card } shape', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await createCard(tc.ctx, { key: 'shape-card', summary: 'Shape', type: 'spec' });
     expect(result.fullKey).toBe('shape-card');
     expect(result.filePath).toContain('shape-card.md');
@@ -73,7 +73,7 @@ describe('createCard', () => {
   });
 
   it("should set status to 'draft' on newly created card", async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await createCard(tc.ctx, { key: 'draft-card', summary: 'Draft', type: 'spec' });
     expect(result.card.frontmatter.status).toBe('draft');
   });
@@ -81,7 +81,7 @@ describe('createCard', () => {
   // ── Negative / Error ───────────────────────────────────────────────────
 
   it('should throw CardAlreadyExistsError when key already exists', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'dup-card', summary: 'First', type: 'spec' });
     await expect(createCard(tc.ctx, { key: 'dup-card', summary: 'Second', type: 'spec' })).rejects.toBeInstanceOf(
       CardAlreadyExistsError,
@@ -89,14 +89,14 @@ describe('createCard', () => {
   });
 
   it('should throw CardKeyError when key is empty string', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(createCard(tc.ctx, { key: '', summary: 'Empty', type: 'spec' })).rejects.toBeInstanceOf(
       CardKeyError,
     );
   });
 
   it('should throw CardKeyError when key contains path traversal', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await expect(
       createCard(tc.ctx, { key: '../evil', summary: 'Evil', type: 'spec' }),
     ).rejects.toBeInstanceOf(CardKeyError);
@@ -105,7 +105,7 @@ describe('createCard', () => {
   // ── Edge ──────────────────────────────────────────────────────────────
 
   it("should default the body column to empty string when no namespace is supplied", async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'no-body', summary: 'No body', type: 'spec' });
     // The indexed row's `body` column is derived from the namespace; with no
     // namespace fields it must be the empty string, not undefined / null.
@@ -113,7 +113,7 @@ describe('createCard', () => {
   });
 
   it('should omit tags field from frontmatter when tags is empty array', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await createCard(tc.ctx, {
       key: 'empty-tags',
       summary: 'Empty tags',
@@ -124,7 +124,7 @@ describe('createCard', () => {
   });
 
   it('should omit relations field from frontmatter when relations is empty array', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await createCard(tc.ctx, {
       key: 'empty-rels',
       summary: 'Empty rels',
@@ -135,7 +135,7 @@ describe('createCard', () => {
   });
 
   it('should use single character key without error', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const result = await createCard(tc.ctx, { key: 'a', summary: 'Single', type: 'spec' });
     expect(result.fullKey).toBe('a');
   });
@@ -143,7 +143,7 @@ describe('createCard', () => {
   // ── Corner ────────────────────────────────────────────────────────────
 
   it('should not save any classification when tags and relations are all empty arrays', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, {
       key: 'all-empty',
       summary: 'All empty',
@@ -158,7 +158,7 @@ describe('createCard', () => {
   // ── State Transition ──────────────────────────────────────────────────
 
   it('should succeed on re-create after deleting same key', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 're-create', summary: 'First', type: 'spec' });
     tc.ctx.cardRepo.deleteByKey('re-create');
     const filePath = `${tc.cardsDir}/re-create.md`;
@@ -170,7 +170,7 @@ describe('createCard', () => {
   // ── Idempotency ───────────────────────────────────────────────────────
 
   it('should throw CardAlreadyExistsError on second call with same key', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'idp-card', summary: 'First', type: 'spec' });
     await expect(createCard(tc.ctx, { key: 'idp-card', summary: 'Again', type: 'spec' })).rejects.toBeInstanceOf(
       CardAlreadyExistsError,
@@ -188,7 +188,7 @@ describe('createCard — codeLinks', () => {
   // Source bindings (code_link rows) come from `ed spec sync` reading
   // `@spec card-key` JSDoc tags. createCard never populates code_link.
   it('does not populate code_link table by itself', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     await createCard(tc.ctx, { key: 'cr-nocl', summary: 'No CL', type: 'spec' });
     expect(tc.ctx.codeLinkRepo.findByCardKey('cr-nocl')).toHaveLength(0);
   });
@@ -197,7 +197,7 @@ describe('createCard — codeLinks', () => {
   // whose file was externally deleted let a subsequent createCard upsert over
   // it, silently changing card identity. Now both file AND DB row are checked.
   it('throws CardAlreadyExistsError when DB row exists even if file is missing', async () => {
-    tc = await createTestContext();
+    tc = await createMockTestContext();
     const first = await createCard(tc.ctx, { key: 'dup-db', summary: 'first', type: 'spec' });
     // Simulate external deletion of the card file (DB row still present).
     unlinkSync(first.filePath);
