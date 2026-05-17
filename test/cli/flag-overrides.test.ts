@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { spawnCli as runCli } from './helpers';
+import { runEd as runCli } from './helpers';
 
 describe('CLI flag overrides matrix', () => {
   let tmp: string;

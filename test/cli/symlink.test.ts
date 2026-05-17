@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { spawnCli as runCli } from './helpers';
+import { runEd as runCli } from './helpers';
 
 function setupProject(): string {
   const tmp = mkdtempSync(join(tmpdir(), 'ed-symlink-'));

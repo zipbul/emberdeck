@@ -9,7 +9,7 @@ import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, unlinkSync, readFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnCli as runCli, parseJsonLines } from './helpers';
+import { runEd as runCli, parseJsonLines } from './helpers';
 
 function setupProject(): string {
   const tmp = mkdtempSync(join(tmpdir(), 'ed-fsrace-'));

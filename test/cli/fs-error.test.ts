@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, chmodSync, readdirSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { spawnCli as runCli } from './helpers';
+import { runEd as runCli } from './helpers';
 
 const IS_ROOT = process.getuid?.() === 0;
 
