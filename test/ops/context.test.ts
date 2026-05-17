@@ -8,6 +8,7 @@ import {
 } from '../../index';
 import { createMockTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 import { readCardFile } from '../../src/fs/reader';
+import { mockGildash as createMockGildash } from '../fixtures/gildash';
 
 describe('checkDrift', () => {
   let tc: TestContext;
@@ -72,7 +73,7 @@ describe('checkDrift', () => {
     await updateCardStatus(tc.ctx, 'h-active', 'active');
     await createCard(tc.ctx, { key: 'h-draft', summary: 'Draft', type: 'spec' });
 
-    const result = await checkDrift(tc.ctx, undefined);
+    const result = await checkDrift(tc.ctx);
     expect(result.health.active).toBe(1);
     // 4-tier: scaffolding adds 2 draft cards (_dom, _br) on top of 'h-draft'.
     expect(result.health.draft).toBe(3);
@@ -91,8 +92,6 @@ describe('checkDrift', () => {
     expect(result.health.draft).toBe(1);
   });
 });
-
-import { mockGildash as createMockGildash } from '../fixtures/gildash';
 
 describe('checkDrift with gildash — broken link detection', () => {
   let tc: TestContext;

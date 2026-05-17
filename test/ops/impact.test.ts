@@ -6,7 +6,7 @@ import {
   preChangeCheck,
   regressionGuard,
 } from '../../index';
-import { createTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { createMockTestContext as createTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('preChangeCheck', () => {
   let tc: TestContext;

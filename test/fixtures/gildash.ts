@@ -33,6 +33,14 @@ export interface MockGildashOverrides {
   getDependencies?: (...args: unknown[]) => unknown;
   listIndexedFiles?: (...args: unknown[]) => unknown[];
   reindex?: () => Promise<void>;
+  // Cycle / fan / heritage / pattern surface — used by analyze, impact, etc.
+  hasCycle?: (...args: unknown[]) => Promise<boolean>;
+  getCyclePaths?: (...args: unknown[]) => Promise<unknown[]>;
+  getFanMetrics?: (...args: unknown[]) => Promise<unknown>;
+  getHeritageChain?: (...args: unknown[]) => Promise<unknown>;
+  searchRelations?: (...args: unknown[]) => unknown[];
+  findPattern?: (...args: unknown[]) => Promise<unknown[]>;
+  getDependents?: (...args: unknown[]) => unknown[];
 }
 
 /**
@@ -56,6 +64,13 @@ export function mockGildash(overrides: MockGildashOverrides = {}) {
     listIndexedFiles: mock(overrides.listIndexedFiles ?? (() => [])),
     getFileInfo: mock(overrides.getFileInfo ?? (() => null)),
     getDependencies: overrides.getDependencies ? mock(overrides.getDependencies) : undefined,
+    hasCycle: mock(overrides.hasCycle ?? (async () => false)),
+    getCyclePaths: mock(overrides.getCyclePaths ?? (async () => [])),
+    getFanMetrics: mock(overrides.getFanMetrics ?? (async () => ({ filePath: '', fanIn: 0, fanOut: 0 }))),
+    getHeritageChain: mock(overrides.getHeritageChain ?? (async () => ({ symbolName: '', filePath: '', children: [] }))),
+    searchRelations: mock(overrides.searchRelations ?? (() => [])),
+    findPattern: mock(overrides.findPattern ?? (async () => [])),
+    getDependents: mock(overrides.getDependents ?? (() => [])),
     reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
     close: mock(() => Promise.resolve()),
   } as any;

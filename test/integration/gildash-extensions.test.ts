@@ -15,26 +15,7 @@ import {
   ensure4tierScaffold,
   type TestContext,
 } from '../helpers';
-
-function makeGildash(overrides: Record<string, unknown> = {}) {
-  const defaults = {
-    reindex: async () => ({}),
-    close: async () => undefined,
-    listIndexedFiles: () => [],
-    getSymbolsByFile: () => [],
-    searchSymbols: () => [],
-    searchAnnotations: () => [],
-    getSymbolChanges: () => [],
-    getDependencies: () => [],
-    hasCycle: async () => false,
-    getCyclePaths: async () => [],
-    getFanMetrics: async () => ({ filePath: '', fanIn: 0, fanOut: 0 }),
-    getHeritageChain: async () => ({ symbolName: '', filePath: '', children: [] }),
-    searchRelations: () => [],
-    findPattern: async () => [],
-  };
-  return { ...defaults, ...overrides } as any;
-}
+import { mockGildash as makeGildash } from '../fixtures/gildash';
 
 // ── codeCycles in analyze ────────────────────────────────────────────
 
@@ -86,7 +67,7 @@ describe('syncSpecAnnotations — 4-tier annotation tags', () => {
     };
 
     tc.ctx.gildash = makeGildash({
-      searchAnnotations: ({ tag }: { tag: string }) => annotationsByTag[tag] ?? [],
+      searchAnnotations: ((q: { tag: string }) => annotationsByTag[q.tag] ?? []) as never,
       getSymbolsByFile: () => [
         { name: 'fnB', memberName: null, filePath: 'src/x.ts', kind: 'function' },
         { name: 'fnP', memberName: null, filePath: 'src/x.ts', kind: 'function' },

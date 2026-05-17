@@ -317,12 +317,14 @@ describe('DrizzleCardRepository', () => {
     expect(() => repo.search('OR')).toThrow(/FTS5/);
   });
 
-  it('should still throw non-FTS5 errors from search', () => {
-    closeDb(db);
-    expect(() => repo.search('hello')).toThrow();
-    // Re-open for afterEach cleanup
-    db = createEmberdeckDb(':memory:');
-    repo = new DrizzleCardRepository(db);
+  it('should still throw non-FTS5 errors from search (closed-DB path)', () => {
+    // Use a dedicated DB for this destructive test so we don't have to
+    // re-create the suite's `db` (mutating shared lifecycle state mid-test
+    // breaks afterEach if the assertion fails between close and re-open).
+    const localDb = createEmberdeckDb(':memory:');
+    const localRepo = new DrizzleCardRepository(localDb);
+    closeDb(localDb);
+    expect(() => localRepo.search('hello')).toThrow();
   });
 
   it('should return only draft spec cards when list is called with status draft and type spec', () => {

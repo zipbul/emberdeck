@@ -789,14 +789,14 @@ describe('brief namespace enforcement (canonical structure path)', () => {
   it('rejects active brief card without brief namespace', async () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
-    let caught: any = null;
-    try {
-      await createCard(tc.ctx, { key: 'no-ns', summary: 'No namespace', type: 'brief', status: 'active', parent: '_dom' });
-    } catch (e) {
-      caught = e;
-    }
-    expect(caught).toBeDefined();
-    expect(caught.unmetConditions?.some((m: string) => /brief.*namespace/.test(m))).toBe(true);
+    await expect(
+      createCard(tc.ctx, { key: 'no-ns', summary: 'No namespace', type: 'brief', status: 'active', parent: '_dom' }),
+    ).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
+      }),
+    );
   });
 
   it('allows draft brief card without namespace (body and namespace both free until activation)', async () => {
@@ -816,14 +816,12 @@ describe('brief namespace enforcement (canonical structure path)', () => {
     tc = await createTestContext();
     await ensure4tierScaffold(tc.ctx);
     await createCard(tc.ctx, { key: 'draft-no-ns', summary: 'Draft', type: 'brief', parent: '_dom' });
-    let caught: any = null;
-    try {
-      await updateCardStatus(tc.ctx, 'draft-no-ns', 'active');
-    } catch (e) {
-      caught = e;
-    }
-    expect(caught).toBeDefined();
-    expect(caught.unmetConditions?.some((m: string) => /brief.*namespace/.test(m))).toBe(true);
+    await expect(updateCardStatus(tc.ctx, 'draft-no-ns', 'active')).rejects.toThrow(
+      expect.objectContaining({
+        name: 'ActivationGuardError',
+        unmetConditions: expect.arrayContaining([expect.stringMatching(/brief.*namespace/)]),
+      }),
+    );
   });
 
   it('allows updateCardStatus to active on brief with namespace', async () => {
