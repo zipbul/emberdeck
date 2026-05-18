@@ -52,20 +52,21 @@ describe('symlink handling e2e', () => {
     expect(JSON.parse(get.stdout).summary).toBe('card symlinked');
   });
 
-  test('broken symlink → bulk sync handles cleanly, good cards still synced', async () => {
+  test('broken symlink → silently skipped, good card synced, exit 0', async () => {
     symlinkSync('/nonexistent/path', join(tmp, '.emberdeck/cards/broken.md'));
     writeFileSync(join(tmp, '.emberdeck/cards/good.md'), validCardContent('good'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);
-    // Either skipped (exit 0) or reported as partial (exit 2). Both acceptable —
-    // contract is "no crash + good card still made it".
-    expect([0, 2]).toContain(sync.exitCode);
-    // Stdout may be empty (exit 2 partial throws to stderr) or v2 bulk-sync shape
-    if (sync.stdout.trim()) {
-      const parsed = JSON.parse(sync.stdout);
-      expect(parsed.synced).toBeDefined();
-    }
-    // Good card synced into DB (verifiable via subsequent get).
+    // Bun.Glob's default symlink handling silently drops the broken link
+    // and proceeds with the good entries. The contract is deterministic
+    // on Linux (verified empirically) — no accept-either: a regression
+    // that started erroring on broken symlinks would be a real change in
+    // behavior the test must catch.
+    expect(sync.exitCode).toBe(0);
+    const parsed = JSON.parse(sync.stdout);
+    expect(parsed.synced).toBe(1);
+    expect(parsed.failed).toEqual([]);
+
     const get = await runCli(['card', 'get', 'good'], tmp);
     expect(get.exitCode).toBe(0);
   });
@@ -86,19 +87,19 @@ describe('symlink handling e2e', () => {
     }
   });
 
-  test('directory symlink in cards tree: contents discovered if Bun.Glob follows', async () => {
+  test('directory symlink in cards tree: Bun.Glob does NOT follow (synced=0)', async () => {
     const realDir = join(tmp, 'real-dir');
     mkdirSync(realDir, { recursive: true });
     writeFileSync(join(realDir, 'inside.md'), validCardContent('linked-dir/inside'));
     symlinkSync(realDir, join(tmp, '.emberdeck/cards/linked-dir'));
 
     const sync = await runCli(['bulk', 'sync'], tmp);
-    // v2 contract: subprocess returns valid JSON object on success (or exit 2 on partial).
-    if (sync.exitCode === 0) {
-      const parsed = JSON.parse(sync.stdout);
-      expect(parsed.synced).toBeDefined();
-    } else {
-      expect(sync.exitCode).toBe(2);
-    }
+    // Bun.Glob (Linux) does not follow directory symlinks by default, so the
+    // card under the linked directory is invisible to the sync. Pinned
+    // explicitly: a future change that flips the glob option would shift
+    // synced from 0 → 1 and the test catches that.
+    expect(sync.exitCode).toBe(0);
+    const parsed = JSON.parse(sync.stdout);
+    expect(parsed.synced).toBe(0);
   });
 });

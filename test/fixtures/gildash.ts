@@ -16,6 +16,19 @@
  * type surface in the fixture.
  */
 import { mock } from 'bun:test';
+import type { Gildash } from '@zipbul/gildash';
+
+// Tests only exercise a small slice of the Gildash surface. The fixture
+// returns `MockGildash`, which IS-A `Partial<Gildash>` (typed by the real
+// Gildash class) — so a mock missing a method shows up as a type error
+// the first time a test reaches for it, instead of erasing the surface
+// entirely via `as any`. The cast at the return site is `as Gildash`
+// because production sites expect the full interface; that cast is the
+// single point of trust, not a per-test escape hatch.
+type MockGildash = Partial<Gildash> & {
+  reindex: Gildash['reindex'];
+  close: Gildash['close'];
+};
 
 interface SymbolShape {
   name: string;
@@ -84,7 +97,7 @@ export function mockGildash(overrides: MockGildashOverrides = {}) {
     getDependents: mock(overrides.getDependents ?? (() => [])),
     reindex: mock(overrides.reindex ?? (() => Promise.resolve())),
     close: mock(() => Promise.resolve()),
-  } as any;
+  } as unknown as Gildash;
 }
 
 /**
@@ -164,5 +177,33 @@ export function mockGildashFromSymbols(
     getSymbolChanges: () => [],
     searchAnnotations: overrides?.searchAnnotations ?? (() => []),
     getDependencies: () => [],
-  } as any;
+  } as unknown as Gildash;
+}
+
+// Re-export the surface tests sometimes need to refer to (e.g. for
+// hand-built mocks that bypass mockGildash). Centralizes the import path.
+export type { MockGildash };
+
+/**
+ * Reusable SymbolSearchResult-shaped stub. Most tests need a "well-formed
+ * symbol returned by searchSymbols" — defining the full record inline at
+ * each call site adds noise and risks per-test field divergence when the
+ * real SymbolSearchResult type evolves.
+ */
+export function makeFakeSymbol(overrides: {
+  name?: string;
+  filePath?: string;
+  kind?: string;
+} = {}): unknown {
+  return {
+    id: 1,
+    name: overrides.name ?? 'myFn',
+    memberName: null,
+    filePath: overrides.filePath ?? 'src/auth.ts',
+    kind: overrides.kind ?? 'function',
+    span: { start: { line: 1, column: 0 }, end: { line: 5, column: 1 } },
+    signature: `function ${overrides.name ?? 'myFn'}(): void`,
+    fingerprint: null,
+    detail: {},
+  };
 }

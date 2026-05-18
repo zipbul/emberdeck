@@ -352,22 +352,27 @@ describe('CLI: stdout is pure JSON (agent-first)', () => {
     try { rmSync(tmp, { recursive: true, force: true }); } catch {}
   });
 
-  test('error path: empty stdout, stderr JSON-line error, no ANSI', async () => {
-    const proc = Bun.spawn(['bun', CLI, 'card', 'get', 'nonexistent'], {
-      cwd: tmp,
-      env: { ...process.env, NO_COLOR: '', CLICOLOR_FORCE: '' },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const stdout = await new Response(proc.stdout).text();
-    const stderr = await new Response(proc.stderr).text();
-    await proc.exited;
-    // v2: error → stdout empty (no envelope), stderr carries JSON-line error
-    expect(stdout).toBe('');
-    expect(stderr).toContain('"level":"error"');
-    expect(stderr).toContain('"code":"card-not-found"');
-    expect(stdout).not.toContain('\x1b[');
-    expect(stderr).not.toContain('\x1b[');
+  test('error path: empty stdout, stderr JSON-line error, no ANSI (even with NO_COLOR / CLICOLOR_FORCE cleared)', async () => {
+    // The contract under test: when stdout is NOT a TTY (in-process spy
+    // never is) the CLI emits no ANSI escapes regardless of NO_COLOR /
+    // CLICOLOR_FORCE env vars. Save/restore the two env vars so the rest
+    // of the suite (and any concurrent describes) is not affected.
+    const savedNoColor = process.env['NO_COLOR'];
+    const savedClicolor = process.env['CLICOLOR_FORCE'];
+    process.env['NO_COLOR'] = '';
+    process.env['CLICOLOR_FORCE'] = '';
+    try {
+      const r = await runEd(['card', 'get', 'nonexistent'], tmp);
+      expect(r.exitCode).toBe(3);
+      expect(r.stdout).toBe('');
+      expect(r.stderr).toContain('"level":"error"');
+      expect(r.stderr).toContain('"code":"card-not-found"');
+      expect(r.stdout).not.toContain('\x1b[');
+      expect(r.stderr).not.toContain('\x1b[');
+    } finally {
+      if (savedNoColor === undefined) delete process.env['NO_COLOR']; else process.env['NO_COLOR'] = savedNoColor;
+      if (savedClicolor === undefined) delete process.env['CLICOLOR_FORCE']; else process.env['CLICOLOR_FORCE'] = savedClicolor;
+    }
   });
 });
 

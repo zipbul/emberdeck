@@ -336,39 +336,40 @@ describe('Phase 2 polish: card export emits JSON envelope', () => {
   });
 });
 
-describe('Phase 2 polish: spinner stays out of stdout AND no stderr leaks in JSON', () => {
+describe('Phase 2 polish: spinner stays out of stdout/stderr (agent-first JSON contract)', () => {
   let tmp: string;
   let cleanup: () => void;
   beforeEach(() => { const h = setupTmpProject(); tmp = h.tmp; cleanup = h.cleanup; });
   afterEach(() => { cleanup(); });
 
-  test('analyze: stdout is pure JSON, no spinner artifacts', async () => {
-    const r = await runEd(['analyze'], tmp);
-    expect(r.exitCode).toBe(0);
-    const parsed = JSON.parse(r.stdout);
-    expect(parsed.health).toBeDefined();
-    expect(r.stdout).not.toContain('\x1b[');
-    expect(r.stdout).not.toContain('⠋');
-  });
+  // Spinner glyph + ANSI artifacts must never appear in stdout (agents
+  // parse stdout as JSON) and must never appear in stderr (JSON-line
+  // log channel). Asserting per-command instead of one bag-test gives a
+  // clear failure surface: a regression in one command's runner doesn't
+  // hide behind another command's clean output.
+  const SPINNER_GLYPHS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const;
+  const ANSI_CSI = '\x1b[';
 
-  test('analyze: stderr also clean (no spinner leak)', async () => {
-    const r = await runEd(['analyze'], tmp);
-    expect(r.exitCode).toBe(0);
-    expect(r.stderr).not.toContain('⠋');
-    expect(r.stderr).not.toContain('analyzing');
-  });
+  function expectAgentClean(stream: string): void {
+    expect(stream).not.toContain(ANSI_CSI);
+    for (const g of SPINNER_GLYPHS) expect(stream).not.toContain(g);
+  }
 
-  test('bulk sync: stderr clean of spinner', async () => {
-    const r = await runEd(['bulk', 'sync'], tmp);
-    expect(r.exitCode).toBe(0);
-    expect(r.stderr).not.toContain('⠋');
-    expect(r.stderr).not.toContain('syncing');
-  });
+  const commands: Array<[name: string, argv: string[]]> = [
+    ['analyze',        ['analyze']],
+    ['bulk sync',      ['bulk', 'sync']],
+    ['validate links', ['validate', 'links']],
+  ];
 
-  test('validate links: stderr clean', async () => {
-    const r = await runEd(['validate', 'links'], tmp);
-    expect(r.exitCode).toBe(0);
-    expect(r.stderr).not.toContain('⠋');
-    expect(r.stderr).not.toContain('validating');
-  });
+  test.each(commands)(
+    'agent-clean stdout + stderr: %s',
+    async (_name, argv) => {
+      const r = await runEd(argv, tmp);
+      expect(r.exitCode).toBe(0);
+      // stdout must be a parseable JSON envelope (no spinner / ANSI interleaved).
+      expect(() => JSON.parse(r.stdout)).not.toThrow();
+      expectAgentClean(r.stdout);
+      expectAgentClean(r.stderr);
+    },
+  );
 });

@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import type { Gildash, SymbolSearchResult } from '@zipbul/gildash';
 
 import { createMockTestContext, type TestContext } from '../helpers';
+import { makeFakeSymbol } from '../fixtures/gildash';
 import { writeCardFile } from '../../src/fs/writer';
 import { buildCardPath, normalizeSlug } from '../../index';
 import type { CardFile, CodeLink, CardRow } from '../../index';
@@ -86,17 +87,7 @@ function insertInDb(key: string): void {
   tc.ctx.cardRepo.upsert(row);
 }
 
-const fakeSymbol = {
-  id: 1,
-  name: 'myFn',
-  memberName: null,
-  filePath: 'src/auth.ts',
-  kind: 'function' as any,
-  span: { start: { line: 1, column: 0 }, end: { line: 5, column: 1 } },
-  signature: 'function myFn(): void',
-  fingerprint: null,
-  detail: {},
-} as unknown as SymbolSearchResult;
+const fakeSymbol = makeFakeSymbol() as SymbolSearchResult;
 
 const throwGildashErr = () => {
   throw Object.assign(new Error('search failed'), { type: 'search', name: 'GildashError' });
