@@ -121,7 +121,9 @@ brief:
       invisible to subsequent reads.
     components:
       - name: schema
-        responsibility: Declares tables, indexes, and migrations including FTS5 search index.
+        responsibility: >-
+          Declares tables, indexes, and migrations including the indexed
+          full-text search facility.
         interacts_with:
           - CardRepository
           - RelationRepository
@@ -300,12 +302,12 @@ brief:
             deployment model.
     chosen:
       option: >-
-        Embedded SQLite with WAL plus repository layer plus bulk-sync plus
-        auto-sync at CLI entry.
+        Embedded database with concurrent-reader safety plus repository layer
+        plus bulk-sync plus auto-sync at CLI entry
       reasoning: >-
-        Matches single-user CLI scale, supports FTS5 for search, gives us
-        transactional writes, and keeps file-as-SSOT contract invisible to read
-        commands.
+        Matches single-user CLI scale, supports indexed full-text search, gives
+        us transactional writes, and keeps file-as-SSOT contract invisible to
+        read commands.
     addresses:
       - KL-001
       - KL-002

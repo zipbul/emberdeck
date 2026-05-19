@@ -96,13 +96,13 @@ brief:
         - G-003
   design:
     overview: >
-      preChangeCheck walks the input files and the binding cache to compute
+      preChangeCheck walks the input files and the code_link cache to compute
       affectedCards and an aggregate riskLevel (low / medium / high / critical)
       from a tiered set of thresholds: affected-count tiers, broken-link counts,
       and a fan-in promotion step that bumps the level one tier when any touched
       file has fan-in at or above a hot-file threshold. regressionGuard compares
       the drifted/total ratio against a configured threshold (range 0 to 1).
-      checkInteractions diffs the binding cache across input keys for
+      checkInteractions diffs the code_link cache across input keys for
       sharedSymbols, sharedFiles, importDependencies, and potentialConflicts.
       analyze composes the four read sources into one aggregate object and, as a
       hygiene side effect, prunes code-index changelog entries older than the
