@@ -11,8 +11,8 @@ glossary:
 brief:
   context:
     problem: >
-      Cards live both in SQLite and as on-disk markdown files (`*.card.md` with
-      YAML frontmatter
+      Cards live both in SQLite and as on-disk markdown files (`*.md` with YAML
+      frontmatter
 
       plus optional body). Bulk-sync, export, and direct user edits all rely on
       the round-trip

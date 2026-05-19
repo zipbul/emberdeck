@@ -53,12 +53,25 @@ spec:
         --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: A per-file parse or sync step fails.
+    - violation: >-
+        A per-file parse, validation, or DB upsert step fails during
+        DIRECTORY-mode bulk sync.
       behavior: >-
-        The offending entry accumulates in failed[]; stdout still emits the data
-        shape; the process exits 2 whenever failed.length > 0.
-    - violation: PATH argument is missing or resolves to a non-existent path.
+        The offending entry accumulates in failed[] with {filePath, error};
+        stdout still emits the data shape; the process exits 2 whenever
+        failed.length > 0.
+    - violation: >-
+        A single-FILE-mode bulk sync where the supplied file fails to parse or
+        upsert.
       behavior: >-
-        CliUsageError → stderr `{code:'cli-usage-error', message}` and the
-        process exits 2.
+        The error throws through the runner and is mapped via toCliError
+        (typically internal-error → exit 1 or validation-error → exit 2); it is
+        NOT accumulated into failed[] (file mode does not catch per-file
+        errors).
+    - violation: >-
+        PATH positional argument resolves to a non-existent path (only when
+        supplied — PATH is optional and defaults to ctx.cardsDir).
+      behavior: >-
+        CliUsageError → stderr `{code:cli-usage-error, message}` and the process
+        exits 2.
 ---

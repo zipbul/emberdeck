@@ -39,8 +39,11 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): card persisted; `failedRelationTargets` may be non-empty
-        (declared, recorded, but stdout-reported).
+        - 0 (EXIT.OK): card persisted AND failedRelationTargets is empty.
+
+        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 — the
+        card persisted but at least one declared relation target did not resolve
+        at create time; data is still emitted, only the exit code differs.
 
         - thrown mapping: CardAlreadyExistsError → card-already-exists → 4;
         CardValidationError → validation-error → 2; ParentValidationError →

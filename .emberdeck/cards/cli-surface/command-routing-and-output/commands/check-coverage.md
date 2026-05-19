@@ -1,8 +1,8 @@
 ---
 key: cli-surface/command-routing-and-output/commands/check-coverage
 summary: >-
-  Per-command CLI-shape spec for 'ed check coverage' (3 modes: card / uncovered
-  / suggest); declares mode-specific shapes (POST-001a/b/c) and 0/3 exit policy
+  Per-command CLI-shape spec for ed check coverage (3 modes: card / uncovered /
+  suggest); declares mode-specific shapes (POST-001a/b/c) and 0/2 exit policy
   (POST-002).
 status: active
 type: spec
@@ -47,7 +47,7 @@ spec:
         {
           totalSymbols: number,
           coveredSymbols: number,
-          coverageRatio: number,
+          coverageRatio: number | null,   // null when no symbols are indexed; otherwise covered/total
           uncovered: { file, symbol, kind }[],
           uncoveredTotal: number
         }

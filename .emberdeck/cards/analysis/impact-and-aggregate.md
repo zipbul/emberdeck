@@ -53,12 +53,10 @@ brief:
     - id: S-H-01
       kind: happy
       given: >-
-        A preChangeCheck call for two files that each touch exactly one card
-        with low overall fan-in.
+        A preChangeCheck call for ZERO affected cards (no input file maps to any
+        card, OR all touched cards have empty code_link cache).
       when: preChangeCheck runs.
-      then: >-
-        riskLevel is low and affectedCards lists both cards with linkType
-        direct.
+      then: riskLevel is `low` and affectedCards is empty.
       covers:
         - G-001
     - id: S-H-02
@@ -87,7 +85,7 @@ brief:
         - G-002
     - id: S-F-02
       kind: failure
-      given: Two specs whose binding caches both reference the same symbol.
+      given: Two specs whose code_link caches both reference the same symbol.
       when: checkInteractions runs over both keys.
       then: >-
         A sharedSymbols conflict entry is reported with the offending symbol;

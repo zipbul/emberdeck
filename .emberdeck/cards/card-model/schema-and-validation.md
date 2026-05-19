@@ -163,8 +163,11 @@ brief:
       - id: DI-002
         statement: >-
           All declared list-item ids in a brief or spec resolve within the same
-          card body before persistence; the error message accumulates every
-          unresolved reference rather than aborting on the first one.
+          card body BEFORE PERSISTING AS active (or transitioning to active).
+          Draft persistence intentionally bypasses this cross-ref resolution
+          check — the gate fires only at the activation boundary. When the check
+          runs, the error message accumulates every unresolved reference rather
+          than aborting on the first one.
       - id: DI-003
         statement: >-
           On a type change to an existing card, every direct child's

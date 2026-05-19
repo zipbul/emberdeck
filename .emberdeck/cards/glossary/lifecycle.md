@@ -26,9 +26,14 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Provide define, lookup, remove, and rename entry points with
-          all-or-nothing batch semantics on define (≤50 entries per call, ≤500
-          total per project).
+          Provide define, lookup, remove, and rename entry points.
+          defineGlossary is all-or-nothing INSIDE the op (any entry that fails
+          op-level validation rejects the whole batch and persists zero). The
+          CLI command `ed glossary define` pre-validates entries per-entry and
+          splits failures into the result `failed[]` — only the surviving
+          entries are passed to the op for the all-or-nothing write, so
+          user-facing semantics are partial-accept with per-entry failed[]
+          reported.
       - id: G-002
         statement: >-
           Cascade renames so the glossary field on every referencing card
@@ -126,8 +131,9 @@ brief:
     invariants:
       - id: DI-001
         statement: >-
-          defineGlossary is all-or-nothing per batch and never persists a
-          partial batch.
+          defineGlossary op is all-or-nothing per batch and never persists a
+          partial batch. CLI pre-validation runs BEFORE the op and may carve out
+          entries into result.failed[] without ever invoking the op for them.
       - id: DI-002
         statement: removeGlossary never runs without explicit --yes confirmation.
       - id: DI-003

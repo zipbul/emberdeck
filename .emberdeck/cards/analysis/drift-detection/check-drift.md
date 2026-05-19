@@ -18,8 +18,11 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        Each card in the response receives a primary driftType plus a driftTypes
-        array enumerating all detected types.
+        Cards with detected drift receive a primary `driftType` plus a
+        `driftTypes` array enumerating all detected types. Healthy cards (no
+        broken_link, no glossary_broken) OMIT both `driftType` and `driftTypes`
+        — these fields are present only when the card has at least one detected
+        drift.
       keyword: MUST
       derives: analysis/drift-detection#G-001
     - id: POST-002
