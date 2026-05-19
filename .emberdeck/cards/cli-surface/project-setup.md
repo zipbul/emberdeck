@@ -70,11 +70,15 @@ brief:
         - G-003
     - id: S-F-01
       kind: failure
-      given: A working directory with no .emberdeck and no parent .emberdeck.
+      given: >-
+        A working directory with no .emberdeck and no parent .emberdeck AND no
+        explicit --config / EMBERDECK_CONFIG path is supplied.
       when: setupEmberdeck runs.
       then: >-
-        A config-missing error (exit 6) is thrown with a hint to initialize the
-        project.
+        Implicit discovery silently falls back to cwd as project root with
+        buildDefaultConfig; NO config-missing error is thrown. Only when an
+        EXPLICIT config path is supplied does FILE_NOT_FOUND →
+        config-missing-file → exit 6.
       covers:
         - G-001
     - id: S-F-02
@@ -128,7 +132,12 @@ brief:
     - id: R-001
       subject: setupEmberdeck
       keyword: MUST
-      predicate: discover project root and load config before opening the DB.
+      predicate: >-
+        discover project root by walking upward; when no
+        .emberdeck/.emberdeck.jsonc is found, silently fall back to cwd +
+        buildDefaultConfig (no config-missing error in implicit-discovery).
+        FILE_NOT_FOUND → exit 6 only when an explicit config path is supplied
+        (--config / EMBERDECK_CONFIG).
       governs:
         - S-H-01
         - S-F-01
