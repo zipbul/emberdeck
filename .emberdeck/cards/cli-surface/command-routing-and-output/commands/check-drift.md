@@ -29,7 +29,6 @@ spec:
         {
           health: { total, active, drifted, draft },
           cards: { key, summary, status, driftType?, driftTypes?, brokenLinks, totalLinks }[]
-          // total drifted card count is derived as `cards.filter(c => c.driftType).length`
         }
 
         ```
@@ -37,11 +36,11 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): drift report always (read-only; presence of drift is not
-        failure).
+        - 0 (EXIT.OK): drift report always (read-only). When the optional [key]
+        argument is supplied but no such card exists, the op returns an empty
+        cards[] (NOT a thrown error) and exits 0.
 
-        - 3 (EXIT.NOT_FOUND): the optional [key] argument was provided but no
-        card with that key exists; CardNotFoundError is thrown by the action.
+        - thrown mapping: none under the read-only happy path.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -56,6 +55,7 @@ spec:
         The optional [key] argument was provided but no card with that key
         exists.
       behavior: >-
-        stderr emits `{level:'error', code:'card-not-found', message}` and the
-        process exits 3.
+        The op skips the absent key and returns an empty cards[] in data; exit
+        0. (No CardNotFoundError thrown — read-only path returns absence as
+        empty data, not as failure.)
 ---

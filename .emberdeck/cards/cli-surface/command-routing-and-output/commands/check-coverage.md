@@ -18,9 +18,11 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001a
-      guarantee: |-
+      guarantee: >-
         Mode `card` (`ed check coverage <key>`): `data` is
+
         ```jsonc
+
         {
           key: string,
           declared: number,
@@ -30,7 +32,12 @@ spec:
           unreferencedSymbols: { file, symbol, kind }[],
           unreferencedTotal: number
         }
+
         ```
+
+        Note: getLinkCoverage does NOT check card existence — a non-existent key
+        resolves to zero declared/resolved/broken with empty unreferencedSymbols
+        (no CardNotFoundError thrown in mode=card).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-001b
@@ -52,7 +59,15 @@ spec:
         Mode `suggest` (`ed check coverage --suggest`): `data` is
         ```jsonc
         {
-          suggestions: { key, type, parent?, files, symbols, reason, suggestedGlossary? }[],
+          suggestions: {
+            key: string,
+            type: 'domain'|'brief'|'spec',
+            parent?: string,
+            files: string[],
+            symbols: { file: string, symbol: string, kind: string }[],   // nested per-symbol shape (NOT a flat string array)
+            reason: string,
+            suggestedGlossary?: string[]
+          }[],
           total: number
         }
         ```
@@ -62,9 +77,9 @@ spec:
       guarantee: >-
         - 0 (EXIT.OK): the requested mode's data shape is returned (read-only).
 
-        - thrown mapping: mode=card → CardNotFoundError → card-not-found → 3
-        when the key resolves to no card; CliUsageError → cli-usage-error → 2
-        when no key is supplied AND no mode flag is supplied.
+        - thrown mapping: CliUsageError → cli-usage-error → 2 when no key is
+        supplied AND no mode flag is supplied. mode=card does NOT throw
+        CardNotFoundError — missing key resolves to zero-link coverage.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -75,10 +90,6 @@ spec:
         --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: mode='card' is selected and no card exists for the requested key.
-      behavior: >-
-        stderr emits `{level:'error', code:'card-not-found', message}` and the
-        process exits 3.
     - violation: No positional key and no mode flag (--uncovered/--suggest) supplied.
       behavior: >-
         CliUsageError → stderr `{code:'cli-usage-error', message}` and the

@@ -27,7 +27,11 @@ spec:
         validateCardInput verifies COMMON fields only. Type-specific deep
         namespace validation (brief.flow.covers, spec.derives, etc.) is
         delegated to dedicated validators (validateBriefRefs, validateSpecRefs)
-        invoked separately by the op layer, NOT by validateCardInput itself.
+        invoked separately by the op layer. These deeper validators are GATED by
+        status: they run for cards being created/updated as status='active' (or
+        transitioning to active), and they are SKIPPED for draft cards. A draft
+        card can therefore persist with unresolved deeper cross-refs; the gate
+        fires only at the activation boundary.
       keyword: SHALL
       derives: card-model/schema-and-validation#G-002
   invariants:
@@ -40,7 +44,9 @@ spec:
       statement: >-
         Type-specific deeper validators (cross-ref resolution,
         flow/policy/criteria/derives integrity) are invoked by the op layer
-        AFTER validateCardInput common-field validation passes.
+        AFTER validateCardInput common-field validation passes AND only when
+        status='active' or the operation transitions to active. Draft
+        create/update intentionally bypasses the deeper validation pass.
       always_holds: per-call
   failures:
     - violation: >-
@@ -51,13 +57,15 @@ spec:
         persistence occurs.
     - violation: >-
         A brief.policy.governs id does not match any brief.flow id on the same
-        card (cross-ref).
+        card (cross-ref) — only checked when status='active' or transitioning to
+        active.
       behavior: >-
         validateBriefRefs (separate validator) throws CardValidationError
         identifying the unresolved id.
     - violation: >-
         A spec.preconditions.derives reference does not follow the
-        `brief-key#item-id` format.
+        `brief-key#item-id` format — only checked when status='active' or
+        transitioning to active.
       behavior: >-
         validateSpecRefs (separate validator) throws CardValidationError
         identifying the malformed reference.

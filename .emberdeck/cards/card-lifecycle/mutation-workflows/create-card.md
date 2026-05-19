@@ -26,8 +26,9 @@ spec:
     - id: POST-002
       guarantee: >-
         On parent-not-found, hierarchy violation, key collision,
-        glossary-validation failure, or any pre-storage validation failure, no
-        file or DB row is written.
+        glossary-validation failure, activation-guard failure, or compensation
+        rollback failure, no file or DB row is written (compensation failure may
+        leave partial state with full error details surfaced to the caller).
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-002
   invariants:
@@ -45,4 +46,21 @@ spec:
         Glossary field references a word that is not defined in the glossary
         store.
       behavior: createCard throws GlossaryValidationError; no file or DB row written.
+    - violation: >-
+        Card key is malformed (invalid slug, reserved characters, or
+        normalization rules violation).
+      behavior: createCard throws CardKeyError; no file or DB row written.
+    - violation: >-
+        Card created with status='active' but the activation guard's
+        preconditions are not met (e.g. spec without @spec annotation).
+      behavior: >-
+        createCard throws ActivationGuardError with details.unmetConditions; no
+        file or DB row written.
+    - violation: >-
+        Forward action succeeded but the compensation/rollback step itself fails
+        (rare — DB write succeeded but a downstream cleanup throws).
+      behavior: >-
+        createCard throws CompensationError carrying both originalError and
+        compensationError details; system may be in partial state requiring
+        operator intervention.
 ---

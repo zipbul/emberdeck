@@ -23,8 +23,9 @@ spec:
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-002
       guarantee: >-
-        Updates apply atomically across file and DB. updateCard does NOT write a
-        changelog row (the changelog repo is not invoked from this path).
+        Updates apply atomically across file and DB. updateCard DOES write a
+        changelog row via recordUpdateChangelog (src/ops/update.ts:358,380)
+        capturing the diff of changed fields per the changelog-repo contract.
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-001
   invariants:
@@ -40,4 +41,18 @@ spec:
       behavior: updateCard throws CardNotFoundError.
     - violation: Patch produces invalid card.
       behavior: updateCard throws CardValidationError; no persistence.
+    - violation: >-
+        Card key is malformed (invalid slug, reserved characters, or
+        normalization-rules violation).
+      behavior: updateCard throws CardKeyError; no persistence.
+    - violation: >-
+        Patch attempts a parent change that violates the four-tier hierarchy or
+        points to a non-existent parent; or a type change orphaning children.
+      behavior: updateCard throws ParentValidationError; no persistence.
+    - violation: >-
+        Patch triggers a status transition to 'active' whose activation guard's
+        preconditions are not met.
+      behavior: >-
+        updateCard throws ActivationGuardError with details.unmetConditions; no
+        persistence.
 ---

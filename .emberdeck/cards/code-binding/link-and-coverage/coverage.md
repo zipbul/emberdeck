@@ -15,8 +15,9 @@ spec:
         Caller invokes coverage in one of three modes: (a) per-card via
         `getLinkCoverage(ctx, fullKey)` for a specific card; (b) --uncovered
         (returns all unbound symbols across the project); (c) --suggest (returns
-        proposed card scopes). The three modes are mutually exclusive at the CLI
-        layer.
+        proposed card scopes). The CLI does NOT enforce mutual exclusion between
+        --uncovered and --suggest — if both are passed, --suggest silently wins
+        (precedence: suggest > uncovered > per-card-key).
       derives: code-binding/link-and-coverage#G-002
   postconditions:
     - id: POST-001
@@ -49,7 +50,7 @@ spec:
         getLinkCoverage(ctx, key) returns per-card coverage for a single card
         (declared/resolved/broken counts plus unreferenced symbols within the
         card's bound files). It is the mode underlying `ed check coverage
-        <key>`.
+        <key>`. Missing card key produces zero-link coverage (no throw).
       keyword: SHALL
       derives: code-binding/link-and-coverage#G-002
   invariants:

@@ -169,6 +169,12 @@ brief:
           - Friendlier to manual edits.
         cons:
           - Requires a CST-style YAML library and complicates merge tooling.
+      - option: Canonical YAML round-trip with type-aware key ordering.
+        pros:
+          - Diffability without comment-fidelity overhead.
+          - Tooling owns format consistently.
+        cons:
+          - Manual comments and formatting choices are lost on rewrite.
     chosen:
       option: Canonical YAML round-trip with type-aware key ordering.
       reasoning: >-

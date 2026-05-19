@@ -18,21 +18,24 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        renameCard cascades parent, relations, and cross-domain dependencies in
-        a single transaction over the indexed cache; card body wording and
-        source `@spec` annotations are not cascaded. Per-reference file rewrite
-        failures are surfaced via failedReferenceUpdates[] on the result rather
-        than thrown.
+        renameCard atomically updates key/path and writes the changelog row
+        within a single DB transaction. The cross-domain dependency and relation
+        rewrites of REFERENCING cards happen LATER as separate file writes
+        followed by syncCardFromFile() — they are NOT in the same transaction as
+        the rename itself. Card body wording and source `@spec` annotations are
+        not cascaded. Per-reference file rewrite failures are surfaced via
+        failedReferenceUpdates[] on the result rather than thrown.
       keyword: MUST
       derives: card-lifecycle/mutation-workflows#G-003
     - id: POST-002
       guarantee: >-
         bulkCreateCards processes entries independently: each entry is committed
         via createCard with its own safe-write boundary. Successful entries
-        appear in created[]; failures appear in failed[] preserving inputIndex.
-        Earlier successes are NOT rolled back when a later entry fails. Phase-2
-        relation updates that fail mark their card key in partialKeys[] (the row
-        exists without the intended relations).
+        appear in created[]; FAILURES appear in `errors[]` (NOT `failed[]`)
+        preserving inputIndex. Earlier successes are NOT rolled back when a
+        later entry fails. Phase-2 relation updates that fail mark their card
+        key in partialKeys[] AND append a row to errors[] (with the
+        relation-update message and same inputIndex).
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-003
@@ -72,7 +75,7 @@ spec:
       behavior: Throws CardRenameSamePathError; no rename performed.
     - violation: bulkCreateCards mid-batch failure on entry N.
       behavior: >-
-        Returns a result with entry N in failed[] (preserving inputIndex), prior
+        Returns a result with entry N in errors[] (preserving inputIndex), prior
         successes in created[], and continues processing remaining entries. No
         rollback of prior entries.
     - violation: renameCard cascade write to a referencing card's file fails.

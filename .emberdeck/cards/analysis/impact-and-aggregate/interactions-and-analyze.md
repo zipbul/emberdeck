@@ -53,7 +53,10 @@ spec:
         and the call continues; no exception is raised.
     - violation: code-index unavailable during analyze.
       behavior: >-
-        The call still returns the card-only views (health, drifted, glossary);
-        coverage and unlinkedSymbols are populated with code-index-unavailable
-        markers; no exception is raised.
+        analyze calls checkDrift and getUncoveredSymbols which both await
+        ensureReindexed without a local catch; code-index initialization failure
+        THROWS up through the analyze op. The caller (CLI runner) maps the
+        thrown class via toCliError (GildashInitError → gildash-init-failed →
+        exit 6; otherwise → internal-error → exit 1). No card-only fallback is
+        returned on a code-index failure path.
 ---

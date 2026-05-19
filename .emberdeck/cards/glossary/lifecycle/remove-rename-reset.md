@@ -19,8 +19,9 @@ spec:
         renameGlossary updates the glossary store and indexed glossary fields of
         every referencing card in one transaction. Per-card markdown body
         rewrites are best-effort and NOT atomic — failures are accumulated in
-        `failedFileWrites[]` on the result; the rename itself still commits. The
-        op returns successfully whether or not all file writes succeed.
+        `fileWriteFailures[]` on the result (string[] of card keys); the rename
+        itself still commits. The op returns successfully whether or not all
+        file writes succeed.
       keyword: MUST
       derives: glossary/lifecycle#G-002
     - id: POST-002
@@ -50,11 +51,15 @@ spec:
     - violation: renameGlossary target word already exists.
       behavior: Throws GlossaryValidationError; no rename performed.
     - violation: >-
+        renameGlossary or removeGlossary target word does not exist in the
+        glossary store.
+      behavior: Throws GlossaryNotFoundError; no rename or removal performed.
+    - violation: >-
         renameGlossary cascade write to a referencing card's markdown file
         fails.
       behavior: >-
-        The rename still completes; the affected file is recorded in
-        failedFileWrites[]; no exception is raised.
+        The rename still completes; the affected card key is recorded in
+        fileWriteFailures[]; no exception is raised.
     - violation: >-
         resetEmberdeck encounters per-row DB delete, per-file unlink, or
         glossary-store reset errors.

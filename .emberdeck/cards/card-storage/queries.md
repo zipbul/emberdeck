@@ -217,6 +217,13 @@ brief:
           - Better relevance.
         cons:
           - Adds a server dependency.
+      - option: Narrow read entry points backed by the embedded text-search facility.
+        pros:
+          - Result shapes precise per use case.
+          - No external dependency.
+        cons:
+          - More functions to maintain.
+          - Search relevance bounded by the embedded engine.
     chosen:
       option: Narrow read entry points backed by the embedded text-search facility.
       reasoning: >-

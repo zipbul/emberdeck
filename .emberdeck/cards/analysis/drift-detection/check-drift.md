@@ -42,14 +42,20 @@ spec:
       always_holds: cross-call
     - id: INV-002
       statement: >-
-        broken_link can only be reported when the gildash index has at least one
-        file; an empty index is treated as "no information".
+        broken_link is reported whenever a declared link's symbol does not
+        resolve in the current gildash result — including when the result is a
+        successful empty list. An empty index therefore still increments
+        brokenLinks for every unresolved symbol; only individual lookup THROWS
+        (transient errors, distinguished from successful-empty) are treated as
+        'no information' (see INV-003). Operators relying on 'empty index = no
+        drift' must short-circuit checkDrift externally.
       always_holds: per-call
     - id: INV-003
       statement: >-
-        Individual gildash lookup failures inside the per-link loop are
+        Individual gildash lookup failures (THROWS) inside the per-link loop are
         best-effort and never inflate brokenLinks; they are silently skipped so
         a transient gildash hiccup cannot manufacture false drift.
+        (Successful-but-empty lookups still count as unresolved — see INV-002.)
       always_holds: per-call
   failures:
     - violation: ensureReindexed throws (gildash cannot reindex at all).
@@ -61,8 +67,9 @@ spec:
         gildash error on one query).
       behavior: >-
         That link is skipped — not counted as broken. brokenLinks reflects only
-        confirmed missing symbols. driftType is set only when at least one link
-        is provably absent.
+        links whose successful lookup returned no match. driftType is set only
+        when at least one link's lookup returned successfully-empty (= confirmed
+        missing).
     - violation: An expected card key is not in the DB.
       behavior: >-
         The card is silently skipped from the per-card output; the aggregate

@@ -32,8 +32,8 @@ spec:
             total, active, drifted, draft, brokenLinks,
             codeStats?: { files: number, symbols: number },
             codeCycles?: {
-              count: number,                  // observed cycle count, capped at the op-layer MAX_CYCLES_FETCH (200). When the cap is hit the true total is unknown to this call; `count === 200` should be read as "≥200".
-              samples: string[][]             // up to op-layer MAX_CYCLE_SAMPLES.
+              count: number,
+              samples: string[][]
             }
           },
           coverage: { totalSymbols, coveredSymbols, coverageRatio: number|null },
@@ -45,19 +45,25 @@ spec:
             hasMore: boolean
           },
           glossary: { unusedWords: string[], entries: { word, definition }[] },
-          unlinkedSymbols: { file, symbol, kind }[]   // capped at op-layer UNLINKED_SYMBOLS_LIMIT (currently 20)
+          unlinkedSymbols: { file, symbol, kind }[]
         }
 
         ```
+
+        Note: codeCycles.count is observed cycle count capped at op-layer
+        MAX_CYCLES_FETCH (200) — `count === 200` reads as 'at least 200'.
+        unlinkedSymbols capped at UNLINKED_SYMBOLS_LIMIT (currently 20).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): analyze report is always returned (read-only with respect
-        to cards; the retention-prune side effect on the code-index changelog is
-        hygiene and does not affect exit code).
+        - 0 (EXIT.OK): analyze report is returned on the read-only happy path.
 
-        - thrown mapping: none.
+        - thrown mapping: ensureReindexed (called by the op before the
+        symbol-coverage queries at src/ops/analyze.ts:155) can throw on
+        code-index failure — these errors propagate up through the runner and
+        map via toCliError (GildashInitError → gildash-init-failed → 6;
+        otherwise → internal-error → 1).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -70,7 +76,12 @@ spec:
   failures:
     - violation: '--drifted-limit or --drifted-offset is negative.'
       behavior: >-
-        commander rejects the invocation upstream, taking the
-        runner-commander-fallback path: stderr `{level:'error',
-        code:'cli-usage-error', ...}` and exit 2.
+        commander rejects upstream taking the runner-commander-fallback path:
+        stderr `{level:'error', code:'cli-usage-error', ...}` and exit 2.
+    - violation: ensureReindexed fails to initialize or refresh the code index.
+      behavior: >-
+        The op throws (GildashInitError or downstream class); toCliError maps
+        the class to a kebab code and the runner emits a single stderr
+        level:error line and exits (6 for gildash-init-failed, 1 for
+        internal-error).
 ---
