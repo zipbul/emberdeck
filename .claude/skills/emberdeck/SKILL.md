@@ -391,6 +391,9 @@ stderr JSON-line `level:'error'` 코드 (명령 실패 시 한 줄, exit 비-0):
 | `glossary-not-found` | 3 | `glossary remove`/`rename` 의 word 미존재 |
 | `rename-same-path` | 4 | `card rename` 의 old=new 경로 충돌 |
 | `gildash-init-failed` | 6 | gildash 초기화 실패 (config_missing 카테고리) |
+| `config-missing-file` | 6 | 명시적 config 경로 (`--config` / `EMBERDECK_CONFIG`) 가 존재 안 함. implicit discovery 는 silent fallback → 이 코드 emit 안 함 |
+| `config-parse-error` | 2 | config 파일 JSON/JSONC syntax 파싱 실패 |
+| `config-validation-error` | 2 | config 검증 실패 (unknown top-level key, wrong type, regressionThreshold [0,1] 범위 위반 등) |
 | `output-encode-failed` | 1 | 출력 직렬화 실패 (지원 안 되는 값 — BigInt / 순환 참조 등). 입력 데이터 확인 |
 | `stdout-write-failed` | 5 | stdout 쓰기 실패 (디스크 부족 / IO 에러 등, broken pipe 제외) |
 | `internal-error` | 1 | 알 수 없는 에러 클래스 (`details.class?`) |
