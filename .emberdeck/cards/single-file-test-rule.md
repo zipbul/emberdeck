@@ -20,6 +20,6 @@ principle:
     their place as cards. This rule keeps card density aligned with the system
     value cards provide.
   applies_to:
-    - card-authoring
+    - '*'
   enforcement: advisory
 ---
