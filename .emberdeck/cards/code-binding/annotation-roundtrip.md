@@ -27,7 +27,11 @@ brief:
   scope:
     goals:
       - id: G-001
-        statement: Reconstruct the DB code_link cache from `@spec` annotations in source.
+        statement: >-
+          Reconstruct the DB code_link cache from tier-annotation tags in
+          source: `@spec`, `@brief`, `@principle`, and `@domain` are all scanned
+          (each tag binds to a card of the corresponding type; the card key in
+          the annotation value resolves the target).
       - id: G-002
         statement: >-
           Propagate gildash-detected symbol renames or moves into existing

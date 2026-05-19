@@ -19,7 +19,11 @@ spec:
     - id: POST-001
       guarantee: >-
         validateCardInput throws CardValidationError for any invalid common
-        field (key format, type, summary, parent reference shape).
+        field — key TYPE (string check) and LENGTH (≤ LIMITS.KEY_MAX), type
+        discriminant, summary type+length, parent reference shape. NOTE: key
+        FORMAT (slug grammar, path-traversal, double-slash) is NOT enforced here
+        — it is owned by `card-model/schema-and-validation/card-key` via
+        `normalizeSlug` invoked at the storage layer.
       keyword: MUST
       derives: card-model/schema-and-validation#G-001
     - id: POST-002
@@ -51,10 +55,12 @@ spec:
   failures:
     - violation: >-
         A required common field (key, type, summary, parent for non-root types)
-        is missing or malformed.
+        is missing, of the wrong type, or exceeds length limits.
       behavior: >-
         validateCardInput throws CardValidationError naming the field path; no
-        persistence occurs.
+        persistence occurs. Key SLUG-FORMAT violations (path traversal,
+        double-slash) surface separately at the card-key layer via normalizeSlug
+        → CardKeyError.
     - violation: >-
         A brief.policy.governs id does not match any brief.flow id on the same
         card (cross-ref) — only checked when status='active' or transitioning to

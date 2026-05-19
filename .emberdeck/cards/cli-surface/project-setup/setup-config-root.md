@@ -39,10 +39,9 @@ spec:
         loadConfig returns a Result<EmberdeckFileConfig, ConfigError>. On Err:
         PARSE_ERROR → kebab `config-parse-error` → exit 2; VALIDATION_ERROR →
         kebab `config-validation-error` → exit 2. FILE_NOT_FOUND maps to
-        `config-missing-file` → exit 6 only when an EXPLICIT config path was
-        supplied (via `--config` or `EMBERDECK_CONFIG` env). The default
-        discovery walk never emits config-missing-file because it falls back to
-        buildDefaultConfig.
+        `config-missing-file` → exit 6 only when an EXPLICIT config path is
+        supplied via the `--config` flag. The default discovery walk never emits
+        config-missing-file because it falls back to buildDefaultConfig.
       keyword: MUST
       derives: cli-surface/project-setup#G-002
     - id: POST-004
@@ -67,11 +66,11 @@ spec:
       always_holds: per-call
   failures:
     - violation: >-
-        An explicit config path is supplied (via `--config` or
-        `EMBERDECK_CONFIG` env) and the file does not exist.
+        An explicit config path is supplied via `--config` flag and the file
+        does not exist.
       behavior: >-
         loadConfig returns Err{code: FILE_NOT_FOUND}; context build raises
-        ConfigLoadError → stderr `{level:'error', code:'config-missing-file',
+        ConfigLoadError → stderr `{level:error, code:config-missing-file,
         message}` → exit 6. (Implicit discovery does NOT trigger this — it
         silently falls back to defaults.)
     - violation: The config file is present but its JSON/JSONC syntax cannot be parsed.

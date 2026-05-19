@@ -1,8 +1,8 @@
 ---
 key: cli-surface/command-routing-and-output/commands/card-search
 summary: >-
-  Per-command CLI-shape spec for 'ed card search'; declares FTS5 items with
-  snippet/rank shape (POST-001) and 0/2 exit policy (POST-002).
+  Per-command CLI-shape spec for ed card search; declares full-text search
+  result items with snippet/rank (POST-001) and 0/2 exit policy (POST-002).
 status: active
 type: spec
 parent: cli-surface/command-routing-and-output

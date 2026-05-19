@@ -164,8 +164,10 @@ spec:
         best-effort; a failing stderr channel MUST NOT kill the command. The
         command proceeds to its natural exit code.
     - violation: >-
-        ed init or any command that loads config encounters a missing
-        `.emberdeck.jsonc` file.
+        An EXPLICIT config path (`--config` flag) is supplied and the file does
+        not exist. (Implicit discovery — no flag, walks upward, falls back to
+        defaults if no .emberdeck.jsonc found — does NOT emit this code;
+        setup-config-root POST-001 covers the silent fallback.)
       behavior: >-
         stderr emits `{level:error, code:config-missing-file, message}`; process
         exits 6.

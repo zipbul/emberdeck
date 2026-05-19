@@ -41,6 +41,16 @@ spec:
       behavior: >-
         resolveCardCodeLinks returns an empty array; validateCodeLinks returns
         declared=0 / valid=0 / broken=[] / planned=[].
-    - violation: gildash is unavailable (no projectRoot configured).
-      behavior: Link resolution returns empty results; callers handle as no-coverage.
+    - violation: >-
+        gildash is unavailable at op entry (binary missing, projectRoot not
+        configured, backing-index open error).
+      behavior: >-
+        ensureReindexed(ctx) — called at the top of validateCodeLinks,
+        resolveCardCodeLinks, and getUncoveredSymbols — throws. The throw
+        propagates up through the op (no internal catch); callers see the
+        original gildash error class, which the runner maps via toCliError
+        (GildashInitError → gildash-init-failed → exit 6; otherwise →
+        internal-error → exit 1). Per-symbol resolution failures during the loop
+        are still distinguished — those produce per-link `gildash-unavailable`
+        BrokenLink reasons; only the bootstrap failure propagates.
 ---

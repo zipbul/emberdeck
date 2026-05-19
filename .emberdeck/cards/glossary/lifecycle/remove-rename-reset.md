@@ -16,12 +16,14 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        renameGlossary updates the glossary store and indexed glossary fields of
-        every referencing card in one transaction. Per-card markdown body
-        rewrites are best-effort and NOT atomic — failures are accumulated in
-        `fileWriteFailures[]` on the result (string[] of card keys); the rename
-        itself still commits. The op returns successfully whether or not all
-        file writes succeed.
+        renameGlossary persists in TWO STEPS (NOT a single transaction): (1)
+        glossary.yaml is rewritten FIRST via writeGlossary, then (2) a DB
+        transaction updates the indexed glossary fields of every referencing
+        card and writes per-card changelog rows. If the DB transaction throws,
+        glossary.yaml is REVERTED to the original entries (best-effort
+        rollback). Per-card markdown body rewrites are a third best-effort step
+        OUTSIDE both — failures accumulated in `fileWriteFailures[]` on the
+        result; the rename itself still commits.
       keyword: MUST
       derives: glossary/lifecycle#G-002
     - id: POST-002

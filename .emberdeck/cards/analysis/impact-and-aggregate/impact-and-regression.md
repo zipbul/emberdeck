@@ -44,11 +44,13 @@ spec:
         fan-in match can only promote the level upward, never demote.
       always_holds: per-call
   failures:
-    - violation: >-
-        A passed file path is not under the project root or is excluded by
-        configured ignorePatterns.
+    - violation: A passed file path is not under the project root.
       behavior: >-
-        preChangeCheck excludes the file silently; affectedCards reflects only
-        the remaining known files and newUncoveredFiles reflects the post-ignore
-        set.
+        expandAffectedFiles filters it out before iteration; affectedCards
+        reflects only the remaining files.
+    - violation: A passed file path matches configured ignorePatterns.
+      behavior: >-
+        expandAffectedFiles filters it out before iteration. preChangeCheck does
+        not re-iterate the ignored file; affectedCards and newUncoveredFiles
+        reflect the post-ignore set.
 ---

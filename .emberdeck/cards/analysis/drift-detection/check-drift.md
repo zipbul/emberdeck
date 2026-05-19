@@ -73,8 +73,11 @@ spec:
         links whose successful lookup returned no match. driftType is set only
         when at least one link's lookup returned successfully-empty (= confirmed
         missing).
-    - violation: An expected card key is not in the DB.
+    - violation: An expected card key (from optional [key] arg) is not in the DB.
       behavior: >-
-        The card is silently skipped from the per-card output; the aggregate
-        health counts reflect what is present.
+        The missing key is silently skipped from per-card output (no
+        driftType/driftTypes for it). HOWEVER `health.total` is set to
+        `targetKeys.length` (the requested keys, INCLUDING missing ones);
+        active/drifted/draft counts reflect only present cards. So
+        `health.active + health.drifted + health.draft <= health.total`.
 ---

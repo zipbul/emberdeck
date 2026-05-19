@@ -18,8 +18,11 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        validateCardGlossaryField returns the unresolved word set without
-        modifying any state.
+        validateCardGlossaryField (alias: validateGlossaryWords / similar)
+        iterates the declared glossary words and throws GlossaryValidationError
+        on the FIRST unresolved word (or other validation issue: empty word,
+        duplicate, length cap, max-per-card cap). Returns void on success. Does
+        NOT collect a batched unresolved-set — it is fail-fast.
       keyword: MUST
       derives: glossary/cross-card-validation#G-001
     - id: POST-002

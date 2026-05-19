@@ -63,9 +63,10 @@ spec:
         --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: '--since does not parse as an ISO 8601 timestamp.'
+    - violation: '--since does not parse as ISO 8601 timestamp or epoch ms.'
       behavior: >-
-        commander rejects upstream, taking the runner-commander-fallback path:
-        stderr emits `{level:'error', code:'cli-usage-error', ...}` and the
-        process exits 2.
+        The CLI action itself throws CliUsageError (NOT a commander upstream
+        rejection; the parsing happens inside the action after commander
+        validation). Runner maps via toCliError → stderr `{level:error,
+        code:cli-usage-error, message}` and exit 2.
 ---

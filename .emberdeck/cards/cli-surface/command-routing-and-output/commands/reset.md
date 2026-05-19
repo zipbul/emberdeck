@@ -13,8 +13,10 @@ spec:
     - id: PRE-001
       condition: >-
         Runner has built a CliRuntime and forwarded commander-validated
-        arguments to this command's action; --yes is required, commander rejects
-        the invocation otherwise.
+        arguments to this command's action. --yes is OPTIONAL at commander
+        layer; if absent, the action calls confirmDestructive which prompts
+        interactively (TTY) or throws CliUsageError (non-TTY) before invoking
+        resetEmberdeck.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
@@ -43,14 +45,13 @@ spec:
 
         - 2 (EXIT.VALIDATION_FAILURE): the indexed cache is consistent (cards
         and glossary both cleared) but one or more `.md` file unlinks failed
-        (failedFileDeletes is populated; the operator must clean up).
+        (failedFileDeletes is populated; the operator must clean up). Also:
+        CliUsageError from confirmDestructive (no --yes + non-TTY OR user
+        declined prompt) → exit 2.
 
-        - thrown mapping: none (unmapped IO errors fall through to the parent
-        runner's toCliError default branch as `internal-error` → exit 1).
-
-        - Missing --yes: commander rejects upstream → runner-commander-fallback
-        path with stderr `{level:'error', code:'cli-usage-error', ...}` and exit
-        2.
+        - thrown mapping: CliUsageError → cli-usage-error → 2. Other unmapped IO
+        errors fall through to the parent runner's toCliError default branch as
+        `internal-error` → exit 1.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -61,9 +62,12 @@ spec:
         --quiet semantics, empty stdout on failure).
       always_holds: per-call
   failures:
-    - violation: '--yes flag is missing.'
+    - violation: '--yes flag is omitted AND the process is non-TTY (cannot prompt).'
       behavior: >-
-        commander rejects the invocation upstream, taking the
-        runner-commander-fallback path: stderr `{level:'error',
-        code:'cli-usage-error', ...}` and exit 2.
+        confirmDestructive throws CliUsageError → stderr `{code:cli-usage-error,
+        message}` and exit 2. resetEmberdeck is NOT invoked.
+    - violation: >-
+        --yes flag is omitted but TTY available; user types anything other than
+        'yes' at the prompt.
+      behavior: confirmDestructive throws CliUsageError. resetEmberdeck is NOT invoked.
 ---

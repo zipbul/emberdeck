@@ -41,10 +41,11 @@ spec:
         - 0 (EXIT.OK): sync is fact-recording; unmatched and markerMissing are
         diagnostics, not failures.
 
-        - thrown mapping: syncSpecAnnotations itself does not throw. The
-        runner's buildRuntime → setupEmberdeck step may surface GildashInitError
-        → 6 (EXIT.CONFIG_MISSING) when the code-index dependency fails to
-        initialize. Other indexed-cache or IO failures fall through to the
+        - thrown mapping: syncSpecAnnotations awaits ensureReindexed(ctx) before
+        its main logic; if the code-index reindex itself fails (e.g.
+        GildashInitError → gildash-init-failed → 6), the throw propagates up
+        through this op (not the runner setup step). Op-level indexed-cache or
+        IO failures inside the reconciliation loop fall through to the
         toCliError default branch → `internal-error` exit 1.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
@@ -58,11 +59,13 @@ spec:
   failures:
     - violation: >-
         Code-index dependency initialization fails (projectRoot missing, no
-        indexable source, or backing-index open error).
+        indexable source, or backing-index open error). ensureReindexed throws
+        inside syncSpecAnnotations.
       behavior: >-
-        GildashInitError → stderr `{level:'error', code:'gildash-init-failed',
-        message}` and the process exits 6 (EXIT.CONFIG_MISSING). Raised by the
-        runner's buildRuntime step before the command action runs.
+        GildashInitError → stderr `{level:error, code:gildash-init-failed,
+        message}` and the process exits 6 (EXIT.CONFIG_MISSING). The throw
+        originates inside the op (after the runner has built the runtime), not
+        at buildRuntime.
     - violation: Op-level indexed-cache write or IO failure.
       behavior: >-
         stderr emits `{level:'error', code:'internal-error', message,
