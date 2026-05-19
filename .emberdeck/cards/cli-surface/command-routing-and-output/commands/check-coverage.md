@@ -14,81 +14,57 @@ spec:
     - id: PRE-001
       condition: >-
         Runner has built a CliRuntime and forwarded commander-validated
-        arguments to this command's action. The mode is selected by the
-        arguments: a <key> positional → 'card'; --uncovered → 'uncovered';
-        --suggest → 'suggest'.
+        arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001a
-      guarantee: >-
-        mode='card' (`ed check coverage <key>`): on success the `data` matches
-        the shape:
-
+      guarantee: |-
+        Mode `card` (`ed check coverage <key>`): `data` is
         ```jsonc
-
-        // getLinkCoverage produces this link-coverage shape per card.
-
-        // unreferencedSymbols is the full array (no CLI-side slice); callers
-        can page with jq if needed.
-
-        // A card with zero declared links surfaces coverageRatio = 1 (vacuous
-        coverage).
-
-        { key, declared, resolved, broken, coverageRatio: number,
-          unreferencedSymbols: { file, symbol, kind }[],    // full array
-          unreferencedTotal: number }                        // === unreferencedSymbols.length
+        {
+          key: string,
+          declared: number,
+          resolved: number,
+          broken: number,
+          coverageRatio: number,
+          unreferencedSymbols: { file, symbol, kind }[],
+          unreferencedTotal: number
+        }
         ```
-
-        A future migration from link-coverage to symbol-coverage is tracked
-        separately; this card documents only the shape above.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-001b
-      guarantee: >-
-        mode='uncovered' (`ed check coverage --uncovered`): on success the
-        `data` matches the shape:
-
+      guarantee: |-
+        Mode `uncovered` (`ed check coverage --uncovered`): `data` is
         ```jsonc
-
-        // uncovered is the full array (no CLI-side slice).
-
-        { totalSymbols, coveredSymbols, coverageRatio: number | null,
-          uncovered: { file, symbol, kind }[],    // full array
-          uncoveredTotal: number }                 // === uncovered.length
+        {
+          totalSymbols: number,
+          coveredSymbols: number,
+          coverageRatio: number,
+          uncovered: { file, symbol, kind }[],
+          uncoveredTotal: number
+        }
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-001c
-      guarantee: >-
-        mode='suggest' (`ed check coverage --suggest`): on success the `data`
-        matches the shape:
-
+      guarantee: |-
+        Mode `suggest` (`ed check coverage --suggest`): `data` is
         ```jsonc
-
         {
-          suggestions: {
-            key,                                           // the op's suggestedKey
-            type: 'domain' | 'brief' | 'spec',
-            parent?: string,
-            files: string[],                               // arrays returned verbatim by the op (no count conversion)
-            symbols: { file, symbol, kind }[],             // arrays returned verbatim by the op
-            reason: string,
-            suggestedGlossary?: string[]
-          }[],
-          total
+          suggestions: { key, type, parent?, files, symbols, reason, suggestedGlossary? }[],
+          total: number
         }
-
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): every mode succeeds (a coverage result, possibly with
-        empty arrays, is emitted).
+        - 0 (EXIT.OK): the requested mode's data shape is returned (read-only).
 
-        - thrown mapping (mode='card' only): CardNotFoundError → 3
-        (EXIT.NOT_FOUND). Modes 'uncovered' and 'suggest' have no thrown
-        mapping.
+        - thrown mapping: mode=card → CardNotFoundError → card-not-found → 3
+        when the key resolves to no card; CliUsageError → cli-usage-error → 2
+        when no key is supplied AND no mode flag is supplied.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -103,4 +79,8 @@ spec:
       behavior: >-
         stderr emits `{level:'error', code:'card-not-found', message}` and the
         process exits 3.
+    - violation: No positional key and no mode flag (--uncovered/--suggest) supplied.
+      behavior: >-
+        CliUsageError → stderr `{code:'cli-usage-error', message}` and the
+        process exits 2.
 ---

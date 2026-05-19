@@ -23,11 +23,15 @@ spec:
 
         ```jsonc
 
-        // stdout shape for `ed card create <key> --type T [...]`
+        // stdout shape for `ed card create KEY --type T --summary S [...]`
 
         {
-          key, filePath, status, type, parent: string | null,
-          failedRelationTargets: string[]    // relation targets that did not persist under concurrent contention (FK violation); empty on clean create.
+          key: string,
+          filePath: string,
+          status: 'draft'|'active'|'drifted',
+          type: 'principle'|'domain'|'brief'|'spec',
+          parent: string|null,
+          failedRelationTargets: string[]   // declared relations whose targets did not resolve at create time
         }
 
         ```
@@ -35,17 +39,13 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): the card was created, the file was written, the
-        indexed-cache row was inserted, and every relation target persisted
-        (failedRelationTargets is empty).
+        - 0 (EXIT.OK): card persisted; `failedRelationTargets` may be non-empty
+        (declared, recorded, but stdout-reported).
 
-        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 (the
-        card exists but at least one relation target failed under concurrent
-        contention; data is still emitted, exit signals the partial state).
-
-        - thrown mapping: CardAlreadyExistsError → 4 (EXIT.CONFLICT);
-        CardValidationError / ParentValidationError / ActivationGuardError → 2
-        (EXIT.VALIDATION_FAILURE).
+        - thrown mapping: CardAlreadyExistsError → card-already-exists → 4;
+        CardValidationError → validation-error → 2; ParentValidationError →
+        parent-validation-error → 2; ActivationGuardError →
+        activation-guard-failed → 2; CliUsageError → cli-usage-error → 2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -78,4 +78,11 @@ spec:
       behavior: >-
         ActivationGuardError → stderr `{code:'activation-guard-failed', message,
         details:{unmetConditions}}` and the process exits 2.
+    - violation: >-
+        CLI pre-op input violation: `--from` body is empty, the parsed root is
+        non-object, or summary is missing (no --summary AND no `summary` field
+        in --from JSON).
+      behavior: >-
+        CliUsageError → stderr `{code:'cli-usage-error', message}` and the
+        process exits 2.
 ---

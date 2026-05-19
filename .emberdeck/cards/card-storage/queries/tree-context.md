@@ -33,6 +33,14 @@ spec:
         ceiling still have unvisited relation neighbors.
       keyword: SHALL
       derives: card-storage/queries#G-001
+    - id: POST-003
+      guarantee: >-
+        getRelationGraph returns the relation neighborhood AS AN EMPTY ARRAY
+        when the root key does not resolve, rather than throwing. It is a
+        low-level query helper and reports absence through emptiness, not
+        exceptions.
+      keyword: SHALL
+      derives: card-storage/queries#G-001
   invariants:
     - id: INV-001
       statement: >-
@@ -42,6 +50,8 @@ spec:
         truncated marker.
       always_holds: per-call
   failures:
-    - violation: Root key does not exist.
-      behavior: Functions throw CardNotFoundError.
+    - violation: Root key does not exist (for getCardTree / getCardContext).
+      behavior: >-
+        getCardTree and getCardContext throw CardNotFoundError. getRelationGraph
+        instead returns [] (empty result, no throw).
 ---

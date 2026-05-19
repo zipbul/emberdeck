@@ -28,8 +28,8 @@ spec:
 
         {
           key, filePath, status,
-          validationNotes: string[],            // non-fatal field warnings, e.g. "status changed to draft because type changed" when a type change on an active card would invalidate it.
-          failedRelationTargets: string[]       // relation targets that did not persist under concurrent contention (FK violation); empty on a clean update.
+          validationNotes: string[],            // non-fatal field warnings (e.g. status auto-adjusted).
+          failedRelationTargets: string[]       // relation targets that did not persist under concurrent contention; empty on a clean update.
         }
 
         ```
@@ -37,19 +37,16 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): the patch was applied, the indexed cache plus the file
-        write succeeded, and every relation target persisted
-        (failedRelationTargets is empty). validationNotes being non-empty does
+        - 0 (EXIT.OK): patch applied, indexed cache + file write succeeded,
+        every relation target persisted. validationNotes being non-empty does
         not change the exit code.
 
-        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 (the
-        card update went through but at least one relation target failed under
-        concurrent contention; data is still emitted, exit signals the partial
-        state).
+        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 (partial
+        state signalled in data).
 
-        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND);
-        CardValidationError / ParentValidationError / ActivationGuardError → 2
-        (EXIT.VALIDATION_FAILURE).
+        - thrown mapping: CardNotFoundError → card-not-found → 3;
+        CardValidationError / ParentValidationError / ActivationGuardError → 2;
+        CliUsageError → cli-usage-error → 2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -71,9 +68,7 @@ spec:
         CardValidationError → stderr `{level:'error', code:'validation-error',
         message, details?}` and the process exits 2.
     - violation: >-
-        Transitioning status to 'active' (either explicitly via --field
-        status=active or implicitly via the activation-critical field
-        re-validation on an already-active card) leaves the activation guard
+        Transitioning status to 'active' leaves the activation guard
         preconditions unmet.
       behavior: >-
         ActivationGuardError → stderr `{code:'activation-guard-failed', message,
@@ -85,4 +80,11 @@ spec:
       behavior: >-
         ParentValidationError → stderr `{code:'parent-validation-error',
         message}` and the process exits 2.
+    - violation: >-
+        CLI pre-op input violation: `--patch` body is empty, the parsed root is
+        non-object, an unknown top-level key was supplied, or no effective
+        change was specified.
+      behavior: >-
+        CliUsageError → stderr `{code:'cli-usage-error', message}` and the
+        process exits 2.
 ---

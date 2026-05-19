@@ -66,6 +66,10 @@ spec:
         JSON.stringify, no indent) on stdout; suppresses stderr `level:warning`
         and `level:verbose` lines; `level:error` is still emitted on failure.
         quiet does NOT alter the data shape — only format and non-fatal stderr.
+        EXCEPTION: warnings carrying `code:cleanup-failed` BYPASS quiet
+        suppression (safety override — a failed teardown can leave artifacts
+        such as an open DB file or stale lock and MUST be visible to the
+        operator).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-005
   invariants:
@@ -125,17 +129,40 @@ spec:
         whatever was already written (potentially partial JSON) — consumers MUST
         check exit code.
     - violation: >-
+        A SECOND SIGINT or SIGTERM is received WHILE cleanup is already in
+        progress.
+      behavior: >-
+        The first signal's graceful cleanup is abandoned. The process exits
+        IMMEDIATELY with code 130; no further stderr line is guaranteed; on-disk
+        artifacts (DB file, locks) may be left behind. Consumers must not assume
+        cleanup completed.
+    - violation: >-
         stdout write fails after the command completed successfully (broken pipe
         excepted; disk-full or other IO error).
       behavior: >-
         stderr emits `{level:error, code:stdout-write-failed, message}`; process
         exits 5.
     - violation: >-
+        stdout write encounters EPIPE (downstream consumer closed the pipe, e.g.
+        `ed ... | head`).
+      behavior: >-
+        The runner SILENTLY swallows EPIPE and lets the command return its
+        NATURAL exit code (0 on success, 2 on partial-exit, etc.). No
+        `stdout-write-failed` line is emitted. Unix-tool convention —
+        broken-pipe is a consumer concern, not a producer error.
+    - violation: >-
         JSON encoding of the command result fails (e.g. BigInt, circular
         reference, or other non-serializable value).
       behavior: >-
         stderr emits `{level:error, code:output-encode-failed, message}`;
         process exits 1.
+    - violation: >-
+        stderr write itself fails (any exception, not just EPIPE — disk-full,
+        EPIPE on stderr, encoding error, etc.).
+      behavior: >-
+        The runner SILENTLY swallows the exception. Diagnostic output is
+        best-effort; a failing stderr channel MUST NOT kill the command. The
+        command proceeds to its natural exit code.
     - violation: >-
         ed init or any command that loads config encounters a missing
         `.emberdeck.jsonc` file.
@@ -153,6 +180,15 @@ spec:
       behavior: >-
         stderr emits `{level:error, code:config-validation-error, message}`;
         process exits 2.
+    - violation: >-
+        Best-effort cleanup (DB close / temp-file removal) fails. Detection
+        PRIMARY path = the signal-handler catch in run; SECONDARY path = the
+        final-cleanup catch on normal exit.
+      behavior: >-
+        stderr emits `{level:warning, code:cleanup-failed, message,
+        details?:{stage}}` — note level is WARNING, not error. The warning is
+        emitted even under --quiet (see POST-005 exception). The command's
+        natural exit code is NOT altered.
     - violation: >-
         Compensation logic itself fails after a forward action error
         (CompensationError).

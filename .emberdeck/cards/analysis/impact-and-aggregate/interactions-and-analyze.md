@@ -19,19 +19,24 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        checkInteractions returns an object with sharedSymbols, sharedFiles,
-        undefinedRelations, importDependencies, and potentialConflicts entries;
-        each is computed from the binding cache and the code-index dependency
-        graph and may be empty.
+        checkInteractions returns `{ interactions: CardInteraction[],
+        undefinedRelations: ... }`. Each CardInteraction entry contains the
+        per-pair detail: `{ pair, sharedSymbols, sharedFiles,
+        importDependencies, hasRelation, potentialConflicts }`. The top-level
+        shape is the two-key envelope; per-pair details are nested inside
+        interactions[].
       keyword: MUST
       derives: analysis/impact-and-aggregate#G-003
     - id: POST-002
       guarantee: >-
-        analyze returns a single JSON object populating health, coverage,
-        drifted (with pagination metadata cards/total/limit/offset/hasMore),
-        glossary, and unlinkedSymbols; all keys are camelCase. As a hygiene side
-        effect, code-index changelog entries older than the configured retention
-        window are pruned during the call.
+        analyze returns a JSON object populating health, coverage, glossary,
+        unlinkedSymbols, and pagination on drifted cards. The drifted
+        information is exposed as FLAT top-level keys (driftedCards,
+        driftedCardsTotal) on the ops-layer return value; the CLI surface (`ed
+        analyze`) restructures these into a nested `drifted: { cards, total,
+        limit, offset, hasMore }` envelope for stdout. As a hygiene side effect,
+        code-index changelog entries older than the configured retention window
+        are pruned during the call.
       keyword: SHALL
       derives: analysis/impact-and-aggregate#G-004
   invariants:

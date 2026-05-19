@@ -8,6 +8,7 @@ type: spec
 parent: cli-surface/command-routing-and-output
 glossary:
   - json-envelope
+  - drift
 spec:
   preconditions:
     - id: PRE-001

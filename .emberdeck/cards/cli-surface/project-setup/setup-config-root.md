@@ -12,8 +12,10 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        Working directory contains or is below a package.json or an existing
-        .emberdeck.jsonc / .emberdeck.json config file.
+        Working directory is any path. setupEmberdeck walks upward looking for
+        `.emberdeck.jsonc`/`.emberdeck.json` and/or `package.json`; if neither
+        is found it falls back to cwd as the project root and buildDefaultConfig
+        for the config.
       derives: cli-surface/project-setup#G-001
   postconditions:
     - id: POST-001
@@ -21,7 +23,8 @@ spec:
         setupEmberdeck returns a fully-initialized runtime context with the
         on-disk config (.emberdeck.jsonc or .emberdeck.json) overlaid by CLI
         args via mergeCliArgs; a missing config file falls back to
-        buildDefaultConfig (no config-missing error).
+        buildDefaultConfig with cwd as project root (no config-missing error in
+        the implicit-discovery path).
       keyword: MUST
       derives: cli-surface/project-setup#G-002
     - id: POST-002
@@ -33,11 +36,13 @@ spec:
       derives: cli-surface/project-setup#G-003
     - id: POST-003
       guarantee: >-
-        loadConfig returns a Result<EmberdeckFileConfig, ConfigError>; on Err
-        the caller (context build) raises ConfigLoadError carrying the
-        underlying ConfigError code. The code map is FILE_NOT_FOUND → kebab
-        `config-missing-file` → exit 6, PARSE_ERROR → kebab `config-parse-error`
-        → exit 2, VALIDATION_ERROR → kebab `config-validation-error` → exit 2.
+        loadConfig returns a Result<EmberdeckFileConfig, ConfigError>. On Err:
+        PARSE_ERROR → kebab `config-parse-error` → exit 2; VALIDATION_ERROR →
+        kebab `config-validation-error` → exit 2. FILE_NOT_FOUND maps to
+        `config-missing-file` → exit 6 only when an EXPLICIT config path was
+        supplied (via `--config` or `EMBERDECK_CONFIG` env). The default
+        discovery walk never emits config-missing-file because it falls back to
+        buildDefaultConfig.
       keyword: MUST
       derives: cli-surface/project-setup#G-002
     - id: POST-004
@@ -62,12 +67,13 @@ spec:
       always_holds: per-call
   failures:
     - violation: >-
-        Neither a config file nor a writable package.json is present upward from
-        cwd.
+        An explicit config path is supplied (via `--config` or
+        `EMBERDECK_CONFIG` env) and the file does not exist.
       behavior: >-
-        setupEmberdeck rejects with a ConfigLoadError mapped to kebab
-        `config-missing-file`; the CLI runner emits stderr `{level:'error',
-        code:'config-missing-file', message}` and exits 6.
+        loadConfig returns Err{code: FILE_NOT_FOUND}; context build raises
+        ConfigLoadError → stderr `{level:'error', code:'config-missing-file',
+        message}` → exit 6. (Implicit discovery does NOT trigger this — it
+        silently falls back to defaults.)
     - violation: The config file is present but its JSON/JSONC syntax cannot be parsed.
       behavior: >-
         loadConfig returns Err{code: PARSE_ERROR}; context build raises

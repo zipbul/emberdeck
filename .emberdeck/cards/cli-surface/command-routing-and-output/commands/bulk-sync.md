@@ -29,7 +29,7 @@ spec:
           synced: number,
           mode: 'file' | 'directory',
           path: string,
-          failed: { filePath: string, error: string }[]   // empty when every file was synced; the CLI converts the op's `error: unknown` to a string via errorMessage(e).
+          failed: { filePath: string, error: string }[]
         }
 
         ```
@@ -39,11 +39,10 @@ spec:
       guarantee: >-
         - 0 (EXIT.OK): failed.length === 0.
 
-        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data is still emitted;
-        only the exit code differs).
+        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0.
 
-        - thrown mapping: CliUsageError (the supplied PATH does not exist) → 2;
-        per-file failures are not thrown, they accumulate in failed[].
+        - thrown mapping: CliUsageError → cli-usage-error → 2 (PATH missing or
+        does not exist); per-file failures accumulate in failed[].
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -58,4 +57,8 @@ spec:
       behavior: >-
         The offending entry accumulates in failed[]; stdout still emits the data
         shape; the process exits 2 whenever failed.length > 0.
+    - violation: PATH argument is missing or resolves to a non-existent path.
+      behavior: >-
+        CliUsageError → stderr `{code:'cli-usage-error', message}` and the
+        process exits 2.
 ---

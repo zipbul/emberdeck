@@ -22,12 +22,18 @@ spec:
       keyword: MUST
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-002
-      guarantee: Updates apply atomically across file and DB and produce a changelog row.
+      guarantee: >-
+        Updates apply atomically across file and DB. updateCard does NOT write a
+        changelog row (the changelog repo is not invoked from this path).
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-001
   invariants:
     - id: INV-001
-      statement: updateCard re-runs validation after applying patches before persisting.
+      statement: >-
+        updateCard re-validates inputs BEFORE merging into the existing card
+        (pre-merge validation). The merged result is not re-run through
+        validateCardInput after the merge; persistence relies on the per-field
+        invariants enforced at the type-validator layer.
       always_holds: per-call
   failures:
     - violation: Card key not found.

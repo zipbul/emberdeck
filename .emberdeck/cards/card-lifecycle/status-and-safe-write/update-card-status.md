@@ -21,7 +21,11 @@ spec:
       keyword: MUST
       derives: card-lifecycle/status-and-safe-write#G-001
     - id: POST-002
-      guarantee: A type change combined with activation re-runs the type-specific guard.
+      guarantee: >-
+        updateCardStatus accepts only the status field; it does not perform type
+        changes. A separate updateCard call is required to change type;
+        activation guard semantics apply only at the moment of status transition
+        to 'active'.
       keyword: SHALL
       derives: card-lifecycle/status-and-safe-write#G-001
   invariants:

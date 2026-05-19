@@ -15,6 +15,11 @@ spec:
         Runner has built a CliRuntime and forwarded commander-validated
         arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
+    - id: PRE-002
+      condition: >-
+        `--from FILE` resolves to a readable JSON file whose root is a non-empty
+        array of card-create entries.
+      derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
@@ -27,9 +32,9 @@ spec:
 
         {
           created: { inputIndex, key, filePath }[],
-          failed:  { inputIndex, key?, error }[],
-          partialKeys: string[],   // keys that succeeded in phase 1 (the card row was created) but whose phase-2 relations update failed; the card exists without its intended relations.
-          total: number            // total input entry count
+          failed:  { inputIndex, key?, error }[],   // includes per-item validation failures AND phase-2 relation failures
+          partialKeys: string[],                     // keys whose card-row was created in phase 1 but whose phase-2 relations update failed; each such key ALSO appears in failed[]
+          total: number
         }
 
         // Entries are processed independently after a topological sort: a
@@ -40,16 +45,18 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): failed.length === 0 (every entry persisted; partialKeys
-        may still be non-empty when a phase-2 relations update failed, but the
-        partial state is signalled in the data, not the exit code).
+        - 0 (EXIT.OK): failed.length === 0 (every entry persisted in both
+        phases; partialKeys is empty).
 
-        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data is still emitted,
-        only the exit code differs — the CI gate signal).
+        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (per-item or phase-2
+        relations failure; data is still emitted).
 
-        - thrown mapping: none for per-item failures (they accumulate in
-        failed[], no throw). Build or IO errors fall through to the parent
-        runner's generic mapping.
+        - 2 (EXIT.VALIDATION_FAILURE): CliUsageError thrown when `--from` input
+        is missing, not an array, or an empty array.
+
+        - thrown mapping: CliUsageError → cli-usage-error → exit 2 (pre-op
+        validation). Per-item failures do not throw — they accumulate in
+        failed[].
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -67,10 +74,14 @@ spec:
         The offending entry accumulates in failed[]; stdout still emits the data
         shape; the process exits 2 whenever failed.length > 0.
     - violation: >-
-        Phase-1 succeeded but the phase-2 relations update failed for some
-        entries.
+        Phase-1 succeeded (card row created) but the phase-2 relations update
+        failed for some entries.
       behavior: >-
-        Each such key is appended to partialKeys[]; stdout emits the data shape
-        normally; exit code is 0 unless failed[] is also non-empty. The operator
-        can rerun `ed card update KEY --field relations=...` to repair.
+        Each such key appears in BOTH partialKeys[] (signalling 'card exists
+        without intended relations') AND failed[] (signalling 'phase-2
+        failure'); stdout emits the data shape; exit code is 2.
+    - violation: '`--from` input is missing, not an array, or an empty array.'
+      behavior: >-
+        CliUsageError thrown → stderr emits `level:error code:cli-usage-error`;
+        stdout empty; exit 2.
 ---

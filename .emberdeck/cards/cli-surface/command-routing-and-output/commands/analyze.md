@@ -32,25 +32,21 @@ spec:
             total, active, drifted, draft, brokenLinks,
             codeStats?: { files: number, symbols: number },
             codeCycles?: {
-              count: number,                  // total cycle count
-              samples: string[][]             // up to the op-layer MAX_CYCLE_SAMPLES; count remains the full total.
+              count: number,                  // observed cycle count, capped at the op-layer MAX_CYCLES_FETCH (200). When the cap is hit the true total is unknown to this call; `count === 200` should be read as "≥200".
+              samples: string[][]             // up to op-layer MAX_CYCLE_SAMPLES.
             }
           },
           coverage: { totalSymbols, coveredSymbols, coverageRatio: number|null },
           drifted: {
             cards: { key, summary, driftType?, brokenLinks, totalLinks }[],
             total,
-            limit: number,                                                            // --drifted-limit (defaults to total when omitted)
-            offset: number,                                                            // --drifted-offset (defaults to 0)
+            limit: number,
+            offset: number,
             hasMore: boolean
           },
-          glossary: { unusedWords: string[], entries: { word, definition }[] },   // total word count is entries.length
-          unlinkedSymbols: { file, symbol, kind }[]   // capped at the op-layer UNLINKED_SYMBOLS_LIMIT (currently 20)
+          glossary: { unusedWords: string[], entries: { word, definition }[] },
+          unlinkedSymbols: { file, symbol, kind }[]   // capped at op-layer UNLINKED_SYMBOLS_LIMIT (currently 20)
         }
-
-        // All keys are camelCase. As a hygiene side effect, code-index
-        changelog entries older than the configured retention window are pruned
-        during the call (read-only with respect to cards and the indexed cache).
 
         ```
       keyword: MUST

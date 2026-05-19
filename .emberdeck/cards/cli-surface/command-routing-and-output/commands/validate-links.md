@@ -30,7 +30,7 @@ spec:
           items: {
             key, declared, resolved,
             brokenLinks?:  { file, symbol, reason: 'gildash-unavailable' | 'symbol-not-found' }[],
-            plannedLinks?: { file, symbol, reason: 'gildash-unavailable' | 'symbol-not-found' }[],  // broken entries on a draft card; counted as 'planned' (intentional incompleteness), not 'broken'.
+            plannedLinks?: { file, symbol, reason: 'gildash-unavailable' | 'symbol-not-found' }[],
             skipped?: { reason: 'key-mismatch' },
             ioError?: { message }
           }[]
@@ -41,14 +41,13 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): summary.broken === 0 and summary.ioFailed === 0
-        (plannedLinks do not affect exit — draft cards are intentionally
-        incomplete).
+        - 0 (EXIT.OK): summary.broken === 0 and summary.ioFailed === 0.
 
         - 2 (EXIT.VALIDATION_FAILURE): summary.broken > 0 or summary.ioFailed >
         0.
 
-        - thrown mapping: none.
+        - thrown mapping: CardNotFoundError → card-not-found → 3 (when an
+        explicit key arg points to no card).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -72,4 +71,8 @@ spec:
         stdout reports the offending entry via items[i].ioError={message} or
         items[i].skipped={reason:'key-mismatch'}; the process exits 2 when
         summary.broken + summary.ioFailed > 0 and 0 otherwise.
+    - violation: Explicit `[key]` argument supplied but no card resolves to that key.
+      behavior: >-
+        CardNotFoundError → stderr `{code:'card-not-found', message}` and the
+        process exits 3.
 ---

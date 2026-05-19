@@ -21,11 +21,18 @@ spec:
         For ensureCardsSynced: the runtime context's cardsDir path is
         configured. The directory itself may or may not exist on disk.
       derives: card-storage/persistence#G-004
+    - id: PRE-003
+      condition: >-
+        For exportCardToFile: a card key is supplied that resolves to an
+        existing indexed-cache row.
+      derives: card-storage/persistence#G-003
   postconditions:
     - id: POST-001
       guarantee: >-
-        bulkSyncCards reports orphan files, stale rows, and key mismatches
-        without silent overwrite.
+        bulkSyncCards reports orphan files and stale rows in its failures
+        collection. Frontmatter-key vs filename-slug mismatch detection is NOT
+        performed by bulkSyncCards — it is surfaced separately by validateCards'
+        fileLevelIssues key-mismatch entry.
       keyword: MUST
       derives: card-storage/persistence#G-002
     - id: POST-002
@@ -53,12 +60,7 @@ spec:
         Per-file sync failures inside ensureCardsSynced (parse error, I/O error)
         do not abort the remaining files. The function returns the failures as
         an array of (filePath, error) pairs so the CLI runner can stream them to
-        stderr as card-sync-failed JSON-lines (one object per line). The
-        emission is independent of the command's stdout and does not affect exit
-        code (see cli-surface/command-routing-and-output/runner-and-output
-        POST-004). Commands that report the same file's failure on their own
-        stderr surface (e.g. `ed bulk sync`) may produce a second line; the
-        runner does not deduplicate.
+        stderr as card-sync-failed JSON-lines.
       keyword: MUST
       derives: card-storage/persistence#G-004
   invariants:
@@ -69,9 +71,8 @@ spec:
       always_holds: cross-call
     - id: INV-002
       statement: >-
-        ensureCardsSynced runs at most once per runtime context lifetime,
-        mirroring the ensureReindexed caching pattern; subsequent calls return
-        immediately without re-scanning.
+        ensureCardsSynced runs at most once per runtime context lifetime;
+        subsequent calls return immediately without re-scanning.
       always_holds: cross-call
     - id: INV-003
       statement: >-
@@ -81,44 +82,28 @@ spec:
     - id: INV-004
       statement: >-
         ensureCardsSynced and bulkSyncCards share the per-file syncCardFromFile
-        path and the same tier-ordered upsert helper, so their wall-clock cost
-        on the same fixture is within a constant factor; the persistence brief
+        path and the same tier-ordered upsert helper; the persistence brief
         SC-001 (1000 cards under 5s) bounds both.
       always_holds: cross-call
     - id: INV-005
       statement: >-
         Both ensureCardsSynced and bulkSyncCards never upsert a child before its
-        parent. The shared helper performs a topological sort on the
-        parent-to-key edges declared in frontmatter, seeded by the set of keys
-        already present in the indexed cache; this handles flat layouts, nested
-        layouts, and arbitrary spec-of-spec recursion uniformly.
+        parent (topological sort on parent-to-key edges).
       always_holds: per-call
     - id: INV-006
       statement: >-
-        ensureCardsSynced runs at CLI runner entry on every command, including
-        before `ed bulk sync`; bulkSyncCards therefore overlaps with the
-        auto-sync but adds duplicate-key detection (auto-sync is last-wins;
-        bulkSyncCards reports duplicates as errors).
+        ensureCardsSynced runs at CLI runner entry on every command;
+        bulkSyncCards therefore overlaps with the auto-sync but adds
+        duplicate-key detection.
       always_holds: cross-call
     - id: INV-007
-      statement: >-
-        (key, filePath) is a bijection on the indexed-cache card table. The
-        PRIMARY KEY on card.key plus the UNIQUE index on card.file_path together
-        guarantee each key maps to exactly one filePath and each filePath maps
-        to exactly one key at every transaction boundary. The upsert-only write
-        pattern in syncCardFromFile and writeCardFile preserves the bijection
-        across all writes.
+      statement: (key, filePath) is a bijection on the indexed-cache card table.
       always_holds: cross-call
   failures:
-    - violation: A card file's frontmatter key does not match its filename slug.
-      behavior: bulkSyncCards emits a key-mismatch warning; the row is not overwritten.
     - violation: A file referenced by removeCardByFile no longer exists.
       behavior: removeCardByFile is idempotent and returns without error.
     - violation: cardsDir does not exist when ensureCardsSynced runs.
-      behavior: >-
-        The function returns an empty failures array silently. The cache entry
-        is still recorded so subsequent calls within the same context remain
-        no-ops.
+      behavior: The function returns an empty failures array silently.
     - violation: >-
         An individual card file fails to parse or upsert during
         ensureCardsSynced or bulkSyncCards.
@@ -126,16 +111,13 @@ spec:
         The error is captured into the failures array with the file path.
         ensureCardsSynced surfaces each failure as a card-sync-failed JSON-line
         on stderr. bulkSyncCards reports them in its own stdout shape's `failed`
-        array. Either way the bad file stays absent from the indexed cache;
-        validateCards additionally reports it as orphan-file in its own stdout.
+        array.
     - violation: >-
         A parent and its child both arrive in the same bulk operation on a cold
         cache.
       behavior: >-
-        The topological sort in the shared helper inserts the parent before the
-        child, so the card.parent FK is always satisfied at insert time. If the
-        parent itself fails to upsert (e.g. transaction error), every descendant
-        FK-fails and is reported per file.
+        The topological sort inserts the parent before the child. If the parent
+        fails to upsert, every descendant FK-fails and is reported per file.
     - violation: >-
         A card file declares a parent that is neither in the indexed cache nor
         in the current sync batch.
@@ -143,4 +125,14 @@ spec:
         The file is emitted at the end of the topological order so its FK
         violation surfaces as a normal per-file failure rather than hanging the
         sync.
+    - violation: >-
+        exportCardToFile is called with a key that does not resolve to any
+        indexed-cache row.
+      behavior: exportCardToFile throws CardNotFoundError; no output file is created.
+    - violation: >-
+        exportCardToFile encounters a serialization or file-write error after
+        the row was fetched.
+      behavior: >-
+        exportCardToFile throws a generic Error (or the underlying serializer
+        error); no partial file is left behind (safe-write boundary).
 ---

@@ -24,8 +24,11 @@ spec:
       derives: glossary/lifecycle#G-001
     - id: POST-002
       guarantee: >-
-        lookupGlossary returns the entry or empty list without throwing for
-        missing words.
+        lookupGlossary returns a `{ found: boolean, entry?: GlossaryEntry }`
+        object for the requested word. When the word does not exist, `{ found:
+        false }` is returned (NOT an empty list); when it exists, `{ found:
+        true, entry }` carries the persisted entry. lookupGlossary never throws
+        for missing words.
       keyword: SHALL
       derives: glossary/lifecycle#G-001
   invariants:

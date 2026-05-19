@@ -12,22 +12,25 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        Caller passes a list of repo-relative file paths (or, for
-        regressionGuard, a threshold in [0,1]).
+        Caller passes a list of repo-relative file paths to preChangeCheck. For
+        regressionGuard, the threshold is read from `ctx.regressionThreshold`
+        (resolved at runtime construction); callers do not pass the threshold as
+        an argument.
       derives: analysis/impact-and-aggregate#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
         preChangeCheck returns riskLevel (low | medium | high | critical) and
-        per-card linkType (direct | transitive). Fan-in promotion bumps
-        riskLevel one tier when any touched file has fan-in at or above a
-        hot-file threshold; the promotion is applied at most once per call.
+        per-card linkType (direct | transitive). riskLevel is derived from a
+        COMBINATION of: affected-card count, drift ratio of the affected cards,
+        and fan-in of the touched files. A hot-file fan-in match contributes one
+        tier of upward promotion (applied at most once per call).
       keyword: MUST
       derives: analysis/impact-and-aggregate#G-001
     - id: POST-002
       guarantee: >-
         regressionGuard exits with code 2 when the drifted ratio strictly
-        exceeds the configured threshold; exits 0 when ratio is at or under
+        exceeds `ctx.regressionThreshold`; exits 0 when the ratio is at or under
         threshold. The violating ratio is returned in the result data when exit
         is non-zero.
       keyword: SHALL
@@ -35,8 +38,10 @@ spec:
   invariants:
     - id: INV-001
       statement: >-
-        riskLevel is monotonic in affectedCount and broken-link count; a
-        hot-file fan-in match can only promote the level upward, never demote.
+        riskLevel is monotonic upward under added affected cards, increased
+        drift ratio, OR a fan-in match — but it is NOT a function of broken-link
+        count in isolation; multiple inputs combine into the level. A hot-file
+        fan-in match can only promote the level upward, never demote.
       always_holds: per-call
   failures:
     - violation: >-

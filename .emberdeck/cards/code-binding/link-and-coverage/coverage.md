@@ -11,7 +11,12 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: Caller invokes coverage with --uncovered or --suggest mode.
+      condition: >-
+        Caller invokes coverage in one of three modes: (a) per-card via
+        `getLinkCoverage(ctx, fullKey)` for a specific card; (b) --uncovered
+        (returns all unbound symbols across the project); (c) --suggest (returns
+        proposed card scopes). The three modes are mutually exclusive at the CLI
+        layer.
       derives: code-binding/link-and-coverage#G-002
   postconditions:
     - id: POST-001
@@ -39,6 +44,14 @@ spec:
         coveredSymbols divided by totalSymbols.
       keyword: MUST
       derives: code-binding/link-and-coverage#G-002
+    - id: POST-005
+      guarantee: >-
+        getLinkCoverage(ctx, key) returns per-card coverage for a single card
+        (declared/resolved/broken counts plus unreferenced symbols within the
+        card's bound files). It is the mode underlying `ed check coverage
+        <key>`.
+      keyword: SHALL
+      derives: code-binding/link-and-coverage#G-002
   invariants:
     - id: INV-001
       statement: >-
@@ -52,7 +65,9 @@ spec:
         symbols are covered.
       always_holds: cross-call
   failures:
-    - violation: '--uncovered and --suggest are both omitted.'
+    - violation: >-
+        All three modes (per-card key, --uncovered, --suggest) are omitted at
+        the CLI layer.
       behavior: CLI throws CliUsageError; exit 2.
     - violation: gildash returns an empty index (project not yet built).
       behavior: >-

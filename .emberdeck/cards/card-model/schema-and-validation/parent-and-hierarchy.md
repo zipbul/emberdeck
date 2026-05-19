@@ -20,8 +20,12 @@ spec:
       derives: card-model/schema-and-validation#G-003
     - id: POST-002
       guarantee: >-
-        A parent reassignment that would create a cycle throws
-        ParentValidationError.
+        Cycle detection walks the parent chain up to a fixed depth limit
+        (currently 20 hops). A reassignment that would create a cycle whose loop
+        closes WITHIN 20 hops throws ParentValidationError. Cycles whose loop
+        length exceeds 20 hops are NOT detected by this guard — they slip
+        through and surface later (e.g. via `ed validate cards` cycle
+        reporting).
       keyword: SHALL
       derives: card-model/schema-and-validation#G-003
   invariants:
@@ -37,4 +41,8 @@ spec:
       behavior: >-
         validateRelationTargets throws CardValidationError naming the missing
         target.
+    - violation: Parent reassignment creates a cycle whose loop length is ≤ 20 hops.
+      behavior: >-
+        validateParentCycle throws ParentValidationError. Cycles with loop
+        length > 20 escape this guard.
 ---

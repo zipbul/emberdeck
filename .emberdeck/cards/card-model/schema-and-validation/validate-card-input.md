@@ -18,14 +18,16 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        validateCardInput throws CardValidationError for any invalid
-        type-specific field.
+        validateCardInput throws CardValidationError for any invalid common
+        field (key format, type, summary, parent reference shape).
       keyword: MUST
       derives: card-model/schema-and-validation#G-001
     - id: POST-002
       guarantee: >-
-        Cross-references on brief and spec bodies resolve to declared list-item
-        ids on the same card.
+        validateCardInput verifies COMMON fields only. Type-specific deep
+        namespace validation (brief.flow.covers, spec.derives, etc.) is
+        delegated to dedicated validators (validateBriefRefs, validateSpecRefs)
+        invoked separately by the op layer, NOT by validateCardInput itself.
       keyword: SHALL
       derives: card-model/schema-and-validation#G-002
   invariants:
@@ -36,24 +38,27 @@ spec:
       always_holds: per-call
     - id: INV-002
       statement: >-
-        Type-specific body validators select on the type discriminant
-        exclusively.
+        Type-specific deeper validators (cross-ref resolution,
+        flow/policy/criteria/derives integrity) are invoked by the op layer
+        AFTER validateCardInput common-field validation passes.
       always_holds: per-call
   failures:
-    - violation: A required type-specific field is missing.
+    - violation: >-
+        A required common field (key, type, summary, parent for non-root types)
+        is missing or malformed.
       behavior: >-
         validateCardInput throws CardValidationError naming the field path; no
         persistence occurs.
     - violation: >-
         A brief.policy.governs id does not match any brief.flow id on the same
-        card.
+        card (cross-ref).
       behavior: >-
-        validateBriefRefs throws CardValidationError identifying the unresolved
-        id.
+        validateBriefRefs (separate validator) throws CardValidationError
+        identifying the unresolved id.
     - violation: >-
         A spec.preconditions.derives reference does not follow the
         `brief-key#item-id` format.
       behavior: >-
-        validateSpecRefs throws CardValidationError identifying the malformed
-        reference.
+        validateSpecRefs (separate validator) throws CardValidationError
+        identifying the malformed reference.
 ---

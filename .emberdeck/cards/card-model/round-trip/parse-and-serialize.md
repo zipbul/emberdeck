@@ -39,4 +39,11 @@ spec:
       behavior: >-
         parseCardMarkdown throws a parse error identifying the offending
         position; no CardFile is returned.
+    - violation: >-
+        Frontmatter is well-formed YAML but the structured frontmatter object
+        fails serialize-side validation (e.g. missing required namespace,
+        malformed field).
+      behavior: >-
+        serializeCardMarkdown throws CardValidationError identifying the
+        offending field; no markdown is produced.
 ---

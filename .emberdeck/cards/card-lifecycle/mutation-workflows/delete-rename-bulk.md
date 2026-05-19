@@ -56,6 +56,8 @@ spec:
         successful earlier entries when a later entry fails.
       always_holds: per-call
   failures:
+    - violation: deleteCard or renameCard target key does not exist.
+      behavior: Throws CardNotFoundError; no removal or rename performed.
     - violation: deleteCard target has children and --force is not passed.
       behavior: Throws CardValidationError; no removal performed.
     - violation: >-

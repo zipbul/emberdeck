@@ -15,6 +15,11 @@ spec:
         Runner has built a CliRuntime and forwarded commander-validated
         arguments to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
+    - id: PRE-002
+      condition: >-
+        Per-invocation batch size MUST be ≤ MAX_ENTRIES_PER_CALL (50). The 51st
+        entry triggers GlossaryValidationError before the op is dispatched.
+      derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
       guarantee: >-
@@ -23,31 +28,21 @@ spec:
 
         ```jsonc
 
-        // stdout shape for `ed glossary define [pairs...] [--from f.json]`
-
         { defined: { word, definition, action: 'created' | 'updated' }[],
           failed:  { inputIndex, reason }[],
           total: number }
-        // The CLI reuses the validateGlossaryEntry helper for per-entry
-        validation; entries that pass
-
-        // are submitted in one defineGlossary batch (all-or-nothing inside the
-        op) and entries that
-
-        // fail the per-entry check accumulate in failed[] without aborting the
-        rest of the batch.
-
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): failed.length === 0 (every entry persisted).
+        - 0 (EXIT.OK): failed.length === 0.
 
-        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (data is still emitted;
-        the partial-failure signal is the exit code).
+        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (per-entry failures) OR
+        thrown GlossaryValidationError (batch size > 50).
 
-        - thrown mapping: none (per-entry failures accumulate in failed[]).
+        - thrown mapping: GlossaryValidationError → glossary-validation-error →
+        2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -59,9 +54,15 @@ spec:
       always_holds: per-call
   failures:
     - violation: >-
-        Per-entry validation failed (e.g. malformed word, empty definition,
+        Per-entry validation failed (malformed word, empty definition,
         length-limit violation).
       behavior: >-
         The offending entry is appended to failed[] with its inputIndex and
         reason; stdout still emits the data shape, and the process exits 2.
+    - violation: >-
+        Batch size exceeds MAX_ENTRIES_PER_CALL (50). The 51st+ entries trigger
+        pre-op rejection.
+      behavior: >-
+        GlossaryValidationError → stderr `{code:'glossary-validation-error',
+        message}`; stdout empty; process exits 2.
 ---
