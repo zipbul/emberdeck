@@ -1,7 +1,7 @@
 ---
 key: analysis/impact-and-aggregate
 summary: >-
-  preChangeCheck risk_level scoring, regression threshold guard, interactions
+  preChangeCheck riskLevel scoring, regression threshold guard, interactions
   conflict detection, and analyze aggregate.
 status: active
 type: brief

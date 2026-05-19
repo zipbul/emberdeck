@@ -13,13 +13,13 @@ domain:
     types in scope today — `broken_link` (a cached code_link points at a symbol
     gildash can no longer resolve) and `glossary_broken` (a card declares a
     glossary word that the glossary no longer carries) — reports them as derived
-    facts without mutating card status, computes impact and risk_level for
+    facts without mutating card status, computes impact and riskLevel for
     proposed file changes, evaluates regression thresholds, surfaces interaction
     conflicts between cards that share code, and aggregates the overall analyze
     health view consumed by onboarding and dashboards.
   scope: >-
     IN: checkDrift, checkInteractions, preChangeCheck, regressionGuard, analyze,
-    drift classification as a derived (never stored) fact, risk_level
+    drift classification as a derived (never stored) fact, riskLevel
     computation, shared-symbol conflict detection.
 
 

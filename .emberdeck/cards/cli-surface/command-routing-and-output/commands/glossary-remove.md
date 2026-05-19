@@ -29,7 +29,7 @@ spec:
 
         // affectedCardKeys lists every card whose glossary field referenced the
         removed word; the cards themselves are NOT mutated and their status is
-        unchanged. They will surface as glossary-broken on the next check-drift.
+        unchanged. They will surface as glossary_broken on the next check-drift.
 
         ```
       keyword: MUST

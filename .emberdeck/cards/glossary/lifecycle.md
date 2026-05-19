@@ -17,7 +17,7 @@ brief:
       uniqueness checks admits duplicates.
     impact:
       - statement: >-
-          Orphan references after a remove cause glossary-broken drift across
+          Orphan references after a remove cause glossary_broken drift across
           many cards at once.
       - statement: >-
           Manual rename of a term across dozens of cards is error-prone and easy
@@ -198,7 +198,7 @@ brief:
     - id: KL-002
       statement: >-
         removeGlossary returns affected card keys but does not transition them
-        to drifted; the next check-drift run surfaces them as glossary-broken
+        to drifted; the next check-drift run surfaces them as glossary_broken
         and the operator transitions the status explicitly via card set-status.
   criteria:
     - id: SC-001

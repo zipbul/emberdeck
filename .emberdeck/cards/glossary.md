@@ -22,7 +22,7 @@ domain:
     IN: defineGlossary, lookupGlossary, removeGlossary, renameGlossary with
     card-glossary-field
 
-    cascade, validateCardGlossaryField, glossary-broken drift signal
+    cascade, validateCardGlossaryField, glossary_broken drift signal
     contribution, persistent
 
     storage of glossary entries.

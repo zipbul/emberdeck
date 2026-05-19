@@ -13,7 +13,7 @@ spec:
     - id: PRE-001
       condition: >-
         Caller passes a card key for delete or rename, or a list of inputs for
-        bulkCreate; for delete, optionally a force flag.
+        bulkCreateCards; for delete, optionally a force flag.
       derives: card-lifecycle/mutation-workflows#G-001
   postconditions:
     - id: POST-001
