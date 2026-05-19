@@ -12,9 +12,18 @@ PreToolUse hook 두 개가 enforce:
   1. **Skill(emberdeck) invoke** (model-invoked. 카드 작업 진입 시점마다 명시 호출 — 세션 내 반복 진입 OK; 비-카드 작업 후 돌아오면 재진입)
   2. **`<card_analysis>` 표** 한 번에 모든 N 카드 정리 (HC-2) → **사용자 confirm 응답** 받음
   3. **`<self_review>`** 항목별 통과 (HC-3)
-  4. **marker write**: `touch /tmp/claude-emberdeck-gate-<session_id>` (Bash tool)
-  5. ed mutating 명령 호출 가능. marker 는 1시간 유효 (multiple ed 호출 허용)
-  Why: Skill 은 model-invoked 라 자발성 의존 — hook 이 *결정론적 외부 force*. marker 없이는 ed mutate 불가 = HC-2/3 우회 불가능. read-only 명령 (`get/list/search/tree/context/relations/validate/check/analyze/glossary lookup/init`) 은 gate 외.
+  4. **구조화 marker write** (Bash tool — heredoc) 에 다음 5 줄 정확히 포함:
+     ```
+     cat > /tmp/claude-emberdeck-gate-<session_id> <<'EOF'
+     SKILL: emberdeck
+     KEY: <card-key-or-BATCH>
+     ANALYSIS_LEN: <integer, 직전 <card_analysis> 본문 글자 수, ≥500>
+     SELFREVIEW: HC1=ok HC2=ok HC3=ok HC4=ok
+     USER_CONFIRMED: yes
+     EOF
+     ```
+  5. ed mutating 명령 1회 호출. **Hook 가 통과 시 marker 삭제 (single-use)**. 다음 mutation 은 HC-1..4 재실행 + marker 재작성. TTL 5분.
+  Why: Skill 은 model-invoked 라 자발성 의존. Hook 가 marker 의 *구조 + 내용* 검증 (presence 만이 아님): SKILL/KEY/SELFREVIEW/USER_CONFIRMED 필드 누락 또는 ANALYSIS_LEN<500 = deny. Single-use + 5분 TTL = "한 번 했으니 generalize" 방지. read-only 명령 (`get/list/search/tree/context/relations/validate/check/analyze/glossary lookup/init`) 은 gate 외.
 
 **HC-1**: 카드 파일 변경은 오직 `ed` CLI 로만 — `ed card create / update / delete / rename / set-status`, `ed bulk create / sync`. Write/Edit tool 로 `.emberdeck/cards/**` 안 파일 직접 편집 X.
   Why: ed CLI 는 카드 인덱스와 disk 파일을 함께 일관 갱신한다. Write 직접 편집 시 disk 만 갱신되고 인덱스가 어긋남 → 다음 `ed validate` 까지 lag → 후속 작업의 검증 깨짐. 단축처럼 보이지만 발견 시점 늦어진다.
@@ -36,10 +45,10 @@ PreToolUse hook 두 개가 enforce:
 1. `<card_analysis>` 작성. 3 카드 표 (key/parent/type/summary/주요 토픽) 제시. "이대로 진행?"
 2. 사용자 confirm 받음.
 3. `<self_review>` 각 항목 통과 확인 후 작성.
-4. `touch /tmp/claude-emberdeck-gate-<session_id>` 로 HC-0 marker write (없이는 hook 이 ed 차단).
-5. `ed card create domain-x --type domain ...` 형태로 ed CLI 실행 (Write tool X).
-6. 세 카드 모두 작성 후 `ed validate cards` 실행.
-7. exit 0 (issue 0) 확인 후 commit.
+4. 구조화 marker write (HC-0 형식 5줄: SKILL/KEY/ANALYSIS_LEN/SELFREVIEW/USER_CONFIRMED).
+5. `ed card create domain-x --type domain ...` 형태로 ed CLI 1회 실행 (Write tool X). Hook 가 marker 검증 통과 후 marker 삭제.
+6. 다음 카드 작성 전 — marker 재작성 (single-use). 3 카드 = 3 round (HC-1..4 + marker + ed). 또는 KEY=BATCH 로 일괄 bulk-create 1회.
+7. 세 카드 모두 작성 후 `ed validate cards` 실행. exit 0 (issue 0) 확인 후 commit.
 
 안티패턴 (실제 발생): "32 카드라 batch 가 효율적" 으로 `<card_analysis>` 스킵 + Write tool 직접 사용. → hook 이 차단 + 재작업. 효율이 아니라 우회.
 </positive_example>
