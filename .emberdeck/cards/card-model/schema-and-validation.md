@@ -32,8 +32,13 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Validate every card-shaped input against type-specific rules before
-          any persistence happens.
+          Validate every card-shaped input against the COMMON-field rules (key
+          TYPE+LENGTH, type discriminant, summary, parent shape) before any
+          persistence happens. Deeper type-specific rules (brief
+          flow/policy/criteria cross-refs, spec derives format) are gated at the
+          ACTIVATION boundary — they run only for cards being persisted as
+          status=active or transitioning to active; draft persistence
+          intentionally bypasses the deep pass.
       - id: G-002
         statement: >-
           Verify intra-card cross references (covers, governs, verifies,
@@ -158,8 +163,10 @@ brief:
     invariants:
       - id: DI-001
         statement: >-
-          No card is persisted unless validateCardInput returned without
-          throwing.
+          No card is persisted unless validateCardInput common-field validation
+          returned without throwing. Deep type-specific cross-ref resolution is
+          invoked only when status=active (or the operation transitions to
+          active); draft cards skip the deep pass.
       - id: DI-002
         statement: >-
           All declared list-item ids in a brief or spec resolve within the same
@@ -177,7 +184,11 @@ brief:
     - id: R-001
       subject: Every write entry point
       keyword: MUST
-      predicate: invoke validateCardInput before delegating to storage repositories.
+      predicate: >-
+        invoke validateCardInput common-field validation before delegating to
+        storage repositories. The deeper type-specific validators
+        (validateBriefRefs, validateSpecRefs) are invoked separately by the op
+        layer and are gated by status=active.
       governs:
         - S-H-01
         - S-F-01

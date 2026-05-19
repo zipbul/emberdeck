@@ -37,8 +37,12 @@ brief:
       - id: G-002
         statement: >-
           Cascade renames so the glossary field on every referencing card
-          updates as part of the same transaction; per-file rewrites of card
-          markdown are best-effort and surfaced separately.
+          updates safely; the rename is a TWO-STEP sequence — (1) glossary.yaml
+          is rewritten first via writeGlossary, then (2) a DB transaction
+          updates the indexed glossary fields of every referencing card. If the
+          DB transaction throws, glossary.yaml is reverted. Per-file markdown
+          rewrites of card bodies are best-effort outside both and surfaced as
+          fileWriteFailures[].
       - id: G-003
         statement: >-
           On remove, surface every referencing card key so the operator can
@@ -138,9 +142,11 @@ brief:
         statement: removeGlossary never runs without explicit --yes confirmation.
       - id: DI-003
         statement: >-
-          renameGlossary's atomicity covers the YAML store plus the indexed
-          cache; per-card markdown rewrites are best-effort and report failures
-          rather than throwing.
+          renameGlossary is TWO-STEP (NOT one transaction): the YAML glossary
+          store is written first, then the indexed cache is updated inside a DB
+          transaction. On DB transaction failure the YAML write is reverted.
+          Per-card markdown rewrites are a third best-effort step outside both —
+          failures are reported in fileWriteFailures[] rather than thrown.
   policy:
     - id: R-001
       subject: defineGlossary
@@ -164,9 +170,11 @@ brief:
       subject: renameGlossary
       keyword: MUST
       predicate: >-
-        update the YAML store and the indexed cache atomically in one
-        transaction; surface per-card markdown rewrite failures via
-        fileWriteFailures[] rather than aborting the rename.
+        update the YAML glossary store FIRST, then run a DB transaction to
+        update the indexed glossary fields of every referencing card. On
+        DB-transaction failure, revert the YAML write. Surface per-card markdown
+        rewrite failures via fileWriteFailures[] rather than aborting the
+        rename.
       governs:
         - S-H-02
   external:
@@ -206,10 +214,10 @@ brief:
       type: binary
       measure:
         predicate: >-
-          A rename updates the YAML store and the indexed cache for every
-          referencing card in one transaction; any per-card markdown rewrite
-          failure is reported in fileWriteFailures[] without aborting the
-          rename.
+          A rename updates the YAML store first and then the indexed cache for
+          every referencing card inside one DB transaction; on DB failure the
+          YAML write is reverted. Any per-card markdown rewrite failure is
+          reported in fileWriteFailures[] without aborting the rename.
         method: >-
           Integration test creating three referencing cards then renaming,
           including one card whose markdown file write is forced to fail.

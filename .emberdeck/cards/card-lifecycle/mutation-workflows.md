@@ -35,8 +35,8 @@ brief:
       - id: G-003
         statement: >-
           Cascade renames so indexed references (parent, relations,
-          cross_domain_dependencies) update atomically; source `@spec`
-          annotations are reconciled separately by spec-sync.
+          cross_domain_dependencies) update atomically; source @spec annotations
+          are reconciled separately by spec-sync.
     non_goals:
       - id: NG-001
         statement: Schema validation itself (delegated to card-model).
@@ -55,8 +55,9 @@ brief:
       given: A valid create input for a brief whose parent domain exists.
       when: createCard runs.
       then: >-
-        The card is validated, written to file, persisted to the indexed cache,
-        and a changelog row is appended within one safe-write boundary.
+        The card is validated, written to file, and persisted to the indexed
+        cache within one safe-write boundary. NO changelog row is appended
+        (createCard does not write to the changelog repo).
       covers:
         - G-001
         - G-002
@@ -69,8 +70,7 @@ brief:
       then: >-
         Parent, relations, and cross_domain_dependencies entries in the three
         referencing cards update in a single transaction and the file moves to
-        the new path; card bodies and source `@spec` annotations are not
-        cascaded.
+        the new path; card bodies and source @spec annotations are not cascaded.
       covers:
         - G-003
     - id: S-F-01
@@ -89,25 +89,30 @@ brief:
         validation.
       when: bulkCreateCards runs.
       then: >-
-        The first two entries remain persisted; the third entry's error is
-        recorded in failed[] preserving its inputIndex; the remaining entries
-        continue. The result reports per-entry success and failure with no
-        rollback of prior successes.
+        The first two entries remain persisted; the third entry is recorded with
+        its inputIndex in errors[] at the OP layer (the CLI `ed bulk create`
+        command remaps this to failed[] for stdout — see commands/bulk-create
+        card POST-001). The remaining entries continue. The result reports
+        per-entry success and failure with no rollback of prior successes.
       covers:
         - G-001
   design:
     overview: >
       Each entry point composes validation (card-model), parent resolution
-      (card-storage), the mutation itself (file plus indexed cache plus
-      changelog), and rollback on failure (safe-write). bulkCreateCards orders
-      entries topologically so parents land before children, then processes each
-      entry through createCard with independent success/failure accounting;
-      later entries proceed even if earlier ones fail.
+      (card-storage), the mutation itself (file plus indexed cache), and
+      rollback on failure (safe-write). createCard does NOT write a changelog
+      row; updateCard and renameCard do invoke the changelog repo.
+      bulkCreateCards orders entries topologically so parents land before
+      children, then processes each entry through createCard with independent
+      success/failure accounting; later entries proceed even if earlier ones
+      fail.
     components:
       - name: createCard
         responsibility: >-
           Validate input, check parent existence, persist file plus indexed
-          cache plus changelog atomically.
+          cache atomically through the safe-write boundary. createCard does NOT
+          write a changelog row (changelog repo is invoked only by updateCard
+          and renameCard).
         interacts_with:
           - updateCard
           - bulkCreateCards
@@ -115,14 +120,15 @@ brief:
         responsibility: >-
           Apply field, patch, glossary, and tag updates with replace-namespace
           semantics on patch; re-run activation guard when activation-critical
-          fields change on an active card.
+          fields change on an active card. Writes a changelog row via
+          recordUpdateChangelog.
         interacts_with:
           - createCard
       - name: renameCard
         responsibility: >-
           Atomic key rename with cascade over the indexed cache (parent,
           relations, cross_domain_dependencies) and the file move; body wording
-          and source `@spec` annotations are not cascaded.
+          and source @spec annotations are not cascaded.
         interacts_with:
           - updateCard
       - name: deleteCard
@@ -133,8 +139,9 @@ brief:
         interacts_with: []
       - name: bulkCreateCards
         responsibility: >-
-          Topologically-ordered serial create returning per-entry success and
-          failure independently; no batch rollback.
+          Topologically-ordered serial create returning per-entry success in
+          created[] and failure in errors[] (CLI remaps to failed[]); no batch
+          rollback.
         interacts_with:
           - createCard
     data_flow: []
@@ -148,7 +155,7 @@ brief:
         statement: >-
           Rename cascade updates every reference visible from the indexed cache
           (parent, relations, cross_domain_dependencies) in one transaction;
-          source `@spec` annotations are reconciled by spec-sync separately.
+          source @spec annotations are reconciled by spec-sync separately.
   policy:
     - id: R-001
       subject: Every mutation entry point
@@ -163,7 +170,8 @@ brief:
       predicate: >-
         surface per-entry success and failure independently; entries that
         succeeded before a later failure MUST remain persisted (no batch
-        rollback).
+        rollback). At the OP layer failures live in errors[]; at the CLI layer
+        they appear as failed[] on stdout (remap).
       governs:
         - S-F-02
     - id: R-003
@@ -172,7 +180,7 @@ brief:
       predicate: >-
         cascade FK-style references across parent, relations, and
         cross_domain_dependencies in the same transaction as the file move; card
-        body wording and source `@spec` annotations are not cascaded.
+        body wording and source @spec annotations are not cascaded.
       governs:
         - S-H-02
   external:
@@ -195,9 +203,9 @@ brief:
       statement: >-
         Rename cascade only updates references stored in the indexed cache
         (parent, relations, cross_domain_dependencies). Card body wording and
-        source `@spec` annotations are NOT cascaded by rename: body wording
-        stays author-owned; annotations are reconciled into the binding cache by
-        `ed spec sync` on the next run.
+        source @spec annotations are NOT cascaded by rename: body wording stays
+        author-owned; annotations are reconciled into the binding cache by ed
+        spec sync on the next run.
     - id: KL-002
       statement: >-
         bulkCreateCards is serial; concurrent bulk operations within one process
@@ -209,8 +217,9 @@ brief:
       measure:
         predicate: >-
           When the third of five entries in bulkCreateCards fails validation,
-          created[].length is 2 and failed[].length is 1 with the failed entry's
-          inputIndex preserved; the two prior successes remain persisted.
+          created[].length is 2 and errors[].length is 1 (OP layer) — exposed to
+          the CLI as failed[].length=1 — with the failed entry's inputIndex
+          preserved; the two prior successes remain persisted.
         method: >-
           Integration test injecting a validation failure on the third entry of
           a five-entry batch and asserting per-entry outcomes plus disk and
@@ -223,7 +232,7 @@ brief:
         predicate: >-
           renameCard updates every cross-domain dependency, parent, and
           relations entry that previously named the old key; card bodies and
-          source `@spec` annotations are left unchanged.
+          source @spec annotations are left unchanged.
         method: >-
           Integration test creating a graph, renaming, and asserting reference
           counts in the cache plus untouched bodies and annotations.

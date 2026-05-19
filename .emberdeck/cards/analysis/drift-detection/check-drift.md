@@ -37,6 +37,17 @@ spec:
         sync`; checkDrift never reparses source annotations.
       keyword: MUST
       derives: analysis/drift-detection#G-001
+    - id: POST-004
+      guarantee: >-
+        Aggregate health counts in the response — health.total =
+        targetKeys.length (requested keys), health.drifted = count of non-draft
+        cards that either carry a non-empty driftType in the response OR have DB
+        status=drifted, health.active = remaining non-draft cards, health.draft
+        = cards whose DB status=draft. The three categories
+        (active/drifted/draft) partition the present cards; missing target keys
+        contribute to health.total but not to active/drifted/draft.
+      keyword: MUST
+      derives: analysis/drift-detection#G-003
   invariants:
     - id: INV-001
       statement: >-

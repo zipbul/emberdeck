@@ -23,13 +23,23 @@ spec:
         changelog repo is not invoked in the success path).
       keyword: MUST
       derives: card-lifecycle/mutation-workflows#G-001
-    - id: POST-002
+    - id: POST-002a
       guarantee: >-
         On parent-not-found, hierarchy violation, key collision,
-        glossary-validation failure, activation-guard failure, or compensation
-        rollback failure, no file or DB row is written (compensation failure may
-        leave partial state with full error details surfaced to the caller).
+        glossary-validation failure, activation-guard failure, or any
+        pre-storage validation failure, no file or indexed-cache row is written.
+        The mutation is rejected before the forward action completes.
       keyword: SHALL
+      derives: card-lifecycle/mutation-workflows#G-002
+    - id: POST-002b
+      guarantee: >-
+        When the forward action (file or indexed-cache write) succeeded but the
+        compensation/rollback step itself fails afterward (rare: e.g. file write
+        succeeded then a downstream cleanup throws), createCard throws
+        CompensationError and MAY leave partial state on disk or in the indexed
+        cache. Both errors (originalError, compensationError) are surfaced on
+        the CompensationError instance so the operator can repair.
+      keyword: MUST
       derives: card-lifecycle/mutation-workflows#G-002
   invariants:
     - id: INV-001

@@ -19,22 +19,31 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        checkInteractions returns `{ interactions: CardInteraction[],
-        undefinedRelations: ... }`. Each CardInteraction entry contains the
-        per-pair detail: `{ pair, sharedSymbols, sharedFiles,
-        importDependencies, hasRelation, potentialConflicts }`. The top-level
-        shape is the two-key envelope; per-pair details are nested inside
-        interactions[].
+        checkInteractions returns { interactions: CardInteraction[],
+        undefinedRelations: UndefinedRelation[] }. CardInteraction = { pair:
+        [string, string], sharedSymbols: { file: string, symbol: string }[],
+        sharedFiles: string[], importDependencies: { from: string, to: string,
+        file: string }[], hasRelation: boolean, potentialConflicts: string[] }.
+        UndefinedRelation = { pair: [string, string], suggestion: string }. Both
+        nested types are concrete — every field name and type listed above is
+        part of the op contract and the CLI command-spec stdout matches this
+        shape (see cli-surface/.../commands/check-interactions POST-001).
       keyword: MUST
       derives: analysis/impact-and-aggregate#G-003
     - id: POST-002
       guarantee: >-
-        analyze returns a JSON object populating health, coverage, glossary,
-        unlinkedSymbols, and pagination on drifted cards. The drifted
-        information is exposed as FLAT top-level keys (driftedCards,
-        driftedCardsTotal) on the ops-layer return value; the CLI surface (`ed
-        analyze`) restructures these into a nested `drifted: { cards, total,
-        limit, offset, hasMore }` envelope for stdout. As a hygiene side effect,
+        analyze returns an object with FLAT top-level keys: { health: { total,
+        active, drifted, draft, brokenLinks, codeStats?: { files, symbols },
+        codeCycles?: { count, samples: string[][] } }, coverage: { totalSymbols,
+        coveredSymbols, coverageRatio: number | null }, driftedCards: { key,
+        summary, status, driftType?, brokenLinks, totalLinks }[],
+        driftedCardsTotal, glossary: { unusedWords: string[], entries: { word,
+        definition }[] }, unlinkedSymbols: { file: string, symbol: string, kind:
+        string }[] }. The CLI surface (ed analyze) restructures
+        driftedCards/driftedCardsTotal into a nested drifted: { cards, total,
+        limit, offset, hasMore } envelope for stdout (pagination is applied at
+        the CLI layer). The full CLI shape is defined in
+        cli-surface/.../commands/analyze POST-001. As a hygiene side effect,
         code-index changelog entries older than the configured retention window
         are pruned during the call.
       keyword: SHALL
