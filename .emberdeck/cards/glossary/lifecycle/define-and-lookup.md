@@ -27,12 +27,11 @@ spec:
     - id: POST-002
       guarantee: >-
         lookupGlossary(word?) has two modes. With a word: returns `{ found:
-        boolean, entry?: GlossaryEntry }` — `{ found: false }` when absent (NOT
-        an empty list), `{ found: true, entry }` when present; it never throws
-        for missing words. With NO word: returns the full listing `{ entries:
-        GlossaryEntry[], total: number }` enumerating every stored entry (total
-        === entries.length). The CLI `ed glossary lookup [WORD]` maps the
-        optional WORD to these two modes directly.
+        boolean, entry?: GlossaryEntry }` — `{ found: false }` when absent, `{
+        found: true, entry }` when present; it never throws for missing words.
+        With NO word: returns `{ found: true, entries: GlossaryEntry[] }`
+        listing every stored entry. (The CLI `ed glossary lookup [WORD]`
+        projects both modes to a uniform `{ entries, total }` stdout shape.)
       keyword: SHALL
       derives: glossary/lifecycle#G-001
     - id: POST-003

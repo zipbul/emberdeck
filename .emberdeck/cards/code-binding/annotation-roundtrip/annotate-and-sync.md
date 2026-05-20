@@ -19,9 +19,11 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        syncSpecAnnotations reconciles DB code_link rows from `@spec`
-        annotations in source. It adds missing rows, leaves existing rows
-        unchanged, and reports annotations whose card key is unknown.
+        syncSpecAnnotations reconciles DB code_link rows from tier-annotation
+        tags in source — `@spec`, `@brief`, `@principle`, and `@domain` are all
+        scanned (each tag binds to a card of the corresponding type). It adds
+        missing rows, leaves existing rows unchanged, and reports annotations
+        whose card key is unknown.
       keyword: SHALL
       derives: code-binding/annotation-roundtrip#G-001
     - id: POST-002

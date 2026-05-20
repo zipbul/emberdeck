@@ -2,7 +2,7 @@
 key: cli-surface/command-routing-and-output/commands/glossary-define
 summary: >-
   Per-command CLI-shape spec for 'ed glossary define'; declares defined[] +
-  total shape (all-or-nothing, POST-001) and 0/2 exit policy (POST-002).
+  failed[] + total shape (POST-001) and 0/2 exit policy (POST-002).
 status: active
 type: spec
 parent: cli-surface/command-routing-and-output
@@ -28,26 +28,24 @@ spec:
 
         ```jsonc
 
-        // stdout shape for `ed glossary define WORD=DEF ... | --from FILE`
-
         { defined: { word, definition, action: 'created' | 'updated' }[],
+          failed:  { inputIndex, reason }[],
           total: number }
-        // defineGlossary is ALL-OR-NOTHING: on any per-entry validation failure
-        or batch size > 50 it throws and persists nothing. A successful call
-        returns the full defined[] (each entry created or updated) with total
-        === defined.length.
-
         ```
+
+        The CLI pre-validates each entry: failures go into failed[] (with
+        inputIndex+reason) and surviving entries are passed to the
+        all-or-nothing op write. If the op itself throws (e.g. batch size > 50
+        or total cap), every accepted entry is moved into failed[].
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): every entry persisted (all-or-nothing success).
+        - 0 (EXIT.OK): failed.length === 0.
 
-        - 2 (EXIT.VALIDATION_FAILURE): thrown GlossaryValidationError — any
-        per-entry validation failure (malformed word, empty/over-long
-        definition, duplicate within batch) OR batch size > 50; nothing is
-        persisted.
+        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (per-entry
+        pre-validation failures) OR a thrown GlossaryValidationError (batch size
+        > 50 or total cap) folded into failed[].
 
         - thrown mapping: GlossaryValidationError → glossary-validation-error →
         2.

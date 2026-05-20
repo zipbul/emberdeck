@@ -38,7 +38,7 @@ spec:
           },
           coverage: { totalSymbols, coveredSymbols, coverageRatio: number|null },
           drifted: {
-            cards: { key, summary, status, driftType?, brokenLinks, totalLinks }[],
+            cards: { key, summary, driftType?, brokenLinks, totalLinks }[],
             total,
             limit: number,
             offset: number,

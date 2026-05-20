@@ -23,27 +23,20 @@ spec:
 
         ```jsonc
 
-        // stdout shape for `ed glossary lookup [WORD]`
+        // stdout shape for `ed glossary lookup [word]`
 
-        // WITH a WORD argument (single-lookup mode):
+        // The word argument is zero or one element. With a word, entries holds
+        0 or 1 matches; without an argument, every entry is returned.
 
-        //   { found: boolean, entry?: { word, definition } }   // { found:
-        false } when absent; never an empty list
-
-        // WITHOUT an argument (list mode): every entry is returned:
-
-        //   { entries: { word, definition }[], total: number }   // total ===
-        entries.length
+        { entries: { word, definition }[], total: number }
 
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): lookup always succeeds. With a WORD: an unknown word
-        produces `{ found: false }` (a present word produces `{ found: true,
-        entry }`). Without a WORD (list mode): an empty store produces `{
-        entries: [], total: 0 }`.
+        - 0 (EXIT.OK): lookup always succeeds; an unknown word (or empty store)
+        produces entries=[] and total=0.
 
         - thrown mapping: none.
       keyword: MUST
