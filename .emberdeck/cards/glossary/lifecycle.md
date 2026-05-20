@@ -27,13 +27,11 @@ brief:
       - id: G-001
         statement: >-
           Provide define, lookup, remove, and rename entry points.
-          defineGlossary is all-or-nothing INSIDE the op (any entry that fails
-          op-level validation rejects the whole batch and persists zero). The
-          CLI command `ed glossary define` pre-validates entries per-entry and
-          splits failures into the result `failed[]` — only the surviving
-          entries are passed to the op for the all-or-nothing write, so
-          user-facing semantics are partial-accept with per-entry failed[]
-          reported.
+          defineGlossary is all-or-nothing: any entry that fails validation
+          rejects the whole batch and persists zero, surfaced by the CLI as a
+          thrown GlossaryValidationError (exit 2) rather than a partial result.
+          A successful define persists every entry, each reported as created or
+          updated.
       - id: G-002
         statement: >-
           Cascade renames so the glossary field on every referencing card
@@ -72,10 +70,11 @@ brief:
       given: A glossary entry referenced by three cards.
       when: renameGlossary runs.
       then: >-
-        The glossary store entry is renamed and the indexed cache for the three
-        cards updates inside the same transaction; per-card markdown file
-        rewrites run best-effort and any per-file failure is surfaced in
-        fileWriteFailures[].
+        The glossary store entry is renamed first; then the indexed cache for
+        the three cards updates in a DB transaction, with the store rename
+        reverted if the DB step fails (two-step, not one transaction); per-card
+        markdown file rewrites run best-effort and any per-file failure is
+        surfaced in fileWriteFailures[].
       covers:
         - G-002
     - id: S-F-01
@@ -99,8 +98,9 @@ brief:
       defineGlossary writes the YAML glossary store atomically (tmp file plus
       rename). The store is the source of truth; the indexed cache stores each
       card's own glossary field after sync, not the global glossary itself.
-      renameGlossary issues an atomic update over the YAML store and the indexed
-      glossary fields of every referencing card in the same transaction;
+      renameGlossary writes the YAML store FIRST, then updates the indexed
+      glossary fields of every referencing card in a DB transaction, reverting
+      the YAML write if the DB step fails (two-step, not a single transaction);
       per-card markdown file rewrites are best-effort and any individual failure
       is surfaced in fileWriteFailures[]. removeGlossary requires explicit
       --yes, returns the list of referencing card keys, and does not mutate
@@ -126,18 +126,19 @@ brief:
           - renameGlossary
       - name: renameGlossary
         responsibility: >-
-          Atomic rename over the YAML store and the indexed glossary fields of
-          every referencing card; card markdown rewrites are best-effort with
-          per-file failures surfaced.
+          Two-step rename: write the YAML store first, then update the indexed
+          glossary fields of every referencing card in a DB transaction with the
+          YAML write reverted on DB failure; card markdown rewrites are
+          best-effort with per-file failures surfaced in fileWriteFailures[].
         interacts_with:
           - defineGlossary
     data_flow: []
     invariants:
       - id: DI-001
         statement: >-
-          defineGlossary op is all-or-nothing per batch and never persists a
-          partial batch. CLI pre-validation runs BEFORE the op and may carve out
-          entries into result.failed[] without ever invoking the op for them.
+          defineGlossary is all-or-nothing per batch and never persists a
+          partial batch: if any entry fails validation the call throws and
+          persists nothing. There is no per-entry partial-accept path.
       - id: DI-002
         statement: removeGlossary never runs without explicit --yes confirmation.
       - id: DI-003
@@ -243,9 +244,10 @@ brief:
             operator-decided per the drift principle).
     chosen:
       option: >-
-        Batched define with explicit size and length caps; confirmation-gated
-        remove that surfaces affected cards; rename atomic over store and cache
-        with best-effort markdown rewrites.
+        Batched all-or-nothing define with explicit size and length caps;
+        confirmation-gated remove that surfaces affected cards; two-step rename
+        (store write then DB update with revert on failure) with best-effort
+        markdown rewrites.
       reasoning: >-
         Matches the all-or-nothing contract documented in the per-command spec
         cards and respects operator agency on destructive operations.

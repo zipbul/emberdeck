@@ -40,8 +40,10 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): lookup always succeeds; an unknown word produces
-        entries=[] and total=0.
+        - 0 (EXIT.OK): lookup always succeeds. With a WORD: an unknown word
+        produces `{ found: false }` (a present word produces `{ found: true,
+        entry }`). Without a WORD (list mode): an empty store produces `{
+        entries: [], total: 0 }`.
 
         - thrown mapping: none.
       keyword: MUST

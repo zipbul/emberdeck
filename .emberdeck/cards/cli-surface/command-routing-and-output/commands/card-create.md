@@ -30,7 +30,8 @@ spec:
           filePath: string,
           status: 'draft'|'active'|'drifted',
           type: 'principle'|'domain'|'brief'|'spec',
-          parent: string|null
+          parent: string|null,
+          failedRelationTargets: string[]   // declared relation targets that did not resolve at create time; the card is still persisted
         }
 
         ```
@@ -38,10 +39,11 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): card validated and persisted (file + indexed cache).
-        createCard is atomic — there is no partial-success exit; unresolved
-        declared relations are NOT a create-time failure, they surface later as
-        `validate cards` broken-relation issues.
+        - 0 (EXIT.OK): card persisted AND failedRelationTargets is empty.
+
+        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 — the
+        card persisted but at least one declared relation target did not
+        resolve; data is still emitted, only the exit code differs.
 
         - thrown mapping: CardAlreadyExistsError → card-already-exists → 4;
         CardValidationError → validation-error → 2; ParentValidationError →

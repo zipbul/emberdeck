@@ -2,7 +2,7 @@
 key: cli-surface/command-routing-and-output/commands/glossary-define
 summary: >-
   Per-command CLI-shape spec for 'ed glossary define'; declares defined[] +
-  failed[] + total shape (POST-001) and 0/2 exit policy (POST-002).
+  total shape (all-or-nothing, POST-001) and 0/2 exit policy (POST-002).
 status: active
 type: spec
 parent: cli-surface/command-routing-and-output

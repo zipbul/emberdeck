@@ -2,7 +2,7 @@
 key: cli-surface/command-routing-and-output/commands/card-update
 summary: >-
   Per-command CLI-shape spec for 'ed card update'; declares updated card shape
-  with validationNotes (POST-001) and 0/2/3 exit policy (POST-002).
+  with failedRelationTargets (POST-001) and 0/2/3 exit policy (POST-002).
 status: active
 type: spec
 parent: cli-surface/command-routing-and-output
@@ -27,7 +27,8 @@ spec:
         --patch FILE | --glossary W | --tag T]`
 
         {
-          key, filePath, status
+          key, filePath, status,
+          failedRelationTargets: string[]   // relation targets that did not persist; empty on a clean update; the card is still updated
         }
 
         ```
@@ -35,10 +36,12 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): patch applied and indexed cache + file write succeeded.
-        updateCard is atomic — there is no partial-success exit; unresolved
-        declared relations are NOT an update-time failure, they surface later as
-        `validate cards` broken-relation issues.
+        - 0 (EXIT.OK): patch applied, indexed cache + file write succeeded, and
+        every relation target persisted (failedRelationTargets empty).
+
+        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 — the
+        update persisted but at least one relation target did not resolve;
+        partial state is signalled in data.
 
         - thrown mapping: CardNotFoundError → card-not-found → 3;
         CardValidationError / ParentValidationError / ActivationGuardError → 2;
