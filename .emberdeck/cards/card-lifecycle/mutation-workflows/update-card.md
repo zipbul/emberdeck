@@ -18,7 +18,8 @@ spec:
     - id: POST-001
       guarantee: >-
         A namespace patch fully replaces the prior namespace value with the new
-        payload.
+        payload. The result reports failedRelationTargets — relation targets
+        that did not persist; empty on a clean update.
       keyword: MUST
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-002

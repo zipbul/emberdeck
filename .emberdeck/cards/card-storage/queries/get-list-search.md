@@ -26,6 +26,13 @@ spec:
         failure.
       keyword: SHALL
       derives: card-storage/queries#G-003
+    - id: POST-003
+      guarantee: >-
+        getCard performs a single lookup and throws CardNotFoundError when the
+        key is absent. getCards performs a batch lookup, returning the found
+        cards and collecting unknown keys in notFound[] rather than throwing.
+      keyword: MUST
+      derives: card-storage/queries#G-001
   invariants:
     - id: INV-001
       statement: >-

@@ -31,4 +31,6 @@ domain:
       relationship: consumes link-resolution outputs to classify drift.
     - domain: card-storage
       relationship: reads card state through repositories to compute aggregates.
+    - domain: glossary
+      relationship: consumes glossary state to classify glossary_broken drift.
 ---

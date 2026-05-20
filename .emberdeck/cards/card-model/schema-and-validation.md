@@ -33,15 +33,15 @@ brief:
       - id: G-001
         statement: >-
           Validate every card-shaped input against the COMMON-field rules (key
-          TYPE+LENGTH, type discriminant, summary, parent shape) AND a CLOSED
-          frontmatter schema (only key, summary, status, type, parent,
-          relations, tags, glossary, principle, domain, brief, spec are
-          permitted; any other top-level key is rejected, never silently
-          dropped) before any persistence happens. Deeper type-specific rules
-          (brief flow/policy/criteria cross-refs, spec derives format) are gated
-          at the ACTIVATION boundary — they run only for cards being persisted
-          as status=active or transitioning to active; draft persistence
-          intentionally bypasses the deep pass.
+          TYPE+LENGTH+FORMAT (slug grammar), type discriminant, summary, parent
+          shape) AND a CLOSED frontmatter schema (only key, summary, status,
+          type, parent, relations, tags, glossary, principle, domain, brief,
+          spec are permitted; any other top-level key is rejected, never
+          silently dropped) before any persistence happens. Deeper type-specific
+          rules (brief flow/policy/criteria cross-refs, spec derives format) are
+          gated at the ACTIVATION boundary — they run only for cards being
+          persisted as status=active or transitioning to active; draft
+          persistence intentionally bypasses the deep pass.
       - id: G-002
         statement: >-
           Verify intra-card cross references (covers, governs, verifies,

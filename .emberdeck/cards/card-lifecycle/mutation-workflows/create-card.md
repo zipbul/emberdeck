@@ -20,7 +20,10 @@ spec:
       guarantee: >-
         On success the card persists to file and DB atomically via the
         safe-write boundary. No changelog row is written by createCard (the
-        changelog repo is not invoked in the success path).
+        changelog repo is not invoked in the success path). The result reports
+        failedRelationTargets — declared relation targets that did not resolve
+        at create time; the card is still persisted (an unresolved relation is
+        not a create-time failure).
       keyword: MUST
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-002a
