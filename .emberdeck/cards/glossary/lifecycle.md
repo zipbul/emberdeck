@@ -209,24 +209,39 @@ brief:
       measure:
         predicate: >-
           A define batch with one invalid entry leaves zero new persisted
-          entries.
-        method: Integration test asserting count before and after.
+          entries (all-or-nothing).
+        method: >-
+          Integration test asserting a batch with one bad entry persists
+          nothing.
       verifies:
         - S-F-01
     - id: SC-002
       type: binary
       measure:
         predicate: >-
-          A rename updates the YAML store first and then the indexed cache for
-          every referencing card inside one DB transaction; on DB failure the
-          YAML write is reverted. Any per-card markdown rewrite failure is
-          reported in fileWriteFailures[] without aborting the rename.
-        method: >-
-          Integration test creating three referencing cards then renaming,
-          including one card whose markdown file write is forced to fail.
+          A rename updates the YAML store first and then the indexed glossary
+          field on every referencing card, reverting the store write if the DB
+          step fails.
+        method: Integration test asserting two-step rename with revert-on-DB-failure.
       verifies:
         - S-H-02
+    - id: SC-003
+      type: binary
+      measure:
+        predicate: >-
+          A ten-entry define batch persists all ten and a subsequent lookup
+          returns each entry.
+        method: >-
+          Integration test asserting a ten-entry batch is fully persisted and
+          retrievable.
+      verifies:
         - S-H-01
+    - id: SC-004
+      type: binary
+      measure:
+        predicate: removeGlossary without explicit confirmation removes nothing.
+        method: Integration test asserting remove without --yes performs no deletion.
+      verifies:
         - S-F-02
   rationale:
     alternatives:

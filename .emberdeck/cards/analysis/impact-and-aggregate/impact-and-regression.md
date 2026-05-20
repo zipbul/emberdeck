@@ -29,10 +29,12 @@ spec:
       derives: analysis/impact-and-aggregate#G-001
     - id: POST-002
       guarantee: >-
-        regressionGuard exits with code 2 when the drifted ratio strictly
-        exceeds `ctx.regressionThreshold`; exits 0 when the ratio is at or under
-        threshold. The violating ratio is returned in the result data when exit
-        is non-zero.
+        regressionGuard compares the drifted ratio against
+        `ctx.regressionThreshold` and returns { passOrFail, driftedRatio,
+        threshold, affected } where affected lists the drifted cards as { key,
+        status, driftType? }. It exits 2 when the ratio strictly exceeds the
+        threshold and 0 when at or under. The CLI surfaces this result shape
+        directly.
       keyword: SHALL
       derives: analysis/impact-and-aggregate#G-002
   invariants:

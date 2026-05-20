@@ -141,7 +141,9 @@ brief:
       - name: bulkCreateCards
         responsibility: >-
           Topologically-ordered serial create returning per-entry success in
-          created[] and failure in failed[]; no batch rollback.
+          created[] and failure in failed[]; no batch rollback. Entries whose
+          card row was created but whose relations did not all resolve are
+          additionally reported in partialKeys[].
         interacts_with:
           - createCard
     data_flow: []
