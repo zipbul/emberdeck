@@ -39,12 +39,14 @@ spec:
       derives: analysis/impact-and-aggregate#G-003
     - id: POST-002
       guarantee: >-
-        analyze returns an object with FLAT top-level keys: { health: { total,
-        active, drifted, draft, brokenLinks, codeStats?: { files, symbols },
-        codeCycles?: { count, samples: string[][] } }, coverage: { totalSymbols,
-        coveredSymbols, coverageRatio: number | null }, driftedCards: { key,
-        summary, driftType?, brokenLinks, totalLinks }[], driftedCardsTotal,
-        glossary: { unusedWords: string[], entries: { word, definition }[] },
+        analyze returns an object with FLAT top-level keys: { health (counts
+        follow checkDrift's union rule — drifted = non-draft cards with a live
+        driftType or DB status=drifted): { total, active, drifted, draft,
+        brokenLinks, codeStats?: { files, symbols }, codeCycles?: { count,
+        samples: string[][] } }, coverage: { totalSymbols, coveredSymbols,
+        coverageRatio: number | null }, driftedCards: { key, summary,
+        driftType?, brokenLinks, totalLinks }[], driftedCardsTotal, glossary: {
+        unusedWords: string[], entries: { word, definition }[] },
         unlinkedSymbols: { file: string, symbol: string, kind: string }[] }. The
         CLI surface (ed analyze) restructures driftedCards/driftedCardsTotal
         into a nested drifted: { cards, total, limit, offset, hasMore } envelope

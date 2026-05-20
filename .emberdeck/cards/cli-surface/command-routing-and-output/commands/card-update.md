@@ -45,8 +45,9 @@ spec:
 
         - thrown mapping: CardNotFoundError → card-not-found → 3;
         CardValidationError / ParentValidationError / ActivationGuardError → 2;
-        CardKeyError → invalid-card-key → 2; CompensationError →
-        compensation-failed → 1; CliUsageError → cli-usage-error → 2.
+        CardKeyError → invalid-card-key → 2; GlossaryValidationError →
+        glossary-validation-error → 2; CompensationError → compensation-failed →
+        1; CliUsageError → cli-usage-error → 2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:

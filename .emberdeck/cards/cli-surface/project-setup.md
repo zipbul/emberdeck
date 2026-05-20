@@ -93,8 +93,8 @@ brief:
       Project root discovery walks upward from cwd until it finds .emberdeck or
       hits the nearest
 
-      package.json. loadConfig parses the YAML and validates against the
-      EmberdeckFileConfig schema.
+      package.json. loadConfig parses the JSONC/JSON config and validates
+      against the EmberdeckFileConfig schema.
 
       mergeCliArgs overlays CLI overrides. setupEmberdeck opens the DB, runs
       migrations, and

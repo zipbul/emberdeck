@@ -133,8 +133,8 @@ brief:
           - listCards
       - name: findCardsBySymbol
         responsibility: >-
-          Listing variant that selects every card whose binding cache references
-          the given symbol.
+          Listing variant that selects every card whose code_link cache
+          references the given symbol.
         interacts_with:
           - listCards
     data_flow: []
@@ -205,6 +205,14 @@ brief:
         method: CLI-level test invoking ed card search with a broken query.
       verifies:
         - S-F-01
+    - id: SC-003
+      type: binary
+      measure:
+        predicate: >-
+          A valid full-text query returns a ranked list of matching cards (best
+          match first).
+        method: Integration test asserting ranked results for a known query.
+      verifies:
         - S-H-02
   rationale:
     alternatives:

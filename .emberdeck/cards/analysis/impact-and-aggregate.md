@@ -93,6 +93,18 @@ brief:
         importDependencies and potentialConflicts are populated when applicable.
       covers:
         - G-003
+    - id: S-H-04
+      kind: happy
+      given: >-
+        A preChangeCheck call for a change affecting several cards, including a
+        file with a hot-file fan-in match.
+      when: preChangeCheck runs.
+      then: >-
+        Each affected card is classified with a linkType (direct/transitive) and
+        riskLevel is promoted above low per the combined inputs (the fan-in
+        match applied at most once).
+      covers:
+        - G-001
   design:
     overview: >
       preChangeCheck walks the input files and the code_link cache to compute
@@ -161,6 +173,7 @@ brief:
         apply the hot-file fan-in promotion exactly once per call.
       governs:
         - S-H-01
+        - S-H-04
     - id: R-002
       subject: regressionGuard
       keyword: SHALL
@@ -255,6 +268,17 @@ brief:
         method: Integration test asserting exit 0 for ratio <= threshold.
       verifies:
         - S-H-02
+    - id: SC-006
+      type: binary
+      measure:
+        predicate: >-
+          A change affecting several cards with a hot-file fan-in match yields
+          riskLevel above low and per-card linkType classification.
+        method: >-
+          Integration test asserting raised riskLevel + linkType for a
+          multi-card fan-in change.
+      verifies:
+        - S-H-04
   rationale:
     alternatives:
       - option: Composite single command (analyze + impact + regression in one call).

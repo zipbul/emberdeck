@@ -40,7 +40,9 @@ spec:
         - 0 (EXIT.OK): export succeeded (the target file was written, or stdout
         content was populated).
 
-        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND).
+        - thrown mapping: CardNotFoundError → 3 (EXIT.NOT_FOUND); a file-write
+        failure in --out/--in-place mode (node fs IO error) falls through to
+        internal-error → 1.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
