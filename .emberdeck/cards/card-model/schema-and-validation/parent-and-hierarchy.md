@@ -28,6 +28,15 @@ spec:
         reporting).
       keyword: SHALL
       derives: card-model/schema-and-validation#G-003
+    - id: POST-003
+      guarantee: >-
+        A type change on a card that has children re-validates the children's
+        tiering (validateChildrenHierarchy): if the new type would leave any
+        direct child mis-tiered (e.g. changing a domain to brief while it has
+        children parented to it), ParentValidationError is thrown and the type
+        change is rejected.
+      keyword: MUST
+      derives: card-model/schema-and-validation#G-003
   invariants:
     - id: INV-001
       statement: All four hierarchy checks complete before any storage mutation.
@@ -45,4 +54,10 @@ spec:
       behavior: >-
         validateParentCycle throws ParentValidationError. Cycles with loop
         length > 20 escape this guard.
+    - violation: >-
+        A type change would mis-tier an existing direct child (the child's
+        parent-type rule would break).
+      behavior: >-
+        validateChildrenHierarchy throws ParentValidationError; the type change
+        is not applied.
 ---

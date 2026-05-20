@@ -98,7 +98,9 @@ brief:
       kind: failure
       given: A remove call without --yes flag.
       when: removeGlossary runs.
-      then: The CLI requires confirmation; nothing is removed without --yes.
+      then: >-
+        The CLI requires confirmation; nothing is removed without --yes or an
+        accepted interactive prompt.
       covers:
         - G-003
     - id: S-H-03
@@ -165,7 +167,9 @@ brief:
           partial batch. CLI pre-validation runs BEFORE the op and may carve out
           entries into result.failed[] without ever invoking the op for them.
       - id: DI-002
-        statement: removeGlossary never runs without explicit --yes confirmation.
+        statement: >-
+          removeGlossary never runs without explicit confirmation (a --yes flag
+          or an accepted TTY prompt).
       - id: DI-003
         statement: >-
           renameGlossary is TWO-STEP (NOT one transaction): the YAML glossary
@@ -188,8 +192,9 @@ brief:
       subject: removeGlossary
       keyword: MUST
       predicate: >-
-        require explicit --yes confirmation before any persistence change;
-        return affected card keys without mutating them.
+        require explicit confirmation (a --yes flag, or an accepted interactive
+        prompt in a TTY; non-TTY without --yes is refused) before any
+        persistence change; return affected card keys without mutating them.
       governs:
         - S-F-02
     - id: R-003

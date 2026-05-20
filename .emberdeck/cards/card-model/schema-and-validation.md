@@ -44,8 +44,9 @@ brief:
           persistence intentionally bypasses the deep pass.
       - id: G-002
         statement: >-
-          Verify intra-card cross references (covers, governs, verifies,
-          derives) resolve to declared list-item ids on the same card.
+          Verify intra-card cross references resolve to declared list-item ids
+          on the same card: covers, governs, verifies, and rationale.addresses
+          on briefs; derives on specs.
       - id: G-003
         statement: >-
           Enforce the four-tier hierarchy at write time so principle and domain

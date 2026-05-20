@@ -96,7 +96,9 @@ spec:
       statement: >-
         ensureCardsSynced runs at CLI runner entry on every command;
         bulkSyncCards therefore overlaps with the auto-sync but adds
-        duplicate-key detection.
+        duplicate-key detection: when two files declare the same key, the second
+        is rejected into failed[] rather than upserted, preserving the (key,
+        filePath) bijection of INV-007.
       always_holds: cross-call
     - id: INV-007
       statement: (key, filePath) is a bijection on the indexed-cache card table.
