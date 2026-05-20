@@ -170,11 +170,12 @@ brief:
         reserved for future use and not currently emitted by validateCodeLinks.
     - id: KL-002
       statement: >-
-        Link resolution is per-snapshot; concurrent source edits during a query
-        may produce stale results until the next runtime context starts.
-        ensureReindexed runs at most once per runtime context lifetime, so a
-        second `ed` invocation is required to observe new source state after
-        edits.
+        Link resolution is per-snapshot: a query returns results consistent with
+        the source index captured at the runtime context's first
+        ensureReindexed, which runs at most once per runtime context lifetime.
+        Source edits made after that capture are not reflected within the same
+        context — observing new source state requires a fresh `ed` invocation
+        that rebuilds the context.
   criteria:
     - id: SC-001
       type: binary

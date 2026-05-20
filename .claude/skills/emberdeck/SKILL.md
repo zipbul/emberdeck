@@ -368,6 +368,7 @@ stdout 의 validate 결과 안 *file-level / per-link 진단* (stdout data shape
 | `validate cards data.fileLevelIssues[].code` | `orphan-file` | 인덱스에 없는 disk 파일 | `ed bulk sync PATH` |
 | 동 | `stale-db-row` | 파일 사라진 인덱스 엔트리 | `ed bulk sync` 또는 `ed card delete KEY` |
 | 동 | `key-mismatch` | frontmatter key ≠ 경로 슬러그 | 파일 이름 또는 frontmatter key 정정 |
+| 동 | `unknown-field` | frontmatter 에 closed CardFrontmatter set 밖 top-level 키 (legacy `codeLinks`/`boundary` 또는 오타). `details.unknownKeys` 참조 | 해당 키 제거 (`ed card update KEY --patch` 로 namespace 재제출) — codeLinks/boundary 는 source `@spec` 어노테이션으로만 표현 |
 | `validate cards data.items[].issues[].code` | `orphan-card` / `broken-parent` / `type-hierarchy-violation` / `broken-cross-domain-dep` / `broken-relation` / `rework-dependency` / `empty-tree` / `content-mismatch` / `glossary-broken` / `glossary-unused` / `broken-chain` | per-card 검증 위반 — 각자 `<error_recovery>` 표 (위) 참조 | 해당 표 |
 | `validate links data.items[].brokenLinks[].reason` | `gildash-unavailable` / `symbol-not-found` | per-link 검증 — gildash 인덱스 미가용 또는 symbol 없음 | gildash reindex 또는 source `@spec` 위치 갱신 |
 | `validate links data.items[].skipped.reason` | `key-mismatch` | 카드 fan-out 중 key 슬러그 불일치로 skip (나머지는 정상) | frontmatter key 또는 파일명 정정 |

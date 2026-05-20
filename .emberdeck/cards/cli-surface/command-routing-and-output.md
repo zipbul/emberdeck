@@ -181,7 +181,8 @@ brief:
       - id: DI-001
         statement: >-
           On success: stdout is valid JSON of the command's spec-declared shape;
-          stderr may contain auto-sync JSON-lines but no level:error text.
+          stderr carries at most auto-sync JSON-lines (level:warning/verbose)
+          and never a level:error line.
       - id: DI-002
         statement: >-
           On thrown failure: stdout is empty (no JSON written); stderr contains

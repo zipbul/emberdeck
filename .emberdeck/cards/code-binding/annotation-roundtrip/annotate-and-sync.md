@@ -46,11 +46,12 @@ spec:
   failures:
     - violation: gildash index unavailable.
       behavior: >-
-        The gildash adapter's ensureReindexed step may THROW (e.g. binary
-        missing, database open failed) before any work is done; the op DOES NOT
-        swallow this — the throw propagates up. The card-level partial-result
-        envelope (unmatched/markerMissing) covers only post-reindex
-        per-annotation failures, not the up-front gildash bootstrap failure.
+        The gildash adapter's ensureReindexed step throws (binary missing or
+        database-open failure) before any per-annotation work begins, and the op
+        does not swallow it — the error propagates to the caller unchanged. The
+        card-level partial-result envelope (unmatched/markerMissing) covers only
+        post-reindex per-annotation failures, not the up-front gildash bootstrap
+        failure.
     - violation: An annotation references a card key with no matching card row.
       behavior: >-
         The annotation is reported under `unmatched` in the spec sync result; no
