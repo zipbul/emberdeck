@@ -40,7 +40,7 @@ spec:
           codeLinks: { resolved: number, total: number }
         }
 
-        // CLI --depth defaults to 1; the ops layer default is 3.
+        // CLI --depth defaults to 1 at both the ops and CLI layers.
 
         ```
       keyword: MUST

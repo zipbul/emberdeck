@@ -23,9 +23,9 @@ spec:
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-002
       guarantee: >-
-        Updates apply atomically across file and DB. updateCard DOES write a
-        changelog row via recordUpdateChangelog (src/ops/update.ts:358,380)
-        capturing the diff of changed fields per the changelog-repo contract.
+        Updates apply atomically across file and DB. updateCard writes a
+        changelog row capturing the diff of changed fields, per the changelog
+        contract.
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-001
   invariants:
@@ -68,10 +68,9 @@ spec:
       behavior: >-
         updateCard invokes safe-write compensation to roll back the DB row to
         its prior value. On compensation success the original file I/O error is
-        thrown; on compensation failure updateCard throws
-        CompensationFailedError carrying `details.{originalError,
-        compensationError}` and leaves the card in an inconsistent state that
-        the next `ed bulk sync` reconciles.
+        thrown; on compensation failure updateCard throws CompensationError
+        carrying `details.{originalError, compensationError}` and leaves the
+        card in an inconsistent state that the next `ed bulk sync` reconciles.
     - violation: >-
         The changelog row write fails after the card row + file write have
         committed (recordUpdateChangelog throws inside the same safe-write
@@ -80,7 +79,6 @@ spec:
         updateCard treats the changelog write as part of the same atomic
         boundary: it triggers the same safe-write compensation, rolling back
         both the DB card row and the on-disk file. On compensation success the
-        changelog error is thrown; on compensation failure
-        CompensationFailedError is thrown with `details.{originalError,
-        compensationError}`.
+        changelog error is thrown; on compensation failure CompensationError is
+        thrown with `details.{originalError, compensationError}`.
 ---

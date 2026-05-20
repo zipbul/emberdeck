@@ -19,16 +19,20 @@ spec:
     - id: POST-001
       guarantee: >-
         defineGlossary persists all entries or zero entries on any single
-        failure.
+        failure. Re-defining an existing word is an allowed update (not a
+        collision error): such an entry is overwritten and reported with action
+        'updated', while a brand-new word is reported with action 'created'.
       keyword: MUST
       derives: glossary/lifecycle#G-001
     - id: POST-002
       guarantee: >-
-        lookupGlossary returns a `{ found: boolean, entry?: GlossaryEntry }`
-        object for the requested word. When the word does not exist, `{ found:
-        false }` is returned (NOT an empty list); when it exists, `{ found:
-        true, entry }` carries the persisted entry. lookupGlossary never throws
-        for missing words.
+        lookupGlossary(word?) has two modes. With a word: returns `{ found:
+        boolean, entry?: GlossaryEntry }` — `{ found: false }` when absent (NOT
+        an empty list), `{ found: true, entry }` when present; it never throws
+        for missing words. With NO word: returns the full listing `{ entries:
+        GlossaryEntry[], total: number }` enumerating every stored entry (total
+        === entries.length). The CLI `ed glossary lookup [WORD]` maps the
+        optional WORD to these two modes directly.
       keyword: SHALL
       derives: glossary/lifecycle#G-001
     - id: POST-003
@@ -57,12 +61,6 @@ spec:
         The input batch contains duplicate words (the same word key appears more
         than once in one call).
       behavior: defineGlossary throws GlossaryValidationError; no entries are persisted.
-    - violation: >-
-        A word in the batch collides with an existing entry in the glossary
-        store (defineGlossary does not silently overwrite).
-      behavior: >-
-        defineGlossary throws GlossaryValidationError; no entries from the batch
-        are persisted (all-or-nothing).
     - violation: >-
         The glossary store write itself fails (filesystem I/O error, permission
         denied, disk full).

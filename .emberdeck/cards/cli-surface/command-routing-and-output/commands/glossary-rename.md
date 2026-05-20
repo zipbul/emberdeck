@@ -2,7 +2,7 @@
 key: cli-surface/command-routing-and-output/commands/glossary-rename
 summary: >-
   Per-command CLI-shape spec for 'ed glossary rename'; declares oldWord/newWord
-  + affectedCardKeys + failedFileWrites shape (POST-001) and 0/2/3/4 exit policy
+  + affectedCardKeys + fileWriteFailures shape (POST-001) and 0/2/3 exit policy
   (POST-002).
 status: active
 type: spec
@@ -27,11 +27,12 @@ spec:
         // stdout shape for `ed glossary rename <old> <new> [--def TEXT]`
 
         { oldWord, newWord, affectedCardKeys: string[],
-          failedFileWrites?: string[] }
-        // The YAML store and the indexed glossary fields of every referencing
-        card update atomically in one transaction; per-card markdown rewrites
-        are best-effort and any file-write failure is recorded in
-        failedFileWrites.
+          fileWriteFailures?: string[] }
+        // The YAML store is written FIRST; then the indexed glossary fields of
+        every referencing card update in a DB transaction, with the YAML write
+        reverted if the DB step fails (two-step sequence, NOT a single
+        transaction). Per-card markdown rewrites are best-effort and any
+        file-write failure is recorded in fileWriteFailures.
 
         ```
       keyword: MUST
@@ -39,9 +40,9 @@ spec:
     - id: POST-002
       guarantee: >-
         - 0 (EXIT.OK): rename succeeded and every referencing-card markdown
-        rewrite succeeded (failedFileWrites is absent or empty).
+        rewrite succeeded (fileWriteFailures is absent or empty).
 
-        - 2 (EXIT.VALIDATION_FAILURE): failedFileWrites.length > 0 (data is
+        - 2 (EXIT.VALIDATION_FAILURE): fileWriteFailures.length > 0 (data is
         still emitted; only the exit code differs).
 
         - thrown mapping: GlossaryNotFoundError → 3 (EXIT.NOT_FOUND) when
@@ -64,7 +65,7 @@ spec:
         message}` and the process exits 2.
     - violation: One or more referencing-card markdown rewrites failed.
       behavior: >-
-        The offending file paths are recorded in failedFileWrites; stdout still
+        The offending file paths are recorded in fileWriteFailures; stdout still
         emits the data shape; the process exits 2.
     - violation: oldWord does not exist in the glossary store.
       behavior: >-

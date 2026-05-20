@@ -1,8 +1,8 @@
 ---
 key: card-lifecycle/status-and-safe-write/update-card-status
 summary: >-
-  updateCardStatus enforces the activation guard on transitions to active and
-  the type-change activation rules.
+  updateCardStatus enforces the activation guard on transitions to active; it
+  does not perform type changes.
 status: active
 type: spec
 parent: card-lifecycle/status-and-safe-write

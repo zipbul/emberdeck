@@ -52,7 +52,9 @@ spec:
         - 0 (EXIT.OK): sync always (skipped entries are not failures; a
         metadata-write-failed surfaces only as nextSyncMarker=null in the data).
 
-        - thrown mapping: none.
+        - thrown mapping: CliUsageError → cli-usage-error → 2
+        (EXIT.VALIDATION_FAILURE) when --since fails to parse as ISO 8601 or
+        epoch ms (thrown inside the action, not a commander upstream rejection).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
