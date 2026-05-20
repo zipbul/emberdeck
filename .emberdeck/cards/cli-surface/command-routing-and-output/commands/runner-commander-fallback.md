@@ -25,7 +25,7 @@ spec:
         CommanderError exit into the canonical stderr JSON-line plus exit-code
         contract before the process terminates.
       keyword: MUST
-      derives: cli-surface/command-routing-and-output#G-001
+      derives: cli-surface/command-routing-and-output#G-004
     - id: POST-002
       guarantee: >-
         Exit codes: 0 (EXIT.OK) for commander.help and commander.version paths

@@ -35,7 +35,10 @@ spec:
         inputIndex. Earlier successes are NOT rolled back when a later entry
         fails. Phase-2 relation updates that fail mark their card key in
         partialKeys[] AND append a row to failed[] (with the relation-update
-        message and same inputIndex).
+        message and the same inputIndex); the card row itself remains persisted
+        (in created[]), but the unresolved relation surfaces as a failed[] entry
+        so the batch exits non-zero — consistent with card-create surfacing
+        failedRelationTargets as a non-zero exit.
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-003

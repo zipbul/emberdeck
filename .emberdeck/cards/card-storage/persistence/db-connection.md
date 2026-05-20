@@ -30,8 +30,8 @@ spec:
       always_holds: cross-call
     - id: INV-002
       statement: >-
-        A cross-invocation key-value watermark store holds one key
-        `last_symbol_sync_at` written by spec-sync-symbols and read on the next
+        A cross-invocation key-value watermark store records the last
+        symbol-sync time, written by spec-sync-symbols and read on the next
         invocation; it accommodates future watermark keys without structural
         change.
       always_holds: cross-call

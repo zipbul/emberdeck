@@ -13,9 +13,15 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        Caller passes one or more card keys to checkInteractions (unknown keys
-        produce empty entries rather than throwing) or no arguments to analyze.
+        Caller passes two or more card keys to checkInteractions (unknown keys
+        produce empty entries rather than throwing). A single key is rejected —
+        interactions require a pair.
       derives: analysis/impact-and-aggregate#G-003
+    - id: PRE-002
+      condition: >-
+        Caller invokes analyze with no arguments; it aggregates over the whole
+        card set.
+      derives: analysis/impact-and-aggregate#G-004
   postconditions:
     - id: POST-001
       guarantee: >-

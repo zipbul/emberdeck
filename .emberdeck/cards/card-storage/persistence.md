@@ -36,8 +36,10 @@ brief:
       - id: G-002
         statement: >-
           Provide bulk-sync that reconciles a directory of card files into the
-          DB and reports orphans and stale rows. Frontmatter-key vs path-slug
-          mismatches are surfaced by validateCards, not by bulk-sync.
+          DB — deleting stale rows (whose file is gone) and upserting existing
+          files. Orphan-file / stale-row detection-reporting and frontmatter-key
+          vs path-slug mismatch detection are surfaced by validateCards, not by
+          bulk-sync.
       - id: G-003
         statement: >-
           Provide single-card export that materializes a DB row back to its
@@ -69,8 +71,9 @@ brief:
       given: A directory of N valid card files.
       when: bulkSyncCards runs.
       then: >-
-        Every file becomes a DB row; orphan rows from prior state are reported
-        with zero unintended deletions.
+        Every file becomes a DB row and stale rows from prior state are deleted,
+        with zero unintended deletions of valid rows; per-file parse/IO failures
+        are returned in failed[].
       covers:
         - G-002
     - id: S-H-02
@@ -141,9 +144,10 @@ brief:
           - schema
       - name: bulkSyncCards
         responsibility: >-
-          Reconcile the on-disk cards directory with the DB, reporting orphan
-          files and stale rows. Key-vs-slug mismatch detection is delegated to
-          validateCards.
+          Reconcile the on-disk cards directory with the DB: delete stale rows
+          and upsert existing files, returning per-file parse/IO failures in
+          failed[]. Orphan-file / stale-row and key-vs-slug mismatch detection
+          are delegated to validateCards.
         interacts_with:
           - CardRepository
           - schema

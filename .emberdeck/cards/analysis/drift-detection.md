@@ -135,7 +135,9 @@ brief:
           a driftType in the response or whose DB status is 'drifted'.
           health.active equals the remaining non-draft cards. health.draft
           equals cards whose DB status is 'draft'. The three categories
-          partition every targeted card.
+          partition every targeted card that is present in storage; a requested
+          key that is missing contributes to health.total but to none of
+          active/drifted/draft.
   policy:
     - id: R-001
       subject: Every detector

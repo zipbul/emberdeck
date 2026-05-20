@@ -2,7 +2,7 @@
 key: cli-surface/command-routing-and-output/commands/card-update
 summary: >-
   Per-command CLI-shape spec for 'ed card update'; declares updated card shape
-  with failedRelationTargets (POST-001) and 0/2/3 exit policy (POST-002).
+  with failedRelationTargets (POST-001) and 0/1/2/3 exit policy (POST-002).
 status: active
 type: spec
 parent: cli-surface/command-routing-and-output

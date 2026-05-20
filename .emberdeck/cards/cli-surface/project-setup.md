@@ -180,7 +180,11 @@ brief:
     - id: SC-001
       type: binary
       measure:
-        predicate: Missing .emberdeck causes exit code 6 with a config-missing error.
+        predicate: >-
+          An EXPLICIT config path (--config flag or EMBERDECK_CONFIG) that
+          points at a missing file causes exit code 6 with a config-missing
+          error; implicit discovery (no explicit path) silently falls back to
+          cwd as project root with no config-missing error.
         method: CLI integration test from a non-project directory.
       verifies:
         - S-F-01

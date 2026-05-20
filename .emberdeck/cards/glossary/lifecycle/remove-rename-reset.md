@@ -42,7 +42,7 @@ spec:
         operator can rerun or repair; DB-row and glossary-reset failures are not
         in the result.
       keyword: MUST
-      derives: glossary/lifecycle#G-001
+      derives: glossary/lifecycle#G-004
   invariants:
     - id: INV-001
       statement: >-

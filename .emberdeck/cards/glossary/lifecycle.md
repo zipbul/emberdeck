@@ -26,7 +26,7 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Provide define, lookup, remove, rename, and reset entry points.
+          Provide define, lookup, remove, and rename entry points.
           defineGlossary is all-or-nothing INSIDE the op (any entry that fails
           op-level validation rejects the whole batch and persists zero). The
           CLI command `ed glossary define` pre-validates entries per-entry and
@@ -47,6 +47,12 @@ brief:
         statement: >-
           On remove, surface every referencing card key so the operator can
           resolve them; remove does not mutate referencing cards itself.
+      - id: G-004
+        statement: >-
+          Provide resetEmberdeck: a confirmation-gated full wipe of all cards
+          and glossary entries. Per-file unlink failures are reported in
+          failedFileDeletes[] without aborting the wipe; DB-row and
+          glossary-reset failures are best-effort and do not block.
     non_goals:
       - id: NG-001
         statement: Cross-project glossary federation.
@@ -104,14 +110,14 @@ brief:
         per-file unlink failures are reported in failedFileDeletes[] without
         aborting the reset.
       covers:
-        - G-001
+        - G-004
     - id: S-F-03
       kind: failure
       given: A reset request without explicit confirmation.
       when: resetEmberdeck runs.
       then: Nothing is removed; the operator is required to confirm.
       covers:
-        - G-001
+        - G-004
   design:
     overview: >
       defineGlossary writes the YAML glossary store atomically (tmp file plus

@@ -29,10 +29,12 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        bulkSyncCards reports orphan files and stale rows in its failures
-        collection. Frontmatter-key vs filename-slug mismatch detection is NOT
-        performed by bulkSyncCards — it is surfaced separately by validateCards'
-        fileLevelIssues key-mismatch entry.
+        bulkSyncCards reconciles the cards directory into the DB: it deletes
+        stale rows (file gone) and upserts existing files, returning per-file
+        parse/IO failures in failed[]. It does NOT detect or report orphan files
+        or stale rows as a diagnostic — orphan-file and stale-db-row are
+        surfaced by validateCards' fileLevelIssues, as is frontmatter-key vs
+        filename-slug mismatch.
       keyword: MUST
       derives: card-storage/persistence#G-002
     - id: POST-002

@@ -33,6 +33,14 @@ spec:
         cards and collecting unknown keys in notFound[] rather than throwing.
       keyword: MUST
       derives: card-storage/queries#G-001
+    - id: POST-004
+      guarantee: >-
+        findCardsByGlossaryWord, findCardsBySymbol, and listCardRelations are
+        filtered-list reads: each returns the matching cards (or relation rows)
+        as a list and never throws on no match — an empty list is returned,
+        sharing listCards' conjunctive-filter, empty-on-no-match semantics.
+      keyword: MUST
+      derives: card-storage/queries#G-001
   invariants:
     - id: INV-001
       statement: >-

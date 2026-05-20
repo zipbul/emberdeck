@@ -134,7 +134,7 @@ brief:
       - name: findCardsBySymbol
         responsibility: >-
           Listing variant that selects every card whose binding cache references
-          the given symbol; matchType distinguishes codeLink-backed hits.
+          the given symbol.
         interacts_with:
           - listCards
     data_flow: []
@@ -145,8 +145,10 @@ brief:
         statement: >-
           Tree and context traversals respect their depth ceilings (tree
           min(req, 20) default 10; context default 1 at both ops and CLI;
-          relation graph default 3) and surface truncation explicitly when the
-          ceiling is reached.
+          relation graph default 3) and surface truncation explicitly when a
+          traversal is cut short by its ceiling on the depth>1 path; context at
+          its default depth 1 returns the direct neighborhood with no truncation
+          marker.
   policy:
     - id: R-001
       subject: searchCards

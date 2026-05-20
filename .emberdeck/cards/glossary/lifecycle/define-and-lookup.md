@@ -44,7 +44,9 @@ spec:
       derives: glossary/lifecycle#G-001
   invariants:
     - id: INV-001
-      statement: defineGlossary batches are bounded by the documented cap of 50 entries.
+      statement: >-
+        defineGlossary batches are bounded by the documented per-call cap of 50
+        entries, and the project total is bounded by 500 entries.
       always_holds: per-call
   failures:
     - violation: Batch exceeds the size cap.

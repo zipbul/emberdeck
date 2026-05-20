@@ -141,9 +141,11 @@ brief:
       - name: bulkCreateCards
         responsibility: >-
           Topologically-ordered serial create returning per-entry success in
-          created[] and failure in failed[]; no batch rollback. Entries whose
-          card row was created but whose relations did not all resolve are
-          additionally reported in partialKeys[].
+          created[] and failure in failed[]; no batch rollback. failed[]
+          captures both phase-1 validation failures and phase-2 relation-update
+          failures. Entries whose card row was created but whose relations did
+          not all resolve are listed in partialKeys[] AND also get a failed[]
+          row (same inputIndex), so the batch exits non-zero.
         interacts_with:
           - createCard
     data_flow: []
@@ -173,7 +175,9 @@ brief:
       predicate: >-
         surface per-entry success and failure independently; entries that
         succeeded before a later failure MUST remain persisted (no batch
-        rollback). Failures live in failed[].
+        rollback). Failures live in failed[] — both phase-1 validation failures
+        and phase-2 relation-update failures (the latter also listed in
+        partialKeys[]).
       governs:
         - S-F-02
     - id: R-003
