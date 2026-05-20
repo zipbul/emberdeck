@@ -1,8 +1,8 @@
 ---
 key: card-storage/persistence/db-connection
 summary: >-
-  createEmberdeckDb, migrateEmberdeck, and closeDb own the SQLite connection
-  lifecycle and schema migrations.
+  createEmberdeckDb, migrateEmberdeck, and closeDb own the embedded store
+  connection lifecycle and schema migrations.
 status: active
 type: spec
 parent: card-storage/persistence
@@ -11,7 +11,7 @@ glossary:
 spec:
   preconditions:
     - id: PRE-001
-      condition: A SQLite-compatible filesystem path is supplied for the DB file.
+      condition: A writable filesystem path is supplied for the DB file.
       derives: card-storage/persistence#G-001
   postconditions:
     - id: POST-001
@@ -19,7 +19,7 @@ spec:
       keyword: MUST
       derives: card-storage/persistence#G-001
     - id: POST-002
-      guarantee: closeDb releases the underlying SQLite handle.
+      guarantee: closeDb releases the underlying store handle.
       keyword: SHALL
       derives: card-storage/persistence#G-001
   invariants:
@@ -45,6 +45,6 @@ spec:
         principle.
       always_holds: cross-call
   failures:
-    - violation: Underlying SQLite IO fails (e.g. permission denied).
-      behavior: createEmberdeckDb propagates the SQLite error.
+    - violation: Underlying store IO fails (e.g. permission denied).
+      behavior: createEmberdeckDb propagates the underlying store error.
 ---

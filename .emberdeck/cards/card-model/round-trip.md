@@ -11,8 +11,8 @@ glossary:
 brief:
   context:
     problem: >
-      Cards live both in SQLite and as on-disk markdown files (`*.md` with YAML
-      frontmatter
+      Cards live both in the indexed cache and as on-disk markdown files (`*.md`
+      with YAML frontmatter
 
       plus optional body). Bulk-sync, export, and direct user edits all rely on
       the round-trip
@@ -159,7 +159,7 @@ brief:
         - S-F-01
   rationale:
     alternatives:
-      - option: Store cards only in SQLite and never on disk.
+      - option: Store cards only in the indexed cache and never on disk.
         pros:
           - No round-trip required.
         cons:

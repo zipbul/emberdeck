@@ -151,8 +151,8 @@ brief:
   external:
     - id: C-001
       statement: >-
-        Per-connection transaction rollback semantics of the underlying SQLite
-        engine provide the recovery primitive the dbAction relies on.
+        Per-connection transaction rollback semantics of the underlying embedded
+        store engine provide the recovery primitive the dbAction relies on.
       reference:
         title: SQLite documentation - Atomic Commit
         locator: https://www.sqlite.org/atomiccommit.html

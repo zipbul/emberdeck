@@ -1,16 +1,16 @@
 ---
 key: card-storage
 summary: >-
-  SQLite schema, repositories, file-DB synchronization, and read-side queries
-  for cards.
+  Indexed cache schema, repositories, file-DB synchronization, and read-side
+  queries for cards.
 status: active
 type: domain
 glossary:
   - card-key
 domain:
   overview: >
-    Owns persistence: the SQLite schema (cards, relations, classifications, code
-    links, changelog),
+    Owns persistence: the indexed cache schema (cards, relations,
+    classifications, code links, changelog),
 
     the repository layer that mediates SQL access, bidirectional synchronization
     between markdown

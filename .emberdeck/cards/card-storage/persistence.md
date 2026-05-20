@@ -1,8 +1,8 @@
 ---
 key: card-storage/persistence
 summary: >-
-  SQLite schema, repository layer, and bidirectional file-DB synchronization
-  that persist cards.
+  Indexed cache schema, repository layer, and bidirectional file-DB
+  synchronization that persist cards.
 status: active
 type: brief
 parent: card-storage
@@ -12,8 +12,8 @@ brief:
   context:
     problem: >-
       Card files (.emberdeck/cards/**.md) are the user-editable source of truth;
-      SQLite is a derived cache that makes list/search/drift queries O(1)
-      instead of O(N file scans). For the cache to be safe to read, it must
+      The indexed cache is a derived store that makes list/search/drift queries
+      O(1) instead of O(N file scans). For the cache to be safe to read, it must
       always reflect the files at the moment a command starts — otherwise reads
       return lies whenever a user edits a card file externally (IDE, git
       checkout, scripted edit) without first running a manual sync.
@@ -31,8 +31,8 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Define the SQLite schema and repository interfaces that mediate every
-          card read and write.
+          Define the indexed cache schema and repository interfaces that mediate
+          every card read and write.
       - id: G-002
         statement: >-
           Provide bulk-sync that reconciles a directory of card files into the
@@ -59,8 +59,8 @@ brief:
     assumptions:
       - id: A-001
         statement: >-
-          One SQLite file per project under .emberdeck/data.db is sufficient for
-          project sizes seen in benchmarks.
+          One embedded store file per project under .emberdeck/data.db is
+          sufficient for project sizes seen in benchmarks.
         verification: Inspect bench/large-scale.bench.ts for sustained card counts.
         reevaluate_when: A user reports performance issues at scale.
   flow:
@@ -229,8 +229,8 @@ brief:
   external:
     - id: C-001
       statement: >-
-        SQLite is used in WAL journal mode for concurrent reader safety on a
-        single writer.
+        The embedded store runs in a journaling mode that lets concurrent
+        readers see a consistent snapshot while a single writer commits.
       reference:
         title: SQLite Write-Ahead Logging
         locator: https://www.sqlite.org/wal.html
@@ -243,8 +243,8 @@ brief:
   limits:
     - id: KL-001
       statement: >-
-        Concurrent writers across processes are not supported; SQLite locking is
-        per-process best-effort.
+        Concurrent writers across processes are not supported; the store-level
+        locking is per-process best-effort.
     - id: KL-002
       statement: >-
         Schema changes require a migration; ad-hoc table edits are not
@@ -306,7 +306,9 @@ brief:
         cons:
           - Search and drift queries become O(N) file scans
           - breaking interactive responsiveness.
-      - option: External database (Postgres) instead of embedded SQLite.
+      - option: >-
+          An external database server (e.g. Postgres) instead of the embedded
+          store.
         pros:
           - Multi-user.
         cons:

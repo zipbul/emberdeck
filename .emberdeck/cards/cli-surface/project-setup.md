@@ -22,7 +22,7 @@ brief:
       - statement: >-
           Inconsistent project-root resolution causes commands to operate on
           different DBs without warning.
-      - statement: Missing teardown leaks SQLite connections between invocations.
+      - statement: Missing teardown leaks store connections between invocations.
   scope:
     goals:
       - id: G-001

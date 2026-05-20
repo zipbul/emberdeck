@@ -35,8 +35,8 @@ domain:
     hierarchy.
 
 
-    OUT: persistence to SQLite, file IO, link resolution against gildash, drift
-    detection, CLI surface.
+    OUT: persistence to the embedded store, file IO, link resolution against
+    gildash, drift detection, CLI surface.
   cross_domain_dependencies:
     - domain: glossary
       relationship: >-
