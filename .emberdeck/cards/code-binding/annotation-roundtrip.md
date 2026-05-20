@@ -110,13 +110,13 @@ brief:
       predicate: report unmatched annotations rather than silently dropping them.
       governs:
         - S-F-01
+        - S-H-01
     - id: R-002
       subject: syncSymbolChanges
       keyword: SHALL
       predicate: only apply changes reported by gildash (no heuristic guesses).
       governs:
         - S-H-02
-        - S-H-01
   external:
     - id: C-001
       statement: JSDoc tag conventions follow standard TypeScript JSDoc parsing.

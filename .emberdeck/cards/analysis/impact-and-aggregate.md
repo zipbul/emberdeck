@@ -169,7 +169,21 @@ brief:
       governs:
         - S-F-01
         - S-H-02
+    - id: R-003
+      subject: analyze
+      keyword: MUST
+      predicate: >-
+        aggregate health, coverage, drifted cards, glossary, and unlinkedSymbols
+        into one read-only object without mutating card status.
+      governs:
         - S-H-03
+    - id: R-004
+      subject: checkInteractions
+      keyword: MUST
+      predicate: >-
+        surface shared-symbol, shared-file, and import interactions plus
+        conflicts for the supplied card pair.
+      governs:
         - S-F-02
   external:
     - id: C-001
@@ -222,7 +236,23 @@ brief:
           that retention-aged changelog entries are absent after the call.
       verifies:
         - S-H-03
+    - id: SC-004
+      type: binary
+      measure:
+        predicate: >-
+          preChangeCheck on zero affected cards returns riskLevel low and an
+          empty affectedCards list.
+        method: Integration test asserting low/empty for a no-op change set.
+      verifies:
         - S-H-01
+    - id: SC-005
+      type: binary
+      measure:
+        predicate: >-
+          regressionGuard exits 0 when the drifted ratio is at or under the
+          configured threshold.
+        method: Integration test asserting exit 0 for ratio <= threshold.
+      verifies:
         - S-H-02
   rationale:
     alternatives:
