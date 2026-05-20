@@ -28,18 +28,26 @@ spec:
 
         ```jsonc
 
+        // stdout shape for `ed glossary define WORD=DEF ... | --from FILE`
+
         { defined: { word, definition, action: 'created' | 'updated' }[],
-          failed:  { inputIndex, reason }[],
           total: number }
+        // defineGlossary is ALL-OR-NOTHING: on any per-entry validation failure
+        or batch size > 50 it throws and persists nothing. A successful call
+        returns the full defined[] (each entry created or updated) with total
+        === defined.length.
+
         ```
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): failed.length === 0.
+        - 0 (EXIT.OK): every entry persisted (all-or-nothing success).
 
-        - 2 (EXIT.VALIDATION_FAILURE): failed.length > 0 (per-entry failures) OR
-        thrown GlossaryValidationError (batch size > 50).
+        - 2 (EXIT.VALIDATION_FAILURE): thrown GlossaryValidationError — any
+        per-entry validation failure (malformed word, empty/over-long
+        definition, duplicate within batch) OR batch size > 50; nothing is
+        persisted.
 
         - thrown mapping: GlossaryValidationError → glossary-validation-error →
         2.
@@ -54,15 +62,15 @@ spec:
       always_holds: per-call
   failures:
     - violation: >-
-        Per-entry validation failed (malformed word, empty definition,
-        length-limit violation).
+        Any entry fails validation (malformed word, empty or over-long
+        definition, duplicate within the batch).
       behavior: >-
-        The offending entry is appended to failed[] with its inputIndex and
-        reason; stdout still emits the data shape, and the process exits 2.
-    - violation: >-
-        Batch size exceeds MAX_ENTRIES_PER_CALL (50). The 51st+ entries trigger
-        pre-op rejection.
+        defineGlossary throws GlossaryValidationError naming the offending
+        entry; stderr emits `{level:'error', code:'glossary-validation-error',
+        message}` and the process exits 2. No entries are persisted
+        (all-or-nothing).
+    - violation: Batch size exceeds MAX_ENTRIES_PER_CALL (50).
       behavior: >-
         GlossaryValidationError → stderr `{code:'glossary-validation-error',
-        message}`; stdout empty; process exits 2.
+        message}` and the process exits 2; nothing persisted.
 ---

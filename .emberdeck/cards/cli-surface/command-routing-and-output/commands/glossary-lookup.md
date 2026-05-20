@@ -23,12 +23,17 @@ spec:
 
         ```jsonc
 
-        // stdout shape for `ed glossary lookup [word]`
+        // stdout shape for `ed glossary lookup [WORD]`
 
-        // The word argument is zero or one element. Without an argument, every
-        entry is returned.
+        // WITH a WORD argument (single-lookup mode):
 
-        { entries: { word, definition }[], total: number }
+        //   { found: boolean, entry?: { word, definition } }   // { found:
+        false } when absent; never an empty list
+
+        // WITHOUT an argument (list mode): every entry is returned:
+
+        //   { entries: { word, definition }[], total: number }   // total ===
+        entries.length
 
         ```
       keyword: MUST

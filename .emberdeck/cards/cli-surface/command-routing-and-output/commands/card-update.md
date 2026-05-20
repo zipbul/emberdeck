@@ -27,9 +27,7 @@ spec:
         --patch FILE | --glossary W | --tag T]`
 
         {
-          key, filePath, status,
-          validationNotes: string[],            // non-fatal field warnings (e.g. status auto-adjusted).
-          failedRelationTargets: string[]       // relation targets that did not persist under concurrent contention; empty on a clean update.
+          key, filePath, status
         }
 
         ```
@@ -37,16 +35,15 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): patch applied, indexed cache + file write succeeded,
-        every relation target persisted. validationNotes being non-empty does
-        not change the exit code.
-
-        - 2 (EXIT.VALIDATION_FAILURE): failedRelationTargets.length > 0 (partial
-        state signalled in data).
+        - 0 (EXIT.OK): patch applied and indexed cache + file write succeeded.
+        updateCard is atomic — there is no partial-success exit; unresolved
+        declared relations are NOT an update-time failure, they surface later as
+        `validate cards` broken-relation issues.
 
         - thrown mapping: CardNotFoundError → card-not-found → 3;
         CardValidationError / ParentValidationError / ActivationGuardError → 2;
-        CliUsageError → cli-usage-error → 2.
+        CompensationError → compensation-failed → 1; CliUsageError →
+        cli-usage-error → 2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
