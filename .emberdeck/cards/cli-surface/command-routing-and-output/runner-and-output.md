@@ -39,12 +39,12 @@ spec:
       derives: cli-surface/command-routing-and-output#G-004
     - id: POST-003
       guarantee: >-
-        Exit codes come from the EXIT enum (`src/cli/exit-codes.ts`) and are
-        chosen per kebab error code via the ERROR_CODE_TO_EXIT map:
-        `card-not-found` → 3; `card-already-exists` and `rename-same-path` → 4;
-        `invalid-card-key`, `validation-error`, `parent-validation-error`,
-        `fts-syntax-error`, `activation-guard-failed`, `cli-usage-error`,
-        `config-parse-error`, `config-validation-error`, `glossary-parse-error`,
+        Exit codes are chosen per kebab error code via a fixed code-to-exit
+        mapping: `card-not-found` → 3; `card-already-exists` and
+        `rename-same-path` → 4; `invalid-card-key`, `validation-error`,
+        `parent-validation-error`, `fts-syntax-error`,
+        `activation-guard-failed`, `cli-usage-error`, `config-parse-error`,
+        `config-validation-error`, `glossary-parse-error`,
         `glossary-validation-error` → 2; `glossary-not-found` → 3;
         `gildash-init-failed` and `config-missing-file` → 6;
         `stdout-write-failed` → 5; `compensation-failed`, `internal-error`,

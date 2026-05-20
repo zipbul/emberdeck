@@ -50,9 +50,8 @@ spec:
 
         ```
 
-        Note: codeCycles.count is observed cycle count capped at op-layer
-        MAX_CYCLES_FETCH (200) — `count === 200` reads as 'at least 200'.
-        unlinkedSymbols capped at UNLINKED_SYMBOLS_LIMIT (currently 20).
+        Note: codeCycles.count is observed cycle count capped at 200 — `count
+        === 200` reads as 'at least 200'. unlinkedSymbols capped at 20.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002

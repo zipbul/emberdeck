@@ -157,11 +157,12 @@ brief:
         - S-F-02
   external:
     - id: C-001
-      statement: Default paths align with the SKILL command table (.emberdeck/ layout).
+      statement: >-
+        Default paths (the .emberdeck/ layout) align with the project's CLI
+        surface conventions.
       reference:
-        title: emberdeck SKILL onboarding workflow
-        locator: >-
-          /home/revil/projects/zipbul/emberdeck/.claude/skills/emberdeck/SKILL.md
+        title: domain cli-surface
+        locator: cli-surface
   compatibility:
     guarantees:
       - subject: setupEmberdeck and teardownEmberdeck public signatures

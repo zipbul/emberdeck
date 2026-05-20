@@ -20,10 +20,11 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        This fallback path produces no stdout data shape; success and failure
-        both leave stdout empty. The fallback exists only to translate
-        CommanderError exit into the canonical stderr JSON-line plus exit-code
-        contract before the process terminates.
+        This fallback path produces no stdout JSON data shape: the failure path
+        leaves stdout entirely empty, while the help/version success path emits
+        commander's plain-text help/version (non-JSON) to stdout. The fallback
+        exists only to translate CommanderError exit into the canonical stderr
+        JSON-line plus exit-code contract before the process terminates.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-004
     - id: POST-002

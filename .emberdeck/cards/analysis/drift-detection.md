@@ -171,10 +171,12 @@ brief:
         - S-H-03
   external:
     - id: C-001
-      statement: Drift taxonomy is co-located with the detector in src/ops/context.ts.
+      statement: >-
+        The two driftType values (broken_link, glossary_broken) are defined by
+        this domain's drift-detection specs, not by an external system.
       reference:
-        title: src/ops/context.ts
-        locator: src/ops/context.ts
+        title: spec analysis/drift-detection/check-drift
+        locator: analysis/drift-detection/check-drift
   compatibility:
     guarantees:
       - subject: DriftType enum

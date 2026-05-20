@@ -165,8 +165,8 @@ brief:
           - runner
       - name: command-tree
         responsibility: >-
-          commander.js based command tree under src/cli/commands grouped by
-          topic. Each command returns its natural data; the runner emits it.
+          A command-line framework command tree, grouped by topic. Each command
+          returns its natural data; the runner emits it.
         interacts_with:
           - runner
       - name: errors-mapper
