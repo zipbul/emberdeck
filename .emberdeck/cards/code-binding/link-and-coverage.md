@@ -87,9 +87,9 @@ brief:
     overview: >
       ensureReindexed maintains a fresh gildash snapshot. resolveCardCodeLinks
       reads the card's cache rows and queries gildash for symbol existence,
-      returning a discriminated union (valid / broken). validateCodeLinks
-      aggregates per-card results. getLinkCoverage and getUncoveredSymbols
-      compute coverage from the same cache.
+      returning a discriminated union (valid / broken / ioFailed).
+      validateCodeLinks aggregates per-card results. getLinkCoverage and
+      getUncoveredSymbols compute coverage from the same cache.
     components:
       - name: ensureReindexed
         responsibility: Trigger a gildash refresh when needed before any link query.

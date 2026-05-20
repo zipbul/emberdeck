@@ -57,9 +57,13 @@ brief:
           verbose traces use level:`verbose`.
       - id: G-004
         statement: >-
-          On command failure (typo, IO, crash) stdout emits no JSON; stderr
-          emits exactly one `level:error` JSON-line + exit code is non-zero.
-          Consumers detect failure by exit code, not by parsing stdout.
+          On a THROWN command failure (typo, IO, crash — the action raised an
+          uncaught error) stdout emits no JSON; stderr emits exactly one
+          `level:error` JSON-line and the exit code is non-zero. This is
+          distinct from a partial-result exit: a command that completes but
+          reports per-item failures in its data still emits its normal stdout
+          shape (with stderr empty) and exits non-zero. Consumers detect a
+          thrown failure by exit code, not by parsing stdout.
       - id: G-005
         statement: >-
           --quiet emits the same per-command JSON shape but compact (single-line
@@ -231,8 +235,11 @@ brief:
       subject: Every subcommand on failure
       keyword: MUST
       predicate: >-
-        emit a single canonical level:error JSON-line on stderr; stdout MUST NOT
-        contain JSON or any other output on the failure path.
+        emit a single canonical level:error JSON-line on stderr on the THROWN
+        failure path; stdout MUST NOT contain JSON or any other output on that
+        path. (A partial-result exit is not a thrown failure: the command emits
+        its normal stdout shape and signals the partial outcome via a non-zero
+        exit.)
       governs:
         - S-F-01
         - S-F-02
@@ -288,8 +295,9 @@ brief:
       type: binary
       measure:
         predicate: >-
-          Every command emits stdout JSON matching the shape declared in its
-          spec card on success, and no stdout output on failure.
+          Every command emits stdout JSON matching its spec-card shape on the
+          non-thrown result path (success or partial-result exit), and emits no
+          stdout on a thrown failure.
         method: >-
           Per-command snapshot tests of stdout/stderr/exit-code triples across
           success and failure inputs.

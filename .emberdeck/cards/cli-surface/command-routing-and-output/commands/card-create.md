@@ -90,4 +90,16 @@ spec:
       behavior: >-
         CliUsageError → stderr `{code:'cli-usage-error', message}` and the
         process exits 2.
+    - violation: >-
+        The supplied key is malformed (invalid slug, reserved characters, or
+        normalization-rules violation).
+      behavior: >-
+        createCard throws CardKeyError → stderr `{code:'invalid-card-key',
+        message}`, exit 2; no card written.
+    - violation: >-
+        A --glossary word is not defined in the project glossary (or the
+        glossary field is required but missing).
+      behavior: >-
+        createCard throws GlossaryValidationError → stderr
+        `{code:'glossary-validation-error', message}`, exit 2; no card written.
 ---

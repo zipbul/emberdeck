@@ -21,8 +21,9 @@ spec:
       derives: code-binding/link-and-coverage#G-001
     - id: POST-002
       guarantee: >-
-        resolveCardCodeLinks returns per-link valid or broken status without
-        partial omission.
+        resolveCardCodeLinks returns per-link valid, broken, or ioFailed status
+        without partial omission (ioFailed marks a transient gildash lookup
+        failure, distinct from a resolved-but-missing broken link).
       keyword: SHALL
       derives: code-binding/link-and-coverage#G-001
   invariants:

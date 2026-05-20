@@ -89,9 +89,12 @@ spec:
     - id: INV-003
       statement: >-
         stdout and stderr are disjoint channels by responsibility. stdout =
-        command result data (success only). stderr = diagnostics (auto-sync
-        JSON-lines, error messages, verbose traces). A consumer detecting
-        failure MUST use exit code, not stdout content.
+        command result data on the non-thrown result path (success OR a
+        partial-result exit that still carries data). stderr = diagnostics
+        (auto-sync JSON-lines, error messages, verbose traces). A consumer
+        detecting a THROWN failure MUST use the exit code (thrown failures emit
+        no stdout); partial results are signalled by data in stdout plus a
+        non-zero exit.
       always_holds: per-call
     - id: INV-004
       statement: >-

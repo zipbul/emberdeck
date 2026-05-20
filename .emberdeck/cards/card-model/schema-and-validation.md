@@ -134,8 +134,12 @@ brief:
     components:
       - name: validateCardInput
         responsibility: >-
-          Public entry point that runs the full validation pipeline and throws
-          on first error.
+          Public entry point that validates the COMMON fields (key
+          TYPE+LENGTH+FORMAT, type discriminant, summary, parent shape, closed
+          frontmatter schema) and throws on the first error. The deep
+          type-specific pass (brief/spec cross-reference resolution) is NOT run
+          here — it is invoked separately by the op layer and is status-gated
+          (only for cards persisted as active or transitioning to active).
         interacts_with:
           - type-dispatcher
           - brief-refs-validator

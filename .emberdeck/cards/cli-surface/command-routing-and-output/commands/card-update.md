@@ -95,4 +95,10 @@ spec:
         compensationError} → stderr `{code:'compensation-failed', message}` and
         the process exits 1; the card may be left in an inconsistent state that
         the next `ed bulk sync` reconciles.
+    - violation: >-
+        The target key is malformed (invalid slug, reserved characters, or
+        normalization-rules violation).
+      behavior: >-
+        updateCard throws CardKeyError → stderr `{code:'invalid-card-key',
+        message}`, exit 2; no change.
 ---

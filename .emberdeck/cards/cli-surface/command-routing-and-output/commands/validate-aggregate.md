@@ -44,7 +44,10 @@ spec:
         - 2 (EXIT.VALIDATION_FAILURE): either sub-result reports a non-zero
         violation.
 
-        - thrown mapping: none.
+        - thrown mapping: propagated from the composed validate links pass —
+        GildashInitError → gildash-init-failed → 6; other reindex / IO errors →
+        internal-error → 1; CardNotFoundError → card-not-found → 3 when an
+        explicit key argument points to no card.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
