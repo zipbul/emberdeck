@@ -21,7 +21,7 @@ spec:
         renameCard atomically updates key/path and writes the changelog row
         within a single DB transaction. The cross-domain dependency and relation
         rewrites of REFERENCING cards happen LATER as separate file writes
-        followed by syncCardFromFile() — they are NOT in the same transaction as
+        followed by a per-card resync — they are NOT in the same transaction as
         the rename itself. Card body wording and source `@spec` annotations are
         not cascaded. Per-reference file rewrite failures are surfaced via
         failedReferenceUpdates[] on the result rather than thrown.

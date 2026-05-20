@@ -28,12 +28,12 @@ spec:
     - id: POST-002
       guarantee: >-
         getCardContext returns the requested card plus parent BFS to the root
-        and the relation neighborhood up to the requested depth (default 1 hop
-        at both ops and CLI layers). When the requested depth is ≤1, the call
-        returns immediately without computing the related neighborhood and
-        without setting any truncated marker — truncation only applies on the
-        depth>1 path. For depth>1, truncation IS signalled when nodes at the
-        ceiling still have unvisited relation neighbors.
+        and its direct relation neighbors (upstream/downstream). The multi-hop
+        relation BFS (`related`) is computed only for depth>1: at depth ≤1 (the
+        default is 1 hop at both ops and CLI layers) the call returns the direct
+        neighbors without the multi-hop BFS and without setting any truncated
+        marker. For depth>1, truncation IS signalled when nodes at the ceiling
+        still have unvisited relation neighbors.
       keyword: SHALL
       derives: card-storage/queries#G-001
     - id: POST-003

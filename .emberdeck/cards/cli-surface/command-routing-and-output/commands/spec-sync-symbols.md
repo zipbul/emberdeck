@@ -2,8 +2,8 @@
 key: cli-surface/command-routing-and-output/commands/spec-sync-symbols
 summary: >-
   Per-command CLI-shape spec for 'ed spec sync-symbols'; declares applied /
-  skipped (4 reasons) / sinceSource / nextSyncMarker shape (POST-001) and exit 0
-  policy (POST-002).
+  skipped (4 reasons) / sinceSource / nextSyncMarker shape (POST-001) and 0/2
+  exit policy (POST-002).
 status: active
 type: spec
 parent: cli-surface/command-routing-and-output

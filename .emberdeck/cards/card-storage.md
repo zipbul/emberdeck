@@ -27,10 +27,10 @@ domain:
     syncCardFromFile,
 
     bulkSyncCards, exportCardToFile, validateCards integrity sweep, getCard,
-    listCards, searchCards,
+    getCards, listCards, searchCards,
 
-    getCardTree, getCardContext, listCardRelations, getRelationGraph, JSON field
-    encoding/decoding.
+    getCardTree, getCardContext, listCardRelations, getRelationGraph,
+    findCardsByGlossaryWord, findCardsBySymbol, JSON field encoding/decoding.
 
 
     OUT: business rules around when to mutate (delegated to card-lifecycle),

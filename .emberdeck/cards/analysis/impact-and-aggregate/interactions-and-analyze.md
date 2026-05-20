@@ -19,8 +19,9 @@ spec:
       derives: analysis/impact-and-aggregate#G-003
     - id: PRE-002
       condition: >-
-        Caller invokes analyze with no arguments; it aggregates over the whole
-        card set.
+        The analyze op takes no arguments; it aggregates over the whole card
+        set. (CLI-layer pagination flags --drifted-limit/--drifted-offset are
+        applied after the op.)
       derives: analysis/impact-and-aggregate#G-004
   postconditions:
     - id: POST-001

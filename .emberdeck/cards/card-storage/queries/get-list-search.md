@@ -35,10 +35,11 @@ spec:
       derives: card-storage/queries#G-001
     - id: POST-004
       guarantee: >-
-        findCardsByGlossaryWord, findCardsBySymbol, and listCardRelations are
-        filtered-list reads: each returns the matching cards (or relation rows)
-        as a list and never throws on no match — an empty list is returned,
-        sharing listCards' conjunctive-filter, empty-on-no-match semantics.
+        findCardsByGlossaryWord and findCardsBySymbol are filtered-list reads
+        returning the matching cards as a list; listCardRelations returns the
+        card's forward and reverse relation rows (two directional lists). All
+        three never throw on no match — an empty result is returned, sharing
+        listCards' conjunctive-filter, empty-on-no-match semantics.
       keyword: MUST
       derives: card-storage/queries#G-001
   invariants:

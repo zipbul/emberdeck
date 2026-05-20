@@ -37,8 +37,9 @@ brief:
           round-trip after re-serialization.
       - id: G-002
         statement: >-
-          Reject malformed frontmatter with a clear error rather than silently
-          dropping fields.
+          Reject malformed input with a clear error rather than silently
+          dropping fields — on parse (malformed YAML or unknown frontmatter
+          keys) and on serialize (a structurally-invalid CardFile).
     non_goals:
       - id: NG-001
         statement: >-

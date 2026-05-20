@@ -28,7 +28,7 @@ spec:
 
         {
           alreadyLinked: number,                                    // annotations that matched an existing binding row and were skipped
-          linkMissing:   { cardKey, file, symbol }[],               // newly inserted binding rows
+          linkMissing:   { cardKey, file, symbol }[],               // annotations that had no binding row and were newly linked (the previously-missing link is now created)
           unmatched:     { cardKey, file, symbol }[],               // annotations whose card key does not exist
           markerMissing: { cardKey, file, symbol }[]                // binding rows whose source `@spec` annotation is no longer present
         }

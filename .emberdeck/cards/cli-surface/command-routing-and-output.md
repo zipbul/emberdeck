@@ -160,11 +160,9 @@ brief:
           - ensureCardsSynced
       - name: output
         responsibility: >-
-          emitResult writes JSON to stdout. emitWarning writes one
-          `{level:'warning', code, message, details?}` JSON-line to stderr.
-          emitError writes one `{level:'error', code, message, details?}`
-          JSON-line to stderr. emitVerbose writes one `{level:'verbose', ...}`
-          JSON-line. No envelope helpers.
+          Writes the command result JSON to stdout; writes diagnostics (one
+          `{level:'warning'}` or `{level:'error'}` JSON-line per event) to
+          stderr.
         interacts_with:
           - runner
       - name: command-tree
@@ -175,9 +173,8 @@ brief:
           - runner
       - name: errors-mapper
         responsibility: >-
-          Map known error classes to kebab error codes and through
-          ERROR_CODE_TO_EXIT to exit codes; emit one stderr JSON-line per thrown
-          error.
+          Map known error classes to kebab error codes, then map each kebab code
+          to its exit code via a fixed code-to-exit table.
         interacts_with:
           - runner
     data_flow: []
