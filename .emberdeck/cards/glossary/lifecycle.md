@@ -95,6 +95,23 @@ brief:
       then: The CLI requires confirmation; nothing is removed without --yes.
       covers:
         - G-003
+    - id: S-H-03
+      kind: happy
+      given: A project containing cards and glossary entries.
+      when: resetEmberdeck runs with explicit confirmation.
+      then: >-
+        Every card (cache rows and files) and every glossary entry is removed;
+        per-file unlink failures are reported in failedFileDeletes[] without
+        aborting the reset.
+      covers:
+        - G-001
+    - id: S-F-03
+      kind: failure
+      given: A reset request without explicit confirmation.
+      when: resetEmberdeck runs.
+      then: Nothing is removed; the operator is required to confirm.
+      covers:
+        - G-001
   design:
     overview: >
       defineGlossary writes the YAML glossary store atomically (tmp file plus
@@ -180,6 +197,16 @@ brief:
         rename.
       governs:
         - S-H-02
+    - id: R-004
+      subject: resetEmberdeck
+      keyword: MUST
+      predicate: >-
+        require explicit confirmation before removing any state, and report
+        per-file unlink failures in failedFileDeletes[] without aborting the
+        wipe.
+      governs:
+        - S-H-03
+        - S-F-03
   external:
     - id: C-001
       statement: >-
@@ -243,6 +270,16 @@ brief:
         method: Integration test asserting remove without --yes performs no deletion.
       verifies:
         - S-F-02
+    - id: SC-005
+      type: binary
+      measure:
+        predicate: >-
+          resetEmberdeck with confirmation clears all cards and glossary
+          entries; without confirmation it removes nothing.
+        method: Integration test asserting full wipe with --yes and no-op without it.
+      verifies:
+        - S-H-03
+        - S-F-03
   rationale:
     alternatives:
       - option: Per-entry define (no batch).

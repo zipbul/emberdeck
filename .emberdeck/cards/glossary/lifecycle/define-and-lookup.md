@@ -67,4 +67,10 @@ spec:
         defineGlossary propagates the underlying I/O error; the on-disk store is
         left in its prior state with no partial entries (all-or-nothing
         guarantee).
+    - violation: >-
+        The batch would push the project total beyond the per-project entry cap
+        (500).
+      behavior: >-
+        defineGlossary throws GlossaryValidationError; no entries are persisted
+        (all-or-nothing).
 ---
