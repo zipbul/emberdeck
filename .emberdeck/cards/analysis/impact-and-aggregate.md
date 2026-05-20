@@ -139,12 +139,13 @@ brief:
     invariants:
       - id: DI-001
         statement: >-
-          riskLevel is monotonic UPWARD under the COMBINATION of (a) added
-          affected cards, (b) increased drift ratio of affected cards, and (c) a
-          hot-file fan-in match. It is NOT a function of broken-link count in
-          isolation; multiple inputs combine into the level. A hot-file fan-in
-          match can only promote the level upward, never demote (applied at most
-          once per call).
+          riskLevel is monotonic UPWARD: each of (a) added affected cards, (b)
+          increased drift ratio of affected cards, and (c) a hot-file fan-in
+          match can only raise the level, never lower it. Any one of these
+          inputs independently can promote the level — they need not occur
+          together. It is NOT a function of broken-link count in isolation; a
+          hot-file fan-in match is applied at most once per call and only
+          promotes upward.
       - id: DI-002
         statement: >-
           regressionGuard returns the violating ratio whenever it exits

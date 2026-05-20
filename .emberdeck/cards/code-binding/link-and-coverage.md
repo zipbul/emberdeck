@@ -182,22 +182,36 @@ brief:
       measure:
         predicate: >-
           Removing a symbol that a cached code_link points at produces a broken
-          link result on the very next validateCodeLinks call.
-        method: Integration test that mutates source then queries.
+          link result on the validation output.
+        method: >-
+          Integration test removing a bound symbol and asserting it is reported
+          broken with file+symbol.
       verifies:
         - S-F-01
     - id: SC-002
       type: binary
       measure:
-        predicate: >-
-          A private function not bound to any card appears in the uncovered
-          output.
+        predicate: A private function bound to no card appears in the uncovered output.
         method: >-
-          Integration test fixture exposing a private symbol with no `@spec`
-          annotation; assert it appears in result.uncovered.
+          Integration test asserting an unbound private function is listed as
+          uncovered.
       verifies:
         - S-H-03
+    - id: SC-003
+      type: binary
+      measure:
+        predicate: >-
+          Three cached links that all resolve yield a coverage result with
+          broken count zero.
+        method: Integration test asserting three resolving links give brokenCount=0.
+      verifies:
         - S-H-01
+    - id: SC-004
+      type: binary
+      measure:
+        predicate: A project with twenty unbound symbols reports all twenty as uncovered.
+        method: Integration test asserting the uncovered count equals twenty.
+      verifies:
         - S-H-02
   rationale:
     alternatives:

@@ -12,12 +12,12 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        Caller invokes coverage in one of three modes: (a) per-card via
-        `getLinkCoverage(ctx, fullKey)` for a specific card; (b) --uncovered
-        (returns all unbound symbols across the project); (c) --suggest (returns
-        proposed card scopes). The CLI does NOT enforce mutual exclusion between
-        --uncovered and --suggest — if both are passed, --suggest silently wins
-        (precedence: suggest > uncovered > per-card-key).
+        Caller invokes coverage in one of three mutually exclusive modes: (a)
+        per-card via `getLinkCoverage(ctx, fullKey)` for a specific card; (b)
+        --uncovered (returns all unbound symbols across the project); (c)
+        --suggest (returns proposed card scopes). Exactly one mode applies per
+        invocation; the CLI requires either a card key or a single mode flag
+        (see commands/check-coverage).
       derives: code-binding/link-and-coverage#G-002
   postconditions:
     - id: POST-001

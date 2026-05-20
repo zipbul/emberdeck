@@ -179,23 +179,40 @@ brief:
       measure:
         predicate: A spec with a broken source binding cannot be transitioned to active.
         method: >-
-          Integration test that removes the source `@spec` target symbol then
-          calls set-status active.
+          Integration test asserting set-status active throws
+          ActivationGuardError when a bound symbol is missing.
       verifies:
         - S-F-01
     - id: SC-002
       type: binary
       measure:
         predicate: >-
-          A simulated fileAction throw triggers compensate exactly once and
-          re-raises the original error; no file change persists when compensate
-          succeeds.
+          A simulated fileAction throw triggers the compensate callback exactly
+          once and re-raises the original error.
         method: >-
-          Integration test injecting a throw inside fileAction with a spy on the
-          compensate callback.
+          Unit test injecting a fileAction throw and asserting compensate call
+          count is 1 and the original error propagates.
       verifies:
         - S-F-02
+    - id: SC-003
+      type: binary
+      measure:
+        predicate: >-
+          A card meeting every activation precondition transitions to active and
+          is persisted with status=active.
+        method: Integration test asserting a fully-bound card reaches status=active.
+      verifies:
         - S-H-01
+    - id: SC-004
+      type: binary
+      measure:
+        predicate: >-
+          A successful multi-step write leaves both side effects observable and
+          never invokes the compensate callback.
+        method: >-
+          Integration test asserting both writes are observable and compensate
+          call count is 0.
+      verifies:
         - S-H-02
   rationale:
     alternatives:

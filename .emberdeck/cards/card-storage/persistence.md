@@ -36,7 +36,8 @@ brief:
       - id: G-002
         statement: >-
           Provide bulk-sync that reconciles a directory of card files into the
-          DB and reports orphans, stale rows, and key mismatches.
+          DB and reports orphans and stale rows. Frontmatter-key vs path-slug
+          mismatches are surfaced by validateCards, not by bulk-sync.
       - id: G-003
         statement: >-
           Provide single-card export that materializes a DB row back to its
@@ -106,7 +107,11 @@ brief:
       kind: failure
       given: A card file whose filename slug differs from the frontmatter key.
       when: bulkSyncCards processes it.
-      then: A key-mismatch warning is emitted; the row is not silently overwritten.
+      then: >-
+        The file is upserted under its frontmatter key and an unrelated DB row
+        is not silently overwritten; the key-vs-slug mismatch itself is NOT
+        flagged by bulk-sync — validateCards surfaces it separately as a
+        fileLevelIssues key-mismatch entry.
       covers:
         - G-002
   design:
@@ -136,8 +141,9 @@ brief:
           - schema
       - name: bulkSyncCards
         responsibility: >-
-          Reconcile on-disk cards directory with the DB, reporting orphan files,
-          stale rows, and key mismatches.
+          Reconcile the on-disk cards directory with the DB, reporting orphan
+          files and stale rows. Key-vs-slug mismatch detection is delegated to
+          validateCards.
         interacts_with:
           - CardRepository
           - schema
@@ -187,7 +193,10 @@ brief:
     - id: R-001
       subject: bulkSyncCards
       keyword: MUST
-      predicate: report key-mismatch as a warning rather than overwriting the row.
+      predicate: >-
+        upsert each file under its frontmatter key without overwriting an
+        unrelated row, and leave key-vs-slug mismatch reporting to validateCards
+        rather than emitting it here.
       governs:
         - S-F-01
     - id: R-002
@@ -254,7 +263,11 @@ brief:
     - id: SC-002
       type: binary
       measure:
-        predicate: A key-mismatch surfaces as a warning without DB row overwrite.
+        predicate: >-
+          A file whose frontmatter key differs from its path slug is upserted
+          under its frontmatter key without overwriting an unrelated DB row, and
+          bulk-sync emits no key-mismatch diagnostic (validateCards surfaces it
+          instead).
         method: Integration test placing a renamed file alongside its original DB row.
       verifies:
         - S-F-01

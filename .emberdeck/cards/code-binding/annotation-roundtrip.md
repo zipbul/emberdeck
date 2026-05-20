@@ -28,10 +28,9 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Reconstruct the DB code_link cache from tier-annotation tags in
-          source: `@spec`, `@brief`, `@principle`, and `@domain` are all scanned
-          (each tag binds to a card of the corresponding type; the card key in
-          the annotation value resolves the target).
+          Reconstruct the DB code_link cache from `/** @spec card-key */`
+          annotations in source: every @spec tag binds to a spec card (the card
+          key in the annotation value resolves the target).
       - id: G-002
         statement: >-
           Propagate gildash-detected symbol renames or moves into existing
@@ -145,20 +144,34 @@ brief:
       type: binary
       measure:
         predicate: >-
-          syncSpecAnnotations on a source set with no annotation changes since
-          the previous run produces zero `created` rows.
-        method: Integration test asserting created=0 on idempotent re-run.
+          Two source @spec annotations absent from the cache add exactly two
+          created rows to the corresponding card code_link cache.
+        method: >-
+          Integration test asserting two new annotations produce two created
+          rows.
       verifies:
         - S-H-01
     - id: SC-002
       type: binary
       measure:
         predicate: >-
-          An `@spec missing-card` annotation surfaces as an `unmatched` array
-          entry on the spec sync result.
-        method: CLI test asserting the partial envelope.
+          An @spec annotation referencing an unknown card key surfaces as an
+          unmatched entry with no cache row written.
+        method: >-
+          Integration test asserting an unknown-key annotation appears in
+          unmatched and writes no row.
       verifies:
         - S-F-01
+    - id: SC-003
+      type: binary
+      measure:
+        predicate: >-
+          A symbol moved from a.ts to b.ts updates the existing cache row file
+          from a.ts to b.ts.
+        method: >-
+          Integration test asserting a moved symbol rewrites the cache row file
+          path.
+      verifies:
         - S-H-02
   rationale:
     alternatives:
