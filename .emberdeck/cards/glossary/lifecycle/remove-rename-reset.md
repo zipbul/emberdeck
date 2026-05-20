@@ -13,6 +13,16 @@ spec:
     - id: PRE-001
       condition: Caller passes a word and explicit confirmation flag.
       derives: glossary/lifecycle#G-003
+    - id: PRE-002
+      condition: >-
+        For rename: caller passes the existing oldWord and a newWord that is not
+        already defined.
+      derives: glossary/lifecycle#G-002
+    - id: PRE-003
+      condition: >-
+        For reset: caller passes explicit destructive confirmation (no word
+        argument).
+      derives: glossary/lifecycle#G-004
   postconditions:
     - id: POST-001
       guarantee: >-

@@ -49,7 +49,9 @@ spec:
         - 0 (EXIT.OK): the impact report is always returned (read-only; a high
         riskLevel is not a failure).
 
-        - thrown mapping: none.
+        - thrown mapping: GildashInitError from the code-index reindex bootstrap
+        → gildash-init-failed → 6; other reindex / IO errors → internal-error →
+        1.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:

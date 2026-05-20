@@ -22,6 +22,10 @@ spec:
         failure. Re-defining an existing word is an allowed update (not a
         collision error): such an entry is overwritten and reported with action
         'updated', while a brand-new word is reported with action 'created'.
+        This is the OP-layer contract; the CLI `ed glossary define`
+        pre-validates each entry and splits failures into failed[] before
+        invoking the op, so the user-facing surface is partial-accept (see
+        commands/glossary-define).
       keyword: MUST
       derives: glossary/lifecycle#G-001
     - id: POST-002

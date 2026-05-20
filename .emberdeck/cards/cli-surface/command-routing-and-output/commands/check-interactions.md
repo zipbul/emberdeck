@@ -42,9 +42,12 @@ spec:
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
-      guarantee: |-
+      guarantee: >-
         - 0 (EXIT.OK): the interactions report is always returned (read-only).
-        - thrown mapping: none.
+
+        - thrown mapping: GildashInitError from the code-index reindex bootstrap
+        → gildash-init-failed → 6; other reindex / IO errors → internal-error →
+        1.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
