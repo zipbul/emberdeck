@@ -151,8 +151,9 @@ brief:
         responsibility: >-
           Per-context idempotent file-to-DB sync invoked once at CLI command
           entry. Deletes DB rows whose filePath is missing on disk, then upserts
-          every existing card file. Errors on individual files are swallowed;
-          validateCards remains the surface that reports them via orphan-file.
+          every existing card file. Per-file errors do NOT abort the sync — each
+          is surfaced as a card-sync-failed JSON-line on stderr at sync time and
+          collected in the returned failures array.
         interacts_with:
           - CardRepository
           - schema

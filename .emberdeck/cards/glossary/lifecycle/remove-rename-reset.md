@@ -12,7 +12,7 @@ spec:
   preconditions:
     - id: PRE-001
       condition: Caller passes a word and explicit confirmation flag.
-      derives: glossary/lifecycle#G-002
+      derives: glossary/lifecycle#G-003
   postconditions:
     - id: POST-001
       guarantee: >-

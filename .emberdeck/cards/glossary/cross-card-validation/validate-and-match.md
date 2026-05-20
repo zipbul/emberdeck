@@ -18,11 +18,11 @@ spec:
   postconditions:
     - id: POST-001
       guarantee: >-
-        validateCardGlossaryField iterates the declared glossary words and
-        throws GlossaryValidationError on the FIRST unresolved word (or other
-        validation issue: empty word, duplicate, length cap, max-per-card cap).
-        Returns void on success. Does NOT collect a batched unresolved-set — it
-        is fail-fast.
+        validateCardGlossaryField iterates the card's declared glossary words
+        and RETURNS the set of unresolved references — the declared words that
+        are absent from the glossary store. An empty set means every declared
+        word resolves. It does NOT throw for unresolved words; the drift
+        detector consumes this set to report glossary_broken per card.
       keyword: MUST
       derives: glossary/cross-card-validation#G-001
     - id: POST-002

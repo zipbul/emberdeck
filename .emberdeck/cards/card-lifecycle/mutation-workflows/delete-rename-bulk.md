@@ -31,11 +31,11 @@ spec:
       guarantee: >-
         bulkCreateCards processes entries independently: each entry is committed
         via createCard with its own safe-write boundary. Successful entries
-        appear in created[]; FAILURES appear in `errors[]` (NOT `failed[]`)
-        preserving inputIndex. Earlier successes are NOT rolled back when a
-        later entry fails. Phase-2 relation updates that fail mark their card
-        key in partialKeys[] AND append a row to errors[] (with the
-        relation-update message and same inputIndex).
+        appear in created[]; failures appear in `failed[]` preserving
+        inputIndex. Earlier successes are NOT rolled back when a later entry
+        fails. Phase-2 relation updates that fail mark their card key in
+        partialKeys[] AND append a row to failed[] (with the relation-update
+        message and same inputIndex).
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-003
@@ -75,7 +75,7 @@ spec:
       behavior: Throws CardRenameSamePathError; no rename performed.
     - violation: bulkCreateCards mid-batch failure on entry N.
       behavior: >-
-        Returns a result with entry N in errors[] (preserving inputIndex), prior
+        Returns a result with entry N in failed[] (preserving inputIndex), prior
         successes in created[], and continues processing remaining entries. No
         rollback of prior entries.
     - violation: renameCard cascade write to a referencing card's file fails.

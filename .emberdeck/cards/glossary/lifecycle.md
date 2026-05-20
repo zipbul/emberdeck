@@ -26,7 +26,7 @@ brief:
     goals:
       - id: G-001
         statement: >-
-          Provide define, lookup, remove, and rename entry points.
+          Provide define, lookup, remove, rename, and reset entry points.
           defineGlossary is all-or-nothing INSIDE the op (any entry that fails
           op-level validation rejects the whole batch and persists zero). The
           CLI command `ed glossary define` pre-validates entries per-entry and

@@ -260,9 +260,11 @@ brief:
         check is performed at storage write time.
     - id: KL-002
       statement: >-
-        Cross-card relations (the relations array) are not validated here;
-        broken-relation warnings are produced by the validate-cards integrity
-        sweep.
+        Relation target EXISTENCE is checked at write time (a relations entry
+        pointing at a non-existent card throws CardValidationError before
+        persistence); broken-relation DRIFT — a target removed after the card
+        was written — is surfaced separately by the validate-cards integrity
+        sweep, not re-checked on every mutation.
     - id: KL-003
       statement: >-
         Maximum field lengths are enforced numerically: summary at most 300

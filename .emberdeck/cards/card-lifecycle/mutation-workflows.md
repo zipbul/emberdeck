@@ -68,9 +68,11 @@ brief:
         three other cards.
       when: renameCard runs.
       then: >-
-        Parent, relations, and cross_domain_dependencies entries in the three
-        referencing cards update in a single transaction and the file moves to
-        the new path; card bodies and source @spec annotations are not cascaded.
+        The target card's key/path rename is atomic; the parent, relations, and
+        cross_domain_dependencies entries in the three referencing cards are
+        then rewritten as separate file writes, and any reference rewrite that
+        fails is recorded in failedReferenceUpdates[] without aborting the
+        rename; card bodies and source @spec annotations are not cascaded.
       covers:
         - G-003
     - id: S-F-01
@@ -90,10 +92,9 @@ brief:
       when: bulkCreateCards runs.
       then: >-
         The first two entries remain persisted; the third entry is recorded with
-        its inputIndex in errors[] at the OP layer (the CLI `ed bulk create`
-        command remaps this to failed[] for stdout — see commands/bulk-create
-        card POST-001). The remaining entries continue. The result reports
-        per-entry success and failure with no rollback of prior successes.
+        its inputIndex in failed[]. The remaining entries continue. The result
+        reports per-entry success and failure with no rollback of prior
+        successes.
       covers:
         - G-001
   design:
@@ -140,8 +141,7 @@ brief:
       - name: bulkCreateCards
         responsibility: >-
           Topologically-ordered serial create returning per-entry success in
-          created[] and failure in errors[] (CLI remaps to failed[]); no batch
-          rollback.
+          created[] and failure in failed[]; no batch rollback.
         interacts_with:
           - createCard
     data_flow: []
@@ -153,9 +153,10 @@ brief:
           file step fails.
       - id: DI-002
         statement: >-
-          Rename cascade updates every reference visible from the indexed cache
-          (parent, relations, cross_domain_dependencies) in one transaction;
-          source @spec annotations are reconciled by spec-sync separately.
+          Rename cascade rewrites every reference visible from the indexed cache
+          (parent, relations, cross_domain_dependencies) as separate post-rename
+          writes, surfacing any failure in failedReferenceUpdates[]; source
+          @spec annotations are reconciled by spec-sync separately.
   policy:
     - id: R-001
       subject: Every mutation entry point
@@ -170,8 +171,7 @@ brief:
       predicate: >-
         surface per-entry success and failure independently; entries that
         succeeded before a later failure MUST remain persisted (no batch
-        rollback). At the OP layer failures live in errors[]; at the CLI layer
-        they appear as failed[] on stdout (remap).
+        rollback). Failures live in failed[].
       governs:
         - S-F-02
     - id: R-003
@@ -179,8 +179,10 @@ brief:
       keyword: MUST
       predicate: >-
         cascade FK-style references across parent, relations, and
-        cross_domain_dependencies in the same transaction as the file move; card
-        body wording and source @spec annotations are not cascaded.
+        cross_domain_dependencies as separate writes after the target card's
+        atomic key/path rename, recording any failed rewrite in
+        failedReferenceUpdates[]; card body wording and source @spec annotations
+        are not cascaded.
       governs:
         - S-H-02
   external:
@@ -217,9 +219,8 @@ brief:
       measure:
         predicate: >-
           When the third of five entries in bulkCreateCards fails validation,
-          created[].length is 2 and errors[].length is 1 (OP layer) — exposed to
-          the CLI as failed[].length=1 — with the failed entry's inputIndex
-          preserved; the two prior successes remain persisted.
+          created[].length is 2 and failed[].length is 1 with the failed entry's
+          inputIndex preserved; the two prior successes remain persisted.
         method: >-
           Integration test injecting a validation failure on the third entry of
           a five-entry batch and asserting per-entry outcomes plus disk and

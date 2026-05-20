@@ -24,11 +24,9 @@ domain:
     teardownEmberdeck) that initializes the runtime context every command
     depends on.
   scope: >
-    IN: ed binary command tree, per-command stdout JSON shape status plus data
-    plus
-
-    warnings plus errors, exit-code mapping (0/1/2/3/4/5/6/7/130), --quiet,
-    parse-input helpers,
+    IN: ed binary command tree, per-command natural JSON shape on stdout (no
+    status/data/warnings/errors envelope) with JSON-lines diagnostics on stderr,
+    exit-code mapping (0/1/2/3/4/5/6/7/130), --quiet, parse-input helpers,
 
     output formatting, CliRuntime construction, config file loader, default
     cards directory and DB
