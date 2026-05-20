@@ -89,12 +89,16 @@ brief:
     - id: S-F-01
       kind: failure
       given: >-
-        A brief card input whose policy.governs lists a flow id that does not
-        appear in brief.flow on the same card.
-      when: validateCardInput runs.
+        A brief card persisted as (or transitioning to) active whose
+        policy.governs lists a flow id that does not appear in brief.flow on the
+        same card.
+      when: >-
+        the activation-gated deep validation runs (the op layer invokes the
+        brief-refs validator for an active card).
       then: >-
         A CardValidationError is thrown identifying the unresolved
-        cross-reference; no row is written.
+        cross-reference; no row is written. (A draft card bypasses this deep
+        pass.)
       covers:
         - G-002
     - id: S-F-02
@@ -287,9 +291,10 @@ brief:
       type: binary
       measure:
         predicate: >-
-          An invalid type-specific cross-reference always throws
-          CardValidationError before any storage call, and the error message
-          lists every unresolved reference.
+          An invalid type-specific cross-reference on a card persisted as (or
+          transitioning to) active always throws CardValidationError before any
+          storage call, listing every unresolved reference; a draft card with
+          the same input is not deep-validated.
         method: >-
           Integration test that submits a brief with policy.governs pointing at
           multiple undefined flow ids and asserts both ids are named in the

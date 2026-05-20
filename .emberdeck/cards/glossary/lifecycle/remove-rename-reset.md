@@ -28,8 +28,9 @@ spec:
       derives: glossary/lifecycle#G-002
     - id: POST-002
       guarantee: >-
-        removeGlossary marks referencing cards as drifted candidates rather than
-        auto-editing them.
+        removeGlossary returns the referencing card keys without mutating them;
+        those cards become glossary_broken drift candidates surfaced by the next
+        checkDrift run, not marked or auto-edited by removeGlossary.
       keyword: SHALL
       derives: glossary/lifecycle#G-003
     - id: POST-003

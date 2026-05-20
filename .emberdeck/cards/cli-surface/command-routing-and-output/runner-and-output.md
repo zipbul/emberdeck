@@ -13,8 +13,10 @@ spec:
   preconditions:
     - id: PRE-001
       condition: >-
-        A commander.js subcommand action wraps its body in run with a CommandFn
-        that returns the command's natural data (no envelope).
+        A CLI subcommand action wraps its body in run with a CommandFn that
+        returns a `{ data, exitCode? }` result; the runner writes `data` (the
+        command's natural JSON shape, with no wrapper envelope) to stdout and
+        applies exitCode.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001

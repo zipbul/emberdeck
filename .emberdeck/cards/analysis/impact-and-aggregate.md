@@ -71,9 +71,10 @@ brief:
       given: An analyze call against a healthy repository.
       when: analyze runs.
       then: >-
-        One JSON object is returned populating health, coverage, drifted,
-        glossary, and unlinkedSymbols; as a hygiene side effect, code-index
-        changelog entries older than the retention window are pruned.
+        One JSON object is returned populating health, coverage, driftedCards,
+        driftedCardsTotal, glossary, and unlinkedSymbols; as a hygiene side
+        effect, code-index changelog entries older than the retention window are
+        pruned.
       covers:
         - G-004
     - id: S-F-01
@@ -228,9 +229,9 @@ brief:
       type: binary
       measure:
         predicate: >-
-          analyze returns all five top-level data keys (health, coverage,
-          drifted, glossary, unlinkedSymbols) in a single object and the
-          retention-prune side effect runs without error.
+          analyze returns the top-level data keys (health, coverage,
+          driftedCards, driftedCardsTotal, glossary, unlinkedSymbols) in a
+          single object and the retention-prune side effect runs without error.
         method: >-
           Snapshot test of the analyze JSON output combined with an assertion
           that retention-aged changelog entries are absent after the call.
