@@ -36,9 +36,11 @@ spec:
         fails. Phase-2 relation updates that fail mark their card key in
         partialKeys[] AND append a row to failed[] (with the relation-update
         message and the same inputIndex); the card row itself remains persisted
-        (in created[]), but the unresolved relation surfaces as a failed[] entry
-        so the batch exits non-zero — consistent with card-create surfacing
-        failedRelationTargets as a non-zero exit.
+        (in created[]); the unresolved relation is recorded as a failed[] entry
+        (and the key in partialKeys[]) so callers can see it. An unresolved
+        relation is not a rollback condition — the row stays. (Exit-code mapping
+        for a non-empty failed[] is the CLI layer's concern, defined in
+        commands/bulk-create.)
       keyword: SHALL
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-003

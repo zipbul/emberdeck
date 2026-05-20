@@ -47,7 +47,9 @@ spec:
         0.
 
         - thrown mapping: CardNotFoundError → card-not-found → 3 (when an
-        explicit key arg points to no card).
+        explicit key arg points to no card); GildashInitError from the
+        ensureReindexed bootstrap → gildash-init-failed → 6; other reindex / IO
+        errors propagated from the op → internal-error → 1.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:

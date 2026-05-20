@@ -34,13 +34,15 @@ spec:
       derives: glossary/lifecycle#G-003
     - id: POST-003
       guarantee: >-
-        resetEmberdeck attempts to remove all cards and glossary entries; CLI
-        requires --yes. Best-effort: per-row DB delete failures, per-file unlink
-        failures, and glossary-store reset failures are SILENTLY SWALLOWED —
-        they do not abort the reset and are not surfaced on stderr. The result
-        object's `failedFileDeletes[]` exposes file-level failures so the
-        operator can rerun or repair; DB-row and glossary-reset failures are not
-        in the result.
+        resetEmberdeck attempts to remove all cards and glossary entries; the
+        CLI requires destructive confirmation (a --yes flag, or an interactive
+        prompt in a TTY; non-TTY without --yes is refused via
+        confirmDestructive). Best-effort: per-row DB delete failures, per-file
+        unlink failures, and glossary-store reset failures are SILENTLY
+        SWALLOWED — they do not abort the reset and are not surfaced on stderr.
+        The result object's `failedFileDeletes[]` exposes file-level failures so
+        the operator can rerun or repair; DB-row and glossary-reset failures are
+        not in the result.
       keyword: MUST
       derives: glossary/lifecycle#G-004
   invariants:

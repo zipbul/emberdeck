@@ -72,14 +72,11 @@ spec:
         thrown; on compensation failure updateCard throws CompensationError
         carrying `details.{originalError, compensationError}` and leaves the
         card in an inconsistent state that the next `ed bulk sync` reconciles.
-    - violation: >-
-        The changelog row write fails after the card row + file write have
-        committed (recordUpdateChangelog throws inside the same safe-write
-        boundary).
+    - violation: The changelog row write fails.
       behavior: >-
-        updateCard treats the changelog write as part of the same atomic
-        boundary: it triggers the same safe-write compensation, rolling back
-        both the DB card row and the on-disk file. On compensation success the
-        changelog error is thrown; on compensation failure CompensationError is
-        thrown with `details.{originalError, compensationError}`.
+        The changelog row is written inside the same DB transaction (dbAction
+        step) as the card row, before any file write. A changelog-write failure
+        therefore aborts that DB transaction atomically — no card row and no
+        file change are committed — and updateCard propagates the underlying
+        error; there is nothing to compensate.
 ---

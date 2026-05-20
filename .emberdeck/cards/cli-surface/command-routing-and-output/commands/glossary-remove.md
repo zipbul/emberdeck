@@ -13,7 +13,8 @@ spec:
     - id: PRE-001
       condition: >-
         Runner has built a CliRuntime and forwarded commander-validated
-        arguments to this command's action.
+        arguments (the target word and the destructive-confirmation flag --yes)
+        to this command's action.
       derives: cli-surface/command-routing-and-output#G-001
   postconditions:
     - id: POST-001
@@ -61,4 +62,11 @@ spec:
       behavior: >-
         GlossaryValidationError → stderr `{code:'glossary-validation-error',
         message}` and the process exits 2.
+    - violation: >-
+        Destructive confirmation is absent (no --yes and non-TTY, or the
+        interactive prompt is declined).
+      behavior: >-
+        confirmDestructive throws CliUsageError → stderr
+        `{code:'cli-usage-error', message}` and the process exits 2; no word is
+        removed.
 ---

@@ -36,11 +36,14 @@ spec:
       derives: cli-surface/command-routing-and-output#G-001
     - id: POST-002
       guarantee: >-
-        - 0 (EXIT.OK): drift report always (read-only). When the optional [key]
-        argument is supplied but no such card exists, the op returns an empty
-        cards[] (NOT a thrown error) and exits 0.
+        - 0 (EXIT.OK): drift report always on the read-only happy path. When the
+        optional [key] argument is supplied but no such card exists, the op
+        returns an empty cards[] (NOT a thrown error) and exits 0.
 
-        - thrown mapping: none under the read-only happy path.
+        - thrown mapping: the read-only per-card path itself does not throw, but
+        the op awaits ensureReindexed and loadGlossary first — GildashInitError
+        from the reindex bootstrap → gildash-init-failed → 6; a loadGlossary
+        parse/IO failure or other reindex/IO error → internal-error → 1.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:

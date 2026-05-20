@@ -60,15 +60,19 @@ spec:
       always_holds: per-call
   failures:
     - violation: >-
-        Any entry fails validation (malformed word, empty or over-long
-        definition, duplicate within the batch).
+        An individual entry fails per-entry pre-validation (malformed word,
+        empty or over-long definition, duplicate within the batch).
       behavior: >-
-        defineGlossary throws GlossaryValidationError naming the offending
-        entry; stderr emits `{level:'error', code:'glossary-validation-error',
-        message}` and the process exits 2. No entries are persisted
-        (all-or-nothing).
-    - violation: Batch size exceeds MAX_ENTRIES_PER_CALL (50).
+        The CLI records that entry in failed[] with its inputIndex and reason;
+        the surviving (accepted) entries are still passed to the all-or-nothing
+        op write and persisted (partial-accept). Because failed[] is non-empty
+        the command exits 2, with data still emitted.
+    - violation: >-
+        The op-level all-or-nothing write fails — batch size exceeds 50 per
+        call, or the project total would exceed 500.
       behavior: >-
-        GlossaryValidationError → stderr `{code:'glossary-validation-error',
-        message}` and the process exits 2; nothing persisted.
+        defineGlossary throws GlossaryValidationError; the CLI folds every
+        accepted entry into failed[] and persists nothing. stderr emits
+        `{level:'error', code:'glossary-validation-error', message}` and the
+        command exits 2.
 ---
