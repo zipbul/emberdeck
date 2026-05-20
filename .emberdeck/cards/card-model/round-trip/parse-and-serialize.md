@@ -24,8 +24,13 @@ spec:
       derives: card-model/round-trip#G-001
     - id: POST-002
       guarantee: >-
-        parseCardMarkdown throws on malformed YAML rather than returning a
-        partial CardFile.
+        parseCardMarkdown rejects malformed frontmatter rather than returning a
+        partial CardFile or silently dropping fields: syntactically invalid YAML
+        throws a parse error, and well-formed YAML carrying top-level
+        frontmatter keys outside the closed CardFrontmatter set (key, summary,
+        status, type, parent, relations, tags, glossary, principle, domain,
+        brief, spec) throws a validation error naming the unknown key(s).
+        Unknown keys are never silently discarded.
       keyword: SHALL
       derives: card-model/round-trip#G-002
   invariants:
@@ -46,4 +51,14 @@ spec:
       behavior: >-
         serializeCardMarkdown throws CardValidationError identifying the
         offending field; no markdown is produced.
+    - violation: >-
+        Frontmatter is well-formed YAML but contains one or more top-level keys
+        outside the closed CardFrontmatter set (e.g. legacy codeLinks or
+        boundary, or a typo'd field).
+      behavior: >-
+        parseCardMarkdown throws a validation error enumerating the unknown
+        key(s); no CardFile is returned. The unknown keys are NOT silently
+        dropped — this is the enforcement boundary that upholds
+        source-as-binding-sot (codeLinks/boundary must never live in
+        frontmatter).
 ---

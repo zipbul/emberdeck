@@ -75,4 +75,14 @@ spec:
       behavior: >-
         validateSpecRefs (separate validator) throws CardValidationError
         identifying the malformed reference.
+    - violation: >-
+        The validation input carries a top-level frontmatter key outside the
+        closed CardFrontmatter set (key, summary, status, type, parent,
+        relations, tags, glossary, principle, domain, brief, spec) — e.g. a
+        legacy codeLinks/boundary field or a typo.
+      behavior: >-
+        validateCardInput throws CardValidationError naming the unknown key(s);
+        no card is persisted. validateCardInput is the shared enforcement point
+        for all mutation entry paths (create, update, bulk sync), so
+        closed-schema rejection holds uniformly across them.
 ---

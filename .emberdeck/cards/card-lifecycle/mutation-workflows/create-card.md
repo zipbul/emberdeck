@@ -46,8 +46,15 @@ spec:
       statement: createCard validates input through card-model before any storage call.
       always_holds: per-call
   failures:
-    - violation: Input fails validation.
-      behavior: createCard throws CardValidationError; no file or DB row written.
+    - violation: >-
+        Input fails validation — including a frontmatter top-level key outside
+        the closed CardFrontmatter set (e.g. a legacy codeLinks/boundary field,
+        or unknown keys spread in from a `--from` JSON document).
+      behavior: >-
+        createCard throws CardValidationError naming the offending field(s); no
+        file or DB row written. createCard delegates to validateCardInput, so
+        closed-schema rejection applies to every input path (positional flags
+        and `--from`) — unknown keys are never silently dropped.
     - violation: Card key already exists.
       behavior: createCard throws CardAlreadyExistsError.
     - violation: Parent key does not exist or violates the four-tier rule.

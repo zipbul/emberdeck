@@ -53,4 +53,28 @@ spec:
         internal-error → exit 1). Per-symbol resolution failures during the loop
         are still distinguished — those produce per-link `gildash-unavailable`
         BrokenLink reasons; only the bootstrap failure propagates.
+    - violation: >-
+        gildash throws transiently while resolving an individual symbol
+        (per-link lookup).
+      behavior: >-
+        That specific link is recorded as ioFailed (not as a broken link).
+        validateCodeLinks continues with the remaining links; the result
+        envelope reports `ioFailed` counts alongside `valid`/`broken` so callers
+        can distinguish transient failure from real symbol absence.
+    - violation: >-
+        gildash reindex completes with a non-zero exit code or returns a
+        malformed manifest (ensureReindexed cannot trust the index).
+      behavior: >-
+        ensureReindexed throws; the op aborts before any per-link work runs. No
+        card receives partial resolution output. Callers observe the underlying
+        gildash error and retry after reindexing the project.
+    - violation: >-
+        A card frontmatter still carries the legacy `codeLinks` or `boundary`
+        field (violates source-as-binding-sot).
+      behavior: >-
+        This input is rejected by upstream schema validation (card-model) with
+        `validation-error` (exit 2) before resolve-and-validate is invoked.
+        resolve-and-validate itself never sees such a card; if it did (e.g.
+        through an unsynced DB row), it would still ignore the frontmatter field
+        — the code_link cache is the only binding source.
 ---

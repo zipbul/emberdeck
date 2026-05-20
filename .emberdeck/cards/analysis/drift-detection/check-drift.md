@@ -91,4 +91,9 @@ spec:
         `targetKeys.length` (the requested keys, INCLUDING missing ones);
         active/drifted/draft counts reflect only present cards. So
         `health.active + health.drifted + health.draft <= health.total`.
+    - violation: loadGlossary (glossary store read) throws inside checkDrift.
+      behavior: >-
+        The exception propagates up; no per-card output is produced and no
+        writes occur (consistent with POST-002). Callers see the underlying I/O
+        / parse error; partial results are not emitted.
 ---

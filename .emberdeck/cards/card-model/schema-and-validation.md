@@ -33,11 +33,14 @@ brief:
       - id: G-001
         statement: >-
           Validate every card-shaped input against the COMMON-field rules (key
-          TYPE+LENGTH, type discriminant, summary, parent shape) before any
-          persistence happens. Deeper type-specific rules (brief
-          flow/policy/criteria cross-refs, spec derives format) are gated at the
-          ACTIVATION boundary — they run only for cards being persisted as
-          status=active or transitioning to active; draft persistence
+          TYPE+LENGTH, type discriminant, summary, parent shape) AND a CLOSED
+          frontmatter schema (only key, summary, status, type, parent,
+          relations, tags, glossary, principle, domain, brief, spec are
+          permitted; any other top-level key is rejected, never silently
+          dropped) before any persistence happens. Deeper type-specific rules
+          (brief flow/policy/criteria cross-refs, spec derives format) are gated
+          at the ACTIVATION boundary — they run only for cards being persisted
+          as status=active or transitioning to active; draft persistence
           intentionally bypasses the deep pass.
       - id: G-002
         statement: >-
@@ -105,6 +108,18 @@ brief:
         and no row is written.
       covers:
         - G-003
+    - id: S-F-03
+      kind: failure
+      given: >-
+        A card input whose frontmatter carries a top-level key outside the
+        closed CardFrontmatter set (e.g. a legacy codeLinks or boundary field,
+        or a typo'd field name).
+      when: validateCardInput runs.
+      then: >-
+        A CardValidationError is thrown naming the unknown key(s); no row is
+        written and the unknown key is not silently discarded.
+      covers:
+        - G-001
   design:
     overview: >
       Validation is layered. A generic frontmatter validator checks shared
@@ -209,6 +224,17 @@ brief:
         proposed type change (on update) violates the four-tier hierarchy rule.
       governs:
         - S-F-02
+    - id: R-004
+      subject: Common-field validation
+      keyword: MUST
+      predicate: >-
+        reject any frontmatter top-level key outside the closed CardFrontmatter
+        set with a CardValidationError that names the offending key(s), rather
+        than silently dropping it; this enforces the source-as-binding-sot
+        principle by making a stray codeLinks/boundary field a hard validation
+        failure.
+      governs:
+        - S-F-03
   external:
     - id: C-001
       statement: >-
@@ -280,6 +306,20 @@ brief:
         method: Integration test on the createCard happy path.
       verifies:
         - S-H-01
+    - id: SC-004
+      type: binary
+      measure:
+        predicate: >-
+          Submitting a card whose frontmatter includes a codeLinks (or any other
+          unknown top-level) key always throws CardValidationError naming that
+          key before any storage call; the key is never accepted and never
+          silently stripped.
+        method: >-
+          Integration test that submits a card input with a codeLinks
+          frontmatter field and asserts CardValidationError names codeLinks and
+          that no row was written.
+      verifies:
+        - S-F-03
   rationale:
     alternatives:
       - option: >-

@@ -52,10 +52,12 @@ spec:
           fileLevelIssues: {
             code: 'orphan-file'
                 | 'stale-db-row'
-                | 'key-mismatch',
+                | 'key-mismatch'
+                | 'unknown-field',           // frontmatter has top-level key(s) outside the closed CardFrontmatter set
             message: string,
             filePath: string,
-            key?: string
+            key?: string,
+            details?: { unknownKeys: string[] }   // present for code 'unknown-field'
           }[]
         }
 
@@ -87,4 +89,13 @@ spec:
       behavior: >-
         stdout emits the data shape normally and exits 2; stderr is empty
         because the data channel itself reports the diagnostics.
+    - violation: >-
+        A disk card file has well-formed YAML frontmatter but carries one or
+        more top-level keys outside the closed CardFrontmatter set (e.g. legacy
+        codeLinks/boundary).
+      behavior: >-
+        validate cards reports a fileLevelIssues entry with code
+        'unknown-field', the offending filePath, and details.unknownKeys listing
+        the keys; summary.total counts it and the command exits 2. The card is
+        NOT silently accepted with the field stripped.
 ---
