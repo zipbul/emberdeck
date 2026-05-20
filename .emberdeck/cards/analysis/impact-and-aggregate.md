@@ -61,7 +61,7 @@ brief:
         - G-001
     - id: S-H-02
       kind: happy
-      given: A repository with eight active cards and two drifted, threshold 0.3.
+      given: A repository with eight cards, two of them drifted, threshold 0.3.
       when: regressionGuard runs.
       then: Exit 0 because ratio 0.25 is at or under threshold.
       covers:
@@ -128,9 +128,10 @@ brief:
           - code-binding
       - name: analyze
         responsibility: >-
-          Aggregate health, coverage, drifted (with pagination metadata),
-          glossary, and unlinkedSymbols into one JSON object; prune
-          retention-aged code-index changelog entries as a hygiene side effect.
+          Aggregate health, coverage, drifted (a flat list plus a total count;
+          pagination is applied at the CLI layer), glossary, and unlinkedSymbols
+          into one JSON object; prune retention-aged code-index changelog
+          entries as a hygiene side effect.
         interacts_with:
           - card-storage
           - code-binding

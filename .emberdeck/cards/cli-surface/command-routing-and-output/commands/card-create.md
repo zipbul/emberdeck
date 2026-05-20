@@ -48,7 +48,9 @@ spec:
         - thrown mapping: CardAlreadyExistsError → card-already-exists → 4;
         CardValidationError → validation-error → 2; ParentValidationError →
         parent-validation-error → 2; ActivationGuardError →
-        activation-guard-failed → 2; CliUsageError → cli-usage-error → 2.
+        activation-guard-failed → 2; CardKeyError → invalid-card-key → 2;
+        GlossaryValidationError → glossary-validation-error → 2; CliUsageError →
+        cli-usage-error → 2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:

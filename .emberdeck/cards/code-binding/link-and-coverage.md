@@ -29,7 +29,7 @@ brief:
       - id: G-001
         statement: >-
           Resolve every cached code_link row against gildash producing a valid /
-          broken / unresolved classification.
+          broken / ioFailed classification.
       - id: G-002
         statement: >-
           Surface symbols not bound to any card via the code_link cache so

@@ -62,7 +62,7 @@ spec:
         renameGlossary cascade write to a referencing card's markdown file
         fails.
       behavior: >-
-        The rename still completes; the affected card key is recorded in
+        The rename still completes; the offending file path is recorded in
         fileWriteFailures[]; no exception is raised.
     - violation: >-
         resetEmberdeck encounters per-row DB delete, per-file unlink, or

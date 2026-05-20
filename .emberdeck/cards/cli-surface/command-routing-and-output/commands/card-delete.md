@@ -72,4 +72,12 @@ spec:
       behavior: >-
         CardNotFoundError → stderr `{level:'error', code:'card-not-found',
         message}` and exit 3.
+    - violation: >-
+        One or more best-effort cascade file rewrites fail after the card is
+        deleted (failedChildUpdates / failedRelationUpdates /
+        failedCrossDomainUpdates populated).
+      behavior: >-
+        The delete still commits in the indexed cache; the failed cascade
+        targets are surfaced in the data channel and the command exits 2 with
+        stderr empty (a data-channel partial signal, not a thrown error).
 ---

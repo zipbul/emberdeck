@@ -28,7 +28,7 @@ spec:
       guarantee: >-
         syncSymbolChanges only applies renames or moves reported by gildash; no
         heuristic guesses are made.
-      keyword: MUST
+      keyword: SHALL
       derives: code-binding/annotation-roundtrip#G-002
   invariants:
     - id: INV-001

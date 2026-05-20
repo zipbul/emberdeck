@@ -45,8 +45,8 @@ spec:
 
         - thrown mapping: CardNotFoundError → card-not-found → 3;
         CardValidationError / ParentValidationError / ActivationGuardError → 2;
-        CompensationError → compensation-failed → 1; CliUsageError →
-        cli-usage-error → 2.
+        CardKeyError → invalid-card-key → 2; CompensationError →
+        compensation-failed → 1; CliUsageError → cli-usage-error → 2.
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:
@@ -87,4 +87,12 @@ spec:
       behavior: >-
         CliUsageError → stderr `{code:'cli-usage-error', message}` and the
         process exits 2.
+    - violation: >-
+        The forward write succeeded but the safe-write compensation/rollback
+        itself then failed.
+      behavior: >-
+        updateCard throws CompensationError carrying details.{originalError,
+        compensationError} → stderr `{code:'compensation-failed', message}` and
+        the process exits 1; the card may be left in an inconsistent state that
+        the next `ed bulk sync` reconciles.
 ---
