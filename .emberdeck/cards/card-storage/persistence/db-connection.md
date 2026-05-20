@@ -30,19 +30,16 @@ spec:
       always_holds: cross-call
     - id: INV-002
       statement: >-
-        The schema includes a `system_metadata` key-value table
-        (cross-invocation watermark store). It currently holds one key
+        A cross-invocation key-value watermark store holds one key
         `last_symbol_sync_at` written by spec-sync-symbols and read on the next
-        invocation; the table exists at the schema level so future watermark
-        keys can be added without migration churn.
+        invocation; it accommodates future watermark keys without structural
+        change.
       always_holds: cross-call
     - id: INV-003
       statement: >-
-        A `system_lock` table is declared in the schema but is reserved and
-        unused; cross-process advisory locking is not implemented today. The
-        table stays so a future implementation does not need a schema migration;
-        current behavior is single-process per the single-process-invocation
-        principle.
+        An advisory cross-process lock capability is reserved but unused today;
+        cross-process locking is not implemented. Current behavior is
+        single-process per the single-process-invocation principle.
       always_holds: cross-call
   failures:
     - violation: Underlying store IO fails (e.g. permission denied).

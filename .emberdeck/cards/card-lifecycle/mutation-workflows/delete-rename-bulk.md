@@ -40,9 +40,9 @@ spec:
       derives: card-lifecycle/mutation-workflows#G-001
     - id: POST-003
       guarantee: >-
-        deleteCard with --force detaches children (their parent field is cleared
-        via the cache FK set-null) and removes the deleted key from referencing
-        cards' cross_domain_dependencies; the children themselves are NOT
+        deleteCard with --force detaches children (their parent field is
+        cleared) and removes the deleted key from referencing cards'
+        cross_domain_dependencies; the children themselves are NOT
         cascade-deleted. Without --force, deletion is refused when children
         exist or any domain card lists the target in cross_domain_dependencies.
         detachedChildren[], removedCrossDomainRefs[], failedChildUpdates[],

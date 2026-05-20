@@ -27,8 +27,8 @@ domain:
     IN: createCard, updateCard, deleteCard, renameCard, bulkCreateCards,
     bulkSyncCards, status transition
 
-    rules including activation guard, parent reassignment cascade, rename FK
-    cascade, safe-write rollback
+    rules including activation guard, parent reassignment cascade, rename
+    reference cascade, safe-write rollback
 
     wrapper, conflict and not-found error mapping.
 

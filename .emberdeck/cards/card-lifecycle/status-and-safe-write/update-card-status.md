@@ -40,7 +40,5 @@ spec:
     - violation: >-
         Card with the requested key does not exist on disk or in the indexed
         cache.
-      behavior: >-
-        updateCardStatus throws CardNotFoundError; status is not changed. (The
-        reader at src/fs/reader.ts:20 raises this when the file is absent.)
+      behavior: updateCardStatus throws CardNotFoundError; status is not changed.
 ---

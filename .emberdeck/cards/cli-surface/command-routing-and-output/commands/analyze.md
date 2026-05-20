@@ -60,10 +60,9 @@ spec:
         - 0 (EXIT.OK): analyze report is returned on the read-only happy path.
 
         - thrown mapping: ensureReindexed (called by the op before the
-        symbol-coverage queries at src/ops/analyze.ts:155) can throw on
-        code-index failure — these errors propagate up through the runner and
-        map via toCliError (GildashInitError → gildash-init-failed → 6;
-        otherwise → internal-error → 1).
+        symbol-coverage queries) can throw on code-index failure — these errors
+        propagate up through the runner and map via toCliError (GildashInitError
+        → gildash-init-failed → 6; otherwise → internal-error → 1).
       keyword: MUST
       derives: cli-surface/command-routing-and-output#G-002
   invariants:

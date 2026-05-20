@@ -117,14 +117,15 @@ spec:
         cache.
       behavior: >-
         The topological sort inserts the parent before the child. If the parent
-        fails to upsert, every descendant FK-fails and is reported per file.
+        fails to upsert, every descendant fails its parent-reference check and
+        is reported per file.
     - violation: >-
         A card file declares a parent that is neither in the indexed cache nor
         in the current sync batch.
       behavior: >-
-        The file is emitted at the end of the topological order so its FK
-        violation surfaces as a normal per-file failure rather than hanging the
-        sync.
+        The file is emitted at the end of the topological order so its
+        parent-reference violation surfaces as a normal per-file failure rather
+        than hanging the sync.
     - violation: >-
         exportCardToFile is called with a key that does not resolve to any
         indexed-cache row.

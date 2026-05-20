@@ -178,7 +178,7 @@ brief:
       subject: renameCard
       keyword: MUST
       predicate: >-
-        cascade FK-style references across parent, relations, and
+        cascade reference updates across parent, relations, and
         cross_domain_dependencies as separate writes after the target card's
         atomic key/path rename, recording any failed rewrite in
         failedReferenceUpdates[]; card body wording and source @spec annotations
