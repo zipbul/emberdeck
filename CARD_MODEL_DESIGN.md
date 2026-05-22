@@ -1,151 +1,196 @@
-# Card Model Design
+# Card Model Design (v2)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
+
+> v2는 3중 독립 리뷰(서브에이전트 2 + Codex) 결과를 반영. 표기 규칙: **[현존]** = 현재 스키마에 있음, **[신규]** = 스키마/validator 변경 필요.
 
 ---
 
 ## 1. 핵심 원칙
 
-1. **카드 = 그 자체로 완전한 지식 그래프.** 시각화(graphify류)는 이 그래프를 *보여주는 뷰*일 뿐, 구조의 근거가 아니다. 시각화에 의존해 구조를 만들지 않는다.
-2. **트리 + 그래프 분리** (SysML/NASA/KAOS 표준).
-   - 트리(`parent`) = **분해** ("이 카드는 저 카드의 일부다").
-   - 그래프(typed 엣지) = **추적** ("이 카드는 저 카드에 의존/충돌/참조한다").
-3. **한 계약 = 한 owner (SSOT).** 같은 계약을 여러 카드에 복제하지 않는다. owner 1장 + 나머지는 참조.
-4. **코어는 최소 충분, 확장은 스케일 게이트 optional(비강제).** 소규모 프로젝트가 확장 노드를 강제당하지 않는다(과설계 방지).
+1. **카드 = 그 자체로 완전한 지식 그래프.** 시각화(graphify류)는 이 그래프의 *뷰*일 뿐, 구조의 근거가 아니다.
+2. **트리 + 그래프 분리** (SysML/NASA/KAOS 표준). 트리(`parent`) = 분해, 타입 엣지 = 추적.
+3. **한 계약 = 한 owner (SSOT).** 복제 금지. 역방향 관계는 *저장하지 않고* 도출(derived).
+4. **코어 최소 충분, 확장은 스케일 게이트 optional(비강제).** 소규모는 코어만으로 완전.
+5. **노드 vs 필드 판정 기준 = cardinality.** 1:n → 필드, n:n owner → 노드. (막연한 분류로 노드 추가 금지)
 
 ---
 
 ## 2. 카드 구조 그래프
 
 ```
-╔══════════════ 거버넌스 평면 (트리 밖, 횡단) ══════════════╗
-║  PRINCIPLE ── governs / governed_by (n:n) ──► 모든 노드   ║   횡단 규범, enforcement로 강제
-║  GLOSSARY  ── defines (n:n) ───────────────► 모든 노드   ║   용어 사전 (오버레이)
-╚════════════════════════════╪═════════════════════════════╝
-                             ┃
-──────────────── 구조 트리 (수직, parent = 1:n) ────────────────
-                             ┃
-        VISION                         ← 프로젝트 1장. 최상위 WHY/목적/방향
+╔════════════ 거버넌스 평면 (트리 밖, 횡단) ════════════╗
+║  PRINCIPLE ── governs (applies_to glob, owner) ──► 노드 ║  [현존 필드, 강제=신규]
+║              ◄── governed_by (derived index, 저장 X)    ║  [신규, validate가 도출]
+║  GLOSSARY  ── 용어 참조 (오버레이) ──► 노드             ║  [현존]
+╚═══════════════════════════╪════════════════════════════╝
+                            ┃
+─────────────── 구조 트리 (수직, parent = 1:n) ───────────────
+                            ┃
+        DOMAIN  [현존]  ◄── depends-on (n:n) ──► DOMAIN      [현존: cross_domain_dependencies]
+          │ 1:n         (group: 스칼라 필드로 영역 묶음)     [신규 필드: domain.group]
+          ▼
+        BRIEF   [현존]                            ← 기능 기획 (WHAT/WHY)
           │ 1:n
           ▼
-       (AREA)                          ← [확장] domain 상위 그룹핑 (엔터프라이즈)
-          │ 1:n
+        SPEC    [현존]  ◄── calls / conflicts-with (n:n) ──► SPEC   [신규: relations 확장]
+          │ derives (item→brief#item)  [현존]
+          │ emits / consumes (n:n) ──► EVENT-CONTRACT        [신규]
+          │ code_link (derived, @spec, 카드 저장 X) ──► CODE SYMBOL  [현존]
           ▼
-        DOMAIN  ◄── depends-on (n:n, typed) ──► DOMAIN
-          │ 1:n
-          ▼
-        BRIEF                          ← 기능 기획 (WHAT/WHY)
-          │ 1:n
-          ▼
-        SPEC   ◄── calls/emits/conflicts-with (n:n, typed) ──► SPEC
-          │ derives (n:n, 추적) ──► BRIEF#item
-          │ n:n
-          ▼
-     CODE SYMBOL (gildash)             ← @spec 어노테이션이 다리
+       CODE SYMBOL (gildash)
 
-────────────── 확장 노드 (게이트 optional, 비강제) ──────────────
-   MODEL        [확장] 공유 데이터 엔티티 — spec이 derives로 참조
-   SERVICE      [확장] 배포 경계 (MSA) — domain을 묶거나 매핑
-   EVENT-CONTRACT [확장] 발행/구독 계약 (MSA) — spec이 emits/consumes
+── 확장 노드 (게이트 optional · 비강제 · 트리 밖 그래프 노드) ──   [전부 신규]
+   MODEL          parent=domain. 공유 엔티티 — spec이 derives로 참조
+   SERVICE        domain ◄── deployed_in (n:n) ──► SERVICE (배포 경계, MSA)
+   EVENT-CONTRACT spec ── emits/consumes ──► event (발행/구독 계약, MSA)
+
+* 프로젝트 WHY(비전) = 별도 노드 아님 → §3 참조 (advisory principle로 흡수).
 ```
 
 ---
 
 ## 3. 노드 타입
 
-### 코어 (항상 — 소규모도 이 5 + glossary로 충분)
+### 코어 (항상 — 현재 4-tier + glossary 그대로, 신설 0)
 
-| 노드 | 담는 것 (책임) | 안 담는 것 |
+| 노드 | 담는 것 | 비고 |
 |---|---|---|
-| **vision** | 프로젝트가 *왜* 존재하고 무엇을 지향하는가 (목적·대상·방향·최상위 성공). 프로젝트당 1장. | 규칙(principle), 경계(domain) |
-| **domain** | bounded context 경계 (IN/OUT 책임). | 다른 도메인의 책임 |
-| **brief** | 한 기능의 기획 — 문제·범위·시나리오·정책·근거·**위험**. (=기획서, WHAT/WHY) | 행동 계약 세부(spec), 횡단 규범(principle) |
-| **spec** | 한 동작의 행동 계약 — preconditions/postconditions/invariants/failures. 코드와 결합. | exit/stderr 같은 횡단 규칙(owner 참조) |
-| **principle** | 횡단 규범/제약 (MUST/SHALL). enforcement로 강제. | 특정 기능 국소 규칙(brief.policy) |
-| **glossary** | 프로젝트 고유 용어 정의 (오버레이, 트리 밖). | 단일 심볼로 유추 가능한 것 |
+| **domain** [현존] | bounded context 경계 (IN/OUT). | + `group` 필드[신규]로 영역 묶음 |
+| **brief** [현존] | 기능 기획 — 문제·범위·시나리오·정책·근거·**가정·한계**(=risk). | risk는 신규 필드 아님 → §6 |
+| **spec** [현존] | 행동 계약 (pre/post/invariant/failures). 코드 결합. | |
+| **principle** [현존] | 횡단 규범. **프로젝트 WHY(비전)도 advisory principle로 표현.** | vision 노드 신설 X |
+| **glossary** [현존] | 용어 정의 (오버레이). | |
 
-### 확장 (스케일 게이트 충족 시에만 — optional, 계층 비강제)
+> **vision = 노드 아님.** "프로젝트당 1장"은 노드 타입이 아니라 인스턴스. 프로젝트 목적/방향/최상위 성공은 `project-vision` 이라는 **advisory principle 1장**(applies_to:`*`, enforcement:advisory)으로 흡수. 코어 노드 타입을 늘리지 않는다.
 
-| 노드 | 진입 게이트 | 정당화 (없으면 표현 불가능한 것) |
+### 확장 (게이트 충족 시에만 — 전부 [신규], optional·비강제)
+
+| 노드 | cardinality 근거 → 노드인 이유 | 게이트 | parent/엣지 |
+|---|---|---|---|
+| **model** | 공유 엔티티 불변식·관계가 어느 단일 brief에 안 속함(n:n owner) | 모노레포/공유 타입 | parent=domain; spec이 `derives`로 참조 |
+| **service** | domain↔service = n:n (스칼라 불가) | MSA | 트리 X; domain `deployed_in` n:n 엣지 |
+| **event-contract** | 발행·구독 여러 spec이 공유(n:n owner); 코드 import로 안 잡힘 | MSA | 트리 X; spec `emits`/`consumes` 엣지 |
+
+### 필드로 흡수 (노드 아님 — cardinality 1:n)
+
+| 항목 | 흡수처 | 이유 |
 |---|---|---|
-| **model** | 모노레포/공유 타입 | 여러 brief가 공유하는 엔티티의 불변식·관계(n:n owner)가 어느 단일 brief에도 안 속함 → spec 본문 매몰 |
-| **area** | 엔터프라이즈(domain 다수) | domain이 root라 수십 개가 평탄화 → "결제 영역 전체" 계층 질의 불가 |
-| **service** | 마이크로서비스 | domain=논리, service=배포. 둘이 1:1이 아님 → 배포 경계 질의 불가 |
-| **event-contract** | 마이크로서비스 | 발행자·구독자가 코드 import 관계가 없어 코드 그래프로 못 잡음 → "이 이벤트 깨지면 누가 영향" 질의가 *유일하게 표현 불가* |
+| **area** (도메인 영역 묶음) | `domain.group` 스칼라 필드 [신규] | 1:n → 필드면 충분. 노드화 = 4단 트리 강제(과설계) |
 
-### 거부 (과설계 — 기존 필드로 흡수)
+### 거부 (과설계 — 기존 필드 흡수)
 
 | 후보 | 흡수처 |
 |---|---|
-| design 노드 | `brief.design` (이미 1급) |
-| epic / story 노드 | epic = domain, story = `brief.scope.goals` |
-| actor 노드 | `brief.flow.given` / domain 필드 |
-| 비전을 여러 곳에 | vision 1장으로 단일화 |
+| vision 노드 | advisory principle `project-vision` |
+| design 노드 | `brief.design` [현존] |
+| story 노드 | `brief.scope.goals` [현존] |
+| actor 노드 | `brief.flow.given` [현존] |
+| epic 노드 | 없음 — 릴리스 묶음은 코드 정합성 SSOT 대상 아님 (필요 시 brief tag). *epic=domain 등치는 의미 오류라 폐기* |
 
 ---
 
-## 4. 관계(엣지) + cardinality
+## 4. 관계(엣지) + cardinality + owner
 
-| 엣지 | from → to | cardinality | 종류 |
-|---|---|---|---|
-| `parent` | vision→domain→brief→spec→spec | **1:n** | 분해 (트리) |
-| `governs` / `governed_by` | principle ↔ 노드 | **n:n** | 거버넌스 (강제) |
-| `derives` | spec.item → brief#item | **n:n** | 추적 (상위 근거) |
-| `depends-on` | domain → domain | **n:n** | 추적 (typed) |
-| `calls` / `emits` / `consumes` / `conflicts-with` | spec → spec / event | **n:n** | 추적 (typed) |
-| `defines` | glossary ↔ 노드 | **n:n** | 오버레이 |
-| `code_link` | spec → symbol | **n:n** | 코드 다리 (@spec) |
+| 엣지 | from → to | cardinality | 종류 | owner / 저장 | 상태 |
+|---|---|---|---|---|---|
+| `parent` | domain→brief→spec→spec | 1:n | 분해 | 자식 frontmatter | [현존] |
+| `governs` | principle → 노드 | n:n | 거버넌스 | `principle.applies_to`(glob) | [현존 필드, 강제 신규] |
+| `governed_by` | 노드 → principle | n:n | 거버넌스(역) | **저장 안 함, validate가 도출** | [신규-derived] |
+| `derives` | spec.item → brief#item | item:1 (카드 n:n) | 추적 | spec 항목 | [현존] |
+| `depends-on` | domain → domain | n:n | 추적 | `cross_domain_dependencies` | [현존] (typed화=신규) |
+| `calls` / `conflicts-with` | spec → spec | n:n | 추적 | `relations` 확장 | [신규] |
+| `emits` / `consumes` | spec → event-contract | n:n | 추적 | spec | [신규] |
+| `deployed_in` | domain → service | n:n | 배포 | domain | [신규] |
+| `code_link` | spec → symbol | n:n | 코드 다리 | **@spec 어노테이션(source SoT), 카드 저장 X** | [현존-derived] |
+| glossary ref | 노드 → term | n:n | 오버레이 | `glossary` 필드 | [현존] |
 
----
-
-## 5. principle 강결합 메커니즘 (현재 형해화 → 실효화)
-
-현재 문제: principle 4장 전부 `applies_to: ['*']`, enforcement가 validate와 미연결 → 고립된 선언.
-
-| 항목 | 변경 |
-|---|---|
-| `applies_to` | `*` 금지. 실제 카드키/glob로 적용 대상 명시 (예: `[spec/*, code-binding/*]`) |
-| `governed_by: [principle-key]` | 하위 노드가 자신을 지배하는 principle을 *역방향* 선언 (양방향 추적 = graph 노드화) |
-| `enforcement` → validate | `blocking`=validate 실패(exit 2), `warning`=경고, `advisory`=리포트 |
-
-→ principle이 "장식"에서 "헌법(강제되는 횡단 SoT)"이 된다.
+> 모든 [신규] 엣지는 owner 측·타깃 타입·방향·검증 규칙을 도입 시 함께 정의(§9 미결).
 
 ---
 
-## 6. 정책/위험 경계 (중복 해소)
+## 5. principle 강결합 메커니즘 (형해화 → 실효화)
 
-| 구분 | owner |
-|---|---|
-| 횡단 규범 (2+ 카드/도메인 적용) | **principle** |
-| 기능 국소 규칙 (단일 flow에 묶임) | **brief.policy** (`governs: [S-id]`) |
-| 설계 의도 레벨 위험/한계 | **brief.risk** (가정 깨짐·한계) |
-| 행동 레벨 실패 | **spec.failures** (런타임 에러 동작) |
+**현 상태(정확):** `enforcement` enum(blocking/warning/advisory)은 *존재하고 라벨도 차등* 부여됨. 그러나 (a) 이를 읽어 위반을 검출하는 **generic 강제 엔진이 없고**, (b) principle 4장 전부 `applies_to:['*']` 라 적용 대상이 변별되지 않는다(형해화는 이 둘).
 
-원칙: 2+ 카드에 반복되면 principle로 승격, 원 카드엔 `governed_by` 참조만.
+| 항목 | 변경 | 상태 |
+|---|---|---|
+| `applies_to` | `*` 금지, 실제 카드키/glob (예: `[spec/**, code-binding/**]`) | [데이터 수정] |
+| `governs` owner | `principle.applies_to` 한 곳이 SoT | [현존] |
+| `governed_by` | 하위에 *저장하지 않고* validate가 applies_to 매칭으로 **도출(index)** | [신규-derived] |
+| `enforcement`→validate | blocking=validate 실패(exit 2) / warning=경고 / advisory=리포트. 신규 issue code `principle-violation` | [신규] |
+
+→ 거버넌스 관계는 **applies_to 한 곳에만 저장**(한 계약 한 owner). 역방향은 파생이므로 복제 아님.
 
 ---
 
-## 7. 확정 / 미결
+## 6. Code Binding & Drift (재설계가 보존해야 할 현행 동작)
+
+코드 정합성은 emberdeck의 절반이다. 재설계는 아래 현행 동작을 **보존**한다.
+
+| 메커니즘 | 동작 | 상태 |
+|---|---|---|
+| 결합 SoT | 소스 `/** @spec <card-key> */` 어노테이션 → `ed spec sync` → `code_link` 캐시. **카드 frontmatter는 결합 필드 미보유**(`source-as-binding-sot`). | [현존, 보존] |
+| 활성화 가드 | active spec은 `@spec` ≥1 + 전부 resolve. | [현존, 보존] |
+| drift | `broken_link`(심볼 소실) / `glossary_broken`. `check-drift`는 read-only. | [현존, 보존] |
+| coverage | 미결합 심볼 보고. | [현존, 보존] |
+| **확장 결합** | model/event-contract도 동일 `@spec`-family 어노테이션으로 코드에 결합. 특히 **event-contract는 발행/구독 코드가 서로 import하지 않아 코드 그래프로 안 잡히는 결합**을 카드 결합(emits/consumes)으로 표현. | [신규] |
+
+## 7. 정책 / 위험 경계 (중복 해소)
+
+| 구분 | owner | 상태 |
+|---|---|---|
+| 횡단 규범 (2+ 카드/도메인) | **principle** (applies_to) | [현존] |
+| 기능 국소 규칙 (단일 flow) | **brief.policy** (`governs:[S-id]`) | [현존] |
+| 가정 (깨질 수 있는 전제) | **brief.scope.assumptions** | [현존] |
+| 알려진 한계/위험 | **brief.limits** | [현존] |
+| 행동 레벨 실패 | **spec.failures** | [현존] |
+
+> "risk"를 위한 신규 필드는 만들지 않는다 — `assumptions`(전제) + `limits`(한계/위험)로 흡수(중복 회피). 2+ 카드에 반복되는 규칙은 principle로 승격, 원 카드엔 참조만.
+
+---
+
+## 8. 마이그레이션 (비파괴 점진)
+
+원칙: **코어 4-tier+glossary 불변. 신규는 전부 optional 추가. reset 불요.**
+
+| 변경 | 기존 81카드 영향 | 방식 |
+|---|---|---|
+| vision = principle 흡수 | 0 (노드 신설 안 함) | `project-vision` principle 1장 추가 |
+| `domain.group` 필드 | 0 (optional, 안 쓰면 됨) | closed-schema에 optional 추가 |
+| model/service/event-contract 노드 | 0 (현재/소규모는 미생성) | optional 타입 등록 |
+| `governed_by` | 0 (derived, 저장 X) | validate 도출 로직만 |
+| `applies_to` 실키화 | principle 4장만 | 데이터 수정(4장) |
+| typed 엣지(calls/emits/…) | 0 (relations 확장, optional) | validator에 엣지 타입 추가 |
+
+→ closed-schema에 신규 optional 필드 추가 → validator 업데이트 → 기존 카드는 신규 필드 없이도 valid(dual-read). 단계적, 비파괴.
+
+---
+
+## 9. 확정 / 미결
 
 **확정:**
-- 코어 5 노드(vision/domain/brief/spec/principle) + glossary 오버레이.
-- 트리+그래프 분리, 한 계약=한 owner, 확장은 게이트 optional.
-- principle 실효화(applies_to 실키 + governed_by + enforcement→validate).
-- 거부 항목(design/epic/story/actor 노드).
+- 코어 = domain/brief/spec/principle + glossary (**현재 4-tier 그대로, 신설 0**).
+- vision = advisory principle 흡수(노드 X). area = `domain.group` 필드. epic 폐기.
+- 확장 노드 = model(parent=domain) / service / event-contract (전부 optional 게이트).
+- 거버넌스 = applies_to owner + governed_by derived + enforcement→validate.
+- code-binding/drift 현행 보존, 확장 노드도 @spec-family 결합.
+- 비파괴 점진 마이그레이션.
+- design/story/actor/epic/vision 노드 거부.
 
-**미결 (다음 설계 단계):**
-- vision의 필수 필드 스키마.
-- 확장 노드 중 **model만 노드 확정**. `area`/`service`/`event-contract`는 *노드 vs 기존 필드*(domain.boundary / domain.group / spec.emits) 최종 결정 필요.
-- typed 엣지(`calls`/`emits`/`conflicts-with`) 검증 규칙.
+**미결 (다음 설계 단계 — 본질적 순서 의존):**
+- model/service/event-contract 각 **필수 필드 스키마**.
+- typed 엣지(calls/emits/conflicts-with/deployed_in) **검증 규칙**(타깃 존재·타입·방향·순환).
+- `principle-violation` issue code의 정확한 검증 알고리즘.
 
 ---
 
 ## 부록 — 근거
 
 - 트리+그래프 분리: SysML, NASA SE, DOORS, KAOS, IEEE 42010.
-- parent=WHY: KAOS 목표 트리.
 - cross-cutting 중앙정의+참조: GovStack (`docs/research-brief-system-gaps.md` §5).
 - brief=기획서: `docs/research-planning-terminology.md`.
-- typed decomposition tree가 차별점(Kiro/SpecKit/Tessl 등 AI 도구는 전부 플랫/선형): `docs/research-hierarchical-spec-methods.md`.
-- 근본 원인(ownerless 복제) / principle 형해화: 세션 분석, 메모리 `card-drift-root-cause`, `architecture-4layer-assessment`.
+- typed decomposition tree가 차별점(AI 도구는 전부 플랫/선형): `docs/research-hierarchical-spec-methods.md`.
+- 근본 원인(ownerless 복제)·principle 형해화·4-layer 평가: 메모리 `card-drift-root-cause`, `architecture-4layer-assessment`.
+- v2 교정 근거: 3중 독립 리뷰(서브에이전트 2 + Codex, go-with-fixes).
