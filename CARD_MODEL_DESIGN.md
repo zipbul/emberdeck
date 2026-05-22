@@ -1,9 +1,9 @@
-# Card Model Design (v5)
+# Card Model Design (v6)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
-> v5는 v4 재검증(서브에이전트 + Codex)의 잔여를 정정 — 전부 확정/미결 경계의 정직화 + 표기 정합(설계 골격은 안정). 핵심: vision 타입 등록·구조검증 구현·가상엣지(scopes/governed_by) materialization 계약을 §9 미결로 명시 등재(전엔 "확정"에 섞임); §2 emits/consumes 표기 통일; model parent=domain은 candidate; **graph root(vision) ≠ parent-tree root(domain)** 명시. 표기: **[현존]** 현 스키마, **[신규]** 변경 필요, **[신규-derived]** 도출(저장X), **[신규·미결노드]** 대상 노드가 §9 미결.
+> v6는 **vision 노드 골격 확정**: 4필드(`summary`/`statement`/`rationale`/`success_direction`) **전부 필수**, 각 필드를 *목적 중심 가이드*로 정의(§3, speckit 식). 작성 가이드는 단일 정의 + `ed card guide`로 in-band 노출(MCP는 reload 마찰로 안정 후 표면 트랙). 표기: **[현존]** 현 스키마, **[신규]** 변경 필요, **[신규-derived]** 도출(저장X), **[신규·미결노드]** 대상 노드가 §9 미결.
 
 ---
 
@@ -61,7 +61,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 
 | 노드 | 담는 것 | 비고 |
 |---|---|---|
-| **vision** [신규] | 프로젝트 WHY/방향/최상위 성공 방향. 프로젝트당 1장, root. 필드: `statement`(필수, 방향 산문) / `rationale`(optional) / `success_direction`(optional). | enforcement·applies_to 없음. 구조 검증은 받음 — 아래 |
+| **vision** [신규] | 프로젝트 WHY/방향/최상위 성공. 프로젝트당 1장, root. 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**(목적 가이드 아래). | enforcement·applies_to 없음. 구조 검증은 받음 — 아래 |
 | **domain** [현존] | bounded context 경계 (IN/OUT). | + `group` 필드[신규]로 영역 묶음 |
 | **brief** [현존] | 기능 기획 — 문제·범위·시나리오·정책·근거·**가정·한계**(=risk). | risk는 신규 필드 아님 → §7 |
 | **spec** [현존] | 행동 계약 (pre/post/invariant/failures). 코드 결합. | |
@@ -74,6 +74,19 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 > **"검증 면제"가 아니라 "enforcement 면제".** 모든 카드는 *내용 의미*는 검증하지 않고 *구조*만 검증한다(emberdeck 공통) — vision도 동일하게 구조 검증을 받는다: `statement` 비어있지 않음, vision ≤1장, 그리고 **`scopes` 엣지로 모든 domain과 연결됨**(고립 금지). 따라서 "카드=검증가능 그래프" 정체성과 충돌하지 않는다. vision이 다른 점은 오직 *규범 강제(enforcement)가 없다*는 것뿐.
 >
 > **그래프 연결.** vision→domain `scopes` 엣지는 *저장하지 않고 도출*(derived) — 프로젝트당 vision 1장이므로 모든 domain이 그 vision의 scope에 속함을 validate/그래프가 도출(governed_by와 동일 패턴, 한 owner 복제 없음). 이로써 vision은 degree-0 고립이 아니라 그래프상 모든 domain의 루트로 traverse 가능.
+
+#### vision 필드 — 목적 중심 가이드 (전부 필수)
+
+각 필드는 *목적*으로 정의한다. 목적이 명확하면 무엇을 넣고 빼는지는 따라온다(speckit 식 — 안티패턴 나열이 아니라 의도를 박는다).
+
+| 필드 | 이 필드의 목적 (왜 존재하는가 → 그래서 무엇을 적는가) |
+|---|---|
+| `summary` | **그래프·목록에서 이 프로젝트를 한 줄로 알아보게 하는 라벨**(전 카드 공통 — `list`/`tree`/`search`/graph 뷰가 의존). → "이건 ~하는 시스템이다"를 한 문장으로(= statement의 압축). |
+| `statement` | **에이전트가 소스를 한 줄도 안 읽고 "이 프로젝트가 무엇을 위해 존재하고 어디로 가는가"를 즉시 파악하게 한다.** vision의 본체. → 존재 이유와 지향을 *방향*으로 서술(기능 목록 X — 그건 `brief.scope.goals`). |
+| `rationale` | **하위 모든 설계 결정이 "왜 이 방향인가"를 거슬러 올라가 정당화할 근거.** domain·brief가 트레이드오프를 판단할 기준점. → 이 방향을 택하게 만든 문제의식·배경(기능 단위 문제 X — 그건 `brief.context`). |
+| `success_direction` | **"프로젝트가 옳은 방향으로 가는가"의 가늠자.** 개별 기능 성공이 아니라 전체가 제 길을 가는지. → 성공한 상태가 어떤 모습인지 *정성적*으로(숫자 KPI X — 그건 `principle.metric`). |
+
+> 이 가이드는 **단일 정의**(스키마 명세)에 두고 `ed card guide vision`(read-only)로 작성 직전 in-band 노출 + validate 에러가 해당 필드 목적을 인용한다. 가이드가 마크다운/스키마라 고치면 즉시 반영(reload 없음). 같은 단일 정의를 *나중에* MCP 도구 description으로 wrap 가능 — 단 MCP는 스키마 reload 마찰이 있어 모델·가이드 안정 후의 표면 트랙(§9).
 
 ### 확장 (게이트 충족 시 도입 후보 — 전부 [신규], optional·비강제)
 
@@ -188,14 +201,15 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 
 **확정:**
 - 코어 = **vision + domain/brief/spec/principle** + glossary 오버레이.
-- vision = **enforcement 없는 graph-root 노드**(principle 흡수 폐기). 필드 `statement`(필수)/`rationale`/`success_direction`. 구조 검증(statement 비어있지 않음·vision ≤1장·`scopes`로 domain 연결)을 받도록 *설계* — 구현은 미결(아래). area = `domain.group` 필드. epic 폐기.
+- vision = **enforcement 없는 graph-root 노드**(principle 흡수 폐기). 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**, 각 필드는 목적 가이드로 정의(§3). 구조 검증(필드 비어있지 않음·vision ≤1장·`scopes`로 domain 연결)을 받도록 *설계* — 구현은 미결(아래). area = `domain.group` 필드. epic 폐기.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
 - 거버넌스 = applies_to owner + governed_by derived + (enforcement→validate는 *방향* 확정).
 - code-binding/drift 현행 보존(코어 spec). 확장 노드 결합은 노드 도입 시.
 - 비파괴 점진 마이그레이션. design/story/actor/epic 노드 거부. glossary는 오버레이(노드 아님).
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
-- **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(statement 비어있지 않음·vision ≤1장·scopes 연결).
+- **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
+- **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
 - **가상(derived) 엣지 materialization 계약**: `scopes`·`governed_by` 를 *누가/어떤 API·인덱스로* 도출해 그래프 traverse를 보장하는가 (저장 안 하므로 도출 주체·포맷·validate 증명 방식 정의 필요).
 - 확장 노드(model/service/event-contract)는 **방향만 확정(도입 후보)** — 각 **필수 필드 스키마**, 그에 의존하는 엣지(references/emits/consumes/deployed_in)·코드결합, `domain→model` parent는 도입 결정 시 함께 확정.
 - typed 엣지(calls/conflicts-with) **검증 규칙**(타깃 존재·타입·방향·순환).
@@ -212,3 +226,4 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 - typed decomposition tree가 차별점(AI 도구는 전부 플랫/선형): `docs/research-hierarchical-spec-methods.md`.
 - 근본 원인(ownerless 복제)·principle 형해화·4-layer 평가: 메모리 `card-drift-root-cause`, `architecture-4layer-assessment`.
 - v5 교정 근거: v4 재검증(서브에이전트 + Codex) — vision 타입등록·구조검증·가상엣지 materialization을 미결로 정직화, 표기 정합, graph-root/tree-root 구분.
+- v6: vision 4필드 전부 필수 + 목적 중심 가이드 확정. 작성 표면은 CLI(`ed card guide`)+동적 문서, MCP는 안정 후 트랙(스키마 reload 마찰).
