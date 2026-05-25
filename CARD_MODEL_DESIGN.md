@@ -1,11 +1,11 @@
-# Card Model Design (v7)
+# Card Model Design (v8)
 
-emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
+emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
-> v7는 **domain 노드 골격 확정**(3자 6+라운드 토론 종결): root only·재귀없음, `summary/overview/scope`(산문) 필수, `cross_domain_dependencies`의 `relationship`을 `invokes`|`consumes` enum 격상, **area/group/facet 폐기**(묶음/분류 의미가 scope·cross_domain·applies_to·tags에 완전 흡수), 코어 **5 확정**. scope IN/OUT 구조화는 @spec 결합과 중복이라 산문 유지.
+> v8는 **principle 강제 메커니즘 + end-to-end 흐름 확정**(3자 다라운드): principle은 statement(의도)+`verify.class`(structural/binding/metric/prose)로 검증방식 선언, 강제=class×enforcement (§5). 흐름은 **전부 기존 SoT 순회, 새 저장/스키마 0** — calls 제거(code_link 흡수)·conflicts-with 검증전용·derives 메타·`card_relation.type` 불요 (§6.5). impact BFS 순회 알고리즘은 구현 스펙으로 이연.
 >
-> v6: **vision 노드 골격 확정** — 4필드 전부 필수 + 목적 중심 가이드(§3, speckit 식) + `ed card guide` in-band. 표기: **[현존]** 현 스키마, **[신규]** 변경 필요, **[신규-derived]** 도출(저장X), **[신규·미결노드]** 대상 노드가 §9 미결.
+> v7: domain 골격 확정(root/재귀없음, scope 산문, relationship enum, area 폐기, 코어 5). v6: vision 골격(4필드 필수+목적 가이드). 표기: **[현존]** 현 스키마, **[신규]** 변경 필요, **[신규-derived]** 도출(저장X), **[신규·미결노드]** 대상 노드가 §9 미결.
 
 ---
 
@@ -118,16 +118,17 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 | `scopes` | vision → domain (전체) | 1:n | 루트 맥락 | **저장 안 함, validate가 도출** | [신규-derived] |
 | `governs` | principle → 노드 | n:n | 거버넌스 | `principle.applies_to`(glob) | [현존 필드, 강제 신규] |
 | `governed_by` | 노드 → principle | n:n | 거버넌스(역) | **저장 안 함, validate가 도출** | [신규-derived] |
-| `derives` | spec.item → brief#item | n:1 | 추적 | spec 항목 | [현존] |
-| `depends-on` | domain → domain | n:n | 추적 | `cross_domain_dependencies{domain, relationship, note?}` (depender 단일 저장) | [현존, relationship enum화=신규] |
-| `calls` / `conflicts-with` | spec → spec | n:n | 추적 | `relations` 확장 | [신규] |
+| `derives` | spec.item → brief#item | n:1 | 추적(메타, 엣지 아님) | spec 항목 namespace | [현존] |
+| `depends-on` | domain → domain | n:n | 추적 | `cross_domain_dependencies{domain, relationship, note?}` (depender 단일 저장, **impact가 namespace 직접 순회**) | [현존, relationship enum화=신규] |
+| `conflicts-with` | spec → spec | n:n | 정합성 검사(변경전파 아님) | `relations` | [신규-검증전용] |
 | `references` | model → model | n:n | 데이터 관계(FK/composition) | model | [신규·미결노드] |
 | `emits` / `consumes` | spec → event-contract | n:n | 추적 | spec | [신규·미결노드] |
 | `deployed_in` | domain → service | n:n | 배포 | domain | [신규·미결노드] |
 | `code_link` | spec → symbol | n:n | 코드 다리 | **@spec 어노테이션(source SoT), 카드 저장 X** | [현존-derived] |
 | glossary ref | 노드 → term | n:n | 오버레이 | `glossary` 필드 | [현존] |
 
-> `derives`는 한 spec 항목이 단수 `brief-key#item-id`를 가리킴(스키마: 문자열). 카드 레벨에선 한 spec이 여러 brief 항목을 참조하므로 **n:1**(spec항목→brief항목).
+> `derives`는 검증 메타(spec namespace 잔류, 그래프 엣지 아님 — 카드 연결은 parent로 닫힘). broken-derives 무결성 검사로 dangling 방지.
+> `calls`(호출) 엣지 **제거** — code_link + gildash import graph가 spec간 호출 영향을 이미 흡수(카드 엣지로 두면 코드 호출관계와 이중 SoT). `conflicts-with`(배타)만 보존 — import 관계가 아니라 흡수 불가, 단 변경전파가 아닌 validate 정합성 검사.
 > **[신규·미결노드]** 엣지(references/emits/consumes/deployed_in)는 대상 노드(model/event-contract/service)가 §9 미결이므로 **엣지도 미결** — 노드 도입 결정 시 owner·타깃·방향·검증을 함께 확정. 표에 형태만 예시.
 > `parent`에 model은 미포함 — model은 도입 시 `domain→model`(optional) 추가 예정(§9).
 > **`relationship` enum 격상**: 현행 free-text(기계검증 불가, 코드정합성 결함)를 `invokes`|`consumes` 2값 enum + optional `note?`로. 판별 기준: *호출 계약*이 바뀌면 깨짐=`invokes`(reads/validates/serializes 흡수), *데이터 형태*가 바뀌면 깨짐=`consumes`(persists/writes 흡수). 실카드 14엣지 전수→2축 완전 분류. DDD pattern(shared-kernel 등)은 실사용 0이라 미도입(YAGNI).
@@ -135,19 +136,28 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 
 ---
 
-## 5. principle 강결합 메커니즘 (형해화 → 실효화)
+## 5. principle 강제 메커니즘 (verify.class)
 
-**현 상태(정확):** `enforcement` enum(blocking/warning/advisory)은 *존재하고 라벨도 차등* 부여됨. 그러나 (a) 이를 읽어 위반을 검출하는 **generic 강제 엔진이 없고**, (b) principle 4장 전부 `applies_to:['*']` 라 적용 대상이 변별되지 않는다(형해화는 이 둘).
+**역할:** principle = 횡단 규범의 **단일 owner**. `statement`는 *의도(산문 MUST/SHALL)*로 두고, **principle이 자신의 검증 방식을 `verify.class`로 선언**한다 — "무엇이 위반인가"를 산문 statement가 아니라 verify.class가 정의한다(이것이 §9의 principle-violation 알고리즘을 닫는다). 강제 = **class × enforcement**, 단 검증 가능한 경계 내에서만. "산문이라 강제 불가"는 거짓 — machine-check 가능한 형태로 설계하고, 진짜 불가능한 것만 사람에게 남긴다.
 
-| 항목 | 변경 | 상태 |
+| verify.class | 검증 대상 | `blocking`이 막는 것 |
 |---|---|---|
-| `applies_to` | `*` 금지, 실제 카드키/glob (예: `[spec/**, code-binding/**]`) | [데이터 수정] |
-| `governs` owner | `principle.applies_to` 한 곳이 SoT | [현존] |
-| `governed_by` | 하위에 *저장하지 않고* validate가 applies_to 매칭으로 **도출(index)** | [신규-derived] |
-| `enforcement`→validate (방향 확정) | blocking=validate 실패(exit 2) / warning=경고 / advisory=리포트 | [신규-방향] |
+| **structural** | 카드그래프 **폐쇄 술어 9종**(shape/required/enum/ref-existence/ref-direction/owner-uniqueness/glob-match/governed_by-consistency/forbidden-edge). 임의 DSL 금지 | 구조 술어 실패. 단 deterministic + **explainable**(실패 위치/기대값) + payload 인자 evaluable일 때만 |
+| **binding** | `@principle <key>` 어노테이션 evidence present/missing (`@spec`-family, 이미 추적됨) | **증거 누락만**(내용 옳음은 사람 — false compliance 인정) |
+| **metric** | `PrincipleMetric` budget 선언 | (measurement feed 구현 후) threshold 초과. **feed 전엔 blocking 금지** |
+| **prose** | 사람 리뷰 체크리스트 | **blocking 금지**(schema error) |
 
-> **방향만 확정, 처방 알고리즘은 미결(§9).** `enforcement`를 validate에 연결한다는 *방향*은 확정이나, `principle-violation`을 실제로 판정하는 검증 알고리즘(무엇이 위반인지 machine-judgable 규칙)은 §9 미결이다 — 이게 닫혀야 "강제 실효화"가 구현 가능해진다.
-> 거버넌스 관계는 **applies_to 한 곳에만 저장**(한 계약 한 owner). 역방향은 파생이므로 복제 아님. vision은 principle이 아니므로 이 규칙·`*` 금지와 무관(모순 없음).
+**거버넌스 관계 (전부 기존 SoT 순회, 저장 0):**
+- `governs` owner = `principle.applies_to`(glob) **한 곳**. `governed_by`는 *저장 안 함* — validate/impact가 `matchesAnyGlob`로 **lazy 도출**(§8 흐름).
+- `applies_to` `*` 금지 → 실제 카드키/glob (변별 가능해야 도출 의미 있음). [데이터 수정]
+
+**무결성 규칙 (패배주의·과기계화 양쪽 차단):**
+- `prose`/`metric(feed 전)` + `enforcement:blocking` = **schema error**(거짓 강제 금지).
+- **class별 payload validation**: structural=폐쇄술어만, binding=tracked annotation만, metric=comparator+측정근거 필수.
+- **structural은 스키마가 이미 강제하는 술어 선언 금지**(이중소유 = drift 재생산). 경계 3분: ①타입 고정→타입 스키마, ②전역 무조건→공통 스키마, ③**applies_to 동적 횡단→principle**.
+- **코드그래프 레이어링(import 방향 금지)은 structural 밖** — gildash 코드그래프 영역(현 scope-out). ref-direction은 카드그래프 전용.
+
+> vision은 principle이 아니므로 이 규칙·`*` 금지와 무관. binding principle은 활성화가드 @spec coverage와 present-검증 중복 금지(메타 검증).
 
 ---
 
@@ -162,6 +172,36 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 | drift | `broken_link`(심볼 소실) / `glossary_broken`. `check-drift`는 read-only. | [현존, 보존] |
 | coverage | 미결합 심볼 보고. | [현존, 보존] |
 | **확장 결합** | (확장 노드 도입 시) model/event-contract도 동일 `@spec`-family 어노테이션으로 코드에 결합. 특히 **event-contract는 발행/구독 코드가 서로 import하지 않아 코드 그래프로 안 잡히는 결합**을 카드 결합(emits/consumes)으로 표현. | [신규·미결노드] |
+
+## 6.5 흐름 — 작성·변경 순회 (모델 레이어)
+
+노드를 잇는 end-to-end 흐름. **핵심: 새 저장/스키마 0 — 모든 엣지가 *기존 단일 SoT*를 순회**(캐시 없음 = drift 표면 0).
+
+```
+작성 (위→아래, 하위가 상위 참조, 한 계층씩 — 점프 구조 강제):
+  vision ─scope─▶ domain ─parent─▶ brief ─parent─▶ spec ─@spec─▶ code
+                    ◀─depends-on─▶ domain      principle ─governance(glob)─▶ 횡단
+
+변경 전파 (아래→위 + 횡단):
+  code → @spec(code_link) → spec → (parent⁻¹) brief → (parent⁻¹) domain
+                                       ├─ depends-on⁻¹ → 타 domain
+                                       ├─ scope⁻¹ → vision
+                                       └─ governance(lazy) → principle 재검증
+```
+
+| 엣지 | 순회하는 SoT (기존) | 새 저장 |
+|---|---|---|
+| parent | `card.parent` 컬럼 (impact BFS가 직접 walk) | 0 |
+| binding | `code_link`(@spec) — impact 진입점 | 0 |
+| depends-on | domain namespace `cross_domain_dependencies` (impact 직접 순회) | 0 |
+| scope | vision 1장 → 모든 domain (lazy 도출) | 0 |
+| governance | `principle.applies_to` glob (lazy 도출) | 0 |
+
+- **점프 금지**(구조 강제): vision→spec, brief→vision 직접, principle→code 직접 — 엣지 부재로 표현 불가.
+- **calls/conflicts/derives는 엣지 아님**: 호출=code_link 흡수, 배타=conflicts-with 검증전용, item추적=derives 메타.
+- **`card_relation.type` 스키마 변경 불요** — dependency를 캐시하지 않고 namespace 직접 순회하므로(이전 캐시안은 stale drift 재현이라 폐기).
+
+> **impact BFS 순회 알고리즘은 카드 모델이 아니라 구현 스펙(§9 이연):** phase 조합(상향 code→spec→brief→domain → 도달 domain의 횡단 depends-on → 후처리 governance), depth 회계, affected-set 결과 구조(linkType enum: direct/transitive/parent/scope/governance), write-free validate. 이는 `impact`/`check` spec 카드의 구현 설계.
 
 ## 7. 정책 / 위험 경계 (중복 해소)
 
@@ -204,19 +244,21 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 - **area/group/facet 폐기** — 도메인 묶음/분류 의미가 scope·cross_domain_dependencies·principle.applies_to·tags에 완전 흡수(§3 거부표). 미정의 노드를 검증 시스템에 두는 것은 자기모순. 수요 실증 + tags 부족 시에만 typed facet 재론.
 - **cross_domain_dependencies** = `{domain, relationship, note?}`, depender 단일 저장. `relationship`을 **`invokes`|`consumes` enum 격상**(§4) — free-text는 코드정합성 결함.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
-- 거버넌스 = applies_to owner + governed_by derived + (enforcement→validate는 *방향* 확정).
+- **principle = 횡단 규범 단일 owner** (§5). statement=의도(산문) + **`verify.class`(structural 폐쇄술어9종/binding/metric/prose)로 검증방식 선언** → "무엇이 위반인가"를 verify.class가 정의(principle-violation 알고리즘 닫힘). 강제=class×enforcement. governs owner=applies_to 단일, governed_by=lazy 도출. 무결성(prose/metric+blocking 금지, 폐쇄술어, 스키마중복 금지).
+- **흐름 = 전부 기존 SoT 순회, 새 저장/스키마 0** (§6.5). 엣지: parent(card.parent)/binding(code_link)/depends-on(namespace 직접)/scope·governance(lazy). calls 제거(code_link 흡수), conflicts-with 검증전용, derives 메타. `card_relation.type` 불요.
 - code-binding/drift 현행 보존(코어 spec). 확장 노드 결합은 노드 도입 시.
-- 비파괴 점진 마이그레이션. design/story/actor/epic/area 노드 거부. glossary는 오버레이(노드 아님).
+- 비파괴 점진 마이그레이션. design/story/actor/epic/area/calls 거부. glossary는 오버레이(노드 아님).
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
 - **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
 - **가상(derived) 엣지 materialization 계약**: `scopes`·`governed_by` 를 *누가/어떤 API·인덱스로* 도출해 그래프 traverse를 보장하는가 (저장 안 하므로 도출 주체·포맷·validate 증명 방식 정의 필요).
+- **principle verify.class 구현**: structural 폐쇄술어 9종 평가 엔진(케이스별 cross-ref 패턴, DSL 금지), binding coverage(@principle), metric measurement feed(가장 비싼 미실현 — feed 전 metric blocking 금지), class별 payload validation + 무결성 메타 검증.
+- **impact BFS 순회 알고리즘**(§6.5 이연 — `impact`/`check` spec 구현): phase 조합(상향→횡단→후처리), depth 회계, affected-set 결과구조(linkType enum direct/transitive/parent/scope/governance), governance 후처리 frontier.
 - 확장 노드(model/service/event-contract)는 **방향만 확정(도입 후보)** — 각 **필수 필드 스키마**, 그에 의존하는 엣지(references/emits/consumes/deployed_in)·코드결합, `domain→model` parent는 도입 결정 시 함께 확정.
 - **`relationship` enum 격상 구현**(`cross_domain_dependencies.relationship`: free-text → `invokes`|`consumes` + `note?`; validator + 현행 6/7 카드 마이그레이션 매핑).
-- typed 엣지(calls/conflicts-with) **검증 규칙**(타깃 존재·타입·방향·순환).
-- `principle-violation` issue code의 정확한 검증 알고리즘 (§5 강제 실효화의 처방).
-- **write-free `ed validate` 경로** (마이그레이션 dry-run 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
+- **write-free `ed validate` 경로** (마이그레이션 dry-run + lazy 도출 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
+- parent cycle 거부(현 seen-set silent-stop → 명시 거부), conflicts-with 정합성 검증, broken-derives 검증.
 
 ---
 
@@ -230,3 +272,4 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 - v5 교정 근거: v4 재검증(서브에이전트 + Codex) — vision 타입등록·구조검증·가상엣지 materialization을 미결로 정직화, 표기 정합, graph-root/tree-root 구분.
 - v6: vision 4필드 전부 필수 + 목적 중심 가이드 확정. 작성 표면은 CLI(`ed card guide`)+동적 문서, MCP는 안정 후 트랙(스키마 reload 마찰).
 - v7: domain 골격 확정(3자 토론) — root/재귀없음, scope 산문유지, relationship enum(invokes|consumes), area/group/facet 폐기(scope·cross_domain·applies_to·tags 흡수), 코어 5.
+- v8: principle 강제(verify.class — statement는 산문이라 강제불가가 아니라 검증방식을 class로 선언; structural 폐쇄술어/binding/metric/prose, class×enforcement, 무결성 규칙) + 흐름/엣지 레이어(전부 기존 SoT 순회, 새 저장 0, calls 제거·conflicts 검증전용·dependency namespace 직접). impact BFS 순회는 구현 이연.
