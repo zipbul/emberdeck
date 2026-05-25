@@ -1,9 +1,11 @@
-# Card Model Design (v9)
+# Card Model Design (v10)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
-> v9는 **brief 정체성·필드·케이스 분담 확정**(3자): brief = "기획"이 아니라 **기능 단위 명세**("구현 모르고 검증 가능"은 명세 속성). 필드 10→6req+3opt(design→approach, compatibility 제거, invariants→spec). 케이스 5종 계층 분담(happy/negative=brief.flow, edge/exception=spec, completion=criteria+postcondition trace), flow.kind 2종 유지 (§3 brief 블록).
+> v10는 **vision→brief 전체 흐름 시나리오 시뮬레이션(4 프로젝트)** 결과 반영: 흐름은 4 시나리오 모두 닫힘 확인 + 작성 경계 규칙 보강(failure/exception, criteria/postcondition, 횡단여정=2brief+invokes, 호환성 행방) + typed facet 모노레포 트리거(§9). 모델 골격 변경 없음 — 전부 작성 가이드/확장 후보.
+>
+> v9: brief = **기능 단위 명세**(기획 아님), 필드 10→6req+3opt, 케이스 5종 계층 분담. v8: principle verify.class + 흐름(기존 SoT 순회).
 >
 > v8: principle 강제(verify.class) + end-to-end 흐름(전부 기존 SoT 순회, 새 저장 0).
 >
@@ -122,6 +124,12 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | completion | `spec.postconditions`(MUST) + `brief.criteria`(합격선) | 계약+기획 **계층**(trace 연결, 복제 금지) |
 
 > 5W1H: Who/When/Where=`flow.given`+`spec.preconditions`, What=`flow.when/then`, Why=`context.problem`+`rationale`, How=개념 `approach`/계약 `spec.postconditions`. Where는 source `@spec`이 SoT(위치 필드 없음). `flow.kind`는 **happy|failure 2종 유지** — 5종 확장은 spec.preconditions/failures와 본문 중복(drift 제도화). edge/exception은 spec 소관(brief는 "구현 모르고 검증 가능"이라 계약 디테일 못 담음).
+
+**작성 경계 규칙 (시나리오 시뮬레이션이 드러낸 모호점 — `ed card guide`로 in-band 노출):**
+- **failure(brief.flow) vs exception(spec.failures):** *사용자/업무가 보는 결과 경로*(거부·실패 상태)=`brief.flow` kind:failure. *내부 복구·재시도·트랜잭션 보상*(승인 후 주문확정 실패→결제 취소 등)=`spec.failures`{violation,behavior}. 판별: "사용자에게 보이는 거부인가(brief), 계약 위반 시 내부 동작인가(spec)".
+- **criteria(brief) vs postcondition(spec):** criteria=*관찰 가능한 합격 검증문*(외부 테스트), postcondition=*완료 후 성립하는 상태 불변*(per-call MUST). completion이 둘 다 등장 시 같은 goal/flow를 **trace 연결**, 문장 복제 금지(복제=drift 신호).
+- **횡단 사용자 여정**(FE/BE 걸침, 예 "체크아웃 플로우"): 단일 parent 유지 → **각 domain의 brief 2장 + `depends-on`(invokes) 연결**로 표현. end-to-end를 한 brief로 묶지 않음(기능 단위 분해 유지).
+- **호환성 보존 요구의 행방**(compatibility 제거 후): 행동계약 호환=`spec`(postcondition/invariant), 정책 호환=`principle`, 깨질 수 있는 전제=`brief.scope.assumptions`/`limits`. brief에 compatibility 필드 부활 안 함.
 
 ### 확장 (게이트 충족 시 도입 후보 — 전부 [신규], optional·비강제)
 
@@ -290,6 +298,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **principle verify.class 구현**: structural 폐쇄술어 9종 평가 엔진(케이스별 cross-ref 패턴, DSL 금지), binding coverage(@principle), metric measurement feed(가장 비싼 미실현 — feed 전 metric blocking 금지), class별 payload validation + 무결성 메타 검증.
 - **impact BFS 순회 알고리즘**(§6.5 이연 — `impact`/`check` spec 구현): phase 조합(상향→횡단→후처리), depth 회계, affected-set 결과구조(linkType enum direct/transitive/parent/scope/governance), governance 후처리 frontier.
 - 확장 노드(model/service/event-contract)는 **방향만 확정(도입 후보)** — 각 **필수 필드 스키마**, 그에 의존하는 엣지(references/emits/consumes/deployed_in)·코드결합, `domain→model` parent는 도입 결정 시 함께 확정.
+- **typed facet 확장 후보**(게이트=FE/BE 모노레포): 시나리오 시뮬레이션(모노레포)이 레이어 직교성 수요를 실증 — `domain.layer` 같은 검증가능 enum tag-축(현 자유 tags는 오타 무검증). 코어 변경 불요(흐름은 invokes로 이미 닫힘), 수요 실증된 프로젝트에서만 도입.
 - **`relationship` enum 격상 구현**(`cross_domain_dependencies.relationship`: free-text → `invokes`|`consumes` + `note?`; validator + 현행 6/7 카드 마이그레이션 매핑).
 - **write-free `ed validate` 경로** (마이그레이션 dry-run + lazy 도출 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
 - parent cycle 거부(현 seen-set silent-stop → 명시 거부), conflicts-with 정합성 검증, broken-derives 검증.
