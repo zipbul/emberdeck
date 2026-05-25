@@ -1,9 +1,11 @@
-# Card Model Design (v8)
+# Card Model Design (v9)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
-> v8는 **principle 강제 메커니즘 + end-to-end 흐름 확정**(3자 다라운드): principle은 statement(의도)+`verify.class`(structural/binding/metric/prose)로 검증방식 선언, 강제=class×enforcement (§5). 흐름은 **전부 기존 SoT 순회, 새 저장/스키마 0** — calls 제거(code_link 흡수)·conflicts-with 검증전용·derives 메타·`card_relation.type` 불요 (§6.5). impact BFS 순회 알고리즘은 구현 스펙으로 이연.
+> v9는 **brief 정체성·필드·케이스 분담 확정**(3자): brief = "기획"이 아니라 **기능 단위 명세**("구현 모르고 검증 가능"은 명세 속성). 필드 10→6req+3opt(design→approach, compatibility 제거, invariants→spec). 케이스 5종 계층 분담(happy/negative=brief.flow, edge/exception=spec, completion=criteria+postcondition trace), flow.kind 2종 유지 (§3 brief 블록).
+>
+> v8: principle 강제(verify.class) + end-to-end 흐름(전부 기존 SoT 순회, 새 저장 0).
 >
 > v7: domain 골격 확정(root/재귀없음, scope 산문, relationship enum, area 폐기, 코어 5). v6: vision 골격(4필드 필수+목적 가이드). 표기: **[현존]** 현 스키마, **[신규]** 변경 필요, **[신규-derived]** 도출(저장X), **[신규·미결노드]** 대상 노드가 §9 미결.
 
@@ -65,8 +67,8 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 |---|---|---|
 | **vision** [신규] | 프로젝트 WHY/방향/최상위 성공. 프로젝트당 1장, root. 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**(목적 가이드 아래). | enforcement·applies_to 없음. 구조 검증은 받음 — 아래 |
 | **domain** [현존] | bounded context 경계 (IN/OUT). root only, 재귀 없음. | 분류는 `tags`(현행). area/group/facet 도입 안 함 — 아래 |
-| **brief** [현존] | 기능 기획 — 문제·범위·시나리오·정책·근거·**가정·한계**(=risk). | risk는 신규 필드 아님 → §7 |
-| **spec** [현존] | 행동 계약 (pre/post/invariant/failures). 코드 결합. | |
+| **brief** [현존] | **기능 단위 명세**(구현 독립·검증가능): 문제·범위·시나리오·정책·합격·근거. *기획서가 아니라 명세서* — 아래. | 필드 축소(design→approach, compatibility 제거) — 아래 |
+| **spec** [현존] | **per-symbol** 행동 계약(pre/post/invariant/failures). 코드 결합. (brief=기능단위 명세, spec=심볼단위 명세) | |
 | **principle** [현존] | 횡단 규범 (검증가능 MUST/SHALL 문장). | |
 
 > **glossary는 노드 타입이 아니다.** 용어는 `glossary.yaml` 오버레이 + 각 카드의 `glossary` 필드(주요 토픽 색인)로 표현하고 `ed glossary` 명령이 관리한다. (사용자 프로젝트에 `glossary.md` 카드가 `type:domain`으로 있을 수 있으나, 그건 모델 차원의 타입이 아니라 한 도메인 카드일 뿐.)
@@ -89,6 +91,37 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | `success_direction` | **"프로젝트가 옳은 방향으로 가는가"의 가늠자.** 개별 기능 성공이 아니라 전체가 제 길을 가는지. → 성공한 상태가 어떤 모습인지 *정성적*으로(숫자 KPI X — 그건 `principle.metric`). |
 
 > 이 가이드는 **단일 정의**(스키마 명세)에 두고 `ed card guide vision`(read-only)로 작성 직전 in-band 노출 + validate 에러가 해당 필드 목적을 인용한다. 가이드가 마크다운/스키마라 고치면 즉시 반영(reload 없음). 같은 단일 정의를 *나중에* MCP 도구 description으로 wrap 가능 — 단 MCP는 스키마 reload 마찰이 있어 모델·가이드 안정 후의 표면 트랙(§9).
+
+#### brief — 기능 단위 명세 (정체성·필드·케이스 분담)
+
+> **brief = "기획서"가 아니라 "기능 단위 명세서".** "구현 모르고 검증 가능"은 *명세*(인수테스트)의 속성이다 — brief를 기획이라 부르면 자기모순. brief가 flow/criteria/policy를 담는 결정적 근거: **flow/criteria는 per-symbol(spec)보다 크고 goal(의도)보다 작은 "기능 단위 검증 계약" = 추적 허브**. `goals → flow → {policy, criteria}` + `flow ← spec.derives` cross-ref 사슬이 *한 카드에서 닫힌다*. 옮기면 goal↔spec 추적이 끊김. 4-tier 중 이 단위를 담는 계층은 brief 하나뿐.
+
+**필드 (현행 10 → 6 required + 3 optional, HOW는 spec에 반환):**
+
+| 필드 | 상태 | 목적 |
+|---|---|---|
+| `context{problem}` | req | 왜 이 기능이 필요한가(동기). `impact`는 opt |
+| `scope{goals, non_goals}` | req | 무엇을/경계. `assumptions`는 opt |
+| `flow[]` | req | given/when/then 검증가능 시나리오, covers:goals (명세 핵심) |
+| `policy[]` | req(국소규칙 시) | 기능 국소 규칙, governs:flow (principle=횡단과 분리) |
+| `criteria[]` | req | 합격기준, verifies:flow |
+| `rationale` | req | 대안(≥1, 의미기반)·선택·근거, addresses:limits\|assumptions |
+| `approach` | opt | 개념 설계(산문) — 구 `design`을 축소 |
+| `limits[]` / `external[]` | opt | 한계 / 진짜 외부참조만 |
+
+**제거:** `compatibility`(행동계약=spec 소관, 의례적), `design.components/data_flow/invariants`(설계는 spec/구현; `invariants`→spec.invariants 이동). **케이스/기준은 한 카드에만 정의, 나머지는 derives/verifies 참조(복제=drift).**
+
+**5W1H · 케이스 5종 계층 배치:**
+
+| 케이스 | 정의 위치 | 관점 |
+|---|---|---|
+| happy | `brief.flow` kind:happy | 사용자: 정상 |
+| negative | `brief.flow` kind:failure | 사용자: 거부 |
+| edge/boundary | `spec.preconditions` | 계약: 경계값 |
+| exception | `spec.failures`{violation,behavior} | 계약: throw |
+| completion | `spec.postconditions`(MUST) + `brief.criteria`(합격선) | 계약+기획 **계층**(trace 연결, 복제 금지) |
+
+> 5W1H: Who/When/Where=`flow.given`+`spec.preconditions`, What=`flow.when/then`, Why=`context.problem`+`rationale`, How=개념 `approach`/계약 `spec.postconditions`. Where는 source `@spec`이 SoT(위치 필드 없음). `flow.kind`는 **happy|failure 2종 유지** — 5종 확장은 spec.preconditions/failures와 본문 중복(drift 제도화). edge/exception은 spec 소관(brief는 "구현 모르고 검증 가능"이라 계약 디테일 못 담음).
 
 ### 확장 (게이트 충족 시 도입 후보 — 전부 [신규], optional·비강제)
 
@@ -241,6 +274,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - 코어 = **vision + domain/brief/spec/principle** (5) + glossary 오버레이.
 - vision = **enforcement 없는 graph-root 노드**(principle 흡수 폐기). 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**, 각 필드는 목적 가이드로 정의(§3). 구조 검증(필드 비어있지 않음·vision ≤1장·`scopes`로 domain 연결)을 받도록 *설계* — 구현은 미결(아래).
 - **domain = root only, 재귀 없음** (3자 6+라운드 confirm). `summary`/`overview`/`scope`(산문) 필수. **scope는 산문 유지** — IN/OUT 구조화 안 함(경계강제는 `@spec` 결합이 이미 SoT로 보유, 구조화=중복·drift 표면 확대). 분류는 `tags` 현행 유지.
+- **brief = 기능 단위 명세**(기획 아님 — §3). 필드 6 req + 3 opt(design→approach 축소, compatibility·design.components/data_flow 제거, invariants→spec). flow.kind happy|failure 2종 유지. 케이스 5종 계층 분담(happy/negative=brief.flow, edge/exception=spec, completion=criteria+postcondition trace). 케이스·기준은 한 카드 정의+참조(복제 금지).
 - **area/group/facet 폐기** — 도메인 묶음/분류 의미가 scope·cross_domain_dependencies·principle.applies_to·tags에 완전 흡수(§3 거부표). 미정의 노드를 검증 시스템에 두는 것은 자기모순. 수요 실증 + tags 부족 시에만 typed facet 재론.
 - **cross_domain_dependencies** = `{domain, relationship, note?}`, depender 단일 저장. `relationship`을 **`invokes`|`consumes` enum 격상**(§4) — free-text는 코드정합성 결함.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
