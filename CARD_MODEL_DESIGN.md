@@ -1,9 +1,11 @@
-# Card Model Design (v6)
+# Card Model Design (v7)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
-> v6는 **vision 노드 골격 확정**: 4필드(`summary`/`statement`/`rationale`/`success_direction`) **전부 필수**, 각 필드를 *목적 중심 가이드*로 정의(§3, speckit 식). 작성 가이드는 단일 정의 + `ed card guide`로 in-band 노출(MCP는 reload 마찰로 안정 후 표면 트랙). 표기: **[현존]** 현 스키마, **[신규]** 변경 필요, **[신규-derived]** 도출(저장X), **[신규·미결노드]** 대상 노드가 §9 미결.
+> v7는 **domain 노드 골격 확정**(3자 6+라운드 토론 종결): root only·재귀없음, `summary/overview/scope`(산문) 필수, `cross_domain_dependencies`의 `relationship`을 `invokes`|`consumes` enum 격상, **area/group/facet 폐기**(묶음/분류 의미가 scope·cross_domain·applies_to·tags에 완전 흡수), 코어 **5 확정**. scope IN/OUT 구조화는 @spec 결합과 중복이라 산문 유지.
+>
+> v6: **vision 노드 골격 확정** — 4필드 전부 필수 + 목적 중심 가이드(§3, speckit 식) + `ed card guide` in-band. 표기: **[현존]** 현 스키마, **[신규]** 변경 필요, **[신규-derived]** 도출(저장X), **[신규·미결노드]** 대상 노드가 §9 미결.
 
 ---
 
@@ -33,7 +35,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 ─────────────── 구조 트리 (수직, parent = 1:n) ───────────────
                             ┃
         DOMAIN  [현존]  ◄── depends-on (n:n) ──► DOMAIN      [현존: cross_domain_dependencies]
-          │ 1:n         (group: 스칼라 필드로 영역 묶음)     [신규 필드: domain.group]
+          │ 1:n         relationship: invokes|consumes + note?  [신규: enum 격상]
           ▼
         BRIEF   [현존]                            ← 기능 기획 (WHAT/WHY)
           │ 1:n
@@ -62,7 +64,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 | 노드 | 담는 것 | 비고 |
 |---|---|---|
 | **vision** [신규] | 프로젝트 WHY/방향/최상위 성공. 프로젝트당 1장, root. 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**(목적 가이드 아래). | enforcement·applies_to 없음. 구조 검증은 받음 — 아래 |
-| **domain** [현존] | bounded context 경계 (IN/OUT). | + `group` 필드[신규]로 영역 묶음 |
+| **domain** [현존] | bounded context 경계 (IN/OUT). root only, 재귀 없음. | 분류는 `tags`(현행). area/group/facet 도입 안 함 — 아래 |
 | **brief** [현존] | 기능 기획 — 문제·범위·시나리오·정책·근거·**가정·한계**(=risk). | risk는 신규 필드 아님 → §7 |
 | **spec** [현존] | 행동 계약 (pre/post/invariant/failures). 코드 결합. | |
 | **principle** [현존] | 횡단 규범 (검증가능 MUST/SHALL 문장). | |
@@ -96,16 +98,11 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 | **service** | domain↔service = n:n | MSA | 트리 X; domain `deployed_in` n:n |
 | **event-contract** | 발행·구독 여러 spec 공유(n:n owner); 코드 import로 안 잡힘 | MSA | 트리 X; spec `emits`/`consumes` |
 
-### 필드로 흡수 (노드 아님 — 원칙 5: 1:n + 단일 owner 귀속)
-
-| 항목 | 흡수처 | 이유 |
-|---|---|---|
-| **area** (도메인 영역 묶음) | `domain.group` 스칼라 필드 [신규] | 1:n + domain에 귀속 → 필드면 충분. 노드화 = 4단 트리 강제(과설계) |
-
-### 거부 (과설계 — 기존 필드 흡수)
+### 거부 (과설계 — 기존 필드/노드 흡수)
 
 | 후보 | 흡수처 |
 |---|---|
+| **area / group / facet 노드** | 폐기 — 도메인 묶음/분류의 고유 의미가 **4곳에 완전 흡수**: 경계=`domain.scope`, 도메인 걸침=`cross_domain_dependencies`, 적용 범위=`principle.applies_to`, 분류 라벨=`tags`. 비규범 미션은 CLAUDE.md. *3자 토론(6+라운드) 결론 — 고유 의미 0 정의 = 잉여. 미정의 노드를 검증 시스템에 두는 것은 자기모순.* 분류 수요가 실증되고 tags로 부족할 때만 typed facet 재론 |
 | design 노드 | `brief.design` [현존] |
 | story 노드 | `brief.scope.goals` [현존] |
 | actor 노드 | `brief.flow.given` [현존] |
@@ -122,7 +119,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 | `governs` | principle → 노드 | n:n | 거버넌스 | `principle.applies_to`(glob) | [현존 필드, 강제 신규] |
 | `governed_by` | 노드 → principle | n:n | 거버넌스(역) | **저장 안 함, validate가 도출** | [신규-derived] |
 | `derives` | spec.item → brief#item | n:1 | 추적 | spec 항목 | [현존] |
-| `depends-on` | domain → domain | n:n | 추적 | `cross_domain_dependencies` | [현존] (typed화=신규) |
+| `depends-on` | domain → domain | n:n | 추적 | `cross_domain_dependencies{domain, relationship, note?}` (depender 단일 저장) | [현존, relationship enum화=신규] |
 | `calls` / `conflicts-with` | spec → spec | n:n | 추적 | `relations` 확장 | [신규] |
 | `references` | model → model | n:n | 데이터 관계(FK/composition) | model | [신규·미결노드] |
 | `emits` / `consumes` | spec → event-contract | n:n | 추적 | spec | [신규·미결노드] |
@@ -133,6 +130,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 > `derives`는 한 spec 항목이 단수 `brief-key#item-id`를 가리킴(스키마: 문자열). 카드 레벨에선 한 spec이 여러 brief 항목을 참조하므로 **n:1**(spec항목→brief항목).
 > **[신규·미결노드]** 엣지(references/emits/consumes/deployed_in)는 대상 노드(model/event-contract/service)가 §9 미결이므로 **엣지도 미결** — 노드 도입 결정 시 owner·타깃·방향·검증을 함께 확정. 표에 형태만 예시.
 > `parent`에 model은 미포함 — model은 도입 시 `domain→model`(optional) 추가 예정(§9).
+> **`relationship` enum 격상**: 현행 free-text(기계검증 불가, 코드정합성 결함)를 `invokes`|`consumes` 2값 enum + optional `note?`로. 판별 기준: *호출 계약*이 바뀌면 깨짐=`invokes`(reads/validates/serializes 흡수), *데이터 형태*가 바뀌면 깨짐=`consumes`(persists/writes 흡수). 실카드 14엣지 전수→2축 완전 분류. DDD pattern(shared-kernel 등)은 실사용 0이라 미도입(YAGNI).
 > **graph root ≠ parent-tree root.** vision은 *graph root*(scopes로 모든 domain을 맥락화)이고, domain은 여전히 *parent-tree root*(parent 없음). scopes는 추적 엣지라 domain의 parent를 만들지 않으므로 4-tier 트리는 불변(5-tier 아님).
 
 ---
@@ -186,7 +184,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 | 변경 | 기존 카드(현행) 영향 | 방식 |
 |---|---|---|
 | vision 코어 노드 추가 | 0 (없으면 미생성, optional) | 신규 root 타입 등록 + vision 1장 작성 |
-| `domain.group` 필드 | 0 (optional) | closed-schema에 optional 추가 |
+| `relationship` enum 격상 | cross_domain_dependencies 보유 카드(현행 6/7) | free-text→`invokes`\|`consumes` 매핑 + `note?` 보존. dual-read |
 | model/service/event-contract 노드 | 0 (현재/소규모는 미생성) | optional 타입 등록 |
 | `governed_by` | 0 (derived, 저장 X) | validate 도출 로직만 |
 | `applies_to` 실키화 | principle 4장만 | 데이터 수정(4장) |
@@ -200,18 +198,22 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 ## 9. 확정 / 미결
 
 **확정:**
-- 코어 = **vision + domain/brief/spec/principle** + glossary 오버레이.
-- vision = **enforcement 없는 graph-root 노드**(principle 흡수 폐기). 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**, 각 필드는 목적 가이드로 정의(§3). 구조 검증(필드 비어있지 않음·vision ≤1장·`scopes`로 domain 연결)을 받도록 *설계* — 구현은 미결(아래). area = `domain.group` 필드. epic 폐기.
+- 코어 = **vision + domain/brief/spec/principle** (5) + glossary 오버레이.
+- vision = **enforcement 없는 graph-root 노드**(principle 흡수 폐기). 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**, 각 필드는 목적 가이드로 정의(§3). 구조 검증(필드 비어있지 않음·vision ≤1장·`scopes`로 domain 연결)을 받도록 *설계* — 구현은 미결(아래).
+- **domain = root only, 재귀 없음** (3자 6+라운드 confirm). `summary`/`overview`/`scope`(산문) 필수. **scope는 산문 유지** — IN/OUT 구조화 안 함(경계강제는 `@spec` 결합이 이미 SoT로 보유, 구조화=중복·drift 표면 확대). 분류는 `tags` 현행 유지.
+- **area/group/facet 폐기** — 도메인 묶음/분류 의미가 scope·cross_domain_dependencies·principle.applies_to·tags에 완전 흡수(§3 거부표). 미정의 노드를 검증 시스템에 두는 것은 자기모순. 수요 실증 + tags 부족 시에만 typed facet 재론.
+- **cross_domain_dependencies** = `{domain, relationship, note?}`, depender 단일 저장. `relationship`을 **`invokes`|`consumes` enum 격상**(§4) — free-text는 코드정합성 결함.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
 - 거버넌스 = applies_to owner + governed_by derived + (enforcement→validate는 *방향* 확정).
 - code-binding/drift 현행 보존(코어 spec). 확장 노드 결합은 노드 도입 시.
-- 비파괴 점진 마이그레이션. design/story/actor/epic 노드 거부. glossary는 오버레이(노드 아님).
+- 비파괴 점진 마이그레이션. design/story/actor/epic/area 노드 거부. glossary는 오버레이(노드 아님).
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
 - **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
 - **가상(derived) 엣지 materialization 계약**: `scopes`·`governed_by` 를 *누가/어떤 API·인덱스로* 도출해 그래프 traverse를 보장하는가 (저장 안 하므로 도출 주체·포맷·validate 증명 방식 정의 필요).
 - 확장 노드(model/service/event-contract)는 **방향만 확정(도입 후보)** — 각 **필수 필드 스키마**, 그에 의존하는 엣지(references/emits/consumes/deployed_in)·코드결합, `domain→model` parent는 도입 결정 시 함께 확정.
+- **`relationship` enum 격상 구현**(`cross_domain_dependencies.relationship`: free-text → `invokes`|`consumes` + `note?`; validator + 현행 6/7 카드 마이그레이션 매핑).
 - typed 엣지(calls/conflicts-with) **검증 규칙**(타깃 존재·타입·방향·순환).
 - `principle-violation` issue code의 정확한 검증 알고리즘 (§5 강제 실효화의 처방).
 - **write-free `ed validate` 경로** (마이그레이션 dry-run 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
@@ -227,3 +229,4 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계)의 확정 설계.
 - 근본 원인(ownerless 복제)·principle 형해화·4-layer 평가: 메모리 `card-drift-root-cause`, `architecture-4layer-assessment`.
 - v5 교정 근거: v4 재검증(서브에이전트 + Codex) — vision 타입등록·구조검증·가상엣지 materialization을 미결로 정직화, 표기 정합, graph-root/tree-root 구분.
 - v6: vision 4필드 전부 필수 + 목적 중심 가이드 확정. 작성 표면은 CLI(`ed card guide`)+동적 문서, MCP는 안정 후 트랙(스키마 reload 마찰).
+- v7: domain 골격 확정(3자 토론) — root/재귀없음, scope 산문유지, relationship enum(invokes|consumes), area/group/facet 폐기(scope·cross_domain·applies_to·tags 흡수), 코어 5.
