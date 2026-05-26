@@ -1,8 +1,9 @@
-# Card Model Design (v13)
+# Card Model Design (v14)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
+> v14는 **glossary 오버레이 확정**(3자, general 코드기반): 노드 아닌 어휘 오버레이(derive/규율 없음·flat 횡단). yaml=정의 단일 SoT/카드 필드=참조만. 기준 ③ "설계결정 인코딩"→"load-bearing 용어" 약화(principle/domain 침범 차단). 과설계 제거: glossary-unused exit게이트→warning(백필 보호). 의미 drift는 matcher→validate informational(§9).
 > v13는 **전체 통합 재검증**(3자) 결과: 모델 본질 결함 0(5노드 정체성 정합·누적결정 충돌 없음·추적사슬 설계상 닫힘). 정정 — 문서 §6.5 흐름이 *미구현 impact 순회*를 "확정 현행"처럼 서술한 톤 결함을 "설계 확정 / impact 구현 미결"로 분리, §2 다이어그램 폐기된 `calls` 잔재 제거.
 > v12는 **spec 노드 확정**(3자): per-symbol 행동계약. pre/post/inv/failures 4 req(total 함수 null-failure 명시), state_transitions opt. **failures에 id+derives(→S-F) 추가** = brief negative flow↔spec.failures 추적 구멍 메움(케이스 분담 trace 완성). invariants cross-process 제거. derives 타입 규칙(pre/post/inv→goal, failures→flow). 재귀=코드 포함관계만. brief 케이스표 edge=pre+failures로 정정. section-aware derives 검증 등 §9 구현 이연.
 > v11: v10 재검증 결함 4건 정정(failure/exception 이중투영, 횡단여정 비표현, criteria/post/inv 경계, facet 용어).
@@ -76,7 +77,14 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | **spec** [현존] | **per-symbol** 행동 계약(pre/post/invariant/failures). 코드 결합(@spec). (brief=기능단위 명세, spec=심볼단위 명세) | failures에 id+derives 추가, cross-process 제거 — 아래 |
 | **principle** [현존] | 횡단 규범 (검증가능 MUST/SHALL 문장). | |
 
-> **glossary는 노드 타입이 아니다.** 용어는 `glossary.yaml` 오버레이 + 각 카드의 `glossary` 필드(주요 토픽 색인)로 표현하고 `ed glossary` 명령이 관리한다. (사용자 프로젝트에 `glossary.md` 카드가 `type:domain`으로 있을 수 있으나, 그건 모델 차원의 타입이 아니라 한 도메인 카드일 뿐.)
+#### glossary — 어휘 오버레이 (노드 아님)
+
+> **정체성:** glossary는 **노드가 아니라 코어 5노드 본문을 가로지르는 어휘 오버레이**다. 결정적 근거: derive되는 코드도, 규율하는 대상도 없고(domain=경계/principle=규범과 달리 glossary는 *명명*), 본질적으로 flat·횡단이라 4-tier 계층에 안 속한다. graph에서 노드도 엣지도 아닌 *노드를 가로지르는 용어 attribute*(노드화하면 모든 사용처로 fan-out 엣지 폭증).
+
+- **owner/SoT (한-owner 정합):** `glossary.yaml`{word→definition} = **정의 단일 SoT**. 카드 `glossary: string[]` = **참조(word only)만** — 정의를 복제하지 않으므로 drift 없음. `ed glossary`가 관리.
+- **추가 기준 4 (③ 약화):** ①프로젝트 고유 의미 ②cross-cutting(≥2 카드 — 1 카드면 그 본문에서 정의, 오버레이 불요) ③**설계상 load-bearing 용어**(~~설계 결정 인코딩~~ — "그래서 어때야 한다"는 규범은 principle, glossary는 "이 단어가 가리키는 것"까지만; 정의에 enforcement 서술 금지 = domain/principle 침범 차단) ④단일 코드심볼 X(단일 심볼이면 그 JSDoc이 SoT).
+- **검증:** `glossary-broken`(참조 단어가 yaml에 부재=dangling) = **error**(exit 게이트 유지). `glossary-unused`(yaml 정의됐으나 참조 0) = **warning 강등**(깨진 게 아니라 "정의 먼저, 참조 나중" 백필 정상 상태 — exit 차단은 워크플로 막음). 본문↔glossary 의미 drift = matcher를 validate에 연결해 **informational만**(자연어 의미충돌은 정적 검출 불가 → error 금지)(§9).
+- (사용자 프로젝트에 `glossary.md` 카드가 `type:domain`으로 있을 수 있으나, 그건 모델 차원 타입이 아니라 한 도메인 카드.)
 
 > **왜 vision을 코어 노드로?** v2는 vision을 advisory principle로 흡수했으나 두 결함이 있었다: (a) `principle.statement`는 규범문(MUST/SHALL) 필수인데 vision은 *방향성* → 타입 의미 오염; (b) advisory principle은 `applies_to:'*'`를 요구해 §5의 "`*` 금지"와 자기모순. vision은 규범(enforcement 대상)이 아니므로 principle에 넣을 수 없다. 그렇다고 카드 밖 config로 빼면 원칙 1을 위배. → **enforcement 없는 root 노드**가 정공법. `applies_to`/`enforcement` **없음**(principle과 구별되는 지점).
 >
@@ -314,7 +322,8 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **principle = 횡단 규범 단일 owner** (§5). statement=의도(산문) + **`verify.class`(structural 폐쇄술어9종/binding/metric/prose)로 검증방식 선언** → "무엇이 위반인가"를 verify.class가 정의(principle-violation 알고리즘 닫힘). 강제=class×enforcement. governs owner=applies_to 단일, governed_by=lazy 도출. 무결성(prose/metric+blocking 금지, 폐쇄술어, 스키마중복 금지).
 - **흐름 *설계* 확정**(§6.5): 모든 엣지가 기존 단일 SoT 순회(새 저장/스키마 0). 엣지 parent(card.parent)/binding(code_link)/depends-on(namespace 직접)/scope·governance(lazy). calls 제거, conflicts-with 검증전용, derives 메타. `card_relation.type` 불요. **단 impact BFS *구현*은 미결** — 현행은 `card_relation`(relations 필드)만 순회, parent·cross_domain 미순회 → 설계대로 재구현 필요(아래).
 - code-binding/drift 현행 보존(코어 spec). 확장 노드 결합은 노드 도입 시.
-- 비파괴 점진 마이그레이션. design/story/actor/epic/area/calls 거부. glossary는 오버레이(노드 아님).
+- 비파괴 점진 마이그레이션. design/story/actor/epic/area/calls 거부.
+- **glossary = 어휘 오버레이**(노드 아님 — §3). yaml=정의 단일 SoT, 카드 필드=참조만(drift 없음). 기준 4(③ "load-bearing 용어"로 약화). glossary-broken=error/glossary-unused=warning 강등, 의미 drift=informational.
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
@@ -328,6 +337,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **write-free `ed validate` 경로** (마이그레이션 dry-run + lazy 도출 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
 - parent cycle 거부(현 seen-set silent-stop → 명시 거부), conflicts-with 정합성 검증, broken-derives 검증.
 - **section-aware derives 검증**(현 flat `collectBriefRefIds` → pre/post/inv는 goal-id set, failures는 flow-id set 분리 대조) + **check-impact가 failures.derives 신설 엣지 순회**(negative flow 변경→failures 영향 전파) + spec 재귀 "코드 포함관계" 약식 검사(gildash: child @spec 심볼 ⊆ parent callee/member) 후보.
+- **glossary 검증 정정**: `glossary-unused`를 exit 게이트(현 byCode 합산→exit2)에서 **warning으로 분리**(백필 워크플로 보호); `glossary-broken`은 error 유지. **본문↔glossary 의미 drift surface**: 기존 occurrence matcher(현 suggestCardScope 전용)를 validate에 연결해 "본문 등장하나 glossary 필드 미선언 / 선언했으나 본문 미등장"을 informational로(자연어 충돌은 error 금지).
 
 ---
 
