@@ -1,9 +1,10 @@
-# Card Model Design (v11)
+# Card Model Design (v12)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
-> v11는 v10 재검증 결함 4건 정정: (1)failure/exception은 배타가 아니라 *이중 투영* — 공존 시 둘 다 기재+trace, (2)횡단여정에서 `invokes`(domain 엣지)로 brief 연결은 모델 모순 → **brief↔brief 엣지 없음, 여정 합성은 비표현(code_link로 재현)**, (3)criteria/postcondition/invariant 3자 경계 명시, (4)typed facet=노드 아닌 필드 용어 위생.
+> v12는 **spec 노드 확정**(3자): per-symbol 행동계약. pre/post/inv/failures 4 req(total 함수 null-failure 명시), state_transitions opt. **failures에 id+derives(→S-F) 추가** = brief negative flow↔spec.failures 추적 구멍 메움(케이스 분담 trace 완성). invariants cross-process 제거. derives 타입 규칙(pre/post/inv→goal, failures→flow). 재귀=코드 포함관계만. brief 케이스표 edge=pre+failures로 정정. section-aware derives 검증 등 §9 구현 이연.
+> v11: v10 재검증 결함 4건 정정(failure/exception 이중투영, 횡단여정 비표현, criteria/post/inv 경계, facet 용어).
 > v10: vision→brief 흐름 시뮬레이션 4 시나리오 닫힘 확인 + 작성 경계 규칙. 모델 골격 변경 없음 — 전부 작성 가이드/확장 후보.
 >
 > v9: brief = **기능 단위 명세**(기획 아님), 필드 10→6req+3opt, 케이스 5종 계층 분담. v8: principle verify.class + 흐름(기존 SoT 순회).
@@ -71,7 +72,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | **vision** [신규] | 프로젝트 WHY/방향/최상위 성공. 프로젝트당 1장, root. 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**(목적 가이드 아래). | enforcement·applies_to 없음. 구조 검증은 받음 — 아래 |
 | **domain** [현존] | bounded context 경계 (IN/OUT). root only, 재귀 없음. | 분류는 `tags`(현행). area/group/facet 도입 안 함 — 아래 |
 | **brief** [현존] | **기능 단위 명세**(구현 독립·검증가능): 문제·범위·시나리오·정책·합격·근거. *기획서가 아니라 명세서* — 아래. | 필드 축소(design→approach, compatibility 제거) — 아래 |
-| **spec** [현존] | **per-symbol** 행동 계약(pre/post/invariant/failures). 코드 결합. (brief=기능단위 명세, spec=심볼단위 명세) | |
+| **spec** [현존] | **per-symbol** 행동 계약(pre/post/invariant/failures). 코드 결합(@spec). (brief=기능단위 명세, spec=심볼단위 명세) | failures에 id+derives 추가, cross-process 제거 — 아래 |
 | **principle** [현존] | 횡단 규범 (검증가능 MUST/SHALL 문장). | |
 
 > **glossary는 노드 타입이 아니다.** 용어는 `glossary.yaml` 오버레이 + 각 카드의 `glossary` 필드(주요 토픽 색인)로 표현하고 `ed glossary` 명령이 관리한다. (사용자 프로젝트에 `glossary.md` 카드가 `type:domain`으로 있을 수 있으나, 그건 모델 차원의 타입이 아니라 한 도메인 카드일 뿐.)
@@ -120,9 +121,11 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 |---|---|---|
 | happy | `brief.flow` kind:happy | 사용자: 정상 |
 | negative | `brief.flow` kind:failure | 사용자: 거부 |
-| edge/boundary | `spec.preconditions` | 계약: 경계값 |
-| exception | `spec.failures`{violation,behavior} | 계약: throw |
+| edge/boundary | `spec.preconditions`(경계 전제) + `spec.failures`(경계 위반 동작) | 계약: 경계값+위반 |
+| exception | `spec.failures`{id,violation,behavior,derives} (비경계 throw) | 계약: throw |
 | completion | `spec.postconditions`(MUST) + `brief.criteria`(합격선) | 계약+기획 **계층**(trace 연결, 복제 금지) |
+
+> edge·exception 둘 다 `spec.failures`를 쓰므로 구분: **edge=경계 전제(preconditions) 위반 시 동작, exception=비경계 throw/에러**. negative flow(brief `S-F`) ↔ `spec.failures`는 **`failures[].derives`로 trace**(추적 구멍 메움). **derives 타깃 타입 규칙**: `preconditions/postconditions/invariants.derives → goal(G-ID)`, `failures.derives → failure flow(S-F)`. (현 validator는 flat id-set이라 종류 미구분 → section-aware 검증은 §9 구현.)
 
 > 5W1H: Who/When/Where=`flow.given`+`spec.preconditions`, What=`flow.when/then`, Why=`context.problem`+`rationale`, How=개념 `approach`/계약 `spec.postconditions`. Where는 source `@spec`이 SoT(위치 필드 없음). `flow.kind`는 **happy|failure 2종 유지** — 5종 확장은 spec.preconditions/failures와 본문 중복(drift 제도화). edge/exception은 spec 소관(brief는 "구현 모르고 검증 가능"이라 계약 디테일 못 담음).
 
@@ -131,6 +134,23 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **criteria(brief) vs postcondition vs invariant(spec):** criteria=*관찰 가능한 합격 검증문*(외부 테스트). postcondition=*완료(호출 종료) 시점에 성립하는 상태*(per-call MUST). invariant=*호출 내내/교차 지속 성립*(`always_holds`). completion이 criteria+postcondition 둘 다 등장 시 같은 goal/flow **trace 연결**, 문장 복제 금지(복제=drift 신호).
 - **횡단 사용자 여정**(FE/BE 걸침, 예 "체크아웃 플로우"): 각 domain의 brief로 분해(각 brief는 자기 domain 조각만, 단일 parent). **brief↔brief 엣지 없음** — `invokes`는 domain↔domain 전용이라 brief 연결에 쓰지 말 것. **end-to-end 여정 합성은 카드 노드로 두지 않음(의도적 비표현)**: 실제 여정은 코드의 실제 호출이 `code_link`(@spec) 그래프로 만나는 지점에서 impact 분석으로 재현. 여정 *방향*은 vision, 경계 의존은 domain의 `cross_domain_dependencies`(invokes)가 담당. (emberdeck은 기능 단위 SSOT지 여정 시뮬레이터가 아님.)
 - **호환성 보존 요구의 행방**(compatibility 제거 후): 행동계약 호환=`spec`(postcondition/invariant), 정책 호환·deprecation·migration 결정=`principle`(횡단 규범, applies_to로 영향 범위), 깨질 수 있는 전제=`brief.scope.assumptions`/`limits`. brief에 compatibility 필드 부활 안 함.
+
+#### spec — per-symbol 행동계약 (역할·필드·재귀)
+
+> **spec = 부모 brief의 goal을 *하나의 코드 심볼 집합*(같은 `@spec` 결합 셋)의 행동계약으로 번역하는 노드.** 소스 `@spec` 어노테이션으로만 코드와 결합(유일). WHAT(행동 보장) 표현, HOW(구현) 금지. brief.flow 서사를 반복하지 않음(derives로 참조).
+
+| 필드 | 상태 | 비고 |
+|---|---|---|
+| preconditions[]{id, condition, derives→G} | req ≥1 | 호출 전제(positive) |
+| postconditions[]{id, guarantee, keyword:MUST\|SHALL, derives→G} | req ≥1 | 완료 시점 보장 |
+| invariants[]{id, statement, always_holds:**per-call\|cross-call**} | req ≥1 | 구간적 항상성(post로 환원 불가). **cross-process 제거**(0/56+미구현) |
+| failures[]{**id:FAIL-NNN, violation, behavior, derives→S-F**} | req ≥1 | 에러 완전목록(pre의 상위집합). **id+derives 신규** — negative flow 추적 |
+| state_transitions[]{from,trigger,to} | **opt 유지** | 현 0/56(single-process라 FSM 부재), stateful 도메인용 비용0 |
+
+- **4필드 required 근거**: spec 될 자격(cross-file invariant)인 심볼은 4관점이 의미. **단 total(순수) 함수는 `failures: [{violation: "없음", behavior: "입력 타입 외 실패 경로 없음"}]` 명시적 null-failure 기재**(허위 강제 방지 — "다 의미"가 아니라 "4관점 고려 강제").
+- **derives 타입 규칙**: pre/post/inv→`goal(G-ID)`, failures→`failure flow(S-F)`. (현 validator flat-set → section-aware 검증 §9.)
+- **재귀(parent=spec)**: **코드 symbol 포함관계**(orchestrator→step, public→helper) 표현 시만. 기획 분해 금지(brief와 중복). 현 0/56 사용. *validate가 포함관계vs기획분해를 판정 못 함 → 작성 가이드(약식 검사는 §9 구현 후보).*
+- **cross-process 재도입**: MSA/분산 게이트 충족 시 always_holds enum 비파괴 재확장(영구 배제 아님).
 
 ### 확장 (게이트 충족 시 도입 후보 — 전부 [신규], optional·비강제)
 
@@ -284,6 +304,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - vision = **enforcement 없는 graph-root 노드**(principle 흡수 폐기). 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**, 각 필드는 목적 가이드로 정의(§3). 구조 검증(필드 비어있지 않음·vision ≤1장·`scopes`로 domain 연결)을 받도록 *설계* — 구현은 미결(아래).
 - **domain = root only, 재귀 없음** (3자 6+라운드 confirm). `summary`/`overview`/`scope`(산문) 필수. **scope는 산문 유지** — IN/OUT 구조화 안 함(경계강제는 `@spec` 결합이 이미 SoT로 보유, 구조화=중복·drift 표면 확대). 분류는 `tags` 현행 유지.
 - **brief = 기능 단위 명세**(기획 아님 — §3). 필드 6 req + 3 opt(design→approach 축소, compatibility·design.components/data_flow 제거, invariants→spec). flow.kind happy|failure 2종 유지. 케이스 5종 계층 분담(happy/negative=brief.flow, edge/exception=spec, completion=criteria+postcondition trace). 케이스·기준은 한 카드 정의+참조(복제 금지).
+- **spec = per-symbol 행동계약**(§3 spec 블록). pre/post/inv/failures 4 req(total 함수는 null-failure 명시), state_transitions opt. **failures에 id+derives(→S-F) 추가**(negative flow 추적 구멍 메움). invariants cross-process 제거(per-call|cross-call). derives 타입 규칙(pre/post/inv→G, failures→S-F). 재귀=코드 포함관계만. flow 서사 반복 금지.
 - **area/group/facet 폐기** — 도메인 묶음/분류 의미가 scope·cross_domain_dependencies·principle.applies_to·tags에 완전 흡수(§3 거부표). 미정의 노드를 검증 시스템에 두는 것은 자기모순. 수요 실증 + tags 부족 시에만 typed facet 재론.
 - **cross_domain_dependencies** = `{domain, relationship, note?}`, depender 단일 저장. `relationship`을 **`invokes`|`consumes` enum 격상**(§4) — free-text는 코드정합성 결함.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
@@ -303,6 +324,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **`relationship` enum 격상 구현**(`cross_domain_dependencies.relationship`: free-text → `invokes`|`consumes` + `note?`; validator + 현행 6/7 카드 마이그레이션 매핑).
 - **write-free `ed validate` 경로** (마이그레이션 dry-run + lazy 도출 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
 - parent cycle 거부(현 seen-set silent-stop → 명시 거부), conflicts-with 정합성 검증, broken-derives 검증.
+- **section-aware derives 검증**(현 flat `collectBriefRefIds` → pre/post/inv는 goal-id set, failures는 flow-id set 분리 대조) + **check-impact가 failures.derives 신설 엣지 순회**(negative flow 변경→failures 영향 전파) + spec 재귀 "코드 포함관계" 약식 검사(gildash: child @spec 심볼 ⊆ parent callee/member) 후보.
 
 ---
 
