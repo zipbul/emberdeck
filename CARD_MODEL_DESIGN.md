@@ -1,9 +1,10 @@
-# Card Model Design (v14)
+# Card Model Design (v15)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
-> v14는 **glossary 오버레이 확정**(3자, general 코드기반): 노드 아닌 어휘 오버레이(derive/규율 없음·flat 횡단). yaml=정의 단일 SoT/카드 필드=참조만. 기준 ③ "설계결정 인코딩"→"load-bearing 용어" 약화(principle/domain 침범 차단). 과설계 제거: glossary-unused exit게이트→warning(백필 보호). 의미 drift는 matcher→validate informational(§9).
+> v15는 **glossary 운용 흐름 확정**(2자, Codex+general 코드기반+실측): ①정확사용=field↔yaml 정합+코드심볼 advisory suggest(**본문 출현 강제 lint는 NG-002+drift 260회 noise로 비실용** — 제 이전 "출현 lint 정공법" 정정), 의미정확=사람/LLM. ②추가=outline→4기준→define. ③**카드↔용어 관계=word-set 양방향 조회로 충분, traverse 엣지=과설계**(relation BFS 섞으면 false 의존경로); graphify는 derive. rename body=수동+affectedCardKeys(자동치환=trust 위반 reject).
+> v14는 **glossary 오버레이 확정**: 노드 아닌 어휘 오버레이. yaml=정의 단일 SoT/카드 필드=참조만. 기준 ③ "load-bearing 용어" 약화. unused→warning 분리.
 > v13는 **전체 통합 재검증**(3자) 결과: 모델 본질 결함 0(5노드 정체성 정합·누적결정 충돌 없음·추적사슬 설계상 닫힘). 정정 — 문서 §6.5 흐름이 *미구현 impact 순회*를 "확정 현행"처럼 서술한 톤 결함을 "설계 확정 / impact 구현 미결"로 분리, §2 다이어그램 폐기된 `calls` 잔재 제거.
 > v12는 **spec 노드 확정**(3자): per-symbol 행동계약. pre/post/inv/failures 4 req(total 함수 null-failure 명시), state_transitions opt. **failures에 id+derives(→S-F) 추가** = brief negative flow↔spec.failures 추적 구멍 메움(케이스 분담 trace 완성). invariants cross-process 제거. derives 타입 규칙(pre/post/inv→goal, failures→flow). 재귀=코드 포함관계만. brief 케이스표 edge=pre+failures로 정정. section-aware derives 검증 등 §9 구현 이연.
 > v11: v10 재검증 결함 4건 정정(failure/exception 이중투영, 횡단여정 비표현, criteria/post/inv 경계, facet 용어).
@@ -83,8 +84,14 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 - **owner/SoT (한-owner 정합):** `glossary.yaml`{word→definition} = **정의 단일 SoT**. 카드 `glossary: string[]` = **참조(word only)만** — 정의를 복제하지 않으므로 drift 없음. `ed glossary`가 관리.
 - **추가 기준 4 (③ 약화):** ①프로젝트 고유 의미 ②cross-cutting(≥2 카드 — 1 카드면 그 본문에서 정의, 오버레이 불요) ③**설계상 load-bearing 용어**(~~설계 결정 인코딩~~ — "그래서 어때야 한다"는 규범은 principle, glossary는 "이 단어가 가리키는 것"까지만; 정의에 enforcement 서술 금지 = domain/principle 침범 차단) ④단일 코드심볼 X(단일 심볼이면 그 JSDoc이 SoT).
-- **검증:** `glossary-broken`(참조 단어가 yaml에 부재=dangling) = **error**(exit 게이트 유지). `glossary-unused`(yaml 정의됐으나 참조 0) = **warning 강등**(깨진 게 아니라 "정의 먼저, 참조 나중" 백필 정상 상태 — exit 차단은 워크플로 막음). 본문↔glossary 의미 drift = matcher를 validate에 연결해 **informational만**(자연어 의미충돌은 정적 검출 불가 → error 금지)(§9).
+- **검증:** `glossary-broken`(참조 단어가 yaml에 부재=dangling) = **error**(exit 게이트). `glossary-unused`(yaml 정의됐으나 참조 0) — *현행 코드는 둘 다 exit2 게이트*, 설계상 **unused→warning 분리 권장**(백필 "정의 먼저, 참조 나중" 보호)(§9). **본문 free-text 스캔은 비-목표(NG-002)** — 의미 정확은 코드가 검증 안 함(definition 산문 미파싱), 사람/LLM 영역.
 - (사용자 프로젝트에 `glossary.md` 카드가 `type:domain`으로 있을 수 있으나, 그건 모델 차원 타입이 아니라 한 도메인 카드.)
+
+**운용 흐름 (정확 사용 / 추가 / 관계):**
+- **정확 사용** = `field↔yaml 정합`(검증가능, 오타·dead-ref 차단) + **코드심볼 한정 advisory suggest**(현 `buildGlossaryMatcher`, suggestCardScope). **본문 출현 강제 lint는 안 함**(NG-002 + `drift` 본문 260회 등 noise 폭탄으로 비실용). 구조적 최대치=*어휘 정합+인지*, *의미 정확*은 사람/LLM(작성 시 definition in-band 노출로 확률↑).
+- **새 용어 추가** = outline 확정 → 4기준 게이트 → `ed glossary define` → 영향 카드 field 갱신. (cross-cutting 기준이 카드 존재를 전제 → "용어 먼저" 불가, *outline 먼저·용어/카드 동시*.)
+- **카드↔용어 관계** = **word-set 양방향 조회로 충분**(카드→word=`glossaryJson`, word→카드=`findCardsByGlossaryWord`). **별도 traverse 엣지 추가 = 과설계** — 카드↔카드 relation BFS에 용어 노드 섞으면 "카드A→용어X→X쓰는 카드B"가 *false 의존경로*(어휘 인접≠derive 의존). graphify "용어↔카드" 뷰는 엣지 없이 derive, impact는 1-hop flat 조회(용어는 용어로 전파 안 됨).
+- **rename body 갭** = frontmatter `glossary` 필드는 자동 갱신, **본문 산문은 수동**(POST-001 명문 — 자동치환은 opaque mutation=trust-breaking이라 reject). `affectedCardKeys`로 "본문 검토 권장" surface. (본문 stale은 NG-002라 silent — 설계상 수용.)
 
 > **왜 vision을 코어 노드로?** v2는 vision을 advisory principle로 흡수했으나 두 결함이 있었다: (a) `principle.statement`는 규범문(MUST/SHALL) 필수인데 vision은 *방향성* → 타입 의미 오염; (b) advisory principle은 `applies_to:'*'`를 요구해 §5의 "`*` 금지"와 자기모순. vision은 규범(enforcement 대상)이 아니므로 principle에 넣을 수 없다. 그렇다고 카드 밖 config로 빼면 원칙 1을 위배. → **enforcement 없는 root 노드**가 정공법. `applies_to`/`enforcement` **없음**(principle과 구별되는 지점).
 >
@@ -323,7 +330,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **흐름 *설계* 확정**(§6.5): 모든 엣지가 기존 단일 SoT 순회(새 저장/스키마 0). 엣지 parent(card.parent)/binding(code_link)/depends-on(namespace 직접)/scope·governance(lazy). calls 제거, conflicts-with 검증전용, derives 메타. `card_relation.type` 불요. **단 impact BFS *구현*은 미결** — 현행은 `card_relation`(relations 필드)만 순회, parent·cross_domain 미순회 → 설계대로 재구현 필요(아래).
 - code-binding/drift 현행 보존(코어 spec). 확장 노드 결합은 노드 도입 시.
 - 비파괴 점진 마이그레이션. design/story/actor/epic/area/calls 거부.
-- **glossary = 어휘 오버레이**(노드 아님 — §3). yaml=정의 단일 SoT, 카드 필드=참조만(drift 없음). 기준 4(③ "load-bearing 용어"로 약화). glossary-broken=error/glossary-unused=warning 강등, 의미 drift=informational.
+- **glossary = 어휘 오버레이**(노드 아님 — §3). yaml=정의 단일 SoT, 카드 필드=참조만(drift 없음). 기준 4(③ "load-bearing 용어"로 약화). 운용: 정확사용=field↔yaml 정합+코드심볼 suggest(본문 강제 안 함, NG-002), 추가=outline→4기준→define, **관계=word-set 양방향 조회로 충분(traverse 엣지=과설계, false 의존)**, rename body=수동+affectedCardKeys surface. glossary-broken=error/unused→warning 분리(§9).
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
@@ -337,7 +344,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **write-free `ed validate` 경로** (마이그레이션 dry-run + lazy 도출 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
 - parent cycle 거부(현 seen-set silent-stop → 명시 거부), conflicts-with 정합성 검증, broken-derives 검증.
 - **section-aware derives 검증**(현 flat `collectBriefRefIds` → pre/post/inv는 goal-id set, failures는 flow-id set 분리 대조) + **check-impact가 failures.derives 신설 엣지 순회**(negative flow 변경→failures 영향 전파) + spec 재귀 "코드 포함관계" 약식 검사(gildash: child @spec 심볼 ⊆ parent callee/member) 후보.
-- **glossary 검증 정정**: `glossary-unused`를 exit 게이트(현 byCode 합산→exit2)에서 **warning으로 분리**(백필 워크플로 보호); `glossary-broken`은 error 유지. **본문↔glossary 의미 drift surface**: 기존 occurrence matcher(현 suggestCardScope 전용)를 validate에 연결해 "본문 등장하나 glossary 필드 미선언 / 선언했으나 본문 미등장"을 informational로(자연어 충돌은 error 금지).
+- **glossary 검증 정정**: `glossary-unused`를 exit 게이트(현 byCode 합산→exit2)에서 **warning으로 분리**(백필 워크플로 보호); `glossary-broken`은 error 유지. **본문 free-text 스캔 lint는 도입 안 함**(NG-002 비-목표 + `drift` 260회류 noise로 비실용) — matcher는 현행대로 코드심볼 한정 advisory suggest. rename 후 본문 stale 용어는 `affectedCardKeys` surface로 가시화(자동치환 금지=trust).
 
 ---
 
