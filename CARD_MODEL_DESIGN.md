@@ -1,8 +1,9 @@
-# Card Model Design (v12)
+# Card Model Design (v13)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
+> v13는 **전체 통합 재검증**(3자) 결과: 모델 본질 결함 0(5노드 정체성 정합·누적결정 충돌 없음·추적사슬 설계상 닫힘). 정정 — 문서 §6.5 흐름이 *미구현 impact 순회*를 "확정 현행"처럼 서술한 톤 결함을 "설계 확정 / impact 구현 미결"로 분리, §2 다이어그램 폐기된 `calls` 잔재 제거.
 > v12는 **spec 노드 확정**(3자): per-symbol 행동계약. pre/post/inv/failures 4 req(total 함수 null-failure 명시), state_transitions opt. **failures에 id+derives(→S-F) 추가** = brief negative flow↔spec.failures 추적 구멍 메움(케이스 분담 trace 완성). invariants cross-process 제거. derives 타입 규칙(pre/post/inv→goal, failures→flow). 재귀=코드 포함관계만. brief 케이스표 edge=pre+failures로 정정. section-aware derives 검증 등 §9 구현 이연.
 > v11: v10 재검증 결함 4건 정정(failure/exception 이중투영, 횡단여정 비표현, criteria/post/inv 경계, facet 용어).
 > v10: vision→brief 흐름 시뮬레이션 4 시나리오 닫힘 확인 + 작성 경계 규칙. 모델 골격 변경 없음 — 전부 작성 가이드/확장 후보.
@@ -46,7 +47,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
         BRIEF   [현존]                            ← 기능 기획 (WHAT/WHY)
           │ 1:n
           ▼
-        SPEC    [현존]  ◄── calls / conflicts-with (n:n) ──► SPEC   [신규: relations 확장]
+        SPEC    [현존]  ◄── conflicts-with (n:n, 검증전용) ──► SPEC   [신규] (calls 제거 — code_link 흡수)
           │ derives (item→brief#item, n:1)  [현존]
           │ emits / consumes (n:n) ──► EVENT-CONTRACT        [신규·미결노드]
           │ code_link (derived, @spec, 카드 저장 X) ──► CODE SYMBOL  [현존]
@@ -237,7 +238,9 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 ## 6.5 흐름 — 작성·변경 순회 (모델 레이어)
 
-노드를 잇는 end-to-end 흐름. **핵심: 새 저장/스키마 0 — 모든 엣지가 *기존 단일 SoT*를 순회**(캐시 없음 = drift 표면 0).
+> **표기 주의 — 설계 확정 / 구현 미결 구분:** 아래 흐름은 *목표 설계*다(새 저장/스키마 0, 모든 엣지가 기존 단일 SoT 순회). **현행 `impact`는 `card_relation`(=`relations` 필드)만 순회하고 parent·cross_domain_dependencies는 안 탄다** — 즉 "전부 기존 SoT 순회"는 §9 impact BFS 재구현으로 달성할 타깃이지 현행 동작이 아니다. 아래 표의 "순회하는 SoT"는 *어느 SoT를 순회해야 하는가*(설계)를 뜻한다.
+
+노드를 잇는 end-to-end 흐름. **설계 핵심: 새 저장/스키마 0 — 모든 엣지가 *기존 단일 SoT*를 순회**(캐시 없음 = drift 표면 0).
 
 ```
 작성 (위→아래, 하위가 상위 참조, 한 계층씩 — 점프 구조 강제):
@@ -309,7 +312,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **cross_domain_dependencies** = `{domain, relationship, note?}`, depender 단일 저장. `relationship`을 **`invokes`|`consumes` enum 격상**(§4) — free-text는 코드정합성 결함.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
 - **principle = 횡단 규범 단일 owner** (§5). statement=의도(산문) + **`verify.class`(structural 폐쇄술어9종/binding/metric/prose)로 검증방식 선언** → "무엇이 위반인가"를 verify.class가 정의(principle-violation 알고리즘 닫힘). 강제=class×enforcement. governs owner=applies_to 단일, governed_by=lazy 도출. 무결성(prose/metric+blocking 금지, 폐쇄술어, 스키마중복 금지).
-- **흐름 = 전부 기존 SoT 순회, 새 저장/스키마 0** (§6.5). 엣지: parent(card.parent)/binding(code_link)/depends-on(namespace 직접)/scope·governance(lazy). calls 제거(code_link 흡수), conflicts-with 검증전용, derives 메타. `card_relation.type` 불요.
+- **흐름 *설계* 확정**(§6.5): 모든 엣지가 기존 단일 SoT 순회(새 저장/스키마 0). 엣지 parent(card.parent)/binding(code_link)/depends-on(namespace 직접)/scope·governance(lazy). calls 제거, conflicts-with 검증전용, derives 메타. `card_relation.type` 불요. **단 impact BFS *구현*은 미결** — 현행은 `card_relation`(relations 필드)만 순회, parent·cross_domain 미순회 → 설계대로 재구현 필요(아래).
 - code-binding/drift 현행 보존(코어 spec). 확장 노드 결합은 노드 도입 시.
 - 비파괴 점진 마이그레이션. design/story/actor/epic/area/calls 거부. glossary는 오버레이(노드 아님).
 
