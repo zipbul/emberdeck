@@ -1,8 +1,9 @@
-# Card Model Design (v15)
+# Card Model Design (v16)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
+> v16는 그동안 채팅에만 있던 것을 문서에 반영: **§10 구현 로드맵 신설**(Phase 1~4 + 3단 불변식 + 코드결합 4곳 + 리스크), **§9에 연결성 갭 추가**(`context`/`relations`가 trace 엣지 surface — 소스 없이 연결 이해의 핵심), **§9 머리에 "현 실재 = v15 미반영(구현 0)" 갭 명시**. 사용성 평가(실카드 체험) 결과 반영.
 > v15는 **glossary 운용 흐름 확정**(2자, Codex+general 코드기반+실측): ①정확사용=field↔yaml 정합+코드심볼 advisory suggest(**본문 출현 강제 lint는 NG-002+drift 260회 noise로 비실용** — 제 이전 "출현 lint 정공법" 정정), 의미정확=사람/LLM. ②추가=outline→4기준→define. ③**카드↔용어 관계=word-set 양방향 조회로 충분, traverse 엣지=과설계**(relation BFS 섞으면 false 의존경로); graphify는 derive. rename body=수동+affectedCardKeys(자동치환=trust 위반 reject).
 > v14는 **glossary 오버레이 확정**: 노드 아닌 어휘 오버레이. yaml=정의 단일 SoT/카드 필드=참조만. 기준 ③ "load-bearing 용어" 약화. unused→warning 분리.
 > v13는 **전체 통합 재검증**(3자) 결과: 모델 본질 결함 0(5노드 정체성 정합·누적결정 충돌 없음·추적사슬 설계상 닫힘). 정정 — 문서 §6.5 흐름이 *미구현 impact 순회*를 "확정 현행"처럼 서술한 톤 결함을 "설계 확정 / impact 구현 미결"로 분리, §2 다이어그램 폐기된 `calls` 잔재 제거.
@@ -333,6 +334,9 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **glossary = 어휘 오버레이**(노드 아님 — §3). yaml=정의 단일 SoT, 카드 필드=참조만(drift 없음). 기준 4(③ "load-bearing 용어"로 약화). 운용: 정확사용=field↔yaml 정합+코드심볼 suggest(본문 강제 안 함, NG-002), 추가=outline→4기준→define, **관계=word-set 양방향 조회로 충분(traverse 엣지=과설계, false 의존)**, rename body=수동+affectedCardKeys surface. glossary-broken=error/unused→warning 분리(§9).
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
+
+> **현 실재 상태 = v15 미반영(구현 0).** 실카드/코드는 이 설계 이전 상태다: vision 0장, brief 구 스키마(`design`/`compatibility` 잔존), spec `failures`에 id/derives 0, principle `verify.class` 0 + `applies_to:['*']`, `relationship` free-text. **아래 미결 = 이 갭을 닫는 작업이고, §10 로드맵이 그 순서다.**
+
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
 - **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
 - **가상(derived) 엣지 materialization 계약**: `scopes`·`governed_by` 를 *누가/어떤 API·인덱스로* 도출해 그래프 traverse를 보장하는가 (저장 안 하므로 도출 주체·포맷·validate 증명 방식 정의 필요).
@@ -345,6 +349,36 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - parent cycle 거부(현 seen-set silent-stop → 명시 거부), conflicts-with 정합성 검증, broken-derives 검증.
 - **section-aware derives 검증**(현 flat `collectBriefRefIds` → pre/post/inv는 goal-id set, failures는 flow-id set 분리 대조) + **check-impact가 failures.derives 신설 엣지 순회**(negative flow 변경→failures 영향 전파) + spec 재귀 "코드 포함관계" 약식 검사(gildash: child @spec 심볼 ⊆ parent callee/member) 후보.
 - **glossary 검증 정정**: `glossary-unused`를 exit 게이트(현 byCode 합산→exit2)에서 **warning으로 분리**(백필 워크플로 보호); `glossary-broken`은 error 유지. **본문 free-text 스캔 lint는 도입 안 함**(NG-002 비-목표 + `drift` 260회류 noise로 비실용) — matcher는 현행대로 코드심볼 한정 advisory suggest. rename 후 본문 stale 용어는 `affectedCardKeys` surface로 가시화(자동치환 금지=trust).
+- **[연결성·핵심] `ed card context`/`relations`가 trace 엣지를 surface**: 현재 두 명령은 `parent`와 무타입 `relations` 필드만 보여주고, `derives`·`cross_domain_dependencies`·`scopes`·`governed_by`는 **카드 body 문자열로만** 존재해 읽는 에이전트가 연결을 못 따라간다(`create-card` context = upstream/downstream 빈 배열). → body의 trace를 **navigable edge로 surface**(impact BFS 재구현과 같은 그래프 기반). **이게 "소스 없이 카드만으로 연결 이해"라는 emberdeck 목적의 핵심 갭** — impact(영향분석)와 별개로 *읽기/탐색* 경로.
+
+---
+
+## 10. 구현 로드맵 (§9 갭을 닫는 순서)
+
+**불변식**: 데이터 변경 step = `스키마(optional) → 데이터 → strict 승격` 3단, **각 step 종료 시 `ed validate` exit0**(HC-4). 데이터 마이그레이션은 원자 커밋 + 변환 전 git 태그(롤백=revert만). 모든 코드결합 위치는 구현 시 typecheck가 전수 강제(아래 나열은 알려진 것; 키 제거 시 컴파일러가 잔여 참조를 잡음).
+
+**Phase 1 — 기반 (validate 안전화 + 저위험)**
+1. `write-free validate` — **DB read-only open**(sync-skip 아님, stale 회피). **`runner.ts:66` + `validate.ts:100` 두 sync 사이트 모두**. 후속 마이그레이션 dry-run·게이트의 전제.
+2. `glossary-unused` → warning 분리(byCode 합산 제외; `glossary-broken`은 error 유지). 비파괴.
+3. `spec.failures{id, derives?}` optional 추가 → 56 spec 백필 → required 승격.
+4. parent cycle 거부(`sync-in.ts:137` topo-drop + `query.ts:37` seen-set 둘 다 surface) + broken-derives.
+
+**Phase 2 — 추적 정합 (lossy 원자 묶음)**
+1. **brief 필드 정정**(`design→approach` + `compatibility` 제거 한 묶음): 선행 `#DI-` derives 측정(=0 확정). 코드결합 **4곳 동시**(`serialize.ts normalizeBrief` + `searchable-text.ts:54-63`(design+compatibility) + `validate-refs.ts collectBriefRefIds` + `update.ts:60 assertCompleteNamespace`). ① 4곳 optional-guard + approach 추가(dual-read) → ② 14카드 원자 변환(design.invariants 35개→spec.invariants, **각 항목 `always_holds` 부여 + `DI-`→spec id 재명명**; compatibility 제거; spec derives 재작성 0) + section-aware derives 동시 → ③ design+compatibility 키 제거(4곳) + strict.
+2. `relationship` enum: `*`warning validator → 9카드 매핑 → error.
+3. conflicts-with 검증.
+
+**Phase 3 — 흐름 엔진**
+1. vision 타입 등록 + 구조검증 + `scopes` lazy 도출 함수(materialization 계약).
+2. `applies_to` 실키화: `'*'` deprecated-warning validator → 4장 실키화 → `'*'` error + 타입에서 `'*'` 제거.
+3. **`context`/`relations` trace surface**(§9 연결성) + impact BFS 재구현(parent+cross_domain+scope+governance, golden snapshot + gildash 보존, 순회≠강제 명문화).
+
+**Phase 4 — 강제·확장 (게이트 충족 시만)**
+1. `@principle` 코드 어노테이션 심기(현 0개 — binding principle 전제).
+2. verify.class 엔진(structural 폐쇄9종/binding/metric/prose + 무결성).
+3. model/service/domain.layer — **MSA/모노레포 게이트 실증 시만**(설계 §9 "도입 후보").
+
+**리스크 ranked**: ①brief lossy 변환(14카드+35DI 원자) ②update.ts:60 등 코드결합 누락(typecheck가 잡음) ③write-free 2-사이트 ④impact BFS 회귀(golden) ⑤relationship/applies_to enum 매핑.
 
 ---
 
