@@ -33,4 +33,5 @@ spec:
   failures:
     - violation: Slug contains disallowed characters or path-traversal segments.
       behavior: normalizeSlug throws CardKeyError; no path constructed.
+      id: FAIL-001
 ---

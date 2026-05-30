@@ -44,6 +44,8 @@ spec:
       behavior: >-
         parseCardMarkdown throws a parse error identifying the offending
         position; no CardFile is returned.
+      id: FAIL-001
+      case_of: card-model/round-trip#S-F-01
     - violation: >-
         Frontmatter is well-formed YAML but the structured frontmatter object
         fails serialize-side validation (e.g. missing required namespace,
@@ -51,6 +53,7 @@ spec:
       behavior: >-
         serializeCardMarkdown throws CardValidationError identifying the
         offending field; no markdown is produced.
+      id: FAIL-002
     - violation: >-
         Frontmatter is well-formed YAML but contains one or more top-level keys
         outside the closed CardFrontmatter set (e.g. legacy codeLinks or
@@ -61,4 +64,5 @@ spec:
         dropped — this is the enforcement boundary that upholds
         source-as-binding-sot (codeLinks/boundary must never live in
         frontmatter).
+      id: FAIL-003
 ---

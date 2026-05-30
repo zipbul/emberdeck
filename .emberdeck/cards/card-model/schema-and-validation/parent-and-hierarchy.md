@@ -44,20 +44,29 @@ spec:
   failures:
     - violation: Proposed parent does not exist in storage.
       behavior: validateParentExists throws ParentValidationError.
+      id: FAIL-001
+      case_of: card-model/schema-and-validation#S-F-02
     - violation: Proposed parent type violates the four-tier rule.
       behavior: validateParentType throws ParentValidationError.
+      id: FAIL-002
+      case_of: card-model/schema-and-validation#S-F-02
     - violation: relations entry references a non-existent card.
       behavior: >-
         validateRelationTargets throws CardValidationError naming the missing
         target.
+      id: FAIL-003
     - violation: Parent reassignment creates a cycle whose loop length is ≤ 20 hops.
       behavior: >-
         validateParentCycle throws ParentValidationError. Cycles with loop
         length > 20 escape this guard.
+      id: FAIL-004
+      case_of: card-model/schema-and-validation#S-F-02
     - violation: >-
         A type change would mis-tier an existing direct child (the child's
         parent-type rule would break).
       behavior: >-
         validateChildrenHierarchy throws ParentValidationError; the type change
         is not applied.
+      id: FAIL-005
+      case_of: card-model/schema-and-validation#S-F-02
 ---

@@ -61,6 +61,7 @@ spec:
         persistence occurs. Key SLUG-FORMAT violations (path traversal,
         double-slash) surface separately at the card-key layer via normalizeSlug
         → CardKeyError.
+      id: FAIL-001
     - violation: >-
         A brief.policy.governs id does not match any brief.flow id on the same
         card (cross-ref) — only checked when status='active' or transitioning to
@@ -68,6 +69,7 @@ spec:
       behavior: >-
         validateBriefRefs (separate validator) throws CardValidationError
         identifying the unresolved id.
+      id: FAIL-002
     - violation: >-
         A spec.preconditions.derives reference does not follow the
         `brief-key#item-id` format — only checked when status='active' or
@@ -75,6 +77,7 @@ spec:
       behavior: >-
         validateSpecRefs (separate validator) throws CardValidationError
         identifying the malformed reference.
+      id: FAIL-003
     - violation: >-
         The validation input carries a top-level frontmatter key outside the
         closed CardFrontmatter set (key, summary, status, type, parent,
@@ -85,4 +88,6 @@ spec:
         no card is persisted. validateCardInput is the shared enforcement point
         for all mutation entry paths (create, update, bulk sync), so
         closed-schema rejection holds uniformly across them.
+      id: FAIL-004
+      case_of: card-model/schema-and-validation#S-F-03
 ---
