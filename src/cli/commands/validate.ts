@@ -4,6 +4,7 @@
 
 import { Command } from 'commander';
 import { run } from '../runner';
+import { EXIT, type ExitCode } from '../exit-codes';
 import type { CliRuntime } from '../context';
 import { validateCards, ensureCardsSynced, detectKeyMismatches } from '../../ops/sync';
 import { validateCodeLinks, type BrokenLink } from '../../ops/link';
@@ -65,6 +66,23 @@ interface ValidateLinksShape {
     ioFailed: number;
   };
   items: LinksItem[];
+}
+
+/** Codes reported in output but excluded from the exit gate (warning-level). §10 Phase 1.2 */
+const CARDS_WARNING_CODES = new Set(['glossary-unused']);
+
+/**
+ * Exit code for `ed validate cards`: 2 if any *gating* (non-warning) issue exists, else 0.
+ * `glossary-unused` is warning-level — still counted in byCode/output but non-gating
+ * (protects the "define glossary term first, reference later" backfill workflow);
+ * `glossary-broken` stays an error.
+ * @spec cli-surface/command-routing-and-output/commands/validate
+ */
+export function cardsExitCode(byCode: Record<string, number>): ExitCode {
+  const gating = Object.entries(byCode)
+    .filter(([code]) => !CARDS_WARNING_CODES.has(code))
+    .reduce((sum, [, n]) => sum + n, 0);
+  return gating > 0 ? EXIT.VALIDATION_FAILURE : EXIT.OK;
 }
 
 async function buildCardsShape(rt: CliRuntime): Promise<ValidateCardsShape> {
@@ -235,7 +253,7 @@ export async function validateAggregateAction(_opts: unknown, cmd: Command): Pro
 export async function validateCardsAction(_opts: unknown, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const data = await buildCardsShape(rt);
-    return { data, exitCode: data.summary.total > 0 ? 2 : 0 };
+    return { data, exitCode: cardsExitCode(data.summary.byCode) };
   }, cmd);
 }
 
