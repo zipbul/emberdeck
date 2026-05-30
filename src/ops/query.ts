@@ -1,5 +1,6 @@
 import type { EmberdeckContext } from '../config';
-import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/types';
+import type { CardFile, CardFrontmatter, CardStatus, CardType, PrincipleBody } from '../card/types';
+import { matchesAnyGlob } from '../util/glob';
 import type { CardRow, CardListFilter, ChangelogRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
@@ -83,6 +84,8 @@ export interface CardContext {
   parentChain: CardRow[];
   /** [§10 P3.3] navigable forward trace edges (parent/derives/case-of/invokes/cross_domain). */
   traceEdges: TraceEdge[];
+  /** [§5] principles governing this card (derived governed_by). */
+  governedBy: GoverningPrinciple[];
   /** Cards at depth 2+ discovered by BFS. Only present when depth > 1. */
   related?: RelatedCard[];
   /** True when BFS traversal was cut short by the depth limit. */
@@ -131,10 +134,11 @@ export async function getCardContext(
   }
 
   const traceEdges = deriveTraceEdges(ctx, card.frontmatter);
+  const governedBy = listGoverningPrinciples(ctx, key);
 
   const depth = options?.depth ?? 1;
   if (depth <= 1) {
-    return { card, codeLinks, upstreamCards, downstreamCards, parentChain, traceEdges };
+    return { card, codeLinks, upstreamCards, downstreamCards, parentChain, traceEdges, governedBy };
   }
 
   // BFS traversal for depth > 1
@@ -160,7 +164,7 @@ export async function getCardContext(
     }
   }
 
-  return { card, codeLinks, upstreamCards, downstreamCards, parentChain, traceEdges, related, truncated };
+  return { card, codeLinks, upstreamCards, downstreamCards, parentChain, traceEdges, governedBy, related, truncated };
 }
 
 /**
@@ -423,6 +427,41 @@ export function cardRowTraceEdges(ctx: EmberdeckContext, row: CardRow): TraceEdg
     ...ns,
   } as CardFrontmatter;
   return deriveTraceEdges(ctx, fm);
+}
+
+/** [§5] A principle governing a card (derived governed_by edge). */
+export interface GoverningPrinciple {
+  key: string;
+  summary: string;
+  enforcement: 'blocking' | 'warning' | 'advisory';
+  verifyClass?: 'structural' | 'binding' | 'metric' | 'prose';
+}
+
+/**
+ * Derive the principles governing a card (the lazy `governed_by` edge, §5).
+ * owner = each principle's `applies_to` (single SoT); the reverse is computed
+ * here via card-key glob match — no stored reverse. `applies_to` globs match
+ * CARD KEYS (governance is over the card graph; source-annotation evidence is
+ * the separate `binding` verify.class's concern). '*' governs every card.
+ * @spec card-storage/queries/tree-context
+ */
+export function listGoverningPrinciples(ctx: EmberdeckContext, fullKey: string): GoverningPrinciple[] {
+  const cardKey = parseFullKey(fullKey);
+  const out: GoverningPrinciple[] = [];
+  for (const row of ctx.cardRepo.list({ type: 'principle' })) {
+    const principle = parseNamespaces(row.namespacesJson).principle as PrincipleBody | undefined;
+    if (!principle) continue;
+    const a = principle.applies_to;
+    const matches = a === '*' || (Array.isArray(a) && (a.includes('*') || matchesAnyGlob(cardKey, a)));
+    if (!matches) continue;
+    out.push({
+      key: row.key,
+      summary: row.summary,
+      enforcement: principle.enforcement,
+      ...(principle.verify ? { verifyClass: principle.verify.class } : {}),
+    });
+  }
+  return out;
 }
 
 export function listCardRelations(ctx: EmberdeckContext, fullKey: string): CardRelations {

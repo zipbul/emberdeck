@@ -12,8 +12,8 @@ import {
   getRelationGraph,
 } from '../../index';
 import { CardKeyError, CardNotFoundError } from '../../index';
-import { getCardContext, listCardTraceEdges } from '../../src/ops/query';
-import { createMockTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
+import { getCardContext, listCardTraceEdges, listGoverningPrinciples } from '../../src/ops/query';
+import { createMockTestContext, ensure4tierScaffold, makeTestBrief, makeTestPrinciple, type TestContext } from '../helpers';
 
 describe('getCard', () => {
   let tc: TestContext;
@@ -542,5 +542,30 @@ describe('listCardTraceEdges (§10 P3.3a — navigable typed trace edges)', () =
     });
     const edges = await listCardTraceEdges(tc.ctx, 's3');
     expect(edges.find((e) => e.type === 'invokes' && e.to === 'ghost-spec')?.target).toBeNull();
+  });
+});
+
+describe('listGoverningPrinciples (§5 — governed_by derived via applies_to card-key globs)', () => {
+  let tc: TestContext;
+  afterEach(async () => { await tc?.cleanup(); });
+
+  it('matches a card under a card-key glob, not under an unrelated glob', async () => {
+    tc = await createMockTestContext();
+    await createCard(tc.ctx, { key: 'gov-store', summary: 'p', type: 'principle', principle: { ...makeTestPrinciple(), applies_to: ['card-storage/**'], enforcement: 'warning' } });
+    await createCard(tc.ctx, { key: 'gov-other', summary: 'p', type: 'principle', principle: { ...makeTestPrinciple(), applies_to: ['analysis/**'], enforcement: 'warning' } });
+    await ensure4tierScaffold(tc.ctx); // _dom
+    await createCard(tc.ctx, { key: 'card-storage/persistence', summary: 's', type: 'spec' });
+
+    const govs = listGoverningPrinciples(tc.ctx, 'card-storage/persistence');
+    expect(govs.some((g) => g.key === 'gov-store')).toBe(true);
+    expect(govs.some((g) => g.key === 'gov-other')).toBe(false);
+  });
+
+  it('a "*" principle governs every card', async () => {
+    tc = await createMockTestContext();
+    await createCard(tc.ctx, { key: 'gov-all', summary: 'p', type: 'principle', principle: makeTestPrinciple() }); // applies_to '*'
+    await createCard(tc.ctx, { key: 'any-spec', summary: 's', type: 'spec' });
+    const govs = listGoverningPrinciples(tc.ctx, 'any-spec');
+    expect(govs.some((g) => g.key === 'gov-all')).toBe(true);
   });
 });

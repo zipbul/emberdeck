@@ -480,6 +480,7 @@ export async function cardContextAction(
     data.downstream = ctxResult.downstreamCards.map((c) => rowToSummary(c));
     data.parentChain = ctxResult.parentChain.map((c) => rowToSummary(c));
     data.traceEdges = ctxResult.traceEdges; // [§10 P3.3] navigable typed trace edges
+    data.governedBy = ctxResult.governedBy; // [§5] derived governed_by (principles governing this card)
     if (ctxResult.related) {
       data.related = ctxResult.related.map((r) => ({
         card: rowToSummary(r.card),
