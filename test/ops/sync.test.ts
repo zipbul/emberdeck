@@ -395,6 +395,16 @@ describe('validateCards', () => {
     expect(wildcards.some((w) => w.cardKey === 'p-keyed')).toBe(false);
   });
 
+  // §5: a classified principle ('*' + verify.class) is intentional-universal → no applies-to-wildcard warning.
+  it('should NOT warn applies-to-wildcard when the "*" principle declares verify.class', async () => {
+    tc = await createMockTestContext();
+    const classified = serializeCard({ key: 'p-classified', summary: 'pc', status: 'active', type: 'principle', principle: { ...makeTestPrinciple(), enforcement: 'warning', verify: { class: 'prose' } } });
+    await writeFile(join(tc.cardsDir, 'p-classified.md'), classified, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    expect(result.warnings.some((w) => w.type === 'applies-to-wildcard' && w.cardKey === 'p-classified')).toBe(false);
+  });
+
   // §10 Phase 2.2 — free-text cross_domain relationship surfaces a deprecation warning;
   // an enum value (invokes|consumes) does not.
   it('should surface relationship-free-text for a non-enum cross_domain relationship', async () => {

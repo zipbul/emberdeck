@@ -206,6 +206,9 @@ export async function validateCards(
     if (row.type !== 'principle') continue;
     const principle = parseNamespaces(row.namespacesJson).principle as PrincipleBody | undefined;
     if (!principle) continue;
+    // [§5] A classified principle (verify.class declared) treats '*' as a deliberate
+    // universal scope, not lazy authoring — don't nudge it to narrow.
+    if (principle.verify) continue;
     const a = principle.applies_to;
     if (a === '*' || (Array.isArray(a) && a.includes('*'))) {
       warnings.push({
