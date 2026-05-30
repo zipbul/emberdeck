@@ -39,9 +39,11 @@ domain:
     card-storage), code-link resolution (delegated to code-binding).
   cross_domain_dependencies:
     - domain: card-model
-      relationship: invokes type-specific validators before any write reaches storage.
+      relationship: invokes
+      note: invokes type-specific validators before any write reaches storage.
     - domain: card-storage
-      relationship: >-
+      relationship: consumes
+      note: >-
         persists mutations through repositories and triggers file-DB
         synchronization.
 ---

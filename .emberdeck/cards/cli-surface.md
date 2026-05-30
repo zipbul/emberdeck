@@ -37,15 +37,20 @@ domain:
     OUT: business logic of any command (delegated to ops domains).
   cross_domain_dependencies:
     - domain: card-lifecycle
-      relationship: invokes write operations from card subcommands.
+      relationship: invokes
+      note: invokes write operations from card subcommands.
     - domain: card-storage
-      relationship: invokes read operations from card subcommands.
+      relationship: invokes
+      note: invokes read operations from card subcommands.
     - domain: code-binding
-      relationship: invokes link, spec, and check subcommands.
+      relationship: invokes
+      note: invokes link, spec, and check subcommands.
     - domain: analysis
-      relationship: >-
+      relationship: invokes
+      note: >-
         invokes check drift, impact, regression, interactions, and analyze
         subcommands.
     - domain: glossary
-      relationship: invokes glossary subcommands.
+      relationship: invokes
+      note: invokes glossary subcommands.
 ---

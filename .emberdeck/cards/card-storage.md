@@ -39,7 +39,8 @@ domain:
     against gildash (delegated to code-binding), drift detection.
   cross_domain_dependencies:
     - domain: card-model
-      relationship: >-
+      relationship: invokes
+      note: >-
         serializes and parses cards through the markdown frontmatter contract
         owned by card-model.
 ---

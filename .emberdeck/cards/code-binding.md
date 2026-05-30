@@ -29,5 +29,6 @@ domain:
     source files (the source is authored manually).
   cross_domain_dependencies:
     - domain: card-storage
-      relationship: writes DB code_link rows that mirror the source annotation set.
+      relationship: consumes
+      note: writes DB code_link rows that mirror the source annotation set.
 ---

@@ -28,9 +28,12 @@ domain:
     code-binding), CLI presentation.
   cross_domain_dependencies:
     - domain: code-binding
-      relationship: consumes link-resolution outputs to classify drift.
+      relationship: consumes
+      note: consumes link-resolution outputs to classify drift.
     - domain: card-storage
-      relationship: reads card state through repositories to compute aggregates.
+      relationship: invokes
+      note: reads card state through repositories to compute aggregates.
     - domain: glossary
-      relationship: consumes glossary state to classify glossary_broken drift.
+      relationship: consumes
+      note: consumes glossary state to classify glossary_broken drift.
 ---

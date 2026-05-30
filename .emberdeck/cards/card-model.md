@@ -39,7 +39,8 @@ domain:
     gildash, drift detection, CLI surface.
   cross_domain_dependencies:
     - domain: glossary
-      relationship: >-
+      relationship: invokes
+      note: >-
         validates that glossary words declared on cards exist in the project
         glossary.
 ---
