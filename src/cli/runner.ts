@@ -63,17 +63,23 @@ export async function run(fn: CommandFn, cmd: Command): Promise<void> {
     verbose('runtime ready', { cardsDir: rt.ctx.cardsDir, projectRoot: rt.ctx.projectRoot });
 
     // Card files are SSOT; sync external edits before commands read DB.
-    const syncFailures = await ensureCardsSynced(rt.ctx);
-    if (!outCtx.quiet) {
-      for (const f of syncFailures) {
-        emitWarning({
-          code: 'card-sync-failed',
-          message: `${f.filePath}: ${f.error}`,
-          details: { filePath: f.filePath },
-        });
+    // §10 P1.1: read-only mode skips the entry sync (it writes the DB) so commands
+    // run write-free against the existing index — validates the indexed snapshot.
+    if (globalFlags.readonly) {
+      verbose('read-only: entry sync skipped', {});
+    } else {
+      const syncFailures = await ensureCardsSynced(rt.ctx);
+      if (!outCtx.quiet) {
+        for (const f of syncFailures) {
+          emitWarning({
+            code: 'card-sync-failed',
+            message: `${f.filePath}: ${f.error}`,
+            details: { filePath: f.filePath },
+          });
+        }
       }
+      verbose('cards synced', { failures: syncFailures.length });
     }
-    verbose('cards synced', { failures: syncFailures.length });
 
     const ret = await fn(rt);
     if (ret && ret.data !== undefined) {
@@ -121,5 +127,6 @@ function extractGlobalFlags(opts: Record<string, unknown>): GlobalFlags {
     projectRoot: opts.projectRoot as string | undefined,
     quiet: opts.quiet as boolean | undefined,
     verbose: opts.verbose as boolean | undefined,
+    readonly: opts.readOnly as boolean | undefined,
   };
 }

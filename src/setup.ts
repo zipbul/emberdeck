@@ -31,7 +31,7 @@ export class GildashInitError extends Error {
  * @spec cli-surface/project-setup/setup-config-root
  */
 export async function setupEmberdeck(options: EmberdeckOptions): Promise<EmberdeckContext> {
-  const db = createEmberdeckDb(options.dbPath);
+  const db = createEmberdeckDb(options.dbPath, { readonly: options.readonly });
 
   const mergedIgnore = [
     ...(options.analysisIgnore ?? []),

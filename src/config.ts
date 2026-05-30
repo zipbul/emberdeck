@@ -18,6 +18,8 @@ export interface EmberdeckOptions {
   ignorePatterns?: string[];
   /** Regression guard threshold (0-1). 0 = any drifted card fails. Default: 0 */
   regressionThreshold?: number;
+  /** [§10 P1.1] Open the card index read-only (write-free): no migration/WAL/entry-sync. */
+  readonly?: boolean;
 }
 
 /**

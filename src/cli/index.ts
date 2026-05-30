@@ -39,6 +39,7 @@ export function buildProgram(): Command {
     .option('--project-root <path>', 'project root for source code analysis (overrides config)')
     .option('--quiet, -q', 'compact JSON on stdout; suppress warning/verbose stderr lines')
     .option('--verbose', 'verbose stderr (level:verbose JSON-lines)')
+    .option('--read-only', 'open the card index read-only; skip the entry disk→DB sync (write-free: validate on a read-only fs / migration dry-run)')
     .exitOverride();
 
   registerCard(program);

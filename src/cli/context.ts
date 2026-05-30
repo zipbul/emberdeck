@@ -17,6 +17,8 @@ export interface GlobalFlags {
   projectRoot?: string;
   quiet?: boolean;
   verbose?: boolean;
+  /** [§10 P1.1] open the card index read-only + skip entry sync (write-free). */
+  readonly?: boolean;
 }
 
 export interface CliRuntime {
@@ -53,6 +55,7 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     analysisIgnore: merged.analysisIgnore,
     ignorePatterns: merged.ignorePatterns,
     regressionThreshold: merged.regressionThreshold,
+    readonly: flags.readonly,
   });
 
   return {
