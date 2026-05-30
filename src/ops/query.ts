@@ -1,5 +1,5 @@
 import type { EmberdeckContext } from '../config';
-import type { CardFile, CardStatus, CardType } from '../card/types';
+import type { CardFile, CardFrontmatter, CardStatus, CardType } from '../card/types';
 import type { CardRow, CardListFilter, ChangelogRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
 import { CardNotFoundError } from '../card/errors';
@@ -80,6 +80,8 @@ export interface CardContext {
   downstreamCards: CardRow[];
   /** root → current-card-parent chain, in walked order. Empty when no parent. */
   parentChain: CardRow[];
+  /** [§10 P3.3] navigable forward trace edges (parent/derives/case-of/invokes/cross_domain). */
+  traceEdges: TraceEdge[];
   /** Cards at depth 2+ discovered by BFS. Only present when depth > 1. */
   related?: RelatedCard[];
   /** True when BFS traversal was cut short by the depth limit. */
@@ -127,9 +129,11 @@ export async function getCardContext(
     }
   }
 
+  const traceEdges = deriveTraceEdges(ctx, card.frontmatter);
+
   const depth = options?.depth ?? 1;
   if (depth <= 1) {
-    return { card, codeLinks, upstreamCards, downstreamCards, parentChain };
+    return { card, codeLinks, upstreamCards, downstreamCards, parentChain, traceEdges };
   }
 
   // BFS traversal for depth > 1
@@ -155,7 +159,7 @@ export async function getCardContext(
     }
   }
 
-  return { card, codeLinks, upstreamCards, downstreamCards, parentChain, related, truncated };
+  return { card, codeLinks, upstreamCards, downstreamCards, parentChain, traceEdges, related, truncated };
 }
 
 /**
@@ -370,12 +374,8 @@ function parseRefKey(ref: string): { key: string; item: string } | null {
  *
  * @spec card-storage/queries/tree-context
  */
-export async function listCardTraceEdges(ctx: EmberdeckContext, fullKey: string): Promise<TraceEdge[]> {
-  const key = parseFullKey(fullKey);
-  const filePath = buildCardPath(ctx.cardsDir, key);
-  const card = await readCardFileOrThrow(filePath, key);
-  const fm = card.frontmatter;
-
+/** Derive forward trace edges from an already-parsed card frontmatter. */
+function deriveTraceEdges(ctx: EmberdeckContext, fm: CardFrontmatter): TraceEdge[] {
   const edges: TraceEdge[] = [];
   const seen = new Set<string>();
   const add = (type: TraceEdgeType, to: string, via?: string): void => {
@@ -397,6 +397,12 @@ export async function listCardTraceEdges(ctx: EmberdeckContext, fullKey: string)
     for (const dep of fm.domain.cross_domain_dependencies) add('cross_domain', dep.domain);
   }
   return edges;
+}
+
+export async function listCardTraceEdges(ctx: EmberdeckContext, fullKey: string): Promise<TraceEdge[]> {
+  const key = parseFullKey(fullKey);
+  const card = await readCardFileOrThrow(buildCardPath(ctx.cardsDir, key), key);
+  return deriveTraceEdges(ctx, card.frontmatter);
 }
 
 export function listCardRelations(ctx: EmberdeckContext, fullKey: string): CardRelations {

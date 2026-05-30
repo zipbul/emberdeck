@@ -9,7 +9,7 @@ import {
   CardNotFoundError,
   type CardRow,
 } from '../../index';
-import { createTestContext, type TestContext } from '../helpers';
+import { createTestContext, makeTestBrief, type TestContext } from '../helpers';
 
 // ---------------------------------------------------------------------------
 // getCardContext — depth parameter
@@ -287,4 +287,30 @@ describe('findCardsBySymbol', () => {
     expect(result[0]!.card.key).toBe('spec/auth');
   });
 
+});
+
+describe('getCardContext traceEdges (§10 P3.3b)', () => {
+  let tc: TestContext;
+  afterEach(async () => { await tc?.cleanup(); });
+
+  it('includes navigable trace edges (parent/derives/invokes)', async () => {
+    tc = await createTestContext();
+    await createCard(tc.ctx, { key: 'te-dom', summary: 'd', type: 'domain' });
+    await createCard(tc.ctx, { key: 'te-b', summary: 'b', type: 'brief', parent: 'te-dom', brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 'te-other', summary: 'o', type: 'spec' });
+    await createCard(tc.ctx, {
+      key: 'te-s', summary: 's', type: 'spec', parent: 'te-b',
+      spec: {
+        preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'te-b#G-001' }],
+        postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'te-b#G-001' }],
+        invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
+        failures: [{ violation: 'v', behavior: 'b' }],
+        invokes: [{ to: 'te-other', kind: 'per-call' }],
+      },
+    });
+    const result = await getCardContext(tc.ctx, 'te-s');
+    expect(result.traceEdges.some((e) => e.type === 'parent' && e.to === 'te-b')).toBe(true);
+    expect(result.traceEdges.some((e) => e.type === 'derives' && e.to === 'te-b')).toBe(true);
+    expect(result.traceEdges.some((e) => e.type === 'invokes' && e.to === 'te-other' && e.target?.key === 'te-other')).toBe(true);
+  });
 });
