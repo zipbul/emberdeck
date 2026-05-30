@@ -343,6 +343,62 @@ function toCardSummary(row: CardRow): CardSummary {
  *
  * @spec card-storage/queries/get-list-search
  */
+/** [§10 P3.3] Typed trace-edge kinds surfaced from a card's own namespace. */
+export type TraceEdgeType = 'parent' | 'derives' | 'case-of' | 'invokes' | 'cross_domain';
+
+export interface TraceEdge {
+  type: TraceEdgeType;
+  /** Target card key as declared (may not exist → dangling). */
+  to: string;
+  /** Item id carried by the reference (e.g. G-001 for derives, S-F-01 for case-of). */
+  via?: string;
+  /** Resolved target card, or null when the target does not exist (dangling). */
+  target: CardSummary | null;
+}
+
+function parseRefKey(ref: string): { key: string; item: string } | null {
+  const m = ref.match(/^([^#]+)#(.+)$/);
+  return m ? { key: m[1]!, item: m[2]! } : null;
+}
+
+/**
+ * Surface a card's *forward* typed trace edges (parent / derives → brief#goal /
+ * case-of → brief#flow / invokes → spec / cross_domain → domain), each resolved
+ * to its target card. Derived from the card's own namespace — no stored edges
+ * (expose-don't-store). Makes "what does this card connect to" navigable beyond
+ * the legacy `relations` field. §10 Phase 3.3
+ *
+ * @spec card-storage/queries/tree-context
+ */
+export async function listCardTraceEdges(ctx: EmberdeckContext, fullKey: string): Promise<TraceEdge[]> {
+  const key = parseFullKey(fullKey);
+  const filePath = buildCardPath(ctx.cardsDir, key);
+  const card = await readCardFileOrThrow(filePath, key);
+  const fm = card.frontmatter;
+
+  const edges: TraceEdge[] = [];
+  const seen = new Set<string>();
+  const add = (type: TraceEdgeType, to: string, via?: string): void => {
+    const sig = `${type}:${to}:${via ?? ''}`;
+    if (seen.has(sig)) return;
+    seen.add(sig);
+    const row = ctx.cardRepo.findByKey(to);
+    edges.push({ type, to, ...(via ? { via } : {}), target: row ? toCardSummary(row) : null });
+  };
+
+  if (fm.parent) add('parent', fm.parent);
+  if (fm.spec) {
+    for (const p of fm.spec.preconditions) { const r = parseRefKey(p.derives); if (r) add('derives', r.key, r.item); }
+    for (const p of fm.spec.postconditions) { const r = parseRefKey(p.derives); if (r) add('derives', r.key, r.item); }
+    for (const f of fm.spec.failures) { if (f.case_of) { const r = parseRefKey(f.case_of); if (r) add('case-of', r.key, r.item); } }
+    for (const iv of fm.spec.invokes ?? []) add('invokes', iv.to);
+  }
+  if (fm.domain?.cross_domain_dependencies) {
+    for (const dep of fm.domain.cross_domain_dependencies) add('cross_domain', dep.domain);
+  }
+  return edges;
+}
+
 export function listCardRelations(ctx: EmberdeckContext, fullKey: string): CardRelations {
   const key = parseFullKey(fullKey);
   const rows = ctx.relationRepo.findByCardKey(key);

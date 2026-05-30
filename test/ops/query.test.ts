@@ -12,7 +12,7 @@ import {
   getRelationGraph,
 } from '../../index';
 import { CardKeyError, CardNotFoundError } from '../../index';
-import { getCardContext } from '../../src/ops/query';
+import { getCardContext, listCardTraceEdges } from '../../src/ops/query';
 import { createMockTestContext, ensure4tierScaffold, makeTestBrief, type TestContext } from '../helpers';
 
 describe('getCard', () => {
@@ -487,5 +487,60 @@ describe('getRelationGraph', () => {
     // Should find cyc-b but not revisit cyc-a (visited set prevents cycle)
     expect(nodes).toHaveLength(1);
     expect(nodes[0]!.key).toBe('cyc-b');
+  });
+});
+
+describe('listCardTraceEdges (§10 P3.3a — navigable typed trace edges)', () => {
+  let tc: TestContext;
+  afterEach(async () => { await tc?.cleanup(); });
+
+  it('surfaces parent/derives/invokes edges resolved to their target cards', async () => {
+    tc = await createMockTestContext();
+    await ensure4tierScaffold(tc.ctx); // _dom
+    await createCard(tc.ctx, { key: 'b', summary: 'b', type: 'brief', parent: '_dom', brief: makeTestBrief() });
+    await createCard(tc.ctx, { key: 's-other', summary: 'o', type: 'spec' });
+    await createCard(tc.ctx, {
+      key: 's', summary: 's', type: 'spec', parent: 'b',
+      spec: {
+        preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'b#G-001' }],
+        postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'b#G-001' }],
+        invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
+        failures: [{ violation: 'v', behavior: 'b' }],
+        invokes: [{ to: 's-other', kind: 'per-call' }],
+      },
+    });
+    const edges = await listCardTraceEdges(tc.ctx, 's');
+    const sig = edges.map((e) => `${e.type}:${e.to}`);
+    expect(sig).toContain('parent:b');
+    expect(sig).toContain('derives:b');
+    expect(sig).toContain('invokes:s-other');
+    expect(edges.find((e) => e.type === 'invokes')?.target?.key).toBe('s-other');
+    expect(edges.every((e) => e.target !== null)).toBe(true);
+  });
+
+  it('surfaces cross_domain edges for a domain card', async () => {
+    tc = await createMockTestContext();
+    await createCard(tc.ctx, { key: 'da', summary: 'a', type: 'domain', domain: { overview: 'o', scope: 's', cross_domain_dependencies: [{ domain: 'db', relationship: 'invokes' }] } });
+    await createCard(tc.ctx, { key: 'db', summary: 'b', type: 'domain', domain: { overview: 'o', scope: 's' } });
+    const edges = await listCardTraceEdges(tc.ctx, 'da');
+    expect(edges.some((e) => e.type === 'cross_domain' && e.to === 'db' && e.target?.key === 'db')).toBe(true);
+  });
+
+  it('marks a dangling invokes target as null', async () => {
+    tc = await createMockTestContext();
+    await ensure4tierScaffold(tc.ctx); // _dom
+    await createCard(tc.ctx, { key: 'bd', summary: 'bd', type: 'brief', parent: '_dom', brief: makeTestBrief() });
+    await createCard(tc.ctx, {
+      key: 's3', summary: 's3', type: 'spec', parent: 'bd',
+      spec: {
+        preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'bd#G-001' }],
+        postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'bd#G-001' }],
+        invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
+        failures: [{ violation: 'v', behavior: 'b' }],
+        invokes: [{ to: 'ghost-spec', kind: 'per-call' }],
+      },
+    });
+    const edges = await listCardTraceEdges(tc.ctx, 's3');
+    expect(edges.find((e) => e.type === 'invokes' && e.to === 'ghost-spec')?.target).toBeNull();
   });
 });
