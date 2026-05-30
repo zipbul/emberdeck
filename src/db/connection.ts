@@ -19,26 +19,33 @@ function getMigrationsFolder(): string {
   throw new Error(`emberdeck: migrations folder not found under ${root}`);
 }
 
-function configurePragmas(db: EmberdeckDb): void {
+function configurePragmas(db: EmberdeckDb, readonly = false): void {
   const client = db.$client;
-  client.run('PRAGMA journal_mode = WAL');
+  // journal_mode = WAL rewrites the DB header → unsafe on a read-only handle. Skip it.
+  if (!readonly) client.run('PRAGMA journal_mode = WAL');
+  // foreign_keys / busy_timeout are connection-level (no disk write) — safe read-only.
   client.run('PRAGMA foreign_keys = ON');
   client.run('PRAGMA busy_timeout = 5000');
 }
 
 /**
  * Open a new DB + configure pragmas + run migrations.
+ *
+ * `opts.readonly` (§10 Phase 1.1) opens the existing DB read-only for write-free
+ * validation: no directory creation, no migration, no WAL write. The DB must
+ * already exist and be migrated; writes raise SQLITE_READONLY.
  * @spec card-storage/persistence/db-connection
  */
-export function createEmberdeckDb(path: string): EmberdeckDb {
-  if (path !== ':memory:') {
+export function createEmberdeckDb(path: string, opts?: { readonly?: boolean }): EmberdeckDb {
+  const readonly = opts?.readonly ?? false;
+  if (path !== ':memory:' && !readonly) {
     mkdirSync(dirname(path), { recursive: true });
   }
-  const client = new Database(path);
+  const client = readonly ? new Database(path, { readonly: true }) : new Database(path);
   try {
     const db = drizzle(client, { schema, casing: 'snake_case' });
-    configurePragmas(db);
-    migrateEmberdeck(db);
+    configurePragmas(db, readonly);
+    if (!readonly) migrateEmberdeck(db);
     return db;
   } catch (err) {
     client.close();

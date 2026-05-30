@@ -208,3 +208,26 @@ describe('migration', () => {
     expect(() => db.$client.query('SELECT 1').get()).toThrow('closed database');
   });
 });
+
+describe('createEmberdeckDb readonly (§10 Phase 1.1 — write-free)', () => {
+  it('opens an existing DB read-only: reads succeed, writes fail', async () => {
+    const tmpDir = join(tmpdir(), `emberdeck_ro_test_${Date.now()}`);
+    const dbPath = join(tmpDir, 'ro.sqlite');
+    let ro: EmberdeckDb | undefined;
+    try {
+      const rw = createEmberdeckDb(dbPath); // create + migrate + seed
+      insertCardRow(rw, 'seed');
+      closeDb(rw);
+
+      ro = createEmberdeckDb(dbPath, { readonly: true });
+      // Reads succeed against the existing (already-migrated) DB.
+      const count = ro.$client.prepare('SELECT COUNT(*) AS n FROM card').get() as { n: number };
+      expect(count.n).toBe(1);
+      // Writes are rejected on a read-only connection.
+      expect(() => insertCardRow(ro!, 'nope')).toThrow();
+    } finally {
+      if (ro) closeDb(ro);
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
