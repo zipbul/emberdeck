@@ -68,8 +68,8 @@ interface ValidateLinksShape {
   items: LinksItem[];
 }
 
-/** Codes reported in output but excluded from the exit gate (warning-level). §10 Phase 1.2 */
-const CARDS_WARNING_CODES = new Set(['glossary-unused']);
+/** Codes reported in output but excluded from the exit gate (warning-level). §10 Phase 1.2 / 3.2 */
+const CARDS_WARNING_CODES = new Set(['glossary-unused', 'applies-to-wildcard']);
 
 /**
  * Exit code for `ed validate cards`: 2 if any *gating* (non-warning) issue exists, else 0.

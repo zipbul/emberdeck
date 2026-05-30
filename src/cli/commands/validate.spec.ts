@@ -19,4 +19,14 @@ describe('cardsExitCode — glossary-unused warning split (§10 P1.2)', () => {
   it('returns 0 for no issues', () => {
     expect(cardsExitCode({})).toBe(0);
   });
+
+  // §10 Phase 3.2 — applies_to '*' is a deprecation warning (non-gating) until
+  // the 4 principle cards are real-keyed; later it becomes an error.
+  it('treats applies-to-wildcard as warning-level (non-gating)', () => {
+    expect(cardsExitCode({ 'applies-to-wildcard': 4 })).toBe(0);
+  });
+
+  it('still gates when a real error coexists with applies-to-wildcard', () => {
+    expect(cardsExitCode({ 'applies-to-wildcard': 4, 'broken-parent': 1 })).toBe(2);
+  });
 });

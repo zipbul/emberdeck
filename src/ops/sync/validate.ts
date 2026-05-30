@@ -2,7 +2,7 @@ import { relative } from 'node:path';
 
 import type { EmberdeckContext } from '../../config';
 import type { CardRow, RelationRow } from '../../db/repository';
-import type { CardType, SpecBody, BriefBody } from '../../card/types';
+import type { CardType, SpecBody, BriefBody, PrincipleBody } from '../../card/types';
 import { readCardFile } from '../../fs/reader';
 import { readGlossary } from '../../glossary/io';
 import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces } from '../../card/json-fields';
@@ -187,6 +187,22 @@ export async function validateCards(
     });
     for (const msg of deriveErrors) {
       warnings.push({ type: 'broken-derives', cardKey: row.key, message: msg });
+    }
+  }
+
+  // applies_to '*' deprecation (§10 Phase 3.2): non-gating warning until the
+  // principle cards are narrowed to real keys/globs; later promoted to error.
+  for (const row of dbRows) {
+    if (row.type !== 'principle') continue;
+    const principle = parseNamespaces(row.namespacesJson).principle as PrincipleBody | undefined;
+    if (!principle) continue;
+    const a = principle.applies_to;
+    if (a === '*' || (Array.isArray(a) && a.includes('*'))) {
+      warnings.push({
+        type: 'applies-to-wildcard',
+        cardKey: row.key,
+        message: 'principle.applies_to is "*" (deprecated — narrow to real card keys/globs)',
+      });
     }
   }
 

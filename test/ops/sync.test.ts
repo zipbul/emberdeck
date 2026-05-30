@@ -15,7 +15,7 @@ import {
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
-import { createMockTestContext, makeTestSpec, makeTestBrief, type TestContext } from '../helpers';
+import { createMockTestContext, makeTestSpec, makeTestBrief, makeTestPrinciple, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string) {
   const content = serializeCard(
@@ -379,6 +379,20 @@ describe('validateCards', () => {
     const broken = result.warnings.filter((w) => w.type === 'broken-derives');
     expect(broken.some((w) => w.cardKey === 'sbad' && /G-999/.test(w.message))).toBe(true);
     expect(broken.some((w) => w.cardKey === 'sgood')).toBe(false);
+  });
+
+  // §10 Phase 3.2 — applies_to '*' surfaces a deprecation warning; real-keyed does not.
+  it('should surface applies-to-wildcard for a principle using applies_to "*"', async () => {
+    tc = await createMockTestContext();
+    const wild = serializeCard({ key: 'p-wild', summary: 'pw', status: 'active', type: 'principle', principle: makeTestPrinciple() });
+    const keyed = serializeCard({ key: 'p-keyed', summary: 'pk', status: 'active', type: 'principle', principle: { ...makeTestPrinciple(), applies_to: ['src/auth/**'], enforcement: 'warning' } });
+    await writeFile(join(tc.cardsDir, 'p-wild.md'), wild, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'p-keyed.md'), keyed, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    const wildcards = result.warnings.filter((w) => w.type === 'applies-to-wildcard');
+    expect(wildcards.some((w) => w.cardKey === 'p-wild')).toBe(true);
+    expect(wildcards.some((w) => w.cardKey === 'p-keyed')).toBe(false);
   });
 
   it('should report no orphans after bulkSyncCards resolves the orphan files', async () => {
