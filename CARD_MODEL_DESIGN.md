@@ -1,8 +1,14 @@
-# Card Model Design (v17)
+# Card Model Design (v18)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
+> v18은 **5축(관계/프로퍼티/시나리오/흐름/설명가능성) 통합 재설계 + 3라운드 엄격 ground-truth 진단**의 수렴 결과를 반영. 핵심 결론: **모델 스키마는 수렴했고, "카드만으로 완벽 이해 / 무누락 SSOT"는 스키마만으로 도달 불가 — `enforcement-bound`**(아래 §9.1).
+> - **프로퍼티(②):** spec에 `shapes[]`(IO/에러 형태계약 — 32 command spec이 POST 산문에 ```jsonc``` 누출하던 것 흡수) 추가. SHP id=**덱-전역 레지스트리 key**(owner-uniqueness 결정론 강제 가능하게). post는 `references:SHP-id`로 형태 참조(복제 금지). 형태 owner 1곳.
+> - **관계(①):** spec-level **`invokes[]` 엣지**(횡단 per-call 의존, navigable) 신설 — 직전 제안 `steps[]`(순서있는 여정)는 **거부**(실저장소에 순서 cross-domain 여정 0건, createCard는 한 spec 내 fan-out 합성이라 선형체인 미스핏 = 과설계). invokes는 INV-002(runner→card-storage `ensureCardsSynced`) 같은 실수요를 타격.
+> - **시나리오(③):** `failures` behavior는 **free-prose 유지**(닫힌 mode enum은 idempotent-noop/silent-swallow 강제오분류 = 거부). `case_of`를 **전 failure mode**가 brief#S-F 가리키게(reject 한정 해제). cross-domain 거부 double-home(cli card-create ↔ lifecycle create-card 6복제) 닫으려 `failures`에 **`owner`/`references`** 추가.
+> - **거부 재확인:** `steps[]`·`vision 노드`·`mode 닫힌 enum`·area/group/facet·model/service/event-contract(미실증). vision은 §9.1 긴장 노트 참조.
+> - **enforcement 천장:** 위 신규 owner 경계(shapes/invokes/case_of/owner)는 전부 cross-card인데 현 validate는 intra-card → 강제 0. (a)강제가능 부분(엣지 타깃 존재)은 구현 이연, (b)의미적 owner-uniqueness는 **원리적 결정불가**(validate가 의미 drift 못 잡음). → 완전성 = 미구현 강제 + 사람/LLM 리뷰 잔여에 묶임. **이게 재리뷰마다 결함이 나온 근본 이유.**
 > v17은 3자+자체 독립리뷰가 찾은 **설계 결함을 닫음**(구현 이연 아님): ①**derives 규칙 정정** — `invariants`는 derives 없음(심볼 국소 항상성, brief goal에 1:1 안 매임). 스키마 `SpecInvariant`(id/statement/always_holds, derives 필드 부재)와 §3 필드표가 derives 규칙과 어긋났던 **자기모순 해소**: `pre/post→goal`, `failures→S-F`, **inv는 derives 없음**. ②**cross-process 제거를 §10에 명문화**(현 코드 enum 잔존=0/56 미사용 → Phase 1에서 제거, MSA 게이트 시 재확장). ③**`note?` 필드 스키마 추가를 §10 Phase 2.2에 명시**(relationship enum 격상이 free-text 정보를 잃으므로 note?로 보존 — 현 `DomainCrossDependency`={domain, relationship}만). ④**§10 사실 정정** — `normalizeBrief`는 실제 3함수(Body/Design/Compatibility), **`update.ts:60`은 하드코딩 required-list 문자열이라 typecheck가 못 잡음**(리스크 ② 자기모순 해소), DI-001이 14 brief에 중복 → spec id 재명명 시 brief-key 접두 유일화, parent cycle은 `query.ts:121`. ⑤**cross_domain 규모 수치 통일** — 실측 **6 도메인 / 13 엣지 / 6-of-7**으로 §4·§10 정정(기존 "14엣지"·"9카드"는 오류, §8/§9 "6/7"은 정확). ⑥**§10 좌표 정밀화** — `src/ops/update.ts:57`(required-list, 함수 51-67)·`src/ops/query.ts:121`·`src/ops/sync/sync-in.ts:137`·`searchable-text.ts:54-57+62-63`(주장은 v16부터 참, 좌표만 정정).
 > v16는 그동안 채팅에만 있던 것을 문서에 반영: **§10 구현 로드맵 신설**(Phase 1~4 + 3단 불변식 + 코드결합 4곳 + 리스크), **§9에 연결성 갭 추가**(`context`/`relations`가 trace 엣지 surface — 소스 없이 연결 이해의 핵심), **§9 머리에 "현 실재 = v15 미반영(구현 0)" 갭 명시**. 사용성 평가(실카드 체험) 결과 반영.
 > v15는 **glossary 운용 흐름 확정**(2자, Codex+general 코드기반+실측): ①정확사용=field↔yaml 정합+코드심볼 advisory suggest(**본문 출현 강제 lint는 NG-002+drift 260회 noise로 비실용** — 제 이전 "출현 lint 정공법" 정정), 의미정확=사람/LLM. ②추가=outline→4기준→define. ③**카드↔용어 관계=word-set 양방향 조회로 충분, traverse 엣지=과설계**(relation BFS 섞으면 false 의존경로); graphify는 derive. rename body=수동+affectedCardKeys(자동치환=trust 위반 reject).
@@ -22,7 +28,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 ## 1. 핵심 원칙
 
-1. **카드 = 그 자체로 완전한 지식 그래프.** 시각화(graphify류)는 이 그래프의 *뷰*일 뿐, 구조의 근거가 아니다. 따라서 프로젝트 최상위 맥락(vision)도 그래프 안에 있어야 한다 — 카드 밖 config로 빼면 "소스 없이 카드만으로 직관 이해" 목적이 깨진다.
+1. **카드 = 그 자체로 완전한 지식 그래프.** 시각화(graphify류)는 이 그래프의 *뷰*일 뿐, 구조의 근거가 아니다. 따라서 프로젝트 최상위 맥락(vision)도 그래프 안에 있어야 한다 — 카드 밖 config로 빼면 "소스 없이 카드만으로 직관 이해" 목적이 깨진다. *(단 이 맥락을 별도 `vision` 노드로 둘지 vs root domain summary로 도출할지는 §9.1 긴장 노트 — 미해소.)*
 2. **트리 + 그래프 분리** (SysML/NASA/KAOS 표준). 트리(`parent`) = 분해, 타입 엣지 = 추적.
 3. **한 계약 = 한 owner (SSOT).** 복제 금지. 역방향 관계는 *저장하지 않고* 도출(derived).
 4. **코어 = 정확히 필요한 만큼.** 항목 삭제가 심플함이 아니다 — 프로젝트 지식을 무오염으로 표현하는 데 필요한 노드는 코어에 둔다. 스케일 전용(MSA/모노레포)만 게이트 optional로 분리.
@@ -52,7 +58,8 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
           │ 1:n
           ▼
         SPEC    [현존]  ◄── conflicts-with (n:n, 검증전용) ──► SPEC   [신규] (calls 제거 — code_link 흡수)
-          │ derives (item→brief#item, n:1)  [현존]
+          │ ── invokes (n:n, 횡단 per-call 의존) ──► SPEC     [v18] (steps[] 거부 대체)
+          │ derives (pre/post→brief#G, n:1) · case-of (failure→brief#S-F, 전mode) · shape-ref (post→SHP)  [v18 case-of/shape-ref]
           │ emits / consumes (n:n) ──► EVENT-CONTRACT        [신규·미결노드]
           │ code_link (derived, @spec, 카드 저장 X) ──► CODE SYMBOL  [현존]
           ▼
@@ -140,10 +147,10 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | happy | `brief.flow` kind:happy | 사용자: 정상 |
 | negative | `brief.flow` kind:failure | 사용자: 거부 |
 | edge/boundary | `spec.preconditions`(경계 전제) + `spec.failures`(경계 위반 동작) | 계약: 경계값+위반 |
-| exception | `spec.failures`{id,violation,behavior,derives} (비경계 throw) | 계약: throw |
+| exception | `spec.failures`{id,violation,behavior,case_of?} (비경계 throw) | 계약: throw |
 | completion | `spec.postconditions`(MUST) + `brief.criteria`(합격선) | 계약+기획 **계층**(trace 연결, 복제 금지) |
 
-> edge·exception 둘 다 `spec.failures`를 쓰므로 구분: **edge=경계 전제(preconditions) 위반 시 동작, exception=비경계 throw/에러**. negative flow(brief `S-F`) ↔ `spec.failures`는 **`failures[].derives`로 trace**(추적 구멍 메움). **derives 타깃 타입 규칙**: `preconditions/postconditions.derives → goal(G-ID)`, `failures.derives → failure flow(S-F)`. **`invariants`는 derives 없음** — 심볼 국소 항상성(per-call/cross-call)이라 단일 brief goal에 1:1 안 매임(스키마 `SpecInvariant`도 derives 미보유; goal 추적은 그 심볼의 pre/post가 담당). (현 validator는 flat id-set이라 종류 미구분 → section-aware 검증은 §9 구현.)
+> edge·exception 둘 다 `spec.failures`를 쓰므로 구분: **edge=경계 전제(preconditions) 위반 시 동작, exception=비경계 throw/에러**. negative flow(brief `S-F`) ↔ `spec.failures`는 **`failures[].case_of`로 trace**(전 mode, [v18] — 구 `derives` 명칭 개명; 추적 구멍 메움). **추적 타깃 타입 규칙**: `preconditions/postconditions.derives → goal(G-ID)`, `failures.case_of → failure flow(S-F)`. **`invariants`는 derives 없음** — 심볼 국소 항상성(per-call/cross-call)이라 단일 brief goal에 1:1 안 매임(스키마 `SpecInvariant`도 derives 미보유; goal 추적은 그 심볼의 pre/post가 담당). (현 validator는 flat id-set이라 종류 미구분 → section-aware 검증은 §9 구현.)
 
 > 5W1H: Who/When/Where=`flow.given`+`spec.preconditions`, What=`flow.when/then`, Why=`context.problem`+`rationale`, How=개념 `approach`/계약 `spec.postconditions`. Where는 source `@spec`이 SoT(위치 필드 없음). `flow.kind`는 **happy|failure 2종 유지** — 5종 확장은 spec.preconditions/failures와 본문 중복(drift 제도화). edge/exception은 spec 소관(brief는 "구현 모르고 검증 가능"이라 계약 디테일 못 담음).
 
@@ -160,14 +167,17 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | 필드 | 상태 | 비고 |
 |---|---|---|
 | preconditions[]{id, condition, derives→G} | req ≥1 | 호출 전제(positive) |
-| postconditions[]{id, guarantee, keyword:MUST\|SHALL, derives→G} | req ≥1 | 완료 시점 보장 |
+| postconditions[]{id, guarantee, keyword:MUST\|SHALL, derives→G, **references?:SHP-id**} | req ≥1 | 완료 시점 보장. 형태는 산문 복제 X, `references`로 shapes 가리킴 |
 | invariants[]{id, statement, always_holds:**per-call\|cross-call**} | req ≥1 | 구간적 항상성(post로 환원 불가). **cross-process 제거**(0/56+미구현) |
-| failures[]{**id:FAIL-NNN, violation, behavior, derives→S-F**} | req ≥1 | 에러 완전목록(pre의 상위집합). **id+derives 신규** — negative flow 추적 |
+| failures[]{**id:FAIL-NNN, violation, behavior**(free-prose), **case_of?→S-F**(전 mode), **owner?\|references?**} | req ≥1 | 에러 완전목록. **behavior=free-prose 유지**(닫힌 mode enum 거부 — idempotent-noop/silent-swallow 강제오분류). `case_of`=전 failure가 brief#S-F 추적(reject 한정 해제). `owner`/`references`=cross-domain 거부 double-home dedup [v18] |
+| **shapes[]{id:SHP(덱-전역), role:output\|error-output, when?, schema:단일 fenced block}** | **req≥0 [v18]** | IO/에러 **형태 계약**(필드명/타입/exit). spec 단일 owner지만 **SHP id=덱-전역 레지스트리 key**(owner-uniqueness 강제 가능); 공유형태는 한 owner + 타 spec이 `references`로 참조. schema=단일 블록 고정(무한깊이 트리 금지) |
 | state_transitions[]{from,trigger,to} | **opt 유지** | 현 0/56(single-process라 FSM 부재), stateful 도메인용 비용0 |
 
-- **4필드 required 근거**: spec 될 자격(cross-file invariant)인 심볼은 4관점이 의미. **단 total(순수) 함수는 `failures: [{violation: "없음", behavior: "입력 타입 외 실패 경로 없음"}]` 명시적 null-failure 기재**(허위 강제 방지 — "다 의미"가 아니라 "4관점 고려 강제").
-- **derives 타입 규칙**: pre/post→`goal(G-ID)`, failures→`failure flow(S-F)`. **invariants는 derives 없음**(심볼 국소 항상성, goal 1:1 부적합 — 스키마도 미보유). (현 validator flat-set → section-aware 검증 §9.)
-- **재귀(parent=spec)**: **코드 symbol 포함관계**(orchestrator→step, public→helper) 표현 시만. 기획 분해 금지(brief와 중복). 현 0/56 사용. *validate가 포함관계vs기획분해를 판정 못 함 → 작성 가이드(약식 검사는 §9 구현 후보).*
+- **required 근거**: spec 될 자격(cross-file invariant)인 심볼은 pre/post/inv/failures 4관점이 의미. **단 total(순수) 함수는 `failures: [{violation: "없음", behavior: "입력 타입 외 실패 경로 없음"}]` 명시적 null-failure 기재**(허위 강제 방지). `shapes`는 IO/에러 형태가 있을 때만(순수 내부 계산은 0).
+- **derives/추적 타입 규칙**: pre/post→`goal(G-ID)`, failures→`failure flow(S-F)`(`case_of`, 전 mode). **invariants는 derives 없음**(심볼 국소 항상성, goal 1:1 부적합 — 스키마도 미보유). (현 validator flat-set → section-aware 검증 §9.)
+- **형태(shapes) vs 행동(post) 경계**: *필드명/타입/exit*=`shapes`, *그 형태가 언제 성립하나*=`postconditions`(references로 연결). card-get POST-001의 산문 보장에 임베드된 ```jsonc``` 펜스(형태)를 shapes로 분리·흡수(산문 보장은 post에 남고 references로 연결).
+- **`invokes[]{to:spec-key, kind:per-call\|setup, note?}` [v18]**: spec-level **횡단 의존** 엣지(§4). 한 spec이 호출/의존하는 타 도메인 spec을 navigable하게 declare. 예: runner-and-output `invokes ensureCardsSynced(card-storage, setup)`; createCard `invokes {validate(card-model, per-call), persist(card-storage, per-call)}`(**changelog 아님** — createCard는 changelog 미호출, changelog는 updateCard·card-storage 소관). 순서있는 여정 노드(`steps[]`)는 **거부**(과설계 — §9.1).
+- **재귀(parent=spec)**: **코드 symbol 포함관계**(orchestrator→step, public→helper) 표현 시만. 기획 분해 금지. 현 0/56. *validate가 판정 못 함 → 작성 가이드.*
 - **cross-process 재도입**: MSA/분산 게이트 충족 시 always_holds enum 비파괴 재확장(영구 배제 아님).
 
 ### 확장 (게이트 충족 시 도입 후보 — 전부 [신규], optional·비강제)
@@ -198,8 +208,11 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | `scopes` | vision → domain (전체) | 1:n | 루트 맥락 | **저장 안 함, validate가 도출** | [신규-derived] |
 | `governs` | principle → 노드 | n:n | 거버넌스 | `principle.applies_to`(glob) | [현존 필드, 강제 신규] |
 | `governed_by` | 노드 → principle | n:n | 거버넌스(역) | **저장 안 함, validate가 도출** | [신규-derived] |
-| `derives` | spec.item → brief#item | n:1 | 추적(메타, 엣지 아님) | spec 항목 namespace | [현존] |
-| `depends-on` | domain → domain | n:n | 추적 | `cross_domain_dependencies{domain, relationship, note?}` (depender 단일 저장, **impact가 namespace 직접 순회**) | [현존, relationship enum화=신규] |
+| `derives` | spec.pre/post → brief#G | n:1 | 추적(메타, 엣지 아님) | spec 항목 namespace | [현존] |
+| `case-of` | spec.failure → brief#S-F | n:1 | 추적(전 mode) | spec.failures 항목 | [v18] |
+| `invokes` | spec → spec(횡단) | n:n | 횡단 per-call 의존 | `spec.invokes{to,kind,note?}`(caller 단일 저장) | [v18] (steps[] 거부 대체) |
+| `shape-ref` | spec.post → SHP | n:1 | 형태 참조 | `references:SHP-id`(SHP=덱-전역) | [v18] |
+| `depends-on` | domain → domain | n:n | 추적(거친) | `cross_domain_dependencies{domain, relationship, note?}` (depender 단일 저장, **impact가 namespace 직접 순회**) | [현존, relationship enum화=신규] |
 | `conflicts-with` | spec → spec | n:n | 정합성 검사(변경전파 아님) | `relations` | [신규-검증전용] |
 | `references` | model → model | n:n | 데이터 관계(FK/composition) | model | [신규·미결노드] |
 | `emits` / `consumes` | spec → event-contract | n:n | 추적 | spec | [신규·미결노드] |
@@ -211,6 +224,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 > `calls`(호출) 엣지 **제거** — code_link + gildash import graph가 spec간 호출 영향을 이미 흡수(카드 엣지로 두면 코드 호출관계와 이중 SoT). `conflicts-with`(배타)만 보존 — import 관계가 아니라 흡수 불가, 단 변경전파가 아닌 validate 정합성 검사.
 > **[신규·미결노드]** 엣지(references/emits/consumes/deployed_in)는 대상 노드(model/event-contract/service)가 §9 미결이므로 **엣지도 미결** — 노드 도입 결정 시 owner·타깃·방향·검증을 함께 확정. 표에 형태만 예시.
 > `parent`에 model은 미포함 — model은 도입 시 `domain→model`(optional) 추가 예정(§9).
+> **`invokes`(spec) vs `depends-on`(domain) 경계** [v18]: 둘 다 횡단 의존이나 입도가 다르다 — `depends-on`은 *도메인↔도메인 거친 지도*, `invokes`는 *spec→spec per-call 결합*(예 runner→card-storage `ensureCardsSynced`가 산문 invariant에만 갇혀 relations/context에 안 보이던 것을 navigable화). 같은 사실을 둘 다 적으면 이중 owner이므로 **rollup 규칙**: spec.invokes가 있으면 domain.depends-on은 그 집계(derived 가능)로 보고 수동 중복 금지. *순서있는 여정 노드 `steps[]`는 거부* — 저장소에 순서 cross-domain 여정 0건이고 createCard는 한 spec 내 fan-out 합성이라 선형체인이 미스핏(§9.1).
 > **`relationship` enum 격상**: 현행 free-text(기계검증 불가, 코드정합성 결함)를 `invokes`|`consumes` 2값 enum + optional `note?`로. 판별 기준: *호출 계약*이 바뀌면 깨짐=`invokes`(reads/validates/serializes 흡수), *데이터 형태*가 바뀌면 깨짐=`consumes`(persists/writes 흡수). **실카드 13엣지(6 도메인) → 2축 분류, 모호 케이스는 `note?`로 원문 보존**(2값이 깨끗이 안 갈리는 엣지가 있을 수 있어 enum이 의미를 잃지 않게 note?가 fallback). DDD pattern(shared-kernel 등)은 실사용 0이라 미도입(YAGNI).
 > **graph root ≠ parent-tree root.** vision은 *graph root*(scopes로 모든 domain을 맥락화)이고, domain은 여전히 *parent-tree root*(parent 없음). scopes는 추적 엣지라 domain의 parent를 만들지 않으므로 4-tier 트리는 불변(5-tier 아님).
 
@@ -283,7 +297,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **calls/conflicts/derives는 엣지 아님**: 호출=code_link 흡수, 배타=conflicts-with 검증전용, item추적=derives 메타.
 - **`card_relation.type` 스키마 변경 불요** — dependency를 캐시하지 않고 namespace 직접 순회하므로(이전 캐시안은 stale drift 재현이라 폐기).
 
-> **impact BFS 순회 알고리즘은 카드 모델이 아니라 구현 스펙(§9 이연):** phase 조합(상향 code→spec→brief→domain → 도달 domain의 횡단 depends-on → 후처리 governance), depth 회계, affected-set 결과 구조(linkType enum: direct/transitive/parent/scope/governance), write-free validate. 이는 `impact`/`check` spec 카드의 구현 설계.
+> **impact BFS 순회 알고리즘은 카드 모델이 아니라 구현 스펙(§9 이연):** phase 조합(상향 code→spec→brief→domain → 도달 domain의 횡단 depends-on → 후처리 governance), depth 회계, affected-set 결과 구조(linkType enum: direct/transitive/parent/scope/governance + invokes/case-of/shape-ref [v18]), write-free validate. 이는 `impact`/`check` spec 카드의 구현 설계.
 
 ## 7. 정책 / 위험 경계 (중복 해소)
 
@@ -319,12 +333,25 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 ## 9. 확정 / 미결
 
+### 9.1 핵심 결론 — `enforcement-bound` (3라운드 엄격 ground-truth 진단)
+
+> **스키마 설계는 수렴했다. "에이전트가 카드만으로 프로젝트를 완벽 이해 / 카드가 무누락 코드 SSOT"는 스키마만으로 도달 불가능하다.** 엄격 진단 3라운드(실카드 전수 대조)의 **정성 추정**(측정 metric 아님 — 산출식·표본 없는 리뷰어 판단; `ed analyze` 의 coverageRatio=0.2046=125/611 같은 *실측*과 다른 축이니 혼동 금지): 카드-only 이해 "중간 정도"(횡단여정이 도메인-국소보다 현저히 낮음). 스키마 정정(invokes/case_of/shape-ref 추가)은 *표현 가능성*만 올렸고 **navigable surface는 실측상 미실현(전 카드 relations total:0) = 실효 lift ≈ 0**(구현 전제) — 이유는 **이중 천장**:
+>
+> 1. **구현 이연** — 강제 *가능한* 검사(엣지 타깃 존재: `invokes.to`/`shape-ref`/`derives` 대상)조차 안 만들어짐. 현 `ed validate`는 intra-card, `ed card relations/context`는 모든 카드 `total:0`(trace 엣지가 frontmatter 문자열로만 존재, surface 안 됨). → navigable 엣지를 *스키마로 선언*해도 validate/index를 **구현하기 전엔 0% lift**.
+> 2. **원리적 결정불가** — cross-card 의미 계약 중복(같은 거부집합이 cli card-create + lifecycle create-card에 6복제; CardSummary×4·CardFrontmatter×6 산문복제; exit-map 삼중 owner)은 **어떤 validator도 기계적으로 못 잡음**(두 산문이 같은 계약인지 판정 불가 = `card-drift-root-cause`). → cross-card 계약 유일성은 **영구적 사람/LLM 리뷰 잔여**.
+>
+> **이것이 재리뷰마다 새 결함이 나온 근본 이유다** — 모델의 무드리프트/무누락 보장은 종이로 못 닫는다. 닫으려면 **(a) cross-card 강제를 *구현***하고 **(b) 의미 유일성은 사람이 검토**해야 한다.
+>
+> **강제가능 천장을 올리는 3 구조수정**(스키마 차원, [v18] 반영): ① SHP=**덱-전역 레지스트리 key**(owner-uniqueness에 강제가능 key 부여) ② `failures`에 `owner`/`references`(cross-domain 거부 double-home dedup) ③ invokes 예시 정정(changelog 제거). 그 이상의 실측 상승은 **enforcement 구현이 유일한 ceiling-raiser**(§10 Phase 3-3·4).
+>
+> **vision 긴장(미해소):** 4-철학 합성은 vision 노드를 *거부*(실카드 0장, scopes derived=정보0 추가, 프로젝트 한 줄은 root domain summary로 도출)했으나, 이는 **원칙1**("최상위 맥락도 그래프 안에")과 충돌하고 "root domain 7개 중 무엇이 대표인가" under-design 갭을 남긴다. → **미결**: vision을 코어 노드로 둘지(현 §2/§3 서술) vs 거부할지는 도출 계약(scopes materialization) 확정과 함께 결정.
+
 **확정:**
-- 코어 = **vision + domain/brief/spec/principle** (5) + glossary 오버레이.
+- 코어 = **vision + domain/brief/spec/principle** (5) + glossary 오버레이. *(vision 코어성은 §9.1 긴장 노트 — 미해소.)*
 - vision = **enforcement 없는 graph-root 노드**(principle 흡수 폐기). 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**, 각 필드는 목적 가이드로 정의(§3). 구조 검증(필드 비어있지 않음·vision ≤1장·`scopes`로 domain 연결)을 받도록 *설계* — 구현은 미결(아래).
 - **domain = root only, 재귀 없음** (3자 6+라운드 confirm). `summary`/`overview`/`scope`(산문) 필수. **scope는 산문 유지** — IN/OUT 구조화 안 함(경계강제는 `@spec` 결합이 이미 SoT로 보유, 구조화=중복·drift 표면 확대). 분류는 `tags` 현행 유지.
 - **brief = 기능 단위 명세**(기획 아님 — §3). 필드 6 req + 3 opt(design→approach 축소, compatibility·design.components/data_flow 제거, invariants→spec). flow.kind happy|failure 2종 유지. 케이스 5종 계층 분담(happy/negative=brief.flow, edge/exception=spec, completion=criteria+postcondition trace). 케이스·기준은 한 카드 정의+참조(복제 금지).
-- **spec = per-symbol 행동계약**(§3 spec 블록). pre/post/inv/failures 4 req(total 함수는 null-failure 명시), state_transitions opt. **failures에 id+derives(→S-F) 추가**(negative flow 추적 구멍 메움). invariants cross-process 제거(per-call|cross-call). derives 타입 규칙(pre/post→G, failures→S-F; **inv는 derives 없음** — 심볼 국소 항상성, 스키마 미보유). 재귀=코드 포함관계만. flow 서사 반복 금지.
+- **spec = per-symbol 행동계약**(§3 spec 블록). pre/post/inv/failures 4 req(total 함수는 null-failure 명시), state_transitions opt. **[v18] `shapes[]`(IO/에러 형태계약, SHP=덱-전역 key) + `invokes[]`(횡단 per-call 의존, steps[] 거부 대체) 추가.** failures behavior=free-prose 유지(닫힌 mode enum 거부), `case_of`=전 mode→S-F, `owner`/`references`=cross-domain double-home dedup. post `references→SHP`로 형태 참조(복제 금지). invariants cross-process 제거(per-call|cross-call). 추적 규칙(pre/post→G, failures.case_of→S-F; **inv는 추적 없음** — 심볼 국소 항상성, 스키마 미보유). 재귀=코드 포함관계만. flow 서사 반복 금지.
 - **area/group/facet 폐기** — 도메인 묶음/분류 의미가 scope·cross_domain_dependencies·principle.applies_to·tags에 완전 흡수(§3 거부표). 미정의 노드를 검증 시스템에 두는 것은 자기모순. 수요 실증 + tags 부족 시에만 typed facet 재론.
 - **cross_domain_dependencies** = `{domain, relationship, note?}`, depender 단일 저장. `relationship`을 **`invokes`|`consumes` enum 격상**(§4) — free-text는 코드정합성 결함.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
@@ -342,19 +369,21 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
 - **가상(derived) 엣지 materialization 계약**: `scopes`·`governed_by` 를 *누가/어떤 API·인덱스로* 도출해 그래프 traverse를 보장하는가 (저장 안 하므로 도출 주체·포맷·validate 증명 방식 정의 필요).
 - **principle verify.class 구현**: structural 폐쇄술어 9종 평가 엔진(케이스별 cross-ref 패턴, DSL 금지), binding coverage(@principle), metric measurement feed(가장 비싼 미실현 — feed 전 metric blocking 금지), class별 payload validation + 무결성 메타 검증.
-- **impact BFS 순회 알고리즘**(§6.5 이연 — `impact`/`check` spec 구현): phase 조합(상향→횡단→후처리), depth 회계, affected-set 결과구조(linkType enum direct/transitive/parent/scope/governance), governance 후처리 frontier.
+- **impact BFS 순회 알고리즘**(§6.5 이연 — `impact`/`check` spec 구현): phase 조합(상향→횡단→후처리), depth 회계, affected-set 결과구조(linkType enum direct/transitive/parent/scope/governance + invokes/case-of/shape-ref [v18]), governance 후처리 frontier.
 - 확장 노드(model/service/event-contract)는 **방향만 확정(도입 후보)** — 각 **필수 필드 스키마**, 그에 의존하는 엣지(references/emits/consumes/deployed_in)·코드결합, `domain→model` parent는 도입 결정 시 함께 확정.
 - **typed facet 확장 후보**(게이트=FE/BE 모노레포): 시나리오 시뮬레이션(모노레포)이 레이어 직교성 수요를 실증 — `domain.layer` 같은 검증가능 enum tag-축(현 자유 tags는 오타 무검증). **주의: 이건 §3에서 폐기한 facet *노드*가 아니라 domain의 *필드/enum 축***(노드≠필드, 원칙5 — 폐기된 건 노드, 이건 필드). 코어 변경 불요(흐름은 invokes로 이미 닫힘), 수요 실증된 프로젝트에서만 도입.
 - **`relationship` enum 격상 구현**(`cross_domain_dependencies.relationship`: free-text → `invokes`|`consumes` + `note?`; validator + 현행 6/7 카드 마이그레이션 매핑).
 - **write-free `ed validate` 경로** (마이그레이션 dry-run + lazy 도출 게이트 전제 — 현재 모든 명령이 진입 시 sync로 write 시도; 미구현 시 CLI 출력을 게이트로 못 씀).
 - parent cycle 거부(현 seen-set silent-stop → 명시 거부), conflicts-with 정합성 검증, broken-derives 검증.
-- **section-aware derives 검증**(현 flat `collectBriefRefIds` → pre/post/inv는 goal-id set, failures는 flow-id set 분리 대조) + **check-impact가 failures.derives 신설 엣지 순회**(negative flow 변경→failures 영향 전파) + spec 재귀 "코드 포함관계" 약식 검사(gildash: child @spec 심볼 ⊆ parent callee/member) 후보.
+- **section-aware 추적 검증**(현 flat `collectBriefRefIds` → pre/post.derives는 goal-id set, failures.case_of는 flow-id set 분리 대조) + **check-impact가 failures.case_of 신설 엣지 순회**(negative flow 변경→failures 영향 전파) + spec 재귀 "코드 포함관계" 약식 검사(gildash: child @spec 심볼 ⊆ parent callee/member) 후보.
 - **glossary 검증 정정**: `glossary-unused`를 exit 게이트(현 byCode 합산→exit2)에서 **warning으로 분리**(백필 워크플로 보호); `glossary-broken`은 error 유지. **본문 free-text 스캔 lint는 도입 안 함**(NG-002 비-목표 + `drift` 260회류 noise로 비실용) — matcher는 현행대로 코드심볼 한정 advisory suggest. rename 후 본문 stale 용어는 `affectedCardKeys` surface로 가시화(자동치환 금지=trust).
-- **[연결성·핵심] `ed card context`/`relations`가 trace 엣지를 surface**: 현재 두 명령은 `parent`와 무타입 `relations` 필드만 보여주고, `derives`·`cross_domain_dependencies`·`scopes`·`governed_by`는 **카드 body 문자열로만** 존재해 읽는 에이전트가 연결을 못 따라간다(`create-card` context = upstream/downstream 빈 배열). → body의 trace를 **navigable edge로 surface**(impact BFS 재구현과 같은 그래프 기반). **이게 "소스 없이 카드만으로 연결 이해"라는 emberdeck 목적의 핵심 갭** — impact(영향분석)와 별개로 *읽기/탐색* 경로.
+- **[연결성·핵심] `ed card context`/`relations`가 trace 엣지를 surface**: 현재 두 명령은 `parent`와 무타입 `relations` 필드만 보여주고, `derives`·**`invokes`·`case-of`·`shape-ref`[v18]**·`cross_domain_dependencies`·`scopes`·`governed_by`는 **카드 body 문자열로만** 존재해 읽는 에이전트가 연결을 못 따라간다(`create-card` context = upstream/downstream 빈 배열, 전 카드 `relations` total:0). → body의 trace를 **navigable edge로 surface**(impact BFS 재구현과 같은 그래프 기반). **이게 "소스 없이 카드만으로 연결 이해"라는 emberdeck 목적의 핵심 갭** — impact(영향분석)와 별개로 *읽기/탐색* 경로. *(§10 Phase 3-3의 surface set·BFS·linkType enum이 이 목록 전부를 포함해야 함.)*
 
 ---
 
 ## 10. 구현 로드맵 (§9 갭을 닫는 순서)
+
+> **[v18] 천장-raiser 명시:** §9.1대로 스키마 정정은 실측 lift ≈0%p다. **실제 완전성을 올리는 것은 Phase 3-3(trace 엣지 navigable surface)와 cross-card 강제 validate 구현** — 그 전엔 invokes/shape-ref/case_of가 선언만 되고 안 보인다. 단, 의미적 owner-uniqueness는 구현해도 결정불가라 **사람/LLM 리뷰가 영구 잔여**(§9.1). 새 [v18] 작업: `shapes[]` 스키마 + 덱-전역 SHP 레지스트리 + `failures.owner/references` + `invokes[]` 엣지·타깃검증.
 
 **불변식**: 데이터 변경 step = `스키마(optional) → 데이터 → strict 승격` 3단, **각 step 종료 시 `ed validate` exit0**(HC-4). 데이터 마이그레이션은 원자 커밋 + 변환 전 git 태그(롤백=revert만). 코드결합은 대부분 구현 시 typecheck가 잡지만(키 제거 시 컴파일러가 잔여 *타입* 참조를 잡음), **`src/ops/update.ts:57`(`assertCompleteNamespace`의 required-list, 함수 51-67)의 하드코딩 required-key 문자열 배열은 런타임 문자열이라 typecheck 사각 — 수동 동기화 필수**(누락 시 strict 승격 후 정상 brief가 invalid).
 
@@ -373,7 +402,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 **Phase 3 — 흐름 엔진**
 1. vision 타입 등록 + 구조검증 + `scopes` lazy 도출 함수(materialization 계약).
 2. `applies_to` 실키화: `'*'` deprecated-warning validator → 4장 실키화 → `'*'` error + 타입에서 `'*'` 제거.
-3. **`context`/`relations` trace surface**(§9 연결성 — `linkType` enum을 direct/transitive/parent/scope/governance로 확장 = `RelationGraphNode`/affected-set 타입 변경) + impact BFS 재구현(parent+cross_domain+scope+governance, golden snapshot + **context/relations 출력 회귀** + gildash 보존, 순회≠강제 명문화).
+3. **`context`/`relations` trace surface**(§9 연결성 — `linkType` enum을 direct/transitive/parent/scope/governance + **[v18] invokes/case-of/shape-ref**로 확장 = `RelationGraphNode`/affected-set 타입 변경) + impact BFS 재구현(parent+cross_domain+scope+governance + **invokes(spec→spec per-call)**, golden snapshot + **context/relations 출력 회귀** + gildash 보존, 순회≠강제 명문화). **invokes/case-of/shape-ref가 이 enum·BFS·surface set에 반드시 포함돼야** §머리·§9.1이 약속한 "invokes navigable화"가 실제 닫힌다(누락 시 자기모순).
 
 **Phase 4 — 강제·확장 (게이트 충족 시만)**
 1. `@principle` 코드 어노테이션 심기(현 0개 — binding principle 전제).
