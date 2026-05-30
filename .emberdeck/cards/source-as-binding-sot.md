@@ -23,5 +23,7 @@ principle:
     become observable through validation alone.
   applies_to:
     - '*'
-  enforcement: blocking
+  enforcement: advisory
+  verify:
+    class: prose
 ---

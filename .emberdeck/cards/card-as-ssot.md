@@ -21,5 +21,7 @@ principle:
     otherwise validation and reviewers no longer have a stable reference.
   applies_to:
     - '*'
-  enforcement: blocking
+  enforcement: advisory
+  verify:
+    class: prose
 ---

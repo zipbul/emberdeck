@@ -22,4 +22,6 @@ principle:
   applies_to:
     - '*'
   enforcement: advisory
+  verify:
+    class: prose
 ---
