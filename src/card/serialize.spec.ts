@@ -412,3 +412,45 @@ describe('v18 spec schema: shapes[]/invokes[]/failures{id,case_of,owner,referenc
     expect(r.frontmatter.spec?.postconditions[0]?.references).toBeUndefined();
   });
 });
+
+describe('principle.verify.class (§5 — verify class + integrity rule)', () => {
+  function pcard(principle: Record<string, unknown>): string {
+    return makeCard({ type: 'principle', principle });
+  }
+  const base = { statement: 'X MUST Y', rationale: 'r', applies_to: ['src/**'] };
+
+  it('round-trips verify.class', () => {
+    const r = parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'structural' } }));
+    expect(r.frontmatter.principle?.verify?.class).toBe('structural');
+  });
+
+  it('rejects invalid verify.class', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'bogus' } }))).toThrow(CardValidationError);
+  });
+
+  it('rejects prose class + blocking enforcement (integrity: false enforcement)', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'prose' } }))).toThrow(CardValidationError);
+  });
+
+  it('rejects metric class + blocking enforcement (no measurement feed yet)', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'metric' } }))).toThrow(CardValidationError);
+  });
+
+  it('allows structural class + blocking enforcement', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'structural' } }))).not.toThrow();
+  });
+
+  it('allows binding class + blocking enforcement', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'binding' } }))).not.toThrow();
+  });
+
+  it('allows prose class with warning enforcement', () => {
+    const r = parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'prose' } }));
+    expect(r.frontmatter.principle?.verify?.class).toBe('prose');
+  });
+
+  it('omits verify when absent (backward compat — existing principle cards)', () => {
+    const r = parseCard(pcard({ ...base, enforcement: 'blocking' }));
+    expect(r.frontmatter.principle?.verify).toBeUndefined();
+  });
+});

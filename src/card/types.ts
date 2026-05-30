@@ -64,6 +64,17 @@ export interface PrincipleMetric {
   distributable?: boolean;
 }
 
+/**
+ * [§5] How a principle declares it is checked. `class` decides "what is a
+ * violation": structural (closed predicate set over the card graph) / binding
+ * (@principle annotation evidence) / metric (PrincipleMetric budget) / prose
+ * (human review). Enforcement strength = class × enforcement, bounded by
+ * integrity rules (prose/metric without feed may not be `blocking`).
+ */
+export interface PrincipleVerify {
+  class: 'structural' | 'binding' | 'metric' | 'prose';
+}
+
 export interface PrincipleBody {
   /** The rule itself (MUST/SHALL/SHOULD/MAY statement). */
   statement: string;
@@ -73,6 +84,8 @@ export interface PrincipleBody {
   applies_to: '*' | string[];
   /** How violations are handled. */
   enforcement: 'blocking' | 'warning' | 'advisory';
+  /** [§5] declared verification method. */
+  verify?: PrincipleVerify;
   metric?: PrincipleMetric[];
   exemptions?: Array<{ target: string; reason: string }>;
   references?: Array<{ title: string; url: string }>;

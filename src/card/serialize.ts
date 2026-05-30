@@ -27,6 +27,7 @@ import type {
   DomainCrossDependency,
   PrincipleBody,
   PrincipleMetric,
+  PrincipleVerify,
   SpecBody,
   SpecFailure,
   SpecInvariant,
@@ -105,6 +106,7 @@ function normalizeGlossary(value: unknown): string[] | undefined {
 // ── Principle body normalizers ─────────────────────────────────
 
 const VALID_ENFORCEMENT = ['blocking', 'warning', 'advisory'];
+const VALID_VERIFY_CLASSES = ['structural', 'binding', 'metric', 'prose']; // [§5]
 const VALID_COMPARATORS = ['<', '<=', '=', '>=', '>'];
 const VALID_METRIC_KINDS = ['threshold', 'budget'];
 const VALID_WINDOW_KINDS = ['static', 'per_cycle', 'rolling', 'calendar'];
@@ -167,6 +169,19 @@ function normalizePrincipleBody(value: unknown): PrincipleBody {
     applies_to: normalizeAppliesTo(o.applies_to),
     enforcement: o.enforcement as PrincipleBody['enforcement'],
   };
+  if (o.verify != null) {
+    const v = asObj(o.verify, 'principle.verify');
+    if (typeof v.class !== 'string' || !VALID_VERIFY_CLASSES.includes(v.class)) {
+      throw new CardValidationError(`Invalid principle.verify.class (expected one of: ${VALID_VERIFY_CLASSES.join(', ')})`);
+    }
+    const cls = v.class as PrincipleVerify['class'];
+    // Integrity (§5): prose / metric (no measurement feed yet) may not be `blocking` —
+    // a non-machine-checkable rule cannot block. Use warning/advisory.
+    if ((cls === 'prose' || cls === 'metric') && body.enforcement === 'blocking') {
+      throw new CardValidationError(`principle.verify.class "${cls}" cannot be enforcement:blocking (not machine-checkable / no fed signal yet — use warning or advisory)`);
+    }
+    body.verify = { class: cls };
+  }
   const metric = normalizeMetric(o.metric);
   if (metric !== undefined) body.metric = metric;
   if (o.exemptions != null) {
