@@ -44,8 +44,12 @@ spec:
         safeWriteOperation throws CompensationError aggregating the original
         fileAction error and the compensate error; both error objects are
         reachable from the CompensationError instance.
+      id: FAIL-001
+      case_of: card-lifecycle/status-and-safe-write#S-F-02
     - violation: dbAction throws synchronously.
       behavior: >-
         The error propagates directly; fileAction and compensate are not
         invoked.
+      id: FAIL-002
+      case_of: card-lifecycle/status-and-safe-write#S-F-02
 ---

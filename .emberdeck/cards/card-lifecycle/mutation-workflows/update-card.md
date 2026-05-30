@@ -40,22 +40,28 @@ spec:
   failures:
     - violation: Card key not found.
       behavior: updateCard throws CardNotFoundError.
+      id: FAIL-001
     - violation: Patch produces invalid card.
       behavior: updateCard throws CardValidationError; no persistence.
+      id: FAIL-002
     - violation: >-
         Card key is malformed (invalid slug, reserved characters, or
         normalization-rules violation).
       behavior: updateCard throws CardKeyError; no persistence.
+      id: FAIL-003
     - violation: >-
         Patch attempts a parent change that violates the four-tier hierarchy or
         points to a non-existent parent; or a type change orphaning children.
       behavior: updateCard throws ParentValidationError; no persistence.
+      id: FAIL-004
+      case_of: card-lifecycle/mutation-workflows#S-F-01
     - violation: >-
         Patch triggers a status transition to 'active' whose activation guard's
         preconditions are not met.
       behavior: >-
         updateCard throws ActivationGuardError with details.unmetConditions; no
         persistence.
+      id: FAIL-005
     - violation: >-
         The DB transaction for the patch fails (constraint violation,
         store-level error) before any file write.
@@ -63,6 +69,7 @@ spec:
         updateCard propagates the underlying DB error; neither the on-disk card
         file nor the indexed cache is modified. The card remains in its prior
         state.
+      id: FAIL-006
     - violation: >-
         The DB transaction succeeds but the on-disk file write fails (I/O error,
         permission denied, disk full) inside the safe-write boundary.
@@ -72,6 +79,7 @@ spec:
         thrown; on compensation failure updateCard throws CompensationError
         carrying `details.{originalError, compensationError}` and leaves the
         card in an inconsistent state that the next `ed bulk sync` reconciles.
+      id: FAIL-007
     - violation: The changelog row write fails.
       behavior: >-
         The changelog row is written inside the same DB transaction (dbAction
@@ -79,4 +87,5 @@ spec:
         therefore aborts that DB transaction atomically — no card row and no
         file change are committed — and updateCard propagates the underlying
         error; there is nothing to compensate.
+      id: FAIL-008
 ---

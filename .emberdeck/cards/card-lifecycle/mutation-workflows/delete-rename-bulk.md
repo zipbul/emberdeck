@@ -66,26 +66,34 @@ spec:
   failures:
     - violation: deleteCard or renameCard target key does not exist.
       behavior: Throws CardNotFoundError; no removal or rename performed.
+      id: FAIL-001
     - violation: deleteCard target has children and --force is not passed.
       behavior: Throws CardValidationError; no removal performed.
+      id: FAIL-002
     - violation: >-
         deleteCard target is referenced via cross_domain_dependencies by ≥1
         domain card and --force is not passed.
       behavior: >-
         Throws CardValidationError listing the referencing domains; no removal
         performed.
+      id: FAIL-003
     - violation: renameCard target key already exists.
       behavior: Throws CardAlreadyExistsError; no rename performed.
+      id: FAIL-004
     - violation: renameCard old key equals new key.
       behavior: Throws CardRenameSamePathError; no rename performed.
+      id: FAIL-005
     - violation: bulkCreateCards mid-batch failure on entry N.
       behavior: >-
         Returns a result with entry N in failed[] (preserving inputIndex), prior
         successes in created[], and continues processing remaining entries. No
         rollback of prior entries.
+      id: FAIL-006
+      case_of: card-lifecycle/mutation-workflows#S-F-02
     - violation: renameCard cascade write to a referencing card's file fails.
       behavior: >-
         The rename still completes; the affected reference is recorded in
         failedReferenceUpdates[] with its cardKey and the error reason; no
         exception is raised.
+      id: FAIL-007
 ---

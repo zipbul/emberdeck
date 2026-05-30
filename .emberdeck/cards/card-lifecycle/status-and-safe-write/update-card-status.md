@@ -37,8 +37,11 @@ spec:
   failures:
     - violation: Activation guard fails (missing field or unresolved source binding).
       behavior: updateCardStatus throws ActivationGuardError; status is not changed.
+      id: FAIL-001
+      case_of: card-lifecycle/status-and-safe-write#S-F-01
     - violation: >-
         Card with the requested key does not exist on disk or in the indexed
         cache.
       behavior: updateCardStatus throws CardNotFoundError; status is not changed.
+      id: FAIL-002
 ---

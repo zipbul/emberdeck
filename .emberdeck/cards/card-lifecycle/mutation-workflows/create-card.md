@@ -58,24 +58,31 @@ spec:
         file or DB row written. createCard delegates to validateCardInput, so
         closed-schema rejection applies to every input path (positional flags
         and `--from`) — unknown keys are never silently dropped.
+      id: FAIL-001
     - violation: Card key already exists.
       behavior: createCard throws CardAlreadyExistsError.
+      id: FAIL-002
     - violation: Parent key does not exist or violates the four-tier rule.
       behavior: createCard throws ParentValidationError.
+      id: FAIL-003
+      case_of: card-lifecycle/mutation-workflows#S-F-01
     - violation: >-
         Glossary field references a word that is not defined in the glossary
         store.
       behavior: createCard throws GlossaryValidationError; no file or DB row written.
+      id: FAIL-004
     - violation: >-
         Card key is malformed (invalid slug, reserved characters, or
         normalization rules violation).
       behavior: createCard throws CardKeyError; no file or DB row written.
+      id: FAIL-005
     - violation: >-
         Card created with status='active' but the activation guard's
         preconditions are not met (e.g. spec without @spec annotation).
       behavior: >-
         createCard throws ActivationGuardError with details.unmetConditions; no
         file or DB row written.
+      id: FAIL-006
     - violation: >-
         Forward action succeeded but the compensation/rollback step itself fails
         (rare — DB write succeeded but a downstream cleanup throws).
@@ -83,4 +90,5 @@ spec:
         createCard throws CompensationError carrying both originalError and
         compensationError details; system may be in partial state requiring
         operator intervention.
+      id: FAIL-007
 ---
