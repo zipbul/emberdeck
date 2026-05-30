@@ -454,7 +454,8 @@ function normalizeBriefBody(value: unknown): BriefBody {
 // ── Spec body normalizers ──────────────────────────────────────
 
 const VALID_SPEC_KEYWORDS = ['MUST', 'SHALL'];
-const VALID_ALWAYS_HOLDS = ['per-call', 'cross-call', 'cross-process'];
+// cross-process removed in v19 (0/56 usage); MSA/distributed gate re-expands non-destructively.
+const VALID_ALWAYS_HOLDS = ['per-call', 'cross-call'];
 
 function normalizeDomainBody(value: unknown): DomainBody {
   const o = asObj(value, 'domain');

@@ -240,7 +240,8 @@ export interface SpecInvariant {
   /** ID format: INV-001 */
   id: string;
   statement: string;
-  always_holds: 'per-call' | 'cross-call' | 'cross-process';
+  // cross-process removed in v19 (0/56 usage); MSA/distributed gate re-expands non-destructively.
+  always_holds: 'per-call' | 'cross-call';
 }
 
 export interface SpecFailure {

@@ -317,3 +317,32 @@ describe('parseCard — brief.criteria.measure optional-field round-trip', () =>
     expect(second.frontmatter.brief.criteria).toEqual(first.frontmatter.brief.criteria);
   });
 });
+
+describe('spec.invariants always_holds enum (v19 / §10 Phase 1.5)', () => {
+  function specCard(alwaysHolds: string): string {
+    return makeCard({
+      type: 'spec',
+      parent: 'parent/brief',
+      spec: {
+        preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'parent#R-001' }],
+        postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent#R-001' }],
+        invariants: [{ id: 'INV-001', statement: 's', always_holds: alwaysHolds }],
+        failures: [{ violation: 'v', behavior: 'b' }],
+      },
+    });
+  }
+
+  it('accepts per-call', () => {
+    const r = parseCard(specCard('per-call'));
+    expect(r.frontmatter.spec?.invariants[0]?.always_holds).toBe('per-call');
+  });
+
+  it('accepts cross-call', () => {
+    const r = parseCard(specCard('cross-call'));
+    expect(r.frontmatter.spec?.invariants[0]?.always_holds).toBe('cross-call');
+  });
+
+  it('rejects cross-process (removed in v19; MSA-gated re-expansion only)', () => {
+    expect(() => parseCard(specCard('cross-process'))).toThrow(CardValidationError);
+  });
+});
