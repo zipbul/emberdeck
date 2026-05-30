@@ -1,8 +1,9 @@
-# Card Model Design (v18)
+# Card Model Design (v19)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
+> v19 = **v18 전파 완성(설계 변경 0)** — 최종 독립 검증이 찾은 전파 누락 4건 정정: `case_of` 개명을 §10 Phase1.3·§2 카탈로그·§9 현실노트에 반영(구 `derives?` 잔재 제거), v18 신규 스키마(`shapes[]`/`invokes[]`/`failures{id,case_of,owner,references}`)를 §8 마이그레이션 표·§6.5 변경전파 다이어그램+SoT표에 전파. 모델/논리 결함 0·신규 모순 0(검증 확인) — 순수 doc-내부 정합.
 > v18은 **5축(관계/프로퍼티/시나리오/흐름/설명가능성) 통합 재설계 + 3라운드 엄격 ground-truth 진단**의 수렴 결과를 반영. 핵심 결론: **모델 스키마는 수렴했고, "카드만으로 완벽 이해 / 무누락 SSOT"는 스키마만으로 도달 불가 — `enforcement-bound`**(아래 §9.1).
 > - **프로퍼티(②):** spec에 `shapes[]`(IO/에러 형태계약 — 32 command spec이 POST 산문에 ```jsonc``` 누출하던 것 흡수) 추가. SHP id=**덱-전역 레지스트리 key**(owner-uniqueness 결정론 강제 가능하게). post는 `references:SHP-id`로 형태 참조(복제 금지). 형태 owner 1곳.
 > - **관계(①):** spec-level **`invokes[]` 엣지**(횡단 per-call 의존, navigable) 신설 — 직전 제안 `steps[]`(순서있는 여정)는 **거부**(실저장소에 순서 cross-domain 여정 0건, createCard는 한 spec 내 fan-out 합성이라 선형체인 미스핏 = 과설계). invokes는 INV-002(runner→card-storage `ensureCardsSynced`) 같은 실수요를 타격.
@@ -84,7 +85,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | **vision** [신규] | 프로젝트 WHY/방향/최상위 성공. 프로젝트당 1장, root. 필드 `summary`/`statement`/`rationale`/`success_direction` **전부 필수**(목적 가이드 아래). | enforcement·applies_to 없음. 구조 검증은 받음 — 아래 |
 | **domain** [현존] | bounded context 경계 (IN/OUT). root only, 재귀 없음. | 분류는 `tags`(현행). area/group/facet 도입 안 함 — 아래 |
 | **brief** [현존] | **기능 단위 명세**(구현 독립·검증가능): 문제·범위·시나리오·정책·합격·근거. *기획서가 아니라 명세서* — 아래. | 필드 축소(design→approach, compatibility 제거) — 아래 |
-| **spec** [현존] | **per-symbol** 행동 계약(pre/post/invariant/failures). 코드 결합(@spec). (brief=기능단위 명세, spec=심볼단위 명세) | failures에 id+derives 추가, cross-process 제거 — 아래 |
+| **spec** [현존] | **per-symbol** 행동 계약(pre/post/invariant/failures + **shapes[]·invokes[]** [v18]). 코드 결합(@spec). (brief=기능단위 명세, spec=심볼단위 명세) | failures에 **id+case_of** 추가, **shapes[]/invokes[] 신규**[v18], cross-process 제거 — 아래 |
 | **principle** [현존] | 횡단 규범 (검증가능 MUST/SHALL 문장). | |
 
 #### glossary — 어휘 오버레이 (노드 아님)
@@ -283,6 +284,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
                                        ├─ depends-on⁻¹ → 타 domain
                                        ├─ scope⁻¹ → vision
                                        └─ governance(lazy) → principle 재검증
+       (spec 레벨 횡단) spec ─ invokes⁻¹ → 이 spec을 호출하는 타 spec(per-call) 재검증   [v18]
 ```
 
 | 엣지 | 순회하는 SoT (기존) | 새 저장 |
@@ -290,11 +292,12 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | parent | `card.parent` 컬럼 (impact BFS가 직접 walk) | 0 |
 | binding | `code_link`(@spec) — impact 진입점 | 0 |
 | depends-on | domain namespace `cross_domain_dependencies` (impact 직접 순회) | 0 |
+| invokes [v18] | spec namespace `spec.invokes{to}` (spec→spec per-call, impact 직접 순회) | 0 |
 | scope | vision 1장 → 모든 domain (lazy 도출) | 0 |
 | governance | `principle.applies_to` glob (lazy 도출) | 0 |
 
 - **점프 금지**(구조 강제): vision→spec, brief→vision 직접, principle→code 직접 — 엣지 부재로 표현 불가.
-- **calls/conflicts/derives는 엣지 아님**: 호출=code_link 흡수, 배타=conflicts-with 검증전용, item추적=derives 메타.
+- **calls/conflicts/derives는 (변경전파) 엣지 아님**: 호출(coarse)=code_link 흡수, 배타=conflicts-with 검증전용, goal추적=derives 메타. **단 [v18] `invokes`(spec→spec per-call 의존)는 변경전파 엣지로 순회**(code_link import로 안 잡히는 per-call 결합 — calls 일반론과 구별), `case-of`(failure→S-F)·`shape-ref`(post→SHP)는 추적 메타(전파 아님, navigable surface 대상).
 - **`card_relation.type` 스키마 변경 불요** — dependency를 캐시하지 않고 namespace 직접 순회하므로(이전 캐시안은 stale drift 재현이라 폐기).
 
 > **impact BFS 순회 알고리즘은 카드 모델이 아니라 구현 스펙(§9 이연):** phase 조합(상향 code→spec→brief→domain → 도달 domain의 횡단 depends-on → 후처리 governance), depth 회계, affected-set 결과 구조(linkType enum: direct/transitive/parent/scope/governance + invokes/case-of/shape-ref [v18]), write-free validate. 이는 `impact`/`check` spec 카드의 구현 설계.
@@ -319,7 +322,9 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 | 변경 | 기존 카드(현행) 영향 | 방식 |
 |---|---|---|
-| vision 코어 노드 추가 | 0 (없으면 미생성, optional) | 신규 root 타입 등록 + vision 1장 작성 |
+| vision 코어 노드 추가 *(코어성 §9.1 미결)* | 0 (없으면 미생성, optional) | 신규 root 타입 등록 + vision 1장 작성 |
+| **spec `shapes[]`·`invokes[]` 신규** [v18] | spec 56장(현 미보유) | optional 추가 → 형태/의존 백필 → strict. dual-read. SHP=덱-전역 레지스트리 |
+| **spec `failures{id, case_of?, owner?, references?}`** [v18] | spec 56장(현 violation/behavior만) | id+case_of optional 추가 → 백필 → required(§10 Phase1.3). owner/references=cross-domain dedup |
 | `relationship` enum 격상 | cross_domain_dependencies 보유 카드(현행 6/7) | free-text→`invokes`\|`consumes` 매핑 + `note?` 보존. dual-read |
 | model/service/event-contract 노드 | 0 (현재/소규모는 미생성) | optional 타입 등록 |
 | `governed_by` | 0 (derived, 저장 X) | validate 도출 로직만 |
@@ -363,7 +368,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
 
-> **현 실재 상태 = v15 미반영(구현 0).** 실카드/코드는 이 설계 이전 상태다: vision 0장, brief 구 스키마(`design`/`compatibility` 잔존), spec `failures`에 id/derives 0, principle `verify.class` 0 + `applies_to:['*']`, `relationship` free-text. **아래 미결 = 이 갭을 닫는 작업이고, §10 로드맵이 그 순서다.**
+> **현 실재 상태 = v15 미반영(구현 0).** 실카드/코드는 이 설계 이전 상태다: vision 0장, brief 구 스키마(`design`/`compatibility` 잔존), spec `failures`에 id/case_of 0(+shapes/invokes 0), principle `verify.class` 0 + `applies_to:['*']`, `relationship` free-text. **아래 미결 = 이 갭을 닫는 작업이고, §10 로드맵이 그 순서다.**
 
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
 - **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
@@ -390,7 +395,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 **Phase 1 — 기반 (validate 안전화 + 저위험)**
 1. `write-free validate` — **DB read-only open**(sync-skip 아님, stale 회피). **`runner.ts:66` + `validate.ts:100` 두 sync 사이트 모두**. 후속 마이그레이션 dry-run·게이트의 전제.
 2. `glossary-unused` → warning 분리(byCode 합산 제외; `glossary-broken`은 error 유지). 비파괴.
-3. `spec.failures{id, derives?}` optional 추가 → 56 spec 백필 → required 승격.
+3. `spec.failures{id, case_of?}` optional 추가 → 56 spec 백필 → required 승격. (case_of=§3 schema 명칭; 구 `derives` 아님)
 4. parent cycle 거부(`src/ops/sync/sync-in.ts:137`은 cycle을 'parent 없음'으로 *오분류* → 명시 거부 + `src/ops/query.ts:121` getCardContext seen-set silent-stop → surface) + broken-derives.
 5. `spec.invariants.always_holds`에서 **`cross-process` 제거**(현 0/56 사용 → 비파괴 enum 협소화; `types.ts:243` + `serialize.ts:457 VALID_ALWAYS_HOLDS`). MSA/분산 게이트 충족 시 비파괴 재확장.
 
