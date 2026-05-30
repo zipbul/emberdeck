@@ -44,4 +44,5 @@ spec:
   failures:
     - violation: Underlying store IO fails (e.g. permission denied).
       behavior: createEmberdeckDb propagates the underlying store error.
+      id: FAIL-001
 ---

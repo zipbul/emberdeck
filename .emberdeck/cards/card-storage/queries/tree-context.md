@@ -57,4 +57,5 @@ spec:
       behavior: >-
         getCardTree and getCardContext throw CardNotFoundError. getRelationGraph
         instead returns [] (empty result, no throw).
+      id: FAIL-001
 ---

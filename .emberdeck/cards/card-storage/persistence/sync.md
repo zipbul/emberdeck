@@ -106,8 +106,10 @@ spec:
   failures:
     - violation: A file referenced by removeCardByFile no longer exists.
       behavior: removeCardByFile is idempotent and returns without error.
+      id: FAIL-001
     - violation: cardsDir does not exist when ensureCardsSynced runs.
       behavior: The function returns an empty failures array silently.
+      id: FAIL-002
     - violation: >-
         An individual card file fails to parse or upsert during
         ensureCardsSynced or bulkSyncCards.
@@ -116,6 +118,7 @@ spec:
         ensureCardsSynced surfaces each failure as a card-sync-failed JSON-line
         on stderr. bulkSyncCards reports them in its own stdout shape's `failed`
         array.
+      id: FAIL-003
     - violation: >-
         A parent and its child both arrive in the same bulk operation on a cold
         cache.
@@ -123,6 +126,7 @@ spec:
         The topological sort inserts the parent before the child. If the parent
         fails to upsert, every descendant fails its parent-reference check and
         is reported per file.
+      id: FAIL-004
     - violation: >-
         A card file declares a parent that is neither in the indexed cache nor
         in the current sync batch.
@@ -130,14 +134,17 @@ spec:
         The file is emitted at the end of the topological order so its
         parent-reference violation surfaces as a normal per-file failure rather
         than hanging the sync.
+      id: FAIL-005
     - violation: >-
         exportCardToFile is called with a key that does not resolve to any
         indexed-cache row.
       behavior: exportCardToFile throws CardNotFoundError; no output file is created.
+      id: FAIL-006
     - violation: >-
         exportCardToFile encounters a serialization or file-write error after
         the row was fetched.
       behavior: >-
         exportCardToFile throws a generic Error (or the underlying serializer
         error); no partial file is left behind (safe-write boundary).
+      id: FAIL-007
 ---

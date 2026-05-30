@@ -51,6 +51,9 @@ spec:
   failures:
     - violation: A getCard target key does not exist.
       behavior: getCard throws CardNotFoundError.
+      id: FAIL-001
     - violation: searchCards receives a malformed FTS query.
       behavior: searchCards throws FtsSyntaxError; CLI exit code 2.
+      id: FAIL-002
+      case_of: card-storage/queries#S-F-01
 ---
