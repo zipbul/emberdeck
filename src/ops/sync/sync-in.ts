@@ -134,8 +134,20 @@ async function* upsertCardsInTierOrder(
       remaining.delete(filePath);
     }
   }
+  // §10 Phase 1.4: distinguish a genuine missing parent from a parent cycle.
+  // If the unorderable parent IS a known key (indexed cache or this batch) yet
+  // could not be satisfied, the chain forms a cycle (or descends from one) —
+  // report that explicitly instead of misclassifying it as "parent not found".
+  const knownKeys = new Set<string>([
+    ...ctx.cardRepo.list().map((r) => r.key),
+    ...[...parsed.values()].map((p) => p.key),
+  ]);
   for (const [filePath, missingParent] of unsatisfiable) {
-    yield { filePath, error: `parent card "${missingParent}" not found (neither in the indexed cache nor in the current sync batch)` };
+    if (knownKeys.has(missingParent)) {
+      yield { filePath, error: `parent cycle detected: card cannot be ordered because its parent chain through "${missingParent}" forms a cycle (or descends from one)` };
+    } else {
+      yield { filePath, error: `parent card "${missingParent}" not found (neither in the indexed cache nor in the current sync batch)` };
+    }
   }
 
   // Wave-by-wave upsert; within a wave there are no parent dependencies so

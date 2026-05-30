@@ -277,6 +277,20 @@ describe('bulkSyncCards', () => {
     expect(tc.ctx.cardRepo.findByKey('s2')?.parent).toBe('s1');
     expect(tc.ctx.cardRepo.findByKey('s1')?.parent).toBe('b');
   });
+
+  // §10 Phase 1.4: a parent cycle must be reported AS a cycle, not misclassified
+  // as "parent not found" (the parent IS present in the batch, just unorderable).
+  it('should report a parent cycle as a cycle, not "parent not found"', async () => {
+    tc = await createMockTestContext();
+    const s1 = serializeCard({ key: 's1', summary: 's1', status: 'draft', type: 'spec', parent: 's2' });
+    const s2 = serializeCard({ key: 's2', summary: 's2', status: 'draft', type: 'spec', parent: 's1' });
+    await writeFile(join(tc.cardsDir, 's1.md'), s1, 'utf-8');
+    await writeFile(join(tc.cardsDir, 's2.md'), s2, 'utf-8');
+    const result = await bulkSyncCards(tc.ctx);
+    expect(result.errors.length).toBeGreaterThanOrEqual(1);
+    expect(result.errors.some((e) => /cycle/i.test(String(e.error)))).toBe(true);
+    expect(result.errors.every((e) => !/not found/i.test(String(e.error)))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
