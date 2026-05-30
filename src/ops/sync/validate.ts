@@ -2,10 +2,11 @@ import { relative } from 'node:path';
 
 import type { EmberdeckContext } from '../../config';
 import type { CardRow, RelationRow } from '../../db/repository';
-import type { CardType } from '../../card/types';
+import type { CardType, SpecBody, BriefBody } from '../../card/types';
 import { readCardFile } from '../../fs/reader';
 import { readGlossary } from '../../glossary/io';
-import { parseStringArrayJson, parseCrossDomainDependencies } from '../../card/json-fields';
+import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces } from '../../card/json-fields';
+import { collectSpecDeriveErrors } from '../../spec/validate-refs';
 import type { CardValidationResult, ValidationWarning } from './types';
 import { listCardFiles } from './sync-in';
 
@@ -169,6 +170,23 @@ export async function validateCards(
           }
         }
       }
+    }
+  }
+
+  // Broken derives: spec pre/post `derives` → brief#goal and failures `case_of`
+  // → brief#flow must resolve to an existing brief item. Skip draft (deep check,
+  // mirrors the draft-bypasses-deep-validation gate). §10 Phase 1.4b
+  for (const row of dbRows) {
+    if (row.type !== 'spec' || row.status === 'draft') continue;
+    const spec = parseNamespaces(row.namespacesJson).spec as SpecBody | undefined;
+    if (!spec) continue;
+    const deriveErrors = collectSpecDeriveErrors(spec, (key) => {
+      const b = cardByKey.get(key);
+      const brief = b ? (parseNamespaces(b.namespacesJson).brief as BriefBody | undefined) : undefined;
+      return brief ?? null;
+    });
+    for (const msg of deriveErrors) {
+      warnings.push({ type: 'broken-derives', cardKey: row.key, message: msg });
     }
   }
 

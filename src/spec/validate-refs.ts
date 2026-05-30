@@ -42,6 +42,47 @@ function collectBriefRefIds(brief: BriefBody): Set<string> {
  *   When omitted, derives format is validated but target existence is not checked.
  * @spec card-model/schema-and-validation/validate-card-input
  */
+/**
+ * Collect derives/case_of reference errors for a spec body WITHOUT throwing.
+ * Reusable by both activation (validateSpecRefs throws) and deck-wide
+ * `ed validate cards` (surfaces each as a `broken-derives` warning).
+ *
+ * Checks: pre/post `derives` → brief#goal, failures `case_of` (v18) → brief#flow.
+ * Format is always validated; target existence only when `briefLookup` is given.
+ * @spec card-model/schema-and-validation/validate-card-input
+ */
+export function collectSpecDeriveErrors(
+  spec: SpecBody,
+  briefLookup?: (key: string) => BriefBody | null,
+): string[] {
+  const errors: string[] = [];
+  const check = (id: string, ref: string, section: string) => {
+    const parsed = parseDerives(ref);
+    if (!parsed) {
+      errors.push(`${section}[${id}] reference "${ref}" must follow format "brief-key#item-id"`);
+      return;
+    }
+    if (briefLookup) {
+      const brief = briefLookup(parsed.briefKey);
+      if (!brief) {
+        errors.push(`${section}[${id}] references unknown brief "${parsed.briefKey}"`);
+        return;
+      }
+      if (!collectBriefRefIds(brief).has(parsed.itemId)) {
+        errors.push(`${section}[${id}] references unknown item "${parsed.itemId}" in brief "${parsed.briefKey}"`);
+      }
+    }
+  };
+
+  for (const p of spec.preconditions) check(p.id, p.derives, 'spec.preconditions');
+  for (const p of spec.postconditions) check(p.id, p.derives, 'spec.postconditions');
+  // [v18] failures.case_of → brief failure-flow (S-F). Optional; only checked when present.
+  for (const f of spec.failures) {
+    if (f.case_of != null) check(f.id ?? 'FAIL-?', f.case_of, 'spec.failures(case_of)');
+  }
+  return errors;
+}
+
 export function validateSpecRefs(
   spec: SpecBody,
   briefLookup?: (key: string) => BriefBody | null,
@@ -54,30 +95,8 @@ export function validateSpecRefs(
   if (spec.invariants.length === 0) errors.push('spec.invariants must have at least 1 entry');
   if (spec.failures.length === 0) errors.push('spec.failures must have at least 1 entry');
 
-  // ── derives format + (optional) target existence ──────────
-  const checkDerives = (id: string, ref: string, section: string) => {
-    const parsed = parseDerives(ref);
-    if (!parsed) {
-      errors.push(`${section}[${id}].derives "${ref}" must follow format "brief-key#item-id"`);
-      return;
-    }
-    if (briefLookup) {
-      const brief = briefLookup(parsed.briefKey);
-      if (!brief) {
-        errors.push(`${section}[${id}].derives references unknown brief "${parsed.briefKey}"`);
-        return;
-      }
-      const ids = collectBriefRefIds(brief);
-      if (!ids.has(parsed.itemId)) {
-        errors.push(
-          `${section}[${id}].derives references unknown item "${parsed.itemId}" in brief "${parsed.briefKey}"`,
-        );
-      }
-    }
-  };
-
-  for (const p of spec.preconditions) checkDerives(p.id, p.derives, 'spec.preconditions');
-  for (const p of spec.postconditions) checkDerives(p.id, p.derives, 'spec.postconditions');
+  // ── derives / case_of format + (optional) target existence ──
+  errors.push(...collectSpecDeriveErrors(spec, briefLookup));
 
   if (errors.length > 0) {
     throw new CardValidationError(`Spec cross-reference validation failed:\n  - ${errors.join('\n  - ')}`);

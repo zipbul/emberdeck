@@ -15,7 +15,7 @@ import {
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
-import { createMockTestContext, makeTestSpec, type TestContext } from '../helpers';
+import { createMockTestContext, makeTestSpec, makeTestBrief, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string) {
   const content = serializeCard(
@@ -353,6 +353,32 @@ describe('validateCards', () => {
     const result = await validateCards(tc.ctx);
     expect(result.keyMismatches.length).toBeGreaterThanOrEqual(1);
     expect(result.keyMismatches.some((m) => m.row.key === 'wrong-key')).toBe(true);
+  });
+
+  // §10 Phase 1.4b — deck-wide broken-derives: a non-draft spec whose derives
+  // resolves to a non-existent brief item must surface a broken-derives warning;
+  // a valid derives must not.
+  it('should surface broken-derives for a spec deriving from a non-existent brief item', async () => {
+    tc = await createMockTestContext();
+    const dom = serializeCard({ key: 'd', summary: 'd', status: 'active', type: 'domain', domain: { overview: 'o', scope: 's' } });
+    const br = serializeCard({ key: 'b', summary: 'b', status: 'active', type: 'brief', parent: 'd', brief: makeTestBrief() });
+    const good = serializeCard({
+      key: 'sgood', summary: 'sg', status: 'active', type: 'spec', parent: 'b',
+      spec: { ...makeTestSpec(), preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'b#G-001' }], postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'b#G-001' }] },
+    });
+    const bad = serializeCard({
+      key: 'sbad', summary: 'sb', status: 'active', type: 'spec', parent: 'b',
+      spec: { ...makeTestSpec(), preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'b#G-999' }], postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'b#G-001' }] },
+    });
+    await writeFile(join(tc.cardsDir, 'd.md'), dom, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'b.md'), br, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'sgood.md'), good, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'sbad.md'), bad, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    const broken = result.warnings.filter((w) => w.type === 'broken-derives');
+    expect(broken.some((w) => w.cardKey === 'sbad' && /G-999/.test(w.message))).toBe(true);
+    expect(broken.some((w) => w.cardKey === 'sgood')).toBe(false);
   });
 
   it('should report no orphans after bulkSyncCards resolves the orphan files', async () => {

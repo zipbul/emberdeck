@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { validateSpecRefs } from './validate-refs';
+import { validateSpecRefs, collectSpecDeriveErrors } from './validate-refs';
 import { CardValidationError } from '../card/errors';
 import type { BriefBody, SpecBody } from '../card/types';
 
@@ -83,5 +83,66 @@ describe('validateSpecRefs', () => {
     expect(() =>
       validateSpecRefs(makeSpecBody(), () => null),
     ).toThrow(/unknown brief/);
+  });
+});
+
+describe('collectSpecDeriveErrors — deck-wide broken-derives surface (§10 P1.4b)', () => {
+  function briefWith(): BriefBody {
+    return {
+      context: { problem: '', impact: [] },
+      scope: {
+        goals: [{ id: 'G-001', statement: 'g' }],
+        non_goals: [],
+        assumptions: [],
+      },
+      flow: [{ id: 'S-F-01', kind: 'failure', given: 'g', when: 'w', then: 't', covers: ['G-001'] }],
+      design: { overview: '', components: [], data_flow: [], invariants: [] },
+      policy: [],
+      external: [],
+      compatibility: { guarantees: [] },
+      limits: [],
+      criteria: [],
+      rationale: {
+        alternatives: [{ option: 'a', pros: [], cons: [] }, { option: 'b', pros: [], cons: [] }],
+        chosen: { option: 'a', reasoning: 'r' },
+        addresses: [],
+      },
+    };
+  }
+  const lookup = (k: string) => (k === 'pb' ? briefWith() : null);
+  const validPrePost = {
+    preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'pb#G-001' }],
+    postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST' as const, derives: 'pb#G-001' }],
+  };
+
+  it('returns [] for valid pre/post derives resolving to brief goals', () => {
+    expect(collectSpecDeriveErrors(makeSpecBody(validPrePost), lookup)).toEqual([]);
+  });
+
+  it('flags derives to a non-existent brief item', () => {
+    const spec = makeSpecBody({ ...validPrePost, preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'pb#G-999' }] });
+    expect(collectSpecDeriveErrors(spec, lookup).some((e) => /unknown item "G-999"/.test(e))).toBe(true);
+  });
+
+  it('flags derives to an unknown brief', () => {
+    const spec = makeSpecBody({ ...validPrePost, preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'nope#G-001' }] });
+    expect(collectSpecDeriveErrors(spec, lookup).some((e) => /unknown brief/.test(e))).toBe(true);
+  });
+
+  it('validates failures.case_of → brief flow (S-F) [v18]', () => {
+    const ok = makeSpecBody({ ...validPrePost, failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b', case_of: 'pb#S-F-01' }] });
+    expect(collectSpecDeriveErrors(ok, lookup)).toEqual([]);
+    const bad = makeSpecBody({ ...validPrePost, failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b', case_of: 'pb#S-F-99' }] });
+    expect(collectSpecDeriveErrors(bad, lookup).some((e) => /unknown item "S-F-99"/.test(e))).toBe(true);
+  });
+
+  it('ignores failures without case_of', () => {
+    expect(collectSpecDeriveErrors(makeSpecBody(validPrePost), lookup)).toEqual([]);
+  });
+
+  it('only checks format when no briefLookup is given', () => {
+    expect(collectSpecDeriveErrors(makeSpecBody(validPrePost))).toEqual([]);
+    const bad = makeSpecBody({ ...validPrePost, preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'bad' }] });
+    expect(collectSpecDeriveErrors(bad).some((e) => /must follow/.test(e))).toBe(true);
   });
 });
