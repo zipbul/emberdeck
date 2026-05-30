@@ -6,7 +6,7 @@ import {
   preChangeCheck,
   regressionGuard,
 } from '../../index';
-import { createMockTestContext, ensure4tierScaffold, makeTestSpec, setCardCodeLinks, type TestContext } from '../helpers';
+import { createMockTestContext, ensure4tierScaffold, makeTestSpec, makeTestBrief, setCardCodeLinks, type TestContext } from '../helpers';
 
 describe('preChangeCheck', () => {
   let tc: TestContext;
@@ -68,6 +68,27 @@ describe('preChangeCheck', () => {
     expect(transitive).toBeDefined();
     expect(transitive!.key).toBe('dependent');
     expect(transitive!.via).toBe('base');
+  });
+
+  it('finds trace-edge dependents: a spec that invokes a changed spec (§10 P3.3d)', async () => {
+    tc = await createMockTestContext();
+    await ensure4tierScaffold(tc.ctx); // _dom
+    await createCard(tc.ctx, { key: 'br', summary: 'br', type: 'brief', parent: '_dom', brief: makeTestBrief() });
+    const baseSpec = {
+      preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'br#G-001' }],
+      postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST' as const, derives: 'br#G-001' }],
+      invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' as const }],
+      failures: [{ violation: 'v', behavior: 'b' }],
+    };
+    await createCard(tc.ctx, { key: 'callee', summary: 'Callee', type: 'spec', parent: 'br', spec: baseSpec });
+    setCardCodeLinks(tc.ctx, 'callee', [{ kind: 'function', file: 'src/callee.ts', symbol: 'calleeFn' }]);
+    await createCard(tc.ctx, { key: 'caller', summary: 'Caller', type: 'spec', parent: 'br', spec: { ...baseSpec, invokes: [{ to: 'callee', kind: 'per-call' as const }] } });
+
+    const result = await preChangeCheck(tc.ctx, ['src/callee.ts']);
+    const trace = result.affectedCards.find((c) => c.linkType === 'trace');
+    expect(trace).toBeDefined();
+    expect(trace!.key).toBe('caller');
+    expect(trace!.via).toBe('callee');
   });
 
   it('should calculate risk level as high when 3+ direct cards affected', async () => {

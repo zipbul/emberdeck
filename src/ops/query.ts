@@ -6,6 +6,7 @@ import { CardNotFoundError } from '../card/errors';
 import { readCardFileOrThrow } from '../fs/reader';
 import { batchedAllSettled } from '../util/batch';
 import { resolveCardCodeLinks, type ResolvedCodeLink } from './link';
+import { parseNamespaces } from '../card/json-fields';
 
 /**
  * A relation graph node containing the card's unique identifier and its position info in the graph.
@@ -403,6 +404,25 @@ export async function listCardTraceEdges(ctx: EmberdeckContext, fullKey: string)
   const key = parseFullKey(fullKey);
   const card = await readCardFileOrThrow(buildCardPath(ctx.cardsDir, key), key);
   return deriveTraceEdges(ctx, card.frontmatter);
+}
+
+/**
+ * Forward trace edges for a DB card row (no file read) — reconstructs the
+ * frontmatter shape deriveTraceEdges needs from the row's namespacesJson + parent.
+ * Used by impact analysis to traverse trace dependents without N file reads.
+ * @spec card-storage/queries/tree-context
+ */
+export function cardRowTraceEdges(ctx: EmberdeckContext, row: CardRow): TraceEdge[] {
+  const ns = parseNamespaces(row.namespacesJson);
+  const fm = {
+    key: row.key,
+    summary: row.summary,
+    status: row.status as CardStatus,
+    type: row.type as CardType,
+    parent: row.parent ?? undefined,
+    ...ns,
+  } as CardFrontmatter;
+  return deriveTraceEdges(ctx, fm);
 }
 
 export function listCardRelations(ctx: EmberdeckContext, fullKey: string): CardRelations {

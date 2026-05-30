@@ -1,5 +1,5 @@
 import type { EmberdeckContext } from '../config';
-import { getRelationGraph } from './query';
+import { getRelationGraph, cardRowTraceEdges } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { matchesAnyGlob } from '../util/glob';
@@ -10,7 +10,8 @@ import { SymbolFileCache, expandAffectedFiles, makeSymbolFileCache, gildashProje
 export interface AffectedCard {
   key: string;
   summary: string;
-  linkType: 'direct' | 'transitive';
+  /** 'trace' = reaches a primary card via a typed trace edge (invokes/parent/derives/…). [§10 P3.3d] */
+  linkType: 'direct' | 'transitive' | 'trace';
   affectedLinks: number;
   via?: string;
   linkStatus?: { valid: number; broken: number };
@@ -103,6 +104,25 @@ export async function preChangeCheck(
     }
   }
 
+  // Trace-edge dependents (§10 P3.3d): cards whose forward typed trace edge
+  // (invokes / parent / derives / case-of / cross_domain) points at a primary
+  // (directly-changed) card. Captures coupling the code-import graph misses
+  // (e.g. a spec that `invokes` the changed spec). Additive: never removes the
+  // relations-based 'transitive' set above.
+  for (const row of ctx.cardRepo.list()) {
+    if (primaryKeys.has(row.key) || transitiveCards.has(row.key)) continue;
+    const hit = cardRowTraceEdges(ctx, row).find((e) => primaryKeys.has(e.to));
+    if (!hit) continue;
+    transitiveCards.add(row.key);
+    affectedCards.push({
+      key: row.key,
+      summary: row.summary,
+      linkType: 'trace',
+      affectedLinks: 0,
+      via: hit.to,
+    });
+  }
+
   // Detect uncovered files. Single bulk read of code links instead of N
   // findByCardKey calls — only the file column matters here.
   const coveredFiles = new Set<string>();
@@ -182,6 +202,8 @@ export async function preChangeCheck(
       suggestedActions.push(`Review card "${card.key}" — ${card.affectedLinks} code link(s) affected.`);
     } else if (card.linkType === 'transitive') {
       suggestedActions.push(`Check transitive dependency: ${card.key} (via ${card.via}).`);
+    } else if (card.linkType === 'trace') {
+      suggestedActions.push(`Check trace dependent: ${card.key} (trace edge → ${card.via}).`);
     }
   }
   if (newUncoveredFiles.length > 0) {
