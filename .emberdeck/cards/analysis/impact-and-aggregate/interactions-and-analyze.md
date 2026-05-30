@@ -68,6 +68,7 @@ spec:
       behavior: >-
         The unknown key is treated as empty (no symbols, no files, no imports)
         and the call continues; no exception is raised.
+      id: FAIL-001
     - violation: code-index unavailable during analyze.
       behavior: >-
         analyze calls checkDrift and getUncoveredSymbols which both await
@@ -76,4 +77,5 @@ spec:
         thrown class via toCliError (GildashInitError → gildash-init-failed →
         exit 6; otherwise → internal-error → exit 1). No card-only fallback is
         returned on a code-index failure path.
+      id: FAIL-002
 ---

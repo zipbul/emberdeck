@@ -36,4 +36,5 @@ spec:
   failures:
     - violation: A glossary entry payload is malformed.
       behavior: validateGlossaryEntry throws GlossaryValidationError.
+      id: FAIL-001
 ---

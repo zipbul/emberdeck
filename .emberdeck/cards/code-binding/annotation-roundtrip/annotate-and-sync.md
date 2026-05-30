@@ -49,9 +49,12 @@ spec:
         does not swallow it — the error propagates to the caller unchanged. The
         card-level partial-result envelope (unmatched) covers only post-reindex
         per-annotation failures, not the up-front gildash bootstrap failure.
+      id: FAIL-001
     - violation: An annotation references a card key with no matching card row.
       behavior: >-
         The annotation is reported under `unmatched` in the spec sync result; no
         cache row is written for it. The op itself returns successfully (the
         unmatched array is a normal field, not an exception path).
+      id: FAIL-002
+      case_of: code-binding/annotation-roundtrip#S-F-01
 ---

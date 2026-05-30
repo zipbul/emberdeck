@@ -50,9 +50,11 @@ spec:
       behavior: >-
         expandAffectedFiles filters it out before iteration; affectedCards
         reflects only the remaining files.
+      id: FAIL-001
     - violation: A passed file path matches configured ignorePatterns.
       behavior: >-
         expandAffectedFiles filters it out before iteration. preChangeCheck does
         not re-iterate the ignored file; affectedCards and newUncoveredFiles
         reflect the post-ignore set.
+      id: FAIL-002
 ---

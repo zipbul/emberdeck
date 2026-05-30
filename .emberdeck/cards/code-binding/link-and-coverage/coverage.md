@@ -70,8 +70,10 @@ spec:
         All three modes (per-card key, --uncovered, --suggest) are omitted at
         the CLI layer.
       behavior: CLI throws CliUsageError; exit 2.
+      id: FAIL-001
     - violation: gildash returns an empty index (project not yet built).
       behavior: >-
         getUncoveredSymbols reports totalSymbols=0 and coverageRatio=null;
         suggestCardScope produces no suggestions.
+      id: FAIL-002
 ---

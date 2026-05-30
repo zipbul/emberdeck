@@ -55,6 +55,8 @@ spec:
   failures:
     - violation: Batch exceeds the size cap.
       behavior: defineGlossary throws GlossaryValidationError; no entries persisted.
+      id: FAIL-001
+      case_of: glossary/lifecycle#S-F-01
     - violation: >-
         A word fails format validation (invalid slug shape, reserved characters,
         or normalization-rules violation) OR its definition exceeds the
@@ -62,10 +64,14 @@ spec:
       behavior: >-
         defineGlossary throws GlossaryValidationError with details identifying
         the offending word(s); no entries are persisted (all-or-nothing).
+      id: FAIL-002
+      case_of: glossary/lifecycle#S-F-01
     - violation: >-
         The input batch contains duplicate words (the same word key appears more
         than once in one call).
       behavior: defineGlossary throws GlossaryValidationError; no entries are persisted.
+      id: FAIL-003
+      case_of: glossary/lifecycle#S-F-01
     - violation: >-
         The glossary store write itself fails (filesystem I/O error, permission
         denied, disk full).
@@ -73,10 +79,13 @@ spec:
         defineGlossary propagates the underlying I/O error; the on-disk store is
         left in its prior state with no partial entries (all-or-nothing
         guarantee).
+      id: FAIL-004
     - violation: >-
         The batch would push the project total beyond the per-project entry cap
         (500).
       behavior: >-
         defineGlossary throws GlossaryValidationError; no entries are persisted
         (all-or-nothing).
+      id: FAIL-005
+      case_of: glossary/lifecycle#S-F-01
 ---

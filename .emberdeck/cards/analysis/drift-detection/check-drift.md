@@ -76,6 +76,7 @@ spec:
       behavior: >-
         The exception propagates up through checkDrift; no per-card output is
         produced and no writes occur (consistent with POST-002).
+      id: FAIL-001
     - violation: >-
         An individual symbol lookup throws inside the per-link loop (transient
         gildash error on one query).
@@ -84,6 +85,7 @@ spec:
         links whose successful lookup returned no match. driftType is set only
         when at least one link's lookup returned successfully-empty (= confirmed
         missing).
+      id: FAIL-002
     - violation: An expected card key (from optional [key] arg) is not in the DB.
       behavior: >-
         The missing key is silently skipped from per-card output (no
@@ -91,9 +93,11 @@ spec:
         `targetKeys.length` (the requested keys, INCLUDING missing ones);
         active/drifted/draft counts reflect only present cards. So
         `health.active + health.drifted + health.draft <= health.total`.
+      id: FAIL-003
     - violation: loadGlossary (glossary store read) throws inside checkDrift.
       behavior: >-
         The exception propagates up; no per-card output is produced and no
         writes occur (consistent with POST-002). Callers see the underlying I/O
         / parse error; partial results are not emitted.
+      id: FAIL-004
 ---

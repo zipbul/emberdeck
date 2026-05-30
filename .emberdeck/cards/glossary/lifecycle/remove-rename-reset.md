@@ -65,16 +65,19 @@ spec:
   failures:
     - violation: renameGlossary target word already exists.
       behavior: Throws GlossaryValidationError; no rename performed.
+      id: FAIL-001
     - violation: >-
         renameGlossary or removeGlossary target word does not exist in the
         glossary store.
       behavior: Throws GlossaryNotFoundError; no rename or removal performed.
+      id: FAIL-002
     - violation: >-
         renameGlossary cascade write to a referencing card's markdown file
         fails.
       behavior: >-
         The rename still completes; the offending file path is recorded in
         fileWriteFailures[]; no exception is raised.
+      id: FAIL-003
     - violation: >-
         resetEmberdeck encounters per-row DB delete, per-file unlink, or
         glossary-store reset errors.
@@ -82,4 +85,5 @@ spec:
         File-level unlink failures appear in failedFileDeletes[]. DB-row and
         glossary-store reset failures are swallowed silently and not surfaced in
         the result.
+      id: FAIL-004
 ---

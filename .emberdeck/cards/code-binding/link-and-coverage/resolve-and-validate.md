@@ -42,6 +42,7 @@ spec:
       behavior: >-
         resolveCardCodeLinks returns an empty array; validateCodeLinks returns
         declared=0 / valid=0 / broken=[] / planned=[].
+      id: FAIL-001
     - violation: >-
         gildash is unavailable at op entry (binary missing, projectRoot not
         configured, backing-index open error).
@@ -54,6 +55,7 @@ spec:
         internal-error → exit 1). Per-symbol resolution failures during the loop
         are still distinguished — those produce per-link `gildash-unavailable`
         BrokenLink reasons; only the bootstrap failure propagates.
+      id: FAIL-002
     - violation: >-
         gildash throws transiently while resolving an individual symbol
         (per-link lookup).
@@ -62,6 +64,7 @@ spec:
         validateCodeLinks continues with the remaining links; the result
         envelope reports `ioFailed` counts alongside `valid`/`broken` so callers
         can distinguish transient failure from real symbol absence.
+      id: FAIL-003
     - violation: >-
         gildash reindex completes with a non-zero exit code or returns a
         malformed manifest (ensureReindexed cannot trust the index).
@@ -69,6 +72,7 @@ spec:
         ensureReindexed throws; the op aborts before any per-link work runs. No
         card receives partial resolution output. Callers observe the underlying
         gildash error and retry after reindexing the project.
+      id: FAIL-004
     - violation: >-
         A card frontmatter still carries the legacy `codeLinks` or `boundary`
         field (violates source-as-binding-sot).
@@ -78,4 +82,5 @@ spec:
         resolve-and-validate itself never sees such a card; if it did (e.g.
         through an unsynced DB row), it would still ignore the frontmatter field
         — the code_link cache is the only binding source.
+      id: FAIL-005
 ---
