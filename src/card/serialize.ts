@@ -29,8 +29,10 @@ import type {
   SpecBody,
   SpecFailure,
   SpecInvariant,
+  SpecInvoke,
   SpecPostcondition,
   SpecPrecondition,
+  SpecShape,
   SpecStateTransition,
 } from './types';
 import { CARD_TYPES } from './types';
@@ -456,6 +458,8 @@ function normalizeBriefBody(value: unknown): BriefBody {
 const VALID_SPEC_KEYWORDS = ['MUST', 'SHALL'];
 // cross-process removed in v19 (0/56 usage); MSA/distributed gate re-expands non-destructively.
 const VALID_ALWAYS_HOLDS = ['per-call', 'cross-call'];
+const VALID_SHAPE_ROLES = ['output', 'error-output']; // [v18]
+const VALID_INVOKE_KINDS = ['per-call', 'setup']; // [v18]
 
 function normalizeDomainBody(value: unknown): DomainBody {
   const o = asObj(value, 'domain');
@@ -493,12 +497,14 @@ function normalizeSpecBody(value: unknown): SpecBody {
     if (typeof p.keyword !== 'string' || !VALID_SPEC_KEYWORDS.includes(p.keyword)) {
       throw new CardValidationError(`Invalid spec.postconditions[].keyword (expected one of: ${VALID_SPEC_KEYWORDS.join(', ')})`);
     }
-    return {
+    const pc: SpecPostcondition = {
       id: asString(p.id, 'spec.postconditions[].id'),
       guarantee: asString(p.guarantee, 'spec.postconditions[].guarantee'),
       keyword: p.keyword as SpecPostcondition['keyword'],
       derives: asString(p.derives, 'spec.postconditions[].derives'),
     };
+    if (p.references != null) pc.references = asString(p.references, 'spec.postconditions[].references');
+    return pc;
   });
   const invariants = asArray(o.invariants, 'spec.invariants').map((item): SpecInvariant => {
     const i = asObj(item, 'spec.invariants[]');
@@ -513,12 +519,46 @@ function normalizeSpecBody(value: unknown): SpecBody {
   });
   const failures = asArray(o.failures, 'spec.failures').map((item): SpecFailure => {
     const f = asObj(item, 'spec.failures[]');
-    return {
+    const out: SpecFailure = {
       violation: asString(f.violation, 'spec.failures[].violation'),
       behavior: asString(f.behavior, 'spec.failures[].behavior'),
     };
+    if (f.id != null) out.id = asString(f.id, 'spec.failures[].id');
+    if (f.case_of != null) out.case_of = asString(f.case_of, 'spec.failures[].case_of');
+    if (f.owner != null) out.owner = asString(f.owner, 'spec.failures[].owner');
+    if (f.references != null) out.references = asString(f.references, 'spec.failures[].references');
+    return out;
   });
   const body: SpecBody = { preconditions, postconditions, invariants, failures };
+  if (o.shapes != null) {
+    body.shapes = asArray(o.shapes, 'spec.shapes').map((item): SpecShape => {
+      const s = asObj(item, 'spec.shapes[]');
+      if (typeof s.role !== 'string' || !VALID_SHAPE_ROLES.includes(s.role)) {
+        throw new CardValidationError(`Invalid spec.shapes[].role (expected one of: ${VALID_SHAPE_ROLES.join(', ')})`);
+      }
+      const shape: SpecShape = {
+        id: asString(s.id, 'spec.shapes[].id'),
+        role: s.role as SpecShape['role'],
+        schema: asString(s.schema, 'spec.shapes[].schema'),
+      };
+      if (s.when != null) shape.when = asString(s.when, 'spec.shapes[].when');
+      return shape;
+    });
+  }
+  if (o.invokes != null) {
+    body.invokes = asArray(o.invokes, 'spec.invokes').map((item): SpecInvoke => {
+      const iv = asObj(item, 'spec.invokes[]');
+      if (typeof iv.kind !== 'string' || !VALID_INVOKE_KINDS.includes(iv.kind)) {
+        throw new CardValidationError(`Invalid spec.invokes[].kind (expected one of: ${VALID_INVOKE_KINDS.join(', ')})`);
+      }
+      const invoke: SpecInvoke = {
+        to: asString(iv.to, 'spec.invokes[].to'),
+        kind: iv.kind as SpecInvoke['kind'],
+      };
+      if (iv.note != null) invoke.note = asString(iv.note, 'spec.invokes[].note');
+      return invoke;
+    });
+  }
   if (o.state_transitions != null) {
     body.state_transitions = asArray(o.state_transitions, 'spec.state_transitions').map((item): SpecStateTransition => {
       const t = asObj(item, 'spec.state_transitions[]');

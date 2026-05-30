@@ -234,6 +234,8 @@ export interface SpecPostcondition {
   guarantee: string;
   keyword: 'MUST' | 'SHALL';
   derives: string;
+  /** [v18] shape-ref → spec.shapes[].id (form is owned by shapes, not duplicated in prose). */
+  references?: string;
 }
 
 export interface SpecInvariant {
@@ -247,6 +249,14 @@ export interface SpecInvariant {
 export interface SpecFailure {
   violation: string;
   behavior: string;
+  /** [v18] ID format: FAIL-001 */
+  id?: string;
+  /** [v18] trace → brief#S-F (any failure mode that maps to a user-rejection flow). */
+  case_of?: string;
+  /** [v18] canonical owner spec-key for a cross-domain-replicated failure (dedup). */
+  owner?: string;
+  /** [v18] FAIL-id of the canonical failure this one mirrors (dedup). */
+  references?: string;
 }
 
 export interface SpecStateTransition {
@@ -255,12 +265,34 @@ export interface SpecStateTransition {
   to: string;
 }
 
+/** [v18] IO/error form contract owned by a spec. SHP id is deck-global (owner-uniqueness). */
+export interface SpecShape {
+  /** ID format: SHP-001 (deck-global). */
+  id: string;
+  role: 'output' | 'error-output';
+  when?: string;
+  /** Single fenced-block form declaration (no nested-node tree). */
+  schema: string;
+}
+
+/** [v18] Cross-domain per-call dependency edge owned by the caller spec. */
+export interface SpecInvoke {
+  /** Target spec key. */
+  to: string;
+  kind: 'per-call' | 'setup';
+  note?: string;
+}
+
 export interface SpecBody {
   preconditions: SpecPrecondition[];
   postconditions: SpecPostcondition[];
   invariants: SpecInvariant[];
   failures: SpecFailure[];
   state_transitions?: SpecStateTransition[];
+  /** [v18] IO/error form contracts. */
+  shapes?: SpecShape[];
+  /** [v18] cross-domain per-call dependency edges. */
+  invokes?: SpecInvoke[];
 }
 
 // ── Domain body ─────────────────────────────────────────────

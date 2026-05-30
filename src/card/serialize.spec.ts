@@ -346,3 +346,61 @@ describe('spec.invariants always_holds enum (v19 / §10 Phase 1.5)', () => {
     expect(() => parseCard(specCard('cross-process'))).toThrow(CardValidationError);
   });
 });
+
+describe('v18 spec schema: shapes[]/invokes[]/failures{id,case_of,owner,references} (§ v18)', () => {
+  function v18SpecCard(spec: Record<string, unknown>): string {
+    return makeCard({ type: 'spec', parent: 'parent/brief', spec });
+  }
+  const fullSpec = {
+    preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'parent#G-001' }],
+    postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent#G-001', references: 'SHP-001' }],
+    invariants: [{ id: 'INV-001', statement: 's', always_holds: 'per-call' }],
+    failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b', case_of: 'parent#S-F-01', owner: 'other/spec', references: 'FAIL-002' }],
+    shapes: [{ id: 'SHP-001', role: 'output' as const, when: 'success', schema: '{ key: string }' }],
+    invokes: [{ to: 'card-model/x', kind: 'per-call' as const, note: 'validate' }],
+  };
+
+  it('round-trips spec.shapes', () => {
+    expect(parseCard(v18SpecCard(fullSpec)).frontmatter.spec?.shapes).toEqual(fullSpec.shapes);
+  });
+
+  it('round-trips spec.invokes', () => {
+    expect(parseCard(v18SpecCard(fullSpec)).frontmatter.spec?.invokes).toEqual(fullSpec.invokes);
+  });
+
+  it('round-trips failures id/case_of/owner/references', () => {
+    expect(parseCard(v18SpecCard(fullSpec)).frontmatter.spec?.failures[0]).toEqual(fullSpec.failures[0]);
+  });
+
+  it('round-trips postconditions.references (shape-ref)', () => {
+    expect(parseCard(v18SpecCard(fullSpec)).frontmatter.spec?.postconditions[0]?.references).toBe('SHP-001');
+  });
+
+  it('serialize→parse is stable for v18 fields', () => {
+    const first = parseCard(v18SpecCard(fullSpec));
+    const second = parseCard(serializeCard(first.frontmatter));
+    expect(second.frontmatter.spec).toEqual(first.frontmatter.spec);
+  });
+
+  it('rejects invalid shape role', () => {
+    expect(() => parseCard(v18SpecCard({ ...fullSpec, shapes: [{ id: 'SHP-001', role: 'bogus', schema: 'x' }] }))).toThrow(CardValidationError);
+  });
+
+  it('rejects invalid invoke kind', () => {
+    expect(() => parseCard(v18SpecCard({ ...fullSpec, invokes: [{ to: 'x/y', kind: 'bogus' }] }))).toThrow(CardValidationError);
+  });
+
+  it('omits absent v18 optionals (backward compat — dual-read)', () => {
+    const minimal = {
+      preconditions: fullSpec.preconditions,
+      postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent#G-001' }],
+      invariants: fullSpec.invariants,
+      failures: [{ violation: 'v', behavior: 'b' }],
+    };
+    const r = parseCard(v18SpecCard(minimal));
+    expect(r.frontmatter.spec?.shapes).toBeUndefined();
+    expect(r.frontmatter.spec?.invokes).toBeUndefined();
+    expect(r.frontmatter.spec?.failures[0]?.id).toBeUndefined();
+    expect(r.frontmatter.spec?.postconditions[0]?.references).toBeUndefined();
+  });
+});
