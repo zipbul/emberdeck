@@ -395,6 +395,21 @@ describe('validateCards', () => {
     expect(wildcards.some((w) => w.cardKey === 'p-keyed')).toBe(false);
   });
 
+  // §10 Phase 2.2 — free-text cross_domain relationship surfaces a deprecation warning;
+  // an enum value (invokes|consumes) does not.
+  it('should surface relationship-free-text for a non-enum cross_domain relationship', async () => {
+    tc = await createMockTestContext();
+    const da = serializeCard({ key: 'da', summary: 'a', status: 'active', type: 'domain', domain: { overview: 'o', scope: 's', cross_domain_dependencies: [{ domain: 'db', relationship: 'reads stuff from' }] } });
+    const db = serializeCard({ key: 'db', summary: 'b', status: 'active', type: 'domain', domain: { overview: 'o', scope: 's', cross_domain_dependencies: [{ domain: 'da', relationship: 'invokes' }] } });
+    await writeFile(join(tc.cardsDir, 'da.md'), da, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'db.md'), db, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    const ft = result.warnings.filter((w) => w.type === 'relationship-free-text');
+    expect(ft.some((w) => w.cardKey === 'da')).toBe(true);
+    expect(ft.some((w) => w.cardKey === 'db')).toBe(false);
+  });
+
   it('should report no orphans after bulkSyncCards resolves the orphan files', async () => {
     tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'st-orphan', 'Orphan');

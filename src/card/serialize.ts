@@ -24,6 +24,7 @@ import type {
   CardStatus,
   CardType,
   DomainBody,
+  DomainCrossDependency,
   PrincipleBody,
   PrincipleMetric,
   SpecBody,
@@ -473,10 +474,12 @@ function normalizeDomainBody(value: unknown): DomainBody {
       'domain.cross_domain_dependencies',
     ).map((item) => {
       const d = asObj(item, 'domain.cross_domain_dependencies[]');
-      return {
+      const dep: DomainCrossDependency = {
         domain: asString(d.domain, 'domain.cross_domain_dependencies[].domain'),
         relationship: asString(d.relationship, 'domain.cross_domain_dependencies[].relationship'),
       };
+      if (d.note != null) dep.note = asString(d.note, 'domain.cross_domain_dependencies[].note');
+      return dep;
     });
   }
   return body;

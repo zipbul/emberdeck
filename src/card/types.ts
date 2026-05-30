@@ -308,6 +308,8 @@ export interface DomainCrossDependency {
   domain: string;
   /** One-line description of how the dependency is used (e.g. "consumes events", "shares schema"). */
   relationship: string;
+  /** [v18] free-text original preserved when relationship is narrowed to the invokes|consumes enum. */
+  note?: string;
 }
 
 export interface DomainBody {

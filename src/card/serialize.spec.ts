@@ -390,6 +390,14 @@ describe('v18 spec schema: shapes[]/invokes[]/failures{id,case_of,owner,referenc
     expect(() => parseCard(v18SpecCard({ ...fullSpec, invokes: [{ to: 'x/y', kind: 'bogus' }] }))).toThrow(CardValidationError);
   });
 
+  it('round-trips note? on a cross_domain_dependency (§10 P2.2)', () => {
+    const r = parseCard(makeCard({
+      type: 'domain',
+      domain: { overview: 'o', scope: 's', cross_domain_dependencies: [{ domain: 'other', relationship: 'invokes', note: 'calls subcommands' }] },
+    }));
+    expect(r.frontmatter.domain?.cross_domain_dependencies?.[0]).toEqual({ domain: 'other', relationship: 'invokes', note: 'calls subcommands' });
+  });
+
   it('omits absent v18 optionals (backward compat — dual-read)', () => {
     const minimal = {
       preconditions: fullSpec.preconditions,

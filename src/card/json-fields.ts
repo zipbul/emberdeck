@@ -16,6 +16,8 @@ export function parseStringArrayJson(json: string | null | undefined): string[] 
 export interface CrossDomainDependency {
   domain: string;
   relationship?: string;
+  /** [v18] free-text original preserved when relationship is enum-narrowed. */
+  note?: string;
 }
 
 /**
