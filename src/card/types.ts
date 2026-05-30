@@ -221,10 +221,14 @@ export interface BriefBody {
   context: BriefContext;
   scope: BriefScope;
   flow: BriefFlow[];
-  design: BriefDesign;
+  /** [v18] optional (dual-read) — being migrated to `approach`; DI move to spec.invariants/principle. */
+  design?: BriefDesign;
+  /** [v18] conceptual design prose — replaces the removed `design.components/data_flow`. */
+  approach?: string;
   policy: BriefPolicy[];
   external: BriefExternal[];
-  compatibility: BriefCompatibility;
+  /** [v18] optional (dual-read) — being removed (behavior contract = spec; policy = principle). */
+  compatibility?: BriefCompatibility;
   limits: BriefLimit[];
   criteria: BriefCriterion[];
   rationale: BriefRationale;

@@ -51,16 +51,21 @@ export function buildSearchableText(fm: CardFrontmatter): string {
 
     for (const f of b.flow) parts.push(f.id, f.given, f.when, f.then);
 
-    parts.push(b.design.overview);
-    for (const c of b.design.components) parts.push(c.name, c.responsibility, ...c.interacts_with);
-    for (const d of b.design.data_flow) parts.push(d.from, d.to, d.payload, d.trigger);
-    for (const di of b.design.invariants) parts.push(di.id, di.statement);
+    if (b.approach) parts.push(b.approach); // [v18]
+    if (b.design) {
+      parts.push(b.design.overview);
+      for (const c of b.design.components) parts.push(c.name, c.responsibility, ...c.interacts_with);
+      for (const d of b.design.data_flow) parts.push(d.from, d.to, d.payload, d.trigger);
+      for (const di of b.design.invariants) parts.push(di.id, di.statement);
+    }
 
     for (const p of b.policy) parts.push(p.id, p.subject, p.predicate);
     for (const e of b.external) parts.push(e.id, e.statement, e.reference.title, e.reference.locator);
 
-    for (const g of b.compatibility.guarantees) parts.push(g.subject, g.version_range, g.breaks_if);
-    if (b.compatibility.migration_path) parts.push(b.compatibility.migration_path);
+    if (b.compatibility) {
+      for (const g of b.compatibility.guarantees) parts.push(g.subject, g.version_range, g.breaks_if);
+      if (b.compatibility.migration_path) parts.push(b.compatibility.migration_path);
+    }
 
     for (const l of b.limits) parts.push(l.id, l.statement);
 

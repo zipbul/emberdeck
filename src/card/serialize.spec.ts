@@ -413,6 +413,44 @@ describe('v18 spec schema: shapes[]/invokes[]/failures{id,case_of,owner,referenc
   });
 });
 
+describe('brief dual-read: approach optional + design/compatibility optional (§10 P2.1①)', () => {
+  const common = {
+    context: { problem: 'p', impact: [{ statement: 's' }] },
+    scope: { goals: [{ id: 'G-001', statement: 'g' }], non_goals: [], assumptions: [] },
+    flow: [
+      { id: 'S-H-01', kind: 'happy', given: 'a', when: 'b', then: 'c', covers: ['G-001'] },
+      { id: 'S-F-01', kind: 'failure', given: 'a', when: 'b', then: 'c', covers: ['G-001'] },
+    ],
+    policy: [{ id: 'R-001', subject: 's', keyword: 'MUST', predicate: 'p', governs: ['S-H-01'] }],
+    external: [{ id: 'C-001', statement: 's', reference: { title: 't', locator: 'l' } }],
+    limits: [],
+    criteria: [],
+    rationale: { alternatives: [{ option: 'A', pros: ['p'], cons: ['c'] }, { option: 'B', pros: ['p'], cons: ['c'] }], chosen: { option: 'A', reasoning: 'r' }, addresses: ['C-001'] },
+  };
+  function briefCard(brief: Record<string, unknown>): string {
+    return makeCard({ type: 'brief', parent: 'parent-domain', brief });
+  }
+
+  it('accepts a new-style brief: approach present, design/compatibility absent', () => {
+    const r = parseCard(briefCard({ ...common, approach: 'conceptual design prose' }));
+    expect(r.frontmatter.brief?.approach).toBe('conceptual design prose');
+    expect(r.frontmatter.brief?.design).toBeUndefined();
+    expect(r.frontmatter.brief?.compatibility).toBeUndefined();
+  });
+
+  it('still accepts an old-style brief: design/compatibility present (dual-read)', () => {
+    const r = parseCard(briefCard({ ...common, design: { overview: 'o', components: [], data_flow: [], invariants: [{ id: 'DI-001', statement: 'inv' }] }, compatibility: { guarantees: [] } }));
+    expect(r.frontmatter.brief?.design?.overview).toBe('o');
+    expect(r.frontmatter.brief?.design?.invariants[0]?.id).toBe('DI-001');
+  });
+
+  it('round-trips approach', () => {
+    const first = parseCard(briefCard({ ...common, approach: 'X' }));
+    const second = parseCard(serializeCard(first.frontmatter));
+    expect(second.frontmatter.brief?.approach).toBe('X');
+  });
+});
+
 describe('principle.verify.class (§5 — verify class + integrity rule)', () => {
   function pcard(principle: Record<string, unknown>): string {
     return makeCard({ type: 'principle', principle });

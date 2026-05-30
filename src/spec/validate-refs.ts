@@ -29,7 +29,7 @@ function collectBriefRefIds(brief: BriefBody): Set<string> {
   for (const g of brief.scope.goals) ids.add(g.id);
   for (const f of brief.flow) ids.add(f.id);
   for (const p of brief.policy) ids.add(p.id);
-  for (const di of brief.design.invariants) ids.add(di.id);
+  for (const di of brief.design?.invariants ?? []) ids.add(di.id);
   return ids;
 }
 

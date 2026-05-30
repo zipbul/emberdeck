@@ -455,18 +455,21 @@ function normalizeBriefRationale(value: unknown): BriefRationale {
 
 function normalizeBriefBody(value: unknown): BriefBody {
   const o = asObj(value, 'brief');
-  return {
+  const body: BriefBody = {
     context: normalizeBriefContext(o.context),
     scope: normalizeBriefScope(o.scope),
     flow: normalizeBriefFlow(o.flow),
-    design: normalizeBriefDesign(o.design),
     policy: normalizeBriefPolicy(o.policy),
     external: normalizeBriefExternal(o.external),
-    compatibility: normalizeBriefCompatibility(o.compatibility),
     limits: normalizeBriefLimits(o.limits),
     criteria: normalizeBriefCriteria(o.criteria),
     rationale: normalizeBriefRationale(o.rationale),
   };
+  // [v18] dual-read: design/compatibility optional (being migrated out); approach is the replacement.
+  if (o.design != null) body.design = normalizeBriefDesign(o.design);
+  if (o.compatibility != null) body.compatibility = normalizeBriefCompatibility(o.compatibility);
+  if (o.approach != null) body.approach = asString(o.approach, 'brief.approach');
+  return body;
 }
 
 // ── Spec body normalizers ──────────────────────────────────────
