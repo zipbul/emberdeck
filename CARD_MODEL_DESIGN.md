@@ -1,16 +1,22 @@
-# Card Model Design (v20)
+# Card Model Design (v21)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
+> v21 = **로드맵 잔여 전량 구현 완료 — 보류 0 (모두 main에 landed).** v20이 "잔여/보류"로 남겼던 항목을 전부 닫음. 보류 사유가 **구현 편의(소비자0/코어성 미결)였고 그게 설계 결론을 끌고 간** 것이라 — 그건 잘못된 보류였다(필요하면 만든다).
+> - **#66 카드데이터 마이그레이션 완료**: failures id/case_of 백필(전 spec — SoT상 명시작성, case_of는 brief S-F flow를 명확히 구현하는 경우만 보수적 연결) + brief `design→approach`(14 brief, design.invariants 35개→소유 spec.invariants로 `always_holds` 부여 트리아지) + §411 step③ **brief 스키마 strict**(approach 필수, design/compatibility·normalizer 2함수 제거 — dual-read 해체).
+> - **#63 vision 코어 노드 구현**: §9.1이 이미 "코어"로 결론낸 것을 구현(코어성 미결은 *오기재*였다). enforcement-free root 타입 등록 + 구조검증(statement/rationale/success_direction 비어있지 않음, root-only, ≤1장 cross-card 싱글톤 게이트, scopes 전-domain 도출).
+> - **#65 verify.class structural *엔진* 구현**: "소비자0 YAGNI"는 **순환논리**였다(엔진이 없어 아무도 structural로 안 썼고, 안 썼으니 소비자0). principle=강제되는 규범이고 규범의 SoT는 코드가 아니라 카드. 닫힌 술어 레지스트리(`requires-child-type`/`forbids-relation-to`) + applies_to 스코프 평가 + enforcement 게이팅(blocking→gate / warning→non-gate / advisory→무출력). 실 structural principle 카드는 *진짜* 구조 규범 식별 시 저작(데모용 가짜 SSOT 미작성).
+> - 현 상태: typecheck clean, 전 테스트 green, 실덱 `ed validate cards` total0/exit0.
+>
 > v20 = **구현 착수 결과를 문서에 동기화 (§10 로드맵 다수 landed on main).** 코드 17 유닛 + 카드데이터 2 배치 완료, `ed validate cards` exit0/total0(실덱 clean). 구현하며 내린 설계 결정(모두 본인이 §5/§10 owner로 결정):
 > - **applies_to glob = *카드 키* 매칭**(소스경로 아님). `governed_by` lazy 도출(`listGoverningPrinciples`/`getCardContext.governedBy`) — 저장0, `matchesAnyGlob(cardKey, applies_to)`. 거버넌스는 카드그래프 위; 소스 결합 증거는 별개 `binding` class.
 > - **applies-to-wildcard 경고는 verify.class 선언 시 suppress** — 분류된 '*'는 의도적 보편(card-as-ssot 등 시스템 전역 규범은 정당하게 '*'). 미분류 '*'만 nudge.
-> - **verify.class: 스키마+무결성만 구현**(prose/metric+blocking=schema error). **structural 폐쇄술어 *엔진*은 YAGNI 보류**(원칙4+§5 무결성): 실 principle 4장은 prose, structural 술어는 소비자0+schema 중복, binding은 @principle 0개, metric은 feed 미구현 → 소비자 등장 시 구현.
-> - **brief dual-read**: `approach` 추가 + `design`/`compatibility` optional(구·신 카드 둘 다 valid). **cross-process enum 제거**. spec `shapes[]`/`invokes[]`/`failures{id,case_of,owner,references}` 추가.
+> - **verify.class: 스키마+무결성만 구현**(prose/metric+blocking=schema error). ~~structural 엔진 YAGNI 보류~~ **[v21: 엔진 구현 완료 — 순환논리였음, 위 참조].** spec `shapes[]`/`invokes[]`/`failures{id,case_of,owner,references}` 추가.
+> - **brief dual-read**: `approach` 추가 + `design`/`compatibility` optional. **[v21: strict 전환 완료 — dual-read 해체, approach 필수].** **cross-process enum 제거**.
 > - **trace surface**: `listCardTraceEdges`(parent/derives/case-of/invokes/cross_domain navigable) + `getCardContext` + impact `linkType:'trace'`. write-free `--read-only` validate.
-> - **카드데이터**: relationship enum화(6 도메인 13엣지, free-text→invokes\|consumes+note 보존) + 4 principle verify.class:prose(blocking 2장→advisory; 실 강제는 schema가) 완료. **잔여(비-긴급, dual-read)**: failures id/case_of 백필(56 spec — SoT상 명시작성), brief design→approach+DI owner-split(14 brief — lossy, per-DI 트리아지).
-> - **vision**: §9.1 코어성 미결로 보류(미구현).
+> - **카드데이터**: relationship enum화(6 도메인 13엣지, free-text→invokes\|consumes+note 보존) + 4 principle verify.class:prose 완료. ~~잔여: failures 백필 + brief design→approach~~ **[v21: #66 전량 완료 — 위 참조].**
+> - **vision**: ~~§9.1 코어성 미결로 보류(미구현)~~ **[v21: 구현 완료 — 코어성은 §9.1에서 이미 결론났고 "미결"은 오기재였음].**
 > v19 = **v18 전파 완성(설계 변경 0)** — 최종 독립 검증이 찾은 전파 누락 4건 정정: `case_of` 개명을 §10 Phase1.3·§2 카탈로그·§9 현실노트에 반영(구 `derives?` 잔재 제거), v18 신규 스키마(`shapes[]`/`invokes[]`/`failures{id,case_of,owner,references}`)를 §8 마이그레이션 표·§6.5 변경전파 다이어그램+SoT표에 전파. 모델/논리 결함 0·신규 모순 0(검증 확인) — 순수 doc-내부 정합.
 > v18은 **5축(관계/프로퍼티/시나리오/흐름/설명가능성) 통합 재설계 + 3라운드 엄격 ground-truth 진단**의 수렴 결과를 반영. 핵심 결론: **모델 스키마는 수렴했고, "카드만으로 완벽 이해 / 무누락 SSOT"는 스키마만으로 도달 불가 — `enforcement-bound`**(아래 §9.1).
 > - **프로퍼티(②):** spec에 `shapes[]`(IO/에러 형태계약 — 32 command spec이 POST 산문에 ```jsonc``` 누출하던 것 흡수) 추가. SHP id=**덱-전역 레지스트리 key**(owner-uniqueness 결정론 강제 가능하게). post는 `references:SHP-id`로 형태 참조(복제 금지). 형태 owner 1곳.
@@ -376,7 +382,9 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 **미결 (다음 설계/구현 단계 — 본질적 순서 의존):**
 
-> **구현 현황 (v20 기준 — main에 landed):** Phase 1 전체(write-free validate / glossary-unused non-gating / parent-cycle+broken-derives / cross-process 제거), v18 spec 스키마, brief dual-read, relationship/applies_to validator, **P3.3 trace surface+impact, P4.2a verify.class 스키마+무결성, governed_by 도출** = 코드 17 유닛 구현. 카드데이터: relationship enum(6 도메인) + principle verify.class(4장) 마이그레이션 완료. **실덱 `ed validate cards` exit0/total0(clean).** *잔여(비-긴급, dual-read라 미적용도 valid):* failures id/case_of 백필(56 spec), brief design→approach+DI owner-split(14 brief, lossy), vision 코어노드(보류), verify.class structural 엔진(YAGNI 보류).
+> **[v21] 아래 목록은 *역사적 구현 순서 계획*이다 — 핵심 항목(vision 등록·구조검증, verify.class structural 엔진, relationship enum, trace surface, write-free validate, parent-cycle/broken-derives, glossary-unused 분리, section-aware 추적, brief strict)은 전부 구현 완료(보류 0). 미구현으로 남은 건 *방향만 확정한 확장 후보*(model/service/event-contract 노드, typed facet 축, metric measurement feed, MCP 가이드 표면)뿐 — 이건 보류가 아니라 수요 실증 전 도입 대기.**
+
+> **구현 현황 (v21 기준 — 로드맵 전량 landed, 보류 0):** Phase 1 전체(write-free validate / glossary-unused non-gating / parent-cycle+broken-derives / cross-process 제거), v18 spec 스키마, relationship/applies_to validator, **P3.3 trace surface+impact, verify.class 스키마+무결성+구조엔진, governed_by 도출, vision 코어 노드, brief strict(approach 필수)**. 카드데이터: relationship enum(6 도메인) + principle verify.class(4장) + **#66 전량(failures id/case_of 백필 전 spec, brief design→approach 14장, strict 전환)** 완료. **실덱 `ed validate cards` exit0/total0(clean).** *잔여: 없음.* (실 structural principle 카드는 진짜 구조 규범 식별 시 저작 — 엔진은 준비 완료.)
 
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
 - **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
