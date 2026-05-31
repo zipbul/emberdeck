@@ -105,65 +105,6 @@ brief:
         match applied at most once).
       covers:
         - G-001
-  design:
-    overview: >
-      preChangeCheck walks the input files and the code_link cache to compute
-      affectedCards and an aggregate riskLevel (low / medium / high / critical)
-      from a tiered set of thresholds: affected-count tiers, broken-link counts,
-      and a fan-in promotion step that bumps the level one tier when any touched
-      file has fan-in at or above a hot-file threshold. regressionGuard compares
-      the drifted/total ratio against a configured threshold (range 0 to 1).
-      checkInteractions diffs the code_link cache across input keys for
-      sharedSymbols, sharedFiles, importDependencies, and potentialConflicts.
-      analyze composes the four read sources into one aggregate object and, as a
-      hygiene side effect, prunes code-index changelog entries older than the
-      configured retention window.
-    components:
-      - name: preChangeCheck
-        responsibility: >-
-          Compute affectedCards and riskLevel from a file list using
-          affected-count tiers, broken-link counts, and hot-file fan-in
-          promotion; surface newUncoveredFiles after ignore-pattern filtering.
-        interacts_with:
-          - code-binding
-      - name: regressionGuard
-        responsibility: >-
-          Compare drifted/total ratio against a configured threshold in [0,1]
-          and exit accordingly.
-        interacts_with:
-          - card-storage
-      - name: checkInteractions
-        responsibility: >-
-          Detect sharedSymbols, sharedFiles, importDependencies, and
-          potentialConflicts between two or more cards; unknown card keys
-          produce empty entries rather than throwing.
-        interacts_with:
-          - code-binding
-      - name: analyze
-        responsibility: >-
-          Aggregate health, coverage, drifted (a flat list plus a total count;
-          pagination is applied at the CLI layer), glossary, and unlinkedSymbols
-          into one JSON object; prune retention-aged code-index changelog
-          entries as a hygiene side effect.
-        interacts_with:
-          - card-storage
-          - code-binding
-          - glossary
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          riskLevel is monotonic UPWARD: each of (a) added affected cards, (b)
-          increased drift ratio of affected cards, and (c) a hot-file fan-in
-          match can only raise the level, never lower it. Any one of these
-          inputs independently can promote the level — they need not occur
-          together. It is NOT a function of broken-link count in isolation; a
-          hot-file fan-in match is applied at most once per call and only
-          promotes upward.
-      - id: DI-002
-        statement: >-
-          regressionGuard returns the violating ratio whenever it exits
-          non-zero.
   policy:
     - id: R-001
       subject: preChangeCheck
@@ -207,11 +148,6 @@ brief:
       reference:
         title: spec cli-surface/command-routing-and-output/commands/check-impact
         locator: cli-surface/command-routing-and-output/commands/check-impact
-  compatibility:
-    guarantees:
-      - subject: preChangeCheck and regressionGuard public signatures
-        version_range: 1.x
-        breaks_if: riskLevel enum changes or threshold semantics change.
   limits:
     - id: KL-001
       statement: >-
@@ -301,4 +237,19 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Four read-only analyses compose into one aggregate. Impact analysis walks
+    the changed files and the cached bindings to compute the affected cards and
+    a risk level drawn from tiered thresholds — affected-count tiers and
+    broken-link counts — with a hot-file fan-in match promoting the level one
+    tier upward at most once; the risk level is monotonic upward and never
+    demoted by any single input. The regression guard compares the
+    drifted-to-total ratio against a configured threshold in the unit range and
+    returns the violating ratio when it fails. Interaction analysis diffs the
+    cached bindings across two or more cards for shared symbols, shared files,
+    import dependencies, and potential conflicts, treating unknown keys as empty
+    rather than errors. The aggregate composer gathers health, coverage, the
+    drifted list and its total, glossary, and unlinked symbols into one object,
+    and as a hygiene side effect prunes code-index changelog entries older than
+    the retention window.
 ---

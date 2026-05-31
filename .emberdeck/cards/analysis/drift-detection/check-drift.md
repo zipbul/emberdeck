@@ -71,6 +71,25 @@ spec:
         a transient gildash hiccup cannot manufacture false drift.
         (Successful-but-empty lookups still count as unresolved — see INV-002.)
       always_holds: per-call
+    - id: INV-004
+      statement: >-
+        checkDrift never writes to the card table or to card files; it is a
+        read-only pass.
+      always_holds: cross-call
+    - id: INV-005
+      statement: >-
+        Drift is a derived fact reported only via driftType / driftTypes on the
+        response; it is never persisted.
+      always_holds: cross-call
+    - id: INV-006
+      statement: >-
+        health.drifted equals the number of non-draft cards that either carry a
+        driftType in the response or whose stored status is drifted.
+        health.active equals the remaining non-draft cards. health.draft equals
+        cards whose stored status is draft. The three categories partition every
+        targeted card present in storage; a requested key that is missing
+        contributes to health.total but to none of active, drifted, or draft.
+      always_holds: per-call
   failures:
     - violation: ensureReindexed throws (gildash cannot reindex at all).
       behavior: >-

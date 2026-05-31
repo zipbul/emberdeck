@@ -45,6 +45,9 @@ spec:
         count in isolation; multiple inputs combine into the level. A hot-file
         fan-in match can only promote the level upward, never demote.
       always_holds: per-call
+    - id: INV-002
+      statement: regressionGuard returns the violating ratio whenever it exits non-zero.
+      always_holds: per-call
   failures:
     - violation: A passed file path is not under the project root.
       behavior: >-

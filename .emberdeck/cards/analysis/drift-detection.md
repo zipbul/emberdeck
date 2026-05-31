@@ -95,49 +95,6 @@ brief:
       covers:
         - G-001
         - G-002
-  design:
-    overview: >-
-      checkDrift reads each card's cached code_link rows plus its declared
-      glossary, queries gildash to verify each link, queries the glossary to
-      verify each word, and classifies divergence. The primary driftType is
-      reported on each card alongside the full driftTypes array. Aggregate
-      health counts on the response group cards into draft / drifted / active
-      where drifted is the union of (live-detected driftType) and (DB
-      status='drifted'). The function performs zero writes — neither the DB row
-      nor the card file is modified.
-    components:
-      - name: checkDrift
-        responsibility: >-
-          Detect broken_link and glossary_broken per card, classify primary
-          type, and aggregate union-based health counts. Read-only.
-        interacts_with:
-          - card-lifecycle
-      - name: per-type-detectors
-        responsibility: >-
-          Independent detectors for each driftType using code-binding and
-          glossary outputs.
-        interacts_with:
-          - code-binding
-          - glossary
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          checkDrift never writes to the card table or to card files; repeated
-          invocations are idempotent.
-      - id: DI-002
-        statement: >-
-          Drift is a derived fact reported only via `driftType` / `driftTypes`
-          on the response; it is never persisted.
-      - id: DI-003
-        statement: >-
-          health.drifted equals the number of non-draft cards that either carry
-          a driftType in the response or whose DB status is 'drifted'.
-          health.active equals the remaining non-draft cards. health.draft
-          equals cards whose DB status is 'draft'. The three categories
-          partition every targeted card that is present in storage; a requested
-          key that is missing contributes to health.total but to none of
-          active/drifted/draft.
   policy:
     - id: R-001
       subject: Every detector
@@ -177,11 +134,6 @@ brief:
       reference:
         title: spec analysis/drift-detection/check-drift
         locator: analysis/drift-detection/check-drift
-  compatibility:
-    guarantees:
-      - subject: DriftType enum
-        version_range: 1.x
-        breaks_if: An existing drift type is renamed.
   limits:
     - id: KL-001
       statement: >-
@@ -262,4 +214,18 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Drift detection is read-only. For each card it reads the cached code
+    bindings and the declared glossary, verifies each binding against the code
+    index and each word against the glossary, and classifies any divergence into
+    drift types — a primary type plus the full set. A broken link is reported
+    whenever a declared binding does not resolve, including against a
+    successfully empty index, while transient lookup failures are skipped so
+    they cannot manufacture false drift. Drift is a derived fact carried only on
+    the response; it is never written back to the card row or file, and repeated
+    runs over identical state are idempotent. Aggregate health counts partition
+    the targeted cards into draft, drifted, and active, where drifted is the
+    union of a live-detected drift type and a stored drifted status; a requested
+    key absent from storage counts toward the total but toward none of the three
+    categories.
 ---
