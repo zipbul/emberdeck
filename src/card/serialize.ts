@@ -23,6 +23,7 @@ import type {
   PrincipleBody,
   PrincipleMetric,
   PrincipleVerify,
+  VisionBody,
   SpecBody,
   SpecFailure,
   SpecInvariant,
@@ -403,6 +404,15 @@ function normalizeBriefRationale(value: unknown): BriefRationale {
   return out;
 }
 
+function normalizeVisionBody(value: unknown): VisionBody {
+  const o = asObj(value, 'vision');
+  return {
+    statement: asString(o.statement, 'vision.statement'),
+    rationale: asString(o.rationale, 'vision.rationale'),
+    success_direction: asString(o.success_direction, 'vision.success_direction'),
+  };
+}
+
 function normalizeBriefBody(value: unknown): BriefBody {
   const o = asObj(value, 'brief');
   const body: BriefBody = {
@@ -575,6 +585,9 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
   if (glossary !== undefined) out.glossary = glossary;
 
   // ── Type-specific structured bodies ──────────────────────────
+  if (fm['vision'] != null) {
+    out.vision = normalizeVisionBody(fm['vision']);
+  }
   if (fm['principle'] != null) {
     out.principle = normalizePrincipleBody(fm['principle']);
   }
@@ -629,7 +642,7 @@ export function parseCard(text: string): CardFile {
 const SERIALIZE_KEY_ORDER: ReadonlyArray<keyof CardFrontmatter> = [
   'key', 'summary', 'status', 'type',
   'parent', 'relations', 'tags', 'glossary',
-  'principle', 'domain', 'brief', 'spec',
+  'vision', 'principle', 'domain', 'brief', 'spec',
 ];
 
 /** @spec card-model/round-trip/parse-and-serialize */

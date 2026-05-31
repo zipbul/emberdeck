@@ -13,6 +13,10 @@ import type { CardFrontmatter } from './types';
 export function buildSearchableText(fm: CardFrontmatter): string {
   const parts: string[] = [];
 
+  if (fm.vision) {
+    parts.push(fm.vision.statement, fm.vision.rationale, fm.vision.success_direction);
+  }
+
   if (fm.principle) {
     parts.push(fm.principle.statement);
     parts.push(fm.principle.rationale);

@@ -505,3 +505,37 @@ describe('validateTypeChangeActivation', () => {
     expect(result).toBe('draft');
   });
 });
+
+// ── vision (root, enforcement-free) ─────────────────────────────────────────
+describe('vision card type', () => {
+  const goodVision = { statement: 's', rationale: 'r', success_direction: 'd' };
+
+  it('rejects a vision card with a parent (vision is root-level)', () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'some-domain', type: 'domain', filePath: '/d.md' }));
+    expect(() => validateParentType(ctx, 'vision', 'some-domain')).toThrow(ParentValidationError);
+  });
+
+  it('activates a root vision card with a complete body', async () => {
+    await validateActivationGuard(ctx, { type: 'vision', parent: null, vision: goodVision, key: 'v' });
+  });
+
+  it('refuses to activate a vision card that has a parent', async () => {
+    await assertRejects(
+      validateActivationGuard(ctx, { type: 'vision', parent: 'some-domain', vision: goodVision, key: 'v' }),
+      ActivationGuardError,
+    );
+  });
+
+  it('refuses to activate a vision card missing a required field', async () => {
+    await assertRejects(
+      validateActivationGuard(ctx, { type: 'vision', parent: null, vision: { statement: 's', rationale: 'r', success_direction: '' }, key: 'v' }),
+      ActivationGuardError,
+    );
+  });
+
+  it('refuses a type change to vision when the card has children', () => {
+    ctx.cardRepo.upsert(makeCard({ key: 'p', type: 'domain', filePath: '/p.md' }));
+    ctx.cardRepo.upsert(makeCard({ key: 'c', type: 'brief', parent: 'p', filePath: '/c.md' }));
+    expect(() => validateChildrenHierarchy(ctx, 'p', 'vision')).toThrow(ParentValidationError);
+  });
+});

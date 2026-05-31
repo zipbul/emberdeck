@@ -106,6 +106,7 @@ export async function cardGetAction(
     };
     if (fm.relations) data.relations = fm.relations;
     if (fm.tags) data.tags = fm.tags;
+    if (fm.vision) data.vision = fm.vision;
     if (fm.principle) data.principle = fm.principle;
     if (fm.domain) data.domain = fm.domain;
     if (fm.brief) data.brief = fm.brief;
@@ -472,6 +473,7 @@ export async function cardContextAction(
     };
     if (fm.relations) data.relations = fm.relations;
     if (fm.tags) data.tags = fm.tags;
+    if (fm.vision) data.vision = fm.vision;
     if (fm.principle) data.principle = fm.principle;
     if (fm.domain) data.domain = fm.domain;
     if (fm.brief) data.brief = fm.brief;

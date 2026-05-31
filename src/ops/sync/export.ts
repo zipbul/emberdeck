@@ -38,6 +38,7 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
     ...(relations.length ? { relations } : {}),
     ...(tags.length ? { tags } : {}),
     ...(glossary.length > 0 ? { glossary } : {}),
+    ...(ns.vision ? { vision: ns.vision as CardFrontmatter['vision'] } : {}),
     ...(ns.principle ? { principle: ns.principle as CardFrontmatter['principle'] } : {}),
     ...(ns.domain ? { domain: ns.domain as CardFrontmatter['domain'] } : {}),
     ...(ns.brief ? { brief: ns.brief as CardFrontmatter['brief'] } : {}),

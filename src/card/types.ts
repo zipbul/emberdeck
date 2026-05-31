@@ -25,9 +25,9 @@ export function isCardStatus(value: unknown): value is CardStatus {
  * Each type is an abstraction layer; same-level different aspects belong to sections within a card.
  * Bloat at one level resolves by adding sibling cards (briefs) or sub-spec (spec recursion only).
  */
-export type CardType = 'principle' | 'domain' | 'brief' | 'spec';
+export type CardType = 'vision' | 'principle' | 'domain' | 'brief' | 'spec';
 
-export const CARD_TYPES: ReadonlyArray<CardType> = ['principle', 'domain', 'brief', 'spec'];
+export const CARD_TYPES: ReadonlyArray<CardType> = ['vision', 'principle', 'domain', 'brief', 'spec'];
 
 /** Type-guard: narrow an unknown string to CardType. */
 export function isCardType(value: unknown): value is CardType {
@@ -308,11 +308,26 @@ export interface DomainBody {
   cross_domain_dependencies?: DomainCrossDependency[];
 }
 
+/**
+ * Namespace for `vision` cards — the single enforcement-free root node that
+ * states the project's direction (CARD_MODEL_DESIGN §9.1). All fields required.
+ * No `applies_to`/`enforcement` (that is principle's normative territory);
+ * vision states *where the project is going*, not a rule it enforces.
+ */
+export interface VisionBody {
+  /** Why the project exists and where it is going, stated as direction (not a feature list). */
+  statement: string;
+  /** The problem/background that justifies this direction; the root every lower decision traces back to. */
+  rationale: string;
+  /** Qualitative picture of the project heading the right way (not a numeric KPI — that is principle.metric). */
+  success_direction: string;
+}
+
 // ── CardFrontmatter ───────────────────────────────────────────
 
 /**
  * Top-level structure of a card's `.md` file frontmatter.
- * Type-specific structured bodies live under `principle` / `domain` / `brief` / `spec` namespace keys.
+ * Type-specific structured bodies live under `vision` / `principle` / `domain` / `brief` / `spec` namespace keys.
  */
 export interface CardFrontmatter {
   /** Unique card identifier. Must match the file path slug. */
@@ -333,6 +348,8 @@ export interface CardFrontmatter {
   glossary?: string[];
 
   // ── Type-specific structured bodies ──────────────────────────
+  /** vision namespace (only when type=vision) */
+  vision?: VisionBody;
   /** principle namespace (only when type=principle) */
   principle?: PrincipleBody;
   /** domain namespace (only when type=domain) */

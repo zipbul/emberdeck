@@ -35,17 +35,19 @@ export function parseCrossDomainDependencies(namespacesJson: string | null | und
 }
 
 /**
- * Serialize the principle/domain/brief/spec namespace blocks from a card
- * frontmatter into the JSON shape stored on the row. Returns null when no
+ * Serialize the vision/principle/domain/brief/spec namespace blocks from a
+ * card frontmatter into the JSON shape stored on the row. Returns null when no
  * namespace is present (plain markdown card).
  */
 export function serializeNamespaces(fm: {
+  vision?: unknown;
   principle?: unknown;
   domain?: unknown;
   brief?: unknown;
   spec?: unknown;
 }): string | null {
   const ns: Record<string, unknown> = {};
+  if (fm.vision) ns.vision = fm.vision;
   if (fm.principle) ns.principle = fm.principle;
   if (fm.domain) ns.domain = fm.domain;
   if (fm.brief) ns.brief = fm.brief;
@@ -59,7 +61,7 @@ export function serializeNamespaces(fm: {
  */
 export function parseNamespaces(
   namespacesJson: string | null,
-): { principle?: unknown; domain?: unknown; brief?: unknown; spec?: unknown } {
+): { vision?: unknown; principle?: unknown; domain?: unknown; brief?: unknown; spec?: unknown } {
   if (!namespacesJson) return {};
   try {
     return JSON.parse(namespacesJson);

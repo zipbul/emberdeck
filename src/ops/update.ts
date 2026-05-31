@@ -8,6 +8,7 @@ import type {
   DomainBody,
   PrincipleBody,
   SpecBody,
+  VisionBody,
 } from '../card/types';
 import type { CardRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
@@ -48,13 +49,14 @@ import { buildSearchableText } from '../card/searchable-text';
  * shape via a temporary parse round-trip), not deep — sub-array contents are
  * validated downstream by validateBriefRefs / validateSpecRefs at activation.
  */
-function assertCompleteNamespace(field: 'principle' | 'domain' | 'brief' | 'spec', value: unknown): void {
+function assertCompleteNamespace(field: 'vision' | 'principle' | 'domain' | 'brief' | 'spec', value: unknown): void {
   if (value === null || value === undefined) return;
   if (typeof value !== 'object' || Array.isArray(value)) {
     throw new CardValidationError(`invalid ${field} namespace: must be an object`);
   }
   // Required top-level fields per card/types.ts namespaces.
   const required: Record<typeof field, string[]> = {
+    vision: ['statement', 'rationale', 'success_direction'],
     principle: ['statement', 'rationale', 'applies_to', 'enforcement'],
     domain: ['overview', 'scope'],
     brief: ['context', 'scope', 'flow', 'approach', 'policy', 'external', 'limits', 'criteria', 'rationale'],
@@ -88,6 +90,8 @@ export interface UpdateCardFields {
   relations?: string[] | null;
   /** Glossary words declared by this card. */
   glossary?: string[];
+  /** vision namespace (only when type=vision). null deletes. */
+  vision?: VisionBody | null;
   /** principle namespace (only when type=principle). null deletes. */
   principle?: PrincipleBody | null;
   /** domain namespace (only when type=domain). null deletes. */
@@ -154,6 +158,10 @@ function mergeUpdateFields(
       validateRelationTargets(ctx, key, fields.relations);
       next.relations = fields.relations;
     }
+  }
+  if (fields.vision !== undefined) {
+    if (fields.vision === null) delete next.vision;
+    else { assertCompleteNamespace('vision', fields.vision); next.vision = fields.vision; }
   }
   if (fields.principle !== undefined) {
     if (fields.principle === null) delete next.principle;
@@ -294,6 +302,7 @@ export async function updateCard(
             status: next.status,
             type: fields.type,
             parent: next.parent ?? null,
+            vision: next.vision,
             principle: next.principle,
             domain: next.domain,
             brief: next.brief,
@@ -326,6 +335,7 @@ export async function updateCard(
         (
           fields.type !== undefined ||
           fields.parent !== undefined ||
+          fields.vision !== undefined ||
           fields.principle !== undefined ||
           fields.domain !== undefined ||
           fields.brief !== undefined ||
@@ -335,6 +345,7 @@ export async function updateCard(
         await validateActivationGuard(ctx, {
           type: next.type,
           parent: next.parent ?? null,
+          vision: next.vision,
           principle: next.principle,
           domain: next.domain,
           brief: next.brief,

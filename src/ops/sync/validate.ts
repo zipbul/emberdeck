@@ -19,6 +19,7 @@ function typeHierarchyViolationMessage(
   parentKey: string,
   parentType: CardType,
 ): string | null {
+  if (rowType === 'vision') return `Vision card must be root-level, but has parent "${parentKey}"`;
   if (rowType === 'principle') return `Principle card must be root-level, but has parent "${parentKey}"`;
   if (rowType === 'domain') return `Domain card must be root-level, but has parent "${parentKey}"`;
   if (rowType === 'brief' && parentType !== 'domain') return `Brief card parent must be domain, got "${parentKey}" (type: ${parentType})`;
@@ -88,8 +89,8 @@ export async function validateCards(
   }
 
   for (const row of dbRows) {
-    // Orphan card: only principle and domain are root-allowed.
-    if (!row.parent && row.type !== 'principle' && row.type !== 'domain') {
+    // Orphan card: only vision, principle and domain are root-allowed.
+    if (!row.parent && row.type !== 'vision' && row.type !== 'principle' && row.type !== 'domain') {
       warnings.push({
         type: 'orphan-card',
         cardKey: row.key,
@@ -231,6 +232,20 @@ export async function validateCards(
         type: 'empty-tree',
         cardKey: row.key,
         message: `Active ${row.type} card has no child cards`,
+      });
+    }
+  }
+
+  // Vision singleton: at most one vision card per project (CARD_MODEL_DESIGN §9.1).
+  // Vision is the single project-direction root that scopes every domain by
+  // derivation; a second vision would make that root ambiguous.
+  const visionRows = dbRows.filter((r) => r.type === 'vision');
+  if (visionRows.length > 1) {
+    for (const row of visionRows) {
+      warnings.push({
+        type: 'vision-singleton',
+        cardKey: row.key,
+        message: `At most one vision card is allowed per project; found ${visionRows.length}`,
       });
     }
   }

@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import type { EmberdeckContext } from '../config';
-import type { BriefBody, CardFile, CardType, CardStatus, DomainBody, PrincipleBody, SpecBody } from '../card/types';
+import type { BriefBody, CardFile, CardType, CardStatus, DomainBody, PrincipleBody, SpecBody, VisionBody } from '../card/types';
 import { buildSearchableText } from '../card/searchable-text';
 import type { CardRow } from '../db/repository';
 import { normalizeSlug, buildCardPath } from '../card/card-key';
@@ -50,6 +50,8 @@ export interface CreateCardInput {
   relations?: string[];
   /** Glossary words declared by this card (optional). */
   glossary?: string[];
+  /** vision namespace (only when type=vision). */
+  vision?: VisionBody;
   /** principle namespace (only when type=principle). */
   principle?: PrincipleBody;
   /** domain namespace (only when type=domain). */
@@ -149,6 +151,7 @@ export async function createCard(
         await validateActivationGuard(ctx, {
           type: input.type,
           parent: input.parent ?? null,
+          vision: input.vision,
           principle: input.principle,
           domain: input.domain,
           brief: input.brief,
@@ -166,6 +169,7 @@ export async function createCard(
         ...(input.tags && input.tags.length > 0 ? { tags: input.tags.map((t) => t.toLowerCase()) } : {}),
         ...(input.relations && input.relations.length > 0 ? { relations: input.relations } : {}),
         ...(input.glossary && input.glossary.length > 0 ? { glossary: input.glossary } : {}),
+        ...(input.vision ? { vision: input.vision } : {}),
         ...(input.principle ? { principle: input.principle } : {}),
         ...(input.domain ? { domain: input.domain } : {}),
         ...(input.brief ? { brief: input.brief } : {}),

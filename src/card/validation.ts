@@ -16,6 +16,7 @@ import { validateBriefRefs } from '../brief/validate-refs';
 import { validateSpecRefs } from '../spec/validate-refs';
 import { validatePrincipleCard } from '../principle/validate';
 import { validateDomainCard } from '../domain/validate';
+import { validateVisionCard } from '../vision/validate';
 
 /**
  * Per-field maximum size constants applied by `validateCardInput`.
@@ -183,7 +184,11 @@ export function validateParentType(ctx: EmberdeckContext, cardType: CardType, pa
   }
   const parentType = parent.type as CardType;
 
-  if (cardType === 'principle') {
+  if (cardType === 'vision') {
+    throw new ParentValidationError(
+      `vision card cannot have a parent (vision is always root-level)`,
+    );
+  } else if (cardType === 'principle') {
     throw new ParentValidationError(
       `principle card cannot have a parent (principle is always root-level)`,
     );
@@ -250,6 +255,11 @@ export function validateChildrenHierarchy(ctx: EmberdeckContext, cardKey: string
   const children = ctx.cardRepo.findChildren(cardKey);
   if (children.length === 0) return;
 
+  if (newType === 'vision') {
+    throw new ParentValidationError(
+      `Cannot change to vision: card has ${children.length} child card(s); vision must be root-level`,
+    );
+  }
   if (newType === 'principle') {
     throw new ParentValidationError(
       `Cannot change to principle: card has ${children.length} child card(s); principle must be root-level`,
@@ -310,6 +320,7 @@ export async function validateActivationGuard(
   card: {
     type: CardType;
     parent?: string | null;
+    vision?: CardFrontmatter['vision'];
     principle?: CardFrontmatter['principle'];
     domain?: CardFrontmatter['domain'];
     brief?: BriefBody;
@@ -321,7 +332,7 @@ export async function validateActivationGuard(
   // 4-tier hierarchy enforcement at activation time (strict).
   // Active brief MUST have parent=domain. Active spec MUST have parent=brief|spec.
   // principle/domain MUST be root-level (no parent).
-  if (card.type === 'principle' || card.type === 'domain') {
+  if (card.type === 'vision' || card.type === 'principle' || card.type === 'domain') {
     if (card.parent) {
       throw new ActivationGuardError('Activation conditions not met', [
         `${card.type} card must be root-level (got parent "${card.parent}")`,
@@ -363,6 +374,14 @@ export async function validateActivationGuard(
     }
   }
 
+  if (card.type === 'vision') {
+    try {
+      validateVisionCard(card.vision);
+    } catch (e) {
+      throw new ActivationGuardError('Activation conditions not met', [(e as Error).message]);
+    }
+    return;
+  }
   if (card.type === 'principle') {
     if (!card.principle) {
       throw new ActivationGuardError('Activation conditions not met', [
@@ -460,6 +479,7 @@ export async function validateTypeChangeActivation(
     status: string;
     type: CardType;
     parent?: string | null;
+    vision?: CardFrontmatter['vision'];
     principle?: CardFrontmatter['principle'];
     domain?: CardFrontmatter['domain'];
     brief?: BriefBody;
