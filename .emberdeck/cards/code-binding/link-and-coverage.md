@@ -83,48 +83,6 @@ brief:
         identified.
       covers:
         - G-001
-  design:
-    overview: >
-      ensureReindexed maintains a fresh gildash snapshot. resolveCardCodeLinks
-      reads the card's cache rows and queries gildash for symbol existence,
-      returning a discriminated union (valid / broken / ioFailed).
-      validateCodeLinks aggregates per-card results. getLinkCoverage and
-      getUncoveredSymbols compute coverage from the same cache.
-    components:
-      - name: ensureReindexed
-        responsibility: Trigger a gildash refresh when needed before any link query.
-        interacts_with:
-          - resolveCardCodeLinks
-          - getUncoveredSymbols
-      - name: resolveCardCodeLinks
-        responsibility: >-
-          Resolve each cached code_link row against gildash returning per-link
-          status.
-        interacts_with:
-          - validateCodeLinks
-      - name: validateCodeLinks
-        responsibility: Aggregate link statuses into a per-card report.
-        interacts_with: []
-      - name: getLinkCoverage
-        responsibility: Compute covered vs. total symbol counts for a single card.
-        interacts_with: []
-      - name: getUncoveredSymbols
-        responsibility: List symbols across the project that no card's code_link cache covers.
-        interacts_with: []
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          All link queries use ensureReindexed to read a current code-index
-          snapshot; ensureReindexed runs at most once per runtime context
-          lifetime so every link query within one ed invocation observes the
-          same snapshot.
-      - id: DI-002
-        statement: >-
-          The code_link cache is the sole inclusion test for coverage
-          classification. Caller-supplied filters (kinds, files,
-          excludePatterns) and project ignorePatterns may further reduce the
-          result, but symbol visibility is never consulted.
   policy:
     - id: R-001
       subject: Every link or coverage entry point
@@ -154,14 +112,6 @@ brief:
       reference:
         title: spec code-binding/link-and-coverage/resolve-and-validate
         locator: code-binding/link-and-coverage/resolve-and-validate
-  compatibility:
-    guarantees:
-      - subject: link-and-coverage entry-point signatures
-        version_range: 1.x
-        breaks_if: >-
-          A new major version of the underlying code-index dependency changes
-          the adopted API signatures (reindex, getSymbolsByFile, getAffected,
-          getDependents), or this brief reshapes its public entry points.
   limits:
     - id: KL-001
       statement: >-
@@ -233,4 +183,14 @@ brief:
       reasoning: Honors the single-source-of-truth integration policy.
     addresses:
       - KL-002
+  approach: >-
+    Link resolution and coverage both read from one cached binding view. Before
+    any link query, a code-index snapshot is refreshed at most once per
+    invocation so every query in that invocation observes the same view. Each
+    cached binding is resolved against the code index into a per-link status —
+    valid, broken, or io-failed — and those statuses are aggregated into a
+    per-card report. Coverage is computed from the same cache: the cached
+    bindings are the sole inclusion test for what counts as covered, with caller
+    filters and project ignore patterns only narrowing the result; raw symbol
+    visibility is never consulted.
 ---

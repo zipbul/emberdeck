@@ -41,6 +41,16 @@ spec:
         The DB code_link cache is never the source of binding declarations for
         source generation; it is strictly a derived view.
       always_holds: cross-call
+    - id: INV-003
+      statement: >-
+        The DB code_link cache is a derived view; it is never the input to
+        source generation.
+      always_holds: cross-call
+    - id: INV-004
+      statement: >-
+        syncSpecAnnotations is idempotent — re-running with no source change
+        leaves the cache byte-identical.
+      always_holds: cross-call
   failures:
     - violation: gildash index unavailable.
       behavior: >-

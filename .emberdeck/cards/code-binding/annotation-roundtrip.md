@@ -77,32 +77,6 @@ brief:
         returns the `unmatched` array of the spec sync result.
       covers:
         - G-001
-  design:
-    overview: >
-      syncSpecAnnotations parses source for `@spec` tags and reconciles the DB
-      code_link table — adding missing rows, leaving existing rows alone, and
-      reporting annotations whose card key is unknown. syncSymbolChanges queries
-      gildash for renames and moves since a stored watermark and applies the
-      diff to the cache.
-    components:
-      - name: syncSpecAnnotations
-        responsibility: Read `@spec` tags from source and reconcile DB code_link rows.
-        interacts_with:
-          - syncSymbolChanges
-      - name: syncSymbolChanges
-        responsibility: Apply gildash-reported renames and moves to code_link rows.
-        interacts_with:
-          - syncSpecAnnotations
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          The DB code_link cache is a derived view; it is never the input to
-          source generation.
-      - id: DI-002
-        statement: >-
-          syncSpecAnnotations is idempotent — re-running with no source change
-          leaves the cache byte-identical.
   policy:
     - id: R-001
       subject: syncSpecAnnotations
@@ -124,11 +98,6 @@ brief:
         title: TypeScript JSDoc Reference
         locator: >-
           https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html
-  compatibility:
-    guarantees:
-      - subject: Annotation tag format
-        version_range: 1.x
-        breaks_if: The `@spec` tag syntax changes incompatibly.
   limits:
     - id: KL-001
       statement: >-
@@ -201,4 +170,13 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Source annotations are the source of truth for card-to-symbol bindings, and
+    the cached binding view is strictly derived from them — it is never an input
+    to generating source. Reconciliation reads the annotation tags from source
+    and brings the cache into agreement: missing bindings are added, existing
+    ones are left untouched, and annotations whose card key is unknown are
+    reported rather than silently dropped. Re-running with no source change is
+    idempotent. Symbol renames and moves reported by the code index since a
+    stored watermark are applied to the cache as a separate reconciliation.
 ---

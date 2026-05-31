@@ -65,6 +65,13 @@ spec:
         getUncoveredSymbols; the two functions cannot disagree about which
         symbols are covered.
       always_holds: cross-call
+    - id: INV-003
+      statement: >-
+        The code_link cache is the sole inclusion test for coverage
+        classification. Caller-supplied filters (kinds, files, excludePatterns)
+        and project ignorePatterns may further reduce the result, but symbol
+        visibility is never consulted.
+      always_holds: per-call
   failures:
     - violation: >-
         All three modes (per-card key, --uncovered, --suggest) are omitted at

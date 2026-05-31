@@ -37,6 +37,12 @@ spec:
         The cached code_link rows are the sole input to resolution; the card
         frontmatter never carries codeLinks.
       always_holds: cross-call
+    - id: INV-003
+      statement: >-
+        All link queries use ensureReindexed to read a current code-index
+        snapshot; ensureReindexed runs at most once per runtime context lifetime
+        so every link query within one ed invocation observes the same snapshot.
+      always_holds: cross-call
   failures:
     - violation: The card has no rows in the code_link cache.
       behavior: >-
