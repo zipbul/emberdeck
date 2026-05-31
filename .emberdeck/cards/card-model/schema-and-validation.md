@@ -125,85 +125,6 @@ brief:
         written and the unknown key is not silently discarded.
       covers:
         - G-001
-  design:
-    overview: >
-      Validation is layered. A generic frontmatter validator checks shared
-      fields (key, type, status, summary) and enforces the field-length bounds.
-      Then a type-discriminated dispatcher invokes one of four body validators
-      (principle, domain, brief, spec). Each body validator runs structural
-      checks on its required fields and then runs intra-card cross-reference
-      resolution. Hierarchy rules are checked once the parent card is loaded by
-      the lifecycle layer. On a type change the storage layer additionally
-      invokes validateChildrenHierarchy and rejects the update when any direct
-      child's type would become invalid under the new parent type.
-    components:
-      - name: validateCardInput
-        responsibility: >-
-          Public entry point that validates the COMMON fields (key
-          TYPE+LENGTH+FORMAT, type discriminant, summary, parent shape, closed
-          frontmatter schema) and throws on the first error. The deep
-          type-specific pass (brief/spec cross-reference resolution) is NOT run
-          here — it is invoked separately by the op layer and is status-gated
-          (only for cards persisted as active or transitioning to active).
-        interacts_with:
-          - type-dispatcher
-          - brief-refs-validator
-          - spec-refs-validator
-          - validateChildrenHierarchy
-      - name: type-dispatcher
-        responsibility: Selects the correct body validator based on the type discriminant.
-        interacts_with:
-          - brief-refs-validator
-          - spec-refs-validator
-      - name: brief-refs-validator
-        responsibility: >-
-          Resolves brief.flow.covers, policy.governs, criteria.verifies, and
-          rationale.addresses against declared ids on the same card. Accumulates
-          every violation and throws a single CardValidationError listing them
-          all (not first-fail).
-        interacts_with: []
-      - name: spec-refs-validator
-        responsibility: >-
-          Validates spec body required minimums and the `derives` format (and
-          target existence when a brief lookup is supplied). Accumulates every
-          violation and throws a single CardValidationError listing them all.
-        interacts_with: []
-      - name: validateChildrenHierarchy
-        responsibility: >-
-          Invoked from updateCard when type changes on an existing card: walks
-          the direct children and throws ParentValidationError if any child's
-          existing type would violate the four-tier rule under the proposed new
-          type.
-        interacts_with: []
-    data_flow:
-      - from: validateCardInput
-        to: type-dispatcher
-        payload: Normalized frontmatter object plus typed body.
-        trigger: createCard or updateCard or bulkCreateCards or bulkSyncCards.
-      - from: type-dispatcher
-        to: brief-refs-validator
-        payload: Brief body with declared list-item ids.
-        trigger: type discriminant equals brief.
-    invariants:
-      - id: DI-001
-        statement: >-
-          No card is persisted unless validateCardInput common-field validation
-          returned without throwing. Deep type-specific cross-ref resolution is
-          invoked only when status=active (or the operation transitions to
-          active); draft cards skip the deep pass.
-      - id: DI-002
-        statement: >-
-          All declared list-item ids in a brief or spec resolve within the same
-          card body BEFORE PERSISTING AS active (or transitioning to active).
-          Draft persistence intentionally bypasses this cross-ref resolution
-          check — the gate fires only at the activation boundary. When the check
-          runs, the error message accumulates every unresolved reference rather
-          than aborting on the first one.
-      - id: DI-003
-        statement: >-
-          On a type change to an existing card, every direct child's
-          type-vs-parent relationship is re-validated; a type change that would
-          make any child invalid is rejected.
   policy:
     - id: R-001
       subject: Every write entry point
@@ -252,16 +173,6 @@ brief:
       reference:
         title: spec card-model/schema-and-validation/validate-card-input
         locator: card-model/schema-and-validation/validate-card-input
-  compatibility:
-    guarantees:
-      - subject: validateCardInput public signature
-        version_range: 1.x
-        breaks_if: >-
-          A required field is added without a migration path for existing card
-          files.
-    migration_path: >-
-      Use bulk-sync after schema additions; warnings surface through
-      validateCards.
   limits:
     - id: KL-001
       statement: >-
@@ -365,4 +276,18 @@ brief:
     addresses:
       - C-001
       - KL-001
+  approach: >-
+    Validation is layered. A common pass first checks the shared frontmatter
+    fields — key grammar and length, the type discriminant, summary, parent
+    shape, and the closed frontmatter schema — failing on the first violation. A
+    type-discriminated second pass then runs the body validator for the card
+    type; for brief and spec cards this resolves every declared cross-reference
+    (flow against goals, policy against flow, criteria against flow, rationale
+    against external and limits, and spec derives against brief items) and
+    reports all violations together rather than aborting on the first. The deep
+    cross-reference pass is status-gated: it runs only when a card is persisted
+    as active or transitions to active, so draft cards can be saved
+    incrementally. Hierarchy rules are enforced once the parent is known, and a
+    type change on an existing card re-validates every direct child against the
+    four-tier rule.
 ---

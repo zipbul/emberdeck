@@ -52,6 +52,22 @@ spec:
         status='active' or the operation transitions to active. Draft
         create/update intentionally bypasses the deeper validation pass.
       always_holds: per-call
+    - id: INV-003
+      statement: >-
+        No card is persisted unless validateCardInput common-field validation
+        returned without throwing. Deep type-specific cross-ref resolution is
+        invoked only when status=active (or the operation transitions to
+        active); draft cards skip the deep pass.
+      always_holds: per-call
+    - id: INV-004
+      statement: >-
+        All declared list-item ids in a brief or spec resolve within the same
+        card body before persisting as active (or transitioning to active).
+        Draft persistence intentionally bypasses this cross-ref resolution check
+        — the gate fires only at the activation boundary. When the check runs,
+        the error message accumulates every unresolved reference rather than
+        aborting on the first one.
+      always_holds: per-call
   failures:
     - violation: >-
         A required common field (key, type, summary, parent for non-root types)

@@ -39,6 +39,16 @@ spec:
         serializeCardMarkdown emits a canonical key ordering per type so
         equivalent inputs produce identical bytes.
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        serializeCardMarkdown(parseCardMarkdown(text)) is idempotent after the
+        first pass.
+      always_holds: per-call
+    - id: INV-003
+      statement: >-
+        Partial parse results never escape parseCardMarkdown when an error
+        occurs.
+      always_holds: per-call
   failures:
     - violation: YAML frontmatter is syntactically invalid.
       behavior: >-

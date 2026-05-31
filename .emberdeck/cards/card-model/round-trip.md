@@ -71,37 +71,6 @@ brief:
         partial card construction.
       covers:
         - G-002
-  design:
-    overview: >
-      parseCardMarkdown splits the document at the frontmatter delimiter, parses
-      YAML into a typed
-
-      frontmatter object, and validates type-specific body fields.
-      serializeCardMarkdown emits a
-
-      canonical YAML form (sorted keys per type, fixed delimiter style) and
-      re-attaches the body.
-    components:
-      - name: parseCardMarkdown
-        responsibility: >-
-          Read raw markdown and produce a CardFile object with typed frontmatter
-          and body.
-        interacts_with:
-          - serializeCardMarkdown
-      - name: serializeCardMarkdown
-        responsibility: Render a CardFile back to canonical markdown ready for disk write.
-        interacts_with:
-          - parseCardMarkdown
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          serializeCardMarkdown(parseCardMarkdown(text)) is idempotent after the
-          first pass.
-      - id: DI-002
-        statement: >-
-          Partial parse results never escape parseCardMarkdown when an error
-          occurs.
   policy:
     - id: R-001
       subject: Card serialization
@@ -127,13 +96,6 @@ brief:
       reference:
         title: YAML 1.2 specification
         locator: https://yaml.org/spec/1.2.2/
-  compatibility:
-    guarantees:
-      - subject: Card file format
-        version_range: 1.x
-        breaks_if: >-
-          A new required frontmatter field is added without a migration path for
-          existing files.
   limits:
     - id: KL-001
       statement: >-
@@ -184,4 +146,13 @@ brief:
         overhead.
     addresses:
       - KL-001
+  approach: >-
+    Parsing and serialization are inverse operations over one canonical card
+    form. Parsing reads a card document into a typed in-memory representation —
+    a frontmatter object plus a body — validating type-specific fields as it
+    reads. Serialization renders that representation back to disk in a canonical
+    shape with a fixed per-type key ordering and a single delimiter style.
+    Because serialization is canonical and parsing is total over well-formed
+    input, the on-disk and in-memory views stay interchangeable and a
+    parse-then-serialize cycle settles after the first pass.
 ---

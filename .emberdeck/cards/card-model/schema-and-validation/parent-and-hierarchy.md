@@ -41,6 +41,12 @@ spec:
     - id: INV-001
       statement: All four hierarchy checks complete before any storage mutation.
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        On a type change to an existing card, the type-vs-parent relationship of
+        every direct child is re-validated; a type change that would make any
+        child invalid under the new parent type is rejected.
+      always_holds: per-call
   failures:
     - violation: Proposed parent does not exist in storage.
       behavior: validateParentExists throws ParentValidationError.
