@@ -72,4 +72,6 @@ spec:
         Runner maps CardNotFoundError through toCliError, emits one
         `{level:'error', code:'card-not-found', message, details?}` JSON-line on
         stderr, and exits 3.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-01
 ---

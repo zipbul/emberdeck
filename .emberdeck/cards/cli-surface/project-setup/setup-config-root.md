@@ -73,11 +73,14 @@ spec:
         ConfigLoadError → stderr `{level:error, code:config-missing-file,
         message}` → exit 6. (Implicit discovery does NOT trigger this — it
         silently falls back to defaults.)
+      id: FAIL-001
+      case_of: cli-surface/project-setup#S-F-01
     - violation: The config file is present but its JSON/JSONC syntax cannot be parsed.
       behavior: >-
         loadConfig returns Err{code: PARSE_ERROR}; context build raises
         ConfigLoadError → stderr `{level:'error', code:'config-parse-error',
         message}` → exit 2.
+      id: FAIL-002
     - violation: >-
         The config file parses but a value is invalid (unknown top-level key,
         wrong type for a known key, regressionThreshold outside [0,1]).
@@ -85,6 +88,8 @@ spec:
         loadConfig returns Err{code: VALIDATION_ERROR}; context build raises
         ConfigLoadError → stderr `{level:'error',
         code:'config-validation-error', message}` → exit 2.
+      id: FAIL-003
+      case_of: cli-surface/project-setup#S-F-02
     - violation: >-
         The code-index dependency fails to initialize (e.g. its data directory
         cannot be created).
@@ -92,4 +97,5 @@ spec:
         setupEmberdeck closes any partially-opened indexed-cache handle and
         raises GildashInitError → stderr `{level:'error',
         code:'gildash-init-failed', message}` → exit 6.
+      id: FAIL-004
 ---

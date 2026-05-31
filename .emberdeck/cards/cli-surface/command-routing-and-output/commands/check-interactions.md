@@ -62,4 +62,6 @@ spec:
       behavior: >-
         Falls through the runner-commander-fallback path: stderr emits
         `{level:'error', code:'cli-usage-error', ...}` and the process exits 2.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

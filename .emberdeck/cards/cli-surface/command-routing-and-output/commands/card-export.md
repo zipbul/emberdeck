@@ -57,4 +57,6 @@ spec:
       behavior: >-
         stderr emits `{level:'error', code:'card-not-found', message}` and the
         process exits 3.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-01
 ---

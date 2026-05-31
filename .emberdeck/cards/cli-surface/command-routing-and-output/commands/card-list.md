@@ -67,4 +67,6 @@ spec:
         commander rejects the invocation upstream, taking the
         runner-commander-fallback path: stderr `{level:'error',
         code:'cli-usage-error', ...}` and exit 2.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

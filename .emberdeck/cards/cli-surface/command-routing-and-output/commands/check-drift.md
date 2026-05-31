@@ -61,4 +61,5 @@ spec:
         The op skips the absent key and returns an empty cards[] in data; exit
         0. (No CardNotFoundError thrown — read-only path returns absence as
         empty data, not as failure.)
+      id: FAIL-001
 ---

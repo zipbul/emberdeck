@@ -94,4 +94,6 @@ spec:
       behavior: >-
         CliUsageError → stderr `{code:'cli-usage-error', message}` and the
         process exits 2.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

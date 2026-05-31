@@ -54,8 +54,11 @@ spec:
         ActivationGuardError → stderr `{level:'error',
         code:'activation-guard-failed', message, details:{unmetConditions}}` and
         the process exits 2.
+      id: FAIL-001
     - violation: No card exists for the requested key.
       behavior: >-
         CardNotFoundError → stderr `{level:'error', code:'card-not-found',
         message}` and the process exits 3.
+      id: FAIL-002
+      case_of: cli-surface/command-routing-and-output#S-F-01
 ---

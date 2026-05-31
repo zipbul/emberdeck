@@ -89,6 +89,7 @@ spec:
       behavior: >-
         stdout emits the data shape normally and exits 2; stderr is empty
         because the data channel itself reports the diagnostics.
+      id: FAIL-001
     - violation: >-
         A disk card file has well-formed YAML frontmatter but carries one or
         more top-level keys outside the closed CardFrontmatter set (e.g. legacy
@@ -98,4 +99,5 @@ spec:
         'unknown-field', the offending filePath, and details.unknownKeys listing
         the keys; summary.total counts it and the command exits 2. The card is
         NOT silently accepted with the field stripped.
+      id: FAIL-002
 ---

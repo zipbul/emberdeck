@@ -62,18 +62,22 @@ spec:
       behavior: >-
         stderr emits `{level:'error', code:'card-not-found', message}` and the
         process exits 3.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-01
     - violation: >-
         Patch body conflicts with the card schema (invalid type, malformed
         namespace body, unresolved cross-references).
       behavior: >-
         CardValidationError → stderr `{level:'error', code:'validation-error',
         message, details?}` and the process exits 2.
+      id: FAIL-002
     - violation: >-
         Transitioning status to 'active' leaves the activation guard
         preconditions unmet.
       behavior: >-
         ActivationGuardError → stderr `{code:'activation-guard-failed', message,
         details:{unmetConditions}}` and the process exits 2.
+      id: FAIL-003
     - violation: >-
         Parent change violates the four-tier hierarchy or the new parent does
         not exist; or a type change on a card with children would orphan or
@@ -81,6 +85,7 @@ spec:
       behavior: >-
         ParentValidationError → stderr `{code:'parent-validation-error',
         message}` and the process exits 2.
+      id: FAIL-004
     - violation: >-
         CLI pre-op input violation: `--patch` body is empty, the parsed root is
         non-object, an unknown top-level key was supplied, or no effective
@@ -88,6 +93,8 @@ spec:
       behavior: >-
         CliUsageError → stderr `{code:'cli-usage-error', message}` and the
         process exits 2.
+      id: FAIL-005
+      case_of: cli-surface/command-routing-and-output#S-F-02
     - violation: >-
         The forward write succeeded but the safe-write compensation/rollback
         itself then failed.
@@ -96,10 +103,12 @@ spec:
         compensationError} → stderr `{code:'compensation-failed', message}` and
         the process exits 1; the card may be left in an inconsistent state that
         the next `ed bulk sync` reconciles.
+      id: FAIL-006
     - violation: >-
         The target key is malformed (invalid slug, reserved characters, or
         normalization-rules violation).
       behavior: >-
         updateCard throws CardKeyError → stderr `{code:'invalid-card-key',
         message}`, exit 2; no change.
+      id: FAIL-007
 ---

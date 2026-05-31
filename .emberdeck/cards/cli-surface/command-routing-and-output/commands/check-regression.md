@@ -59,4 +59,5 @@ spec:
       behavior: >-
         stdout emits the data shape with passOrFail='fail' and the process exits
         2.
+      id: FAIL-001
 ---

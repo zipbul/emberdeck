@@ -71,4 +71,6 @@ spec:
         rejection; the parsing happens inside the action after commander
         validation). Runner maps via toCliError → stderr `{level:error,
         code:cli-usage-error, message}` and exit 2.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

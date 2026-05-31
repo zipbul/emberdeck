@@ -60,4 +60,5 @@ spec:
       behavior: >-
         stderr emits `{level:'error', code:'fts-syntax-error', message}` and the
         process exits 2.
+      id: FAIL-001
 ---

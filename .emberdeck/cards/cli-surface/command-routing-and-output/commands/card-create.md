@@ -65,24 +65,28 @@ spec:
       behavior: >-
         stderr emits `{level:'error', code:'card-already-exists', message,
         details?}` and the process exits 4.
+      id: FAIL-001
     - violation: >-
         Card input schema validation failed (invalid type / namespace body /
         cross-reference).
       behavior: >-
         CardValidationError → stderr `{code:'validation-error', message}` and
         the process exits 2.
+      id: FAIL-002
     - violation: >-
         Parent validation failed (parent does not exist or the four-tier
         hierarchy rule is violated).
       behavior: >-
         ParentValidationError → stderr `{code:'parent-validation-error',
         message}` and the process exits 2.
+      id: FAIL-003
     - violation: >-
         status='active' on creation but the activation guard preconditions are
         not met.
       behavior: >-
         ActivationGuardError → stderr `{code:'activation-guard-failed', message,
         details:{unmetConditions}}` and the process exits 2.
+      id: FAIL-004
     - violation: >-
         CLI pre-op input violation: `--from` body is empty, the parsed root is
         non-object, or summary is missing (no --summary AND no `summary` field
@@ -90,16 +94,20 @@ spec:
       behavior: >-
         CliUsageError → stderr `{code:'cli-usage-error', message}` and the
         process exits 2.
+      id: FAIL-005
+      case_of: cli-surface/command-routing-and-output#S-F-02
     - violation: >-
         The supplied key is malformed (invalid slug, reserved characters, or
         normalization-rules violation).
       behavior: >-
         createCard throws CardKeyError → stderr `{code:'invalid-card-key',
         message}`, exit 2; no card written.
+      id: FAIL-006
     - violation: >-
         A --glossary word is not defined in the project glossary (or the
         glossary field is required but missing).
       behavior: >-
         createCard throws GlossaryValidationError → stderr
         `{code:'glossary-validation-error', message}`, exit 2; no card written.
+      id: FAIL-007
 ---

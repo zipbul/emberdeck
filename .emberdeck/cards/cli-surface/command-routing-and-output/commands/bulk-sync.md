@@ -60,6 +60,7 @@ spec:
         The offending entry accumulates in failed[] with {filePath, error};
         stdout still emits the data shape; the process exits 2 whenever
         failed.length > 0.
+      id: FAIL-001
     - violation: >-
         A single-FILE-mode bulk sync where the supplied file fails to parse or
         upsert.
@@ -68,10 +69,13 @@ spec:
         (typically internal-error → exit 1 or validation-error → exit 2); it is
         NOT accumulated into failed[] (file mode does not catch per-file
         errors).
+      id: FAIL-002
     - violation: >-
         PATH positional argument resolves to a non-existent path (only when
         supplied — PATH is optional and defaults to ctx.cardsDir).
       behavior: >-
         CliUsageError → stderr `{code:cli-usage-error, message}` and the process
         exits 2.
+      id: FAIL-003
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

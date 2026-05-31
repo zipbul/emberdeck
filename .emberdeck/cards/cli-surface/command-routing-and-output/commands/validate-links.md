@@ -66,6 +66,7 @@ spec:
       behavior: >-
         stdout emits the data shape with brokenLinks populated, and the process
         exits 2.
+      id: FAIL-001
     - violation: >-
         Per-card link validation hits an I/O failure or a frontmatter-key vs
         file-slug mismatch.
@@ -73,8 +74,11 @@ spec:
         stdout reports the offending entry via items[i].ioError={message} or
         items[i].skipped={reason:'key-mismatch'}; the process exits 2 when
         summary.broken + summary.ioFailed > 0 and 0 otherwise.
+      id: FAIL-002
     - violation: Explicit `[key]` argument supplied but no card resolves to that key.
       behavior: >-
         CardNotFoundError → stderr `{code:'card-not-found', message}` and the
         process exits 3.
+      id: FAIL-003
+      case_of: cli-surface/command-routing-and-output#S-F-01
 ---

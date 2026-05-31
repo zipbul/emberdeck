@@ -66,10 +66,12 @@ spec:
         message}` and the process exits 6 (EXIT.CONFIG_MISSING). The throw
         originates inside the op (after the runner has built the runtime), not
         at buildRuntime.
+      id: FAIL-001
     - violation: Op-level indexed-cache write or IO failure.
       behavior: >-
         stderr emits `{level:'error', code:'internal-error', message,
         details:{class}}` and the process exits 1 (the toCliError default
         branch). A dedicated IO error class would let this map to exit 5 in the
         future.
+      id: FAIL-002
 ---

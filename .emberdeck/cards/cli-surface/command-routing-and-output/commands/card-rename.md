@@ -63,16 +63,21 @@ spec:
         stdout emits the data shape with failedReferenceUpdates populated,
         process exits 2; stderr is empty (the data channel carries the
         diagnostic).
+      id: FAIL-001
     - violation: No card exists for the old key.
       behavior: >-
         CardNotFoundError → stderr `{code:'card-not-found', message}` and exit
         3.
+      id: FAIL-002
+      case_of: cli-surface/command-routing-and-output#S-F-01
     - violation: newKey already names another card.
       behavior: >-
         CardAlreadyExistsError → stderr `{code:'card-already-exists', message}`
         and exit 4.
+      id: FAIL-003
     - violation: old and new keys resolve to the same path.
       behavior: >-
         CardRenameSamePathError → stderr `{code:'rename-same-path', message}`
         and exit 4.
+      id: FAIL-004
 ---

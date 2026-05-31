@@ -60,4 +60,5 @@ spec:
   failures:
     - violation: Either the cards or the links sub-result reports at least one violation.
       behavior: stdout emits the aggregate data shape and the process exits 2.
+      id: FAIL-001
 ---

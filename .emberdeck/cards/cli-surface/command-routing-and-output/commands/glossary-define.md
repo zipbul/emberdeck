@@ -67,6 +67,7 @@ spec:
         the surviving (accepted) entries are still passed to the all-or-nothing
         op write and persisted (partial-accept). Because failed[] is non-empty
         the command exits 2, with data still emitted.
+      id: FAIL-001
     - violation: >-
         The op-level all-or-nothing write fails — batch size exceeds 50 per
         call, or the project total would exceed 500.
@@ -75,4 +76,5 @@ spec:
         accepted entry into failed[] and persists nothing. stderr emits
         `{level:'error', code:'glossary-validation-error', message}` and the
         command exits 2.
+      id: FAIL-002
 ---

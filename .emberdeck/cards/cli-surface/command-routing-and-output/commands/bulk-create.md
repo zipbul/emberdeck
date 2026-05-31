@@ -73,6 +73,7 @@ spec:
       behavior: >-
         The offending entry accumulates in failed[]; stdout still emits the data
         shape; the process exits 2 whenever failed.length > 0.
+      id: FAIL-001
     - violation: >-
         Phase-1 succeeded (card row created) but the phase-2 relations update
         failed for some entries.
@@ -80,8 +81,11 @@ spec:
         Each such key appears in BOTH partialKeys[] (signalling 'card exists
         without intended relations') AND failed[] (signalling 'phase-2
         failure'); stdout emits the data shape; exit code is 2.
+      id: FAIL-002
     - violation: '`--from` input is missing, not an array, or an empty array.'
       behavior: >-
         CliUsageError thrown → stderr emits `level:error code:cli-usage-error`;
         stdout empty; exit 2.
+      id: FAIL-003
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

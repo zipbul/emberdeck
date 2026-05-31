@@ -115,24 +115,28 @@ spec:
       behavior: >-
         toCliError maps to code=`internal-error` message=stringified error;
         runner emits a single `level:error` JSON-line on stderr and exits 1.
+      id: FAIL-001
     - violation: >-
         ensureCardsSynced itself throws (e.g. DB write failure at the schema
         layer, not a per-file parse error).
       behavior: >-
         The error propagates through the run try/catch and is mapped via
         toCliError to a stderr line + non-zero exit; the command is not invoked.
+      id: FAIL-002
     - violation: A CommandFn returns undefined/null where data is expected.
       behavior: >-
         A CommandFn returning undefined (or `{data: undefined}`) yields no
         stdout output and exit 0. Commands that need to emit JSON `null` MUST
         return `{data: null}` explicitly. Commands MUST NOT write to stdout
         directly — only the runner calls emitResult.
+      id: FAIL-003
     - violation: A SIGINT or SIGTERM is received during command execution.
       behavior: >-
         Best-effort cleanup runs; stderr emits `{level:error, code:sigint,
         message:'<SIG> received, exiting'}`; process exits 130. stdout is
         whatever was already written (potentially partial JSON) — consumers MUST
         check exit code.
+      id: FAIL-004
     - violation: >-
         A SECOND SIGINT or SIGTERM is received WHILE cleanup is already in
         progress.
@@ -141,12 +145,14 @@ spec:
         IMMEDIATELY with code 130; no further stderr line is guaranteed; on-disk
         artifacts (DB file, locks) may be left behind. Consumers must not assume
         cleanup completed.
+      id: FAIL-005
     - violation: >-
         stdout write fails after the command completed successfully (broken pipe
         excepted; disk-full or other IO error).
       behavior: >-
         stderr emits `{level:error, code:stdout-write-failed, message}`; process
         exits 5.
+      id: FAIL-006
     - violation: >-
         stdout write encounters EPIPE (downstream consumer closed the pipe, e.g.
         `ed ... | head`).
@@ -155,12 +161,14 @@ spec:
         NATURAL exit code (0 on success, 2 on partial-exit, etc.). No
         `stdout-write-failed` line is emitted. Unix-tool convention —
         broken-pipe is a consumer concern, not a producer error.
+      id: FAIL-007
     - violation: >-
         JSON encoding of the command result fails (e.g. BigInt, circular
         reference, or other non-serializable value).
       behavior: >-
         stderr emits `{level:error, code:output-encode-failed, message}`;
         process exits 1.
+      id: FAIL-008
     - violation: >-
         stderr write itself fails (any exception, not just EPIPE — disk-full,
         EPIPE on stderr, encoding error, etc.).
@@ -168,6 +176,7 @@ spec:
         The runner SILENTLY swallows the exception. Diagnostic output is
         best-effort; a failing stderr channel MUST NOT kill the command. The
         command proceeds to its natural exit code.
+      id: FAIL-009
     - violation: >-
         An EXPLICIT config path (`--config` flag) is supplied and the file does
         not exist. (Implicit discovery — no flag, walks upward, falls back to
@@ -176,10 +185,12 @@ spec:
       behavior: >-
         stderr emits `{level:error, code:config-missing-file, message}`; process
         exits 6.
+      id: FAIL-010
     - violation: Config file is present but cannot be parsed.
       behavior: >-
         stderr emits `{level:error, code:config-parse-error, message}`; process
         exits 2.
+      id: FAIL-011
     - violation: >-
         Config file is parsed but contains an invalid value (e.g.
         regressionThreshold outside [0,1], unknown top-level key, wrong type for
@@ -187,6 +198,7 @@ spec:
       behavior: >-
         stderr emits `{level:error, code:config-validation-error, message}`;
         process exits 2.
+      id: FAIL-012
     - violation: >-
         Best-effort cleanup (DB close / temp-file removal) fails. Detection
         PRIMARY path = the signal-handler catch in run; SECONDARY path = the
@@ -196,10 +208,12 @@ spec:
         details?:{stage}}` — note level is WARNING, not error. The warning is
         emitted even under --quiet (see POST-005 exception). The command's
         natural exit code is NOT altered.
+      id: FAIL-013
     - violation: >-
         Compensation logic itself fails after a forward action error
         (CompensationError).
       behavior: >-
         stderr emits `{level:error, code:compensation-failed, message,
         details:{originalError, compensationError}}`; process exits 1.
+      id: FAIL-014
 ---
