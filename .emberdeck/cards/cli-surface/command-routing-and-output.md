@@ -137,69 +137,6 @@ brief:
       covers:
         - G-002
         - G-004
-  design:
-    overview: >-
-      The runner builds the runtime context, runs auto-sync, invokes the command
-      action, and dispatches output: success → stdout JSON of the command's
-      natural shape; failure → stderr JSON-line + exit code. Auto-sync per-file
-      failures stream to stderr as JSON-lines independent of the command
-      outcome. Output helpers expose `emitResult(data)` for stdout and
-      `emitWarning({code, message, details?})` plus `emitError({code, message,
-      details?})` for stderr; each helper writes a single canonical JSON-line.
-      Each command's spec card declares its stdout shape and the set of exit
-      codes it can produce.
-    components:
-      - name: runner
-        responsibility: >-
-          Build runtime context, run auto-sync, invoke action, route
-          success/failure to stdout/stderr, exit with the kebab-code-mapped exit
-          code.
-        interacts_with:
-          - output
-          - setup
-          - ensureCardsSynced
-      - name: output
-        responsibility: >-
-          Writes the command result JSON to stdout; writes diagnostics (one
-          `{level:'warning'}` or `{level:'error'}` JSON-line per event) to
-          stderr.
-        interacts_with:
-          - runner
-      - name: command-tree
-        responsibility: >-
-          A command-line framework command tree, grouped by topic. Each command
-          returns its natural data; the runner emits it.
-        interacts_with:
-          - runner
-      - name: errors-mapper
-        responsibility: >-
-          Map known error classes to kebab error codes, then map each kebab code
-          to its exit code via a fixed code-to-exit table.
-        interacts_with:
-          - runner
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          On success: stdout is valid JSON of the command's spec-declared shape;
-          stderr carries at most auto-sync JSON-lines (level:warning/verbose)
-          and never a level:error line.
-      - id: DI-002
-        statement: >-
-          On thrown failure: stdout is empty (no JSON written); stderr contains
-          exactly one final level:error JSON-line; exit code is non-zero per the
-          kebab-code → exit map.
-      - id: DI-003
-        statement: >-
-          Exit codes are taken from the EXIT enum and selected via
-          ERROR_CODE_TO_EXIT keyed by the kebab error code (not by class name).
-          Each command's spec card lists which codes it can produce; the runner
-          never invents codes.
-      - id: DI-004
-        statement: >-
-          Auto-sync warnings stream to stderr as JSON-lines (one
-          card-sync-failed object per line) regardless of the command's outcome.
-          They do not influence exit code.
   policy:
     - id: R-001
       subject: Every subcommand on success
@@ -267,17 +204,6 @@ brief:
       reference:
         title: spec cli-surface/command-routing-and-output/runner-and-output
         locator: cli-surface/command-routing-and-output/runner-and-output
-  compatibility:
-    guarantees:
-      - subject: Per-command stdout shape
-        version_range: 1.x
-        breaks_if: >-
-          A command's spec-declared shape changes; consumers must read the
-          per-command spec card for the authoritative contract. No legacy v1
-          envelope dual-emission is supported.
-    migration_path: >-
-      v1 envelope consumers cannot read v2 stdout without rewriting. Migration
-      is a single breaking step; no dual emission is supported.
   limits:
     - id: KL-001
       statement: No pretty TTY output; piping to jq is the intended consumption pattern.
@@ -369,4 +295,19 @@ brief:
       - KL-001
       - KL-002
       - KL-003
+  approach: >-
+    The runner builds the runtime context, runs the file-to-cache auto-sync,
+    invokes the selected command action, and routes the outcome to two disjoint
+    channels: on success it writes the command natural-shape JSON to stdout and
+    emits no error line; on a thrown failure it writes nothing to stdout and
+    emits exactly one canonical error JSON-line to stderr. Exit codes are taken
+    from a fixed enum and selected through a code-to-exit table keyed by the
+    kebab error code rather than by class name, and the runner never invents a
+    code outside what each command spec declares it can produce. Auto-sync
+    per-file warnings stream to stderr as canonical JSON-lines independent of
+    the command outcome and never affect the exit code. Output helpers each
+    write a single canonical JSON-line — one for the result on stdout, and one
+    per warning or error event on stderr. The stdout contract is per-command:
+    each command spec card declares its own shape, with no legacy envelope
+    dual-emission.
 ---

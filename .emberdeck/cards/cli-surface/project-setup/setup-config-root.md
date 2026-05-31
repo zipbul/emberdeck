@@ -64,6 +64,16 @@ spec:
         Unknown top-level keys in the config file are a strict rejection (no
         silent ignore); only the documented KNOWN_TOP_KEYS set is accepted.
       always_holds: per-call
+    - id: INV-003
+      statement: >-
+        setupEmberdeck always returns a fully-initialized context or throws; it
+        never yields a partially-initialized context.
+      always_holds: per-call
+    - id: INV-004
+      statement: >-
+        teardownEmberdeck always closes the DB connection and releases open
+        resources even when a prior error occurred.
+      always_holds: per-call
   failures:
     - violation: >-
         An explicit config path is supplied via `--config` flag and the file

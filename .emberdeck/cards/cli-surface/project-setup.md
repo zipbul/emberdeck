@@ -88,46 +88,6 @@ brief:
       then: A ConfigError is thrown identifying the offending field.
       covers:
         - G-002
-  design:
-    overview: >
-      Project root discovery walks upward from cwd until it finds .emberdeck or
-      hits the nearest
-
-      package.json. loadConfig parses the JSONC/JSON config and validates
-      against the EmberdeckFileConfig schema.
-
-      mergeCliArgs overlays CLI overrides. setupEmberdeck opens the DB, runs
-      migrations, and
-
-      constructs the runtime context.
-    components:
-      - name: package-root
-        responsibility: Walk upward to find project root from cwd.
-        interacts_with:
-          - setupEmberdeck
-      - name: loadConfig
-        responsibility: Parse and validate .emberdeck.jsonc or .emberdeck.json.
-        interacts_with:
-          - mergeCliArgs
-      - name: mergeCliArgs
-        responsibility: Overlay CLI overrides on file config.
-        interacts_with:
-          - setupEmberdeck
-      - name: setupEmberdeck
-        responsibility: Open DB, run migrations, construct runtime context.
-        interacts_with:
-          - teardownEmberdeck
-      - name: teardownEmberdeck
-        responsibility: Close DB connection and release any open resources.
-        interacts_with: []
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: setupEmberdeck always returns a fully-initialized context or throws.
-      - id: DI-002
-        statement: >-
-          teardownEmberdeck always closes the DB connection even on prior
-          errors.
   policy:
     - id: R-001
       subject: setupEmberdeck
@@ -163,11 +123,6 @@ brief:
       reference:
         title: domain cli-surface
         locator: cli-surface
-  compatibility:
-    guarantees:
-      - subject: setupEmberdeck and teardownEmberdeck public signatures
-        version_range: 1.x
-        breaks_if: A new required option is added without a default.
   limits:
     - id: KL-001
       statement: >-
@@ -220,4 +175,13 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Startup discovers the project root by walking upward from the working
+    directory until an emberdeck marker or the nearest package boundary is
+    found, parses and validates the JSON or JSONC config against the config
+    schema, and overlays any CLI overrides. Setup then opens the database, runs
+    migrations, and constructs a fully-initialized runtime context — it either
+    returns that context or throws, never a partial one. Teardown always closes
+    the database connection and releases open resources, even when a prior error
+    occurred.
 ---

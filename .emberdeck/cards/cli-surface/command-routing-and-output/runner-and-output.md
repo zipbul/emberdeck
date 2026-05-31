@@ -110,6 +110,31 @@ spec:
         message, details?}`. All property names (including inside the `details`
         bag) are camelCase. Error code values are kebab-case.
       always_holds: cross-call
+    - id: INV-006
+      statement: >-
+        On success: stdout is valid JSON of the command spec-declared shape;
+        stderr carries at most auto-sync JSON-lines (level warning or verbose)
+        and never a level:error line.
+      always_holds: per-call
+    - id: INV-007
+      statement: >-
+        On thrown failure: stdout is empty (no JSON written); stderr contains
+        exactly one final level:error JSON-line; the exit code is non-zero per
+        the kebab-code to exit map.
+      always_holds: per-call
+    - id: INV-008
+      statement: >-
+        Exit codes are taken from the EXIT enum and selected via
+        ERROR_CODE_TO_EXIT keyed by the kebab error code (not by class name).
+        Each command spec card lists which codes it can produce; the runner
+        never invents codes.
+      always_holds: cross-call
+    - id: INV-009
+      statement: >-
+        Auto-sync warnings stream to stderr as JSON-lines (one card-sync-failed
+        object per line) regardless of the command outcome. They do not
+        influence the exit code.
+      always_holds: per-call
   failures:
     - violation: An unmapped error class is thrown inside the action.
       behavior: >-
