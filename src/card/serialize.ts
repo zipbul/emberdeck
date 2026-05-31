@@ -22,6 +22,7 @@ import type {
   DomainCrossDependency,
   PrincipleBody,
   PrincipleMetric,
+  PrincipleStructuralPredicate,
   PrincipleVerify,
   VisionBody,
   SpecBody,
@@ -154,6 +155,23 @@ function normalizeMetric(value: unknown): PrincipleMetric[] | undefined {
   });
 }
 
+const VALID_STRUCTURAL_KINDS = ['requires-child-type', 'forbids-relation-to'];
+
+function normalizeStructuralPredicate(value: unknown): PrincipleStructuralPredicate {
+  const o = asObj(value, 'principle.verify.structural');
+  if (typeof o.kind !== 'string' || !VALID_STRUCTURAL_KINDS.includes(o.kind)) {
+    throw new CardValidationError(`Invalid principle.verify.structural.kind (expected one of: ${VALID_STRUCTURAL_KINDS.join(', ')})`);
+  }
+  if (o.kind === 'requires-child-type') {
+    const childType = asString(o.childType, 'principle.verify.structural.childType');
+    if (!(CARD_TYPES as readonly string[]).includes(childType)) {
+      throw new CardValidationError(`Invalid principle.verify.structural.childType "${childType}" (expected a card type)`);
+    }
+    return { kind: 'requires-child-type', childType: childType as CardType };
+  }
+  return { kind: 'forbids-relation-to', targetGlob: asString(o.targetGlob, 'principle.verify.structural.targetGlob') };
+}
+
 function normalizePrincipleBody(value: unknown): PrincipleBody {
   const o = asObj(value, 'principle');
   if (typeof o.enforcement !== 'string' || !VALID_ENFORCEMENT.includes(o.enforcement)) {
@@ -176,7 +194,16 @@ function normalizePrincipleBody(value: unknown): PrincipleBody {
     if ((cls === 'prose' || cls === 'metric') && body.enforcement === 'blocking') {
       throw new CardValidationError(`principle.verify.class "${cls}" cannot be enforcement:blocking (not machine-checkable / no fed signal yet — use warning or advisory)`);
     }
-    body.verify = { class: cls };
+    const verify: PrincipleVerify = { class: cls };
+    if (cls === 'structural') {
+      if (v.structural == null) {
+        throw new CardValidationError('principle.verify.class "structural" requires a `structural` predicate');
+      }
+      verify.structural = normalizeStructuralPredicate(v.structural);
+    } else if (v.structural != null) {
+      throw new CardValidationError(`principle.verify.structural is only valid when class="structural" (got class="${cls}")`);
+    }
+    body.verify = verify;
   }
   const metric = normalizeMetric(o.metric);
   if (metric !== undefined) body.metric = metric;

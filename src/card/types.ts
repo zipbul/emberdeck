@@ -71,8 +71,23 @@ export interface PrincipleMetric {
  * (human review). Enforcement strength = class × enforcement, bounded by
  * integrity rules (prose/metric without feed may not be `blocking`).
  */
+/**
+ * [§5 engine] Closed structural predicate evaluated over a principle's
+ * applies_to scope by `validate cards`. The set is intentionally bounded (a
+ * named registry, not a DSL): each kind is a pure graph-shape assertion.
+ * - requires-child-type: every in-scope card must have ≥1 direct child of `childType`
+ *   (graph decomposition completeness — e.g. every domain must have a brief).
+ * - forbids-relation-to: no in-scope card may declare a relation whose target key
+ *   matches `targetGlob` (boundary enforcement — e.g. a domain may not couple to another).
+ */
+export type PrincipleStructuralPredicate =
+  | { kind: 'requires-child-type'; childType: CardType }
+  | { kind: 'forbids-relation-to'; targetGlob: string };
+
 export interface PrincipleVerify {
   class: 'structural' | 'binding' | 'metric' | 'prose';
+  /** Required when class='structural'; forbidden otherwise. The predicate the engine evaluates. */
+  structural?: PrincipleStructuralPredicate;
 }
 
 export interface PrincipleBody {

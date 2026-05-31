@@ -459,8 +459,10 @@ describe('principle.verify.class (§5 — verify class + integrity rule)', () =>
   }
   const base = { statement: 'X MUST Y', rationale: 'r', applies_to: ['src/**'] };
 
+  const structuralPredicate = { kind: 'requires-child-type', childType: 'brief' };
+
   it('round-trips verify.class', () => {
-    const r = parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'structural' } }));
+    const r = parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'structural', structural: structuralPredicate } }));
     expect(r.frontmatter.principle?.verify?.class).toBe('structural');
   });
 
@@ -477,7 +479,24 @@ describe('principle.verify.class (§5 — verify class + integrity rule)', () =>
   });
 
   it('allows structural class + blocking enforcement', () => {
-    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'structural' } }))).not.toThrow();
+    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'structural', structural: structuralPredicate } }))).not.toThrow();
+  });
+
+  it('rejects structural class without a structural predicate', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'structural' } }))).toThrow(CardValidationError);
+  });
+
+  it('rejects a structural predicate on a non-structural class', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'prose', structural: structuralPredicate } }))).toThrow(CardValidationError);
+  });
+
+  it('rejects an unknown structural predicate kind', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'structural', structural: { kind: 'bogus' } } }))).toThrow(CardValidationError);
+  });
+
+  it('round-trips a forbids-relation-to predicate', () => {
+    const r = parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'structural', structural: { kind: 'forbids-relation-to', targetGlob: 'other/*' } } }));
+    expect(r.frontmatter.principle?.verify?.structural).toEqual({ kind: 'forbids-relation-to', targetGlob: 'other/*' });
   });
 
   it('allows binding class + blocking enforcement', () => {

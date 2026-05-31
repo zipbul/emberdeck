@@ -7,6 +7,7 @@ import { readCardFile } from '../../fs/reader';
 import { readGlossary } from '../../glossary/io';
 import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces } from '../../card/json-fields';
 import { collectSpecDeriveErrors } from '../../spec/validate-refs';
+import { evaluateStructuralPrinciples, type StructuralPrincipleRule } from '../../principle/structural-verify';
 import type { CardValidationResult, ValidationWarning } from './types';
 import { listCardFiles } from './sync-in';
 
@@ -246,6 +247,38 @@ export async function validateCards(
         type: 'vision-singleton',
         cardKey: row.key,
         message: `At most one vision card is allowed per project; found ${visionRows.length}`,
+      });
+    }
+  }
+
+  // Structural principle enforcement (§5 verify.class=structural): evaluate each
+  // active structural principle's closed predicate over its applies_to scope.
+  // blocking → gating warning; warning → non-gating; advisory → not emitted.
+  const structuralRules: StructuralPrincipleRule[] = [];
+  for (const row of dbRows) {
+    if (row.type !== 'principle' || row.status !== 'active') continue;
+    const principle = parseNamespaces(row.namespacesJson).principle as PrincipleBody | undefined;
+    if (principle?.verify?.class !== 'structural' || !principle.verify.structural) continue;
+    structuralRules.push({
+      key: row.key,
+      appliesTo: principle.applies_to,
+      enforcement: principle.enforcement,
+      predicate: principle.verify.structural,
+    });
+  }
+  if (structuralRules.length > 0) {
+    const forwardRelationsBySrc = new Map<string, string[]>();
+    for (const [src, rels] of relationsBySrc) {
+      const fwd = rels.filter((r) => !r.isReverse).map((r) => r.dstCardKey);
+      if (fwd.length > 0) forwardRelationsBySrc.set(src, fwd);
+    }
+    const nodes = dbRows.map((r) => ({ key: r.key, type: r.type as CardType, status: r.status, parent: r.parent ?? null }));
+    for (const v of evaluateStructuralPrinciples(nodes, forwardRelationsBySrc, structuralRules)) {
+      if (v.enforcement === 'advisory') continue;
+      warnings.push({
+        type: v.enforcement === 'blocking' ? 'principle-violation' : 'principle-violation-warning',
+        cardKey: v.cardKey,
+        message: v.message,
       });
     }
   }
