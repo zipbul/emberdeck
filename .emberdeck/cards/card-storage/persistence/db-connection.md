@@ -41,6 +41,12 @@ spec:
         cross-process locking is not implemented. Current behavior is
         single-process per the single-process-invocation principle.
       always_holds: cross-call
+    - id: INV-004
+      statement: >-
+        Repository writes never bypass the schema migrations; the connection is
+        brought to the current schema version by forward-only migration before
+        any write.
+      always_holds: cross-call
   failures:
     - violation: Underlying store IO fails (e.g. permission denied).
       behavior: createEmberdeckDb propagates the underlying store error.

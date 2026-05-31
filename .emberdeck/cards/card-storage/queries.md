@@ -77,78 +77,6 @@ brief:
       then: An FtsSyntaxError is thrown and the runner exits 2.
       covers:
         - G-003
-  design:
-    overview: >
-      Each read returns a typed result shape. listCards composes WHERE clauses
-      from independent filter inputs and surfaces explicit limit, offset, and
-      hasMore in its result envelope (default limit is 50). searchCards
-      delegates to the indexed text-search facility with explicit syntax
-      validation up front. getCardTree caps traversal at depth (default 10,
-      capped at 20) and exposes a truncated marker on nodes whose unvisited
-      subtree was skipped. getCardContext defaults to depth 1 at both ops and
-      CLI layers. getRelationGraph defaults to depth 3 and returns forward +
-      reverse hops within that ceiling. getCards is the batch read variant:
-      unknown keys are returned in notFound[] rather than throwing.
-      findCardsByGlossaryWord and findCardsBySymbol are alternate filtered
-      listings selected by the CLI --glossary / --symbol flags (mutually
-      exclusive with --tag).
-    components:
-      - name: getCard
-        responsibility: Single-card lookup with optional history.
-        interacts_with:
-          - getCardContext
-      - name: getCards
-        responsibility: >-
-          Batch lookup; unknown keys are collected in notFound[] rather than
-          throwing.
-        interacts_with:
-          - getCard
-      - name: listCards
-        responsibility: >-
-          Filtered list with composable predicates and explicit pagination
-          (default limit 50).
-        interacts_with: []
-      - name: searchCards
-        responsibility: Text-search-backed search with explicit syntax check and ranking.
-        interacts_with: []
-      - name: getCardTree
-        responsibility: >-
-          Parent-child traversal capped at depth (default 10, capped at 20) with
-          truncated markers.
-        interacts_with: []
-      - name: getCardContext
-        responsibility: >-
-          Neighborhood traversal (parent BFS plus relations) capped at depth
-          (default 1 at both ops and CLI layers).
-        interacts_with:
-          - getCard
-      - name: getRelationGraph
-        responsibility: Forward and reverse relations within a depth ceiling (default 3).
-        interacts_with: []
-      - name: findCardsByGlossaryWord
-        responsibility: >-
-          Listing variant that selects every card whose glossary field contains
-          the given word.
-        interacts_with:
-          - listCards
-      - name: findCardsBySymbol
-        responsibility: >-
-          Listing variant that selects every card whose code_link cache
-          references the given symbol.
-        interacts_with:
-          - listCards
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: Filter composition is intersection (AND), never union.
-      - id: DI-002
-        statement: >-
-          Tree and context traversals respect their depth ceilings (tree
-          min(req, 20) default 10; context default 1 at both ops and CLI;
-          relation graph default 3) and surface truncation explicitly when a
-          traversal is cut short by its ceiling on the depth>1 path; context at
-          its default depth 1 returns the direct neighborhood with no truncation
-          marker.
   policy:
     - id: R-001
       subject: searchCards
@@ -176,11 +104,6 @@ brief:
       reference:
         title: spec cli-surface/command-routing-and-output/commands/card-list
         locator: cli-surface/command-routing-and-output/commands/card-list
-  compatibility:
-    guarantees:
-      - subject: Read entry-point public signatures
-        version_range: 1.x
-        breaks_if: A required filter is added without a default.
   limits:
     - id: KL-001
       statement: >-
@@ -242,4 +165,17 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Every read returns a typed result shape rather than raw rows. Filtered
+    listing composes independent filter inputs by intersection — never union —
+    and surfaces explicit pagination (limit, offset, and a hasMore flag) with a
+    default page size. Text search delegates to the indexed search facility
+    after validating query syntax up front. Traversals are depth-bounded: the
+    tree walk caps at a requested depth with a hard ceiling and marks nodes
+    whose subtree was skipped, the neighborhood context defaults to the direct
+    neighborhood, and the relation graph returns forward and reverse hops within
+    its ceiling; truncation is surfaced explicitly whenever a traversal is cut
+    short. Batch lookup collects unknown keys in a not-found list rather than
+    throwing, and glossary-word and symbol listings are alternate filtered
+    selections.
 ---

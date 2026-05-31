@@ -48,6 +48,9 @@ spec:
         Read entries return typed result shapes without leaking raw repository
         rows.
       always_holds: per-call
+    - id: INV-002
+      statement: Filter composition is intersection (AND), never union.
+      always_holds: per-call
   failures:
     - violation: A getCard target key does not exist.
       behavior: getCard throws CardNotFoundError.

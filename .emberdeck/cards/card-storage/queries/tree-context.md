@@ -52,6 +52,12 @@ spec:
         context; truncation never silently drops nodes without surfacing the
         truncated marker (only relevant when depth>1 for context).
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        Traversals surface truncation explicitly when cut short by their ceiling
+        on the depth>1 path; context at its default depth 1 returns the direct
+        neighborhood with no truncation marker.
+      always_holds: per-call
   failures:
     - violation: Root key does not exist (for getCardTree / getCardContext).
       behavior: >-

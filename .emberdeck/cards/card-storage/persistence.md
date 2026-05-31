@@ -117,83 +117,6 @@ brief:
         fileLevelIssues key-mismatch entry.
       covers:
         - G-002
-  design:
-    overview: >-
-      The schema models cards plus relations plus classifications plus code
-      links plus changelog as separate tables. Repositories expose narrow
-      interfaces (CardRepository, RelationRepository, ClassificationRepository,
-      CodeLinkRepository, ChangelogRepository) used by ops/ and queries.
-      bulkSyncCards walks the cards directory, parses each file via card-model,
-      and reconciles the resulting set against existing rows. ensureCardsSynced
-      runs once per CLI invocation at runner entry to make external edits
-      invisible to subsequent reads.
-    components:
-      - name: schema
-        responsibility: >-
-          Declares tables, indexes, and migrations including the indexed
-          full-text search facility.
-        interacts_with:
-          - CardRepository
-          - RelationRepository
-          - ClassificationRepository
-          - CodeLinkRepository
-          - ChangelogRepository
-      - name: CardRepository
-        responsibility: Read and write cards table including JSON-encoded body fields.
-        interacts_with:
-          - schema
-      - name: bulkSyncCards
-        responsibility: >-
-          Reconcile the on-disk cards directory with the DB: delete stale rows
-          and upsert existing files, returning per-file parse/IO failures in
-          failed[]. Orphan-file / stale-row and key-vs-slug mismatch detection
-          are delegated to validateCards.
-        interacts_with:
-          - CardRepository
-          - schema
-      - name: ensureCardsSynced
-        responsibility: >-
-          Per-context idempotent file-to-DB sync invoked once at CLI command
-          entry. Deletes DB rows whose filePath is missing on disk, then upserts
-          every existing card file. Per-file errors do NOT abort the sync — each
-          is surfaced as a card-sync-failed JSON-line on stderr at sync time and
-          collected in the returned failures array.
-        interacts_with:
-          - CardRepository
-          - schema
-      - name: exportCardToFile
-        responsibility: Render a DB-backed CardFile to canonical markdown on disk.
-        interacts_with:
-          - CardRepository
-    data_flow:
-      - from: ensureCardsSynced
-        to: CardRepository
-        payload: Parsed CardFile objects keyed by slug.
-        trigger: CLI runner entry (every command, once per invocation).
-      - from: bulkSyncCards
-        to: CardRepository
-        payload: Parsed CardFile objects keyed by slug.
-        trigger: User-invoked ed bulk sync (explicit; reports duplicates).
-      - from: CardRepository
-        to: exportCardToFile
-        payload: CardRow plus joined sub-tables.
-        trigger: User-invoked ed card export.
-    invariants:
-      - id: DI-001
-        statement: >-
-          A successful bulk-sync leaves DB content equivalent to the on-disk
-          directory.
-      - id: DI-002
-        statement: Repository writes never bypass the schema migrations.
-      - id: DI-003
-        statement: >-
-          After ensureCardsSynced returns for a given context, every subsequent
-          read on that context observes a DB state consistent with the card
-          files captured at the moment of sync.
-      - id: DI-004
-        statement: >-
-          Card files are the source of truth; the DB is a cache. On any
-          discrepancy detected during sync, files win.
   policy:
     - id: R-001
       subject: bulkSyncCards
@@ -239,12 +162,6 @@ brief:
       reference:
         title: SQLite Write-Ahead Logging
         locator: https://www.sqlite.org/wal.html
-  compatibility:
-    guarantees:
-      - subject: Repository public interfaces
-        version_range: 1.x
-        breaks_if: A method signature drops a parameter or changes return shape.
-    migration_path: Schema migrations are forward-only with version tracking.
   limits:
     - id: KL-001
       statement: >-
@@ -331,4 +248,19 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Storage models cards and their relations, classifications, code bindings,
+    and changelog as separate tables behind narrow repository interfaces. Card
+    files are the source of truth and the database is a cache derived from them;
+    on any discrepancy detected during sync, the files win. Two sync paths share
+    one per-file reconciliation: an automatic file-to-cache sync runs once at
+    command entry so external edits become visible to that invocation, and an
+    explicit bulk sync reconciles the whole directory, deleting stale rows and
+    upserting existing files while returning per-file parse and IO failures
+    rather than aborting. A successful bulk sync leaves the cache equivalent to
+    the on-disk directory, and after the automatic sync returns every later read
+    in that invocation observes a cache consistent with the files captured at
+    sync time. All writes go through a single connection whose schema is brought
+    up to date by forward-only migrations, and export renders a cache-backed
+    card back to canonical markdown.
 ---

@@ -103,6 +103,11 @@ spec:
     - id: INV-007
       statement: (key, filePath) is a bijection on the indexed-cache card table.
       always_holds: cross-call
+    - id: INV-008
+      statement: >-
+        Card files are the source of truth; the indexed cache is a derived
+        cache. On any discrepancy detected during sync, the files win.
+      always_holds: cross-call
   failures:
     - violation: A file referenced by removeCardByFile no longer exists.
       behavior: removeCardByFile is idempotent and returns without error.
