@@ -120,63 +120,6 @@ brief:
       then: Nothing is removed; the operator is required to confirm.
       covers:
         - G-004
-  design:
-    overview: >
-      defineGlossary writes the YAML glossary store atomically (tmp file plus
-      rename). The store is the source of truth; the indexed cache stores each
-      card's own glossary field after sync, not the global glossary itself.
-      renameGlossary writes the YAML store FIRST, then updates the indexed
-      glossary fields of every referencing card in a DB transaction, reverting
-      the YAML write if the DB step fails (two-step, not a single transaction);
-      per-card markdown file rewrites are best-effort and any individual failure
-      is surfaced in fileWriteFailures[]. removeGlossary requires explicit
-      --yes, returns the list of referencing card keys, and does not mutate
-      referencing cards itself — the operator decides whether to update their
-      glossary fields or to set their status to drifted.
-    components:
-      - name: defineGlossary
-        responsibility: >-
-          All-or-nothing batch define capped at fifty entries per call and five
-          hundred entries per project; enforces word and definition length
-          limits.
-        interacts_with:
-          - lookupGlossary
-      - name: lookupGlossary
-        responsibility: Read entries by word or list all.
-        interacts_with: []
-      - name: removeGlossary
-        responsibility: >-
-          Confirmation-gated remove that surfaces affected card keys without
-          mutating them; status transition to drifted is the operator's explicit
-          decision.
-        interacts_with:
-          - renameGlossary
-      - name: renameGlossary
-        responsibility: >-
-          Two-step rename: write the YAML store first, then update the indexed
-          glossary fields of every referencing card in a DB transaction with the
-          YAML write reverted on DB failure; card markdown rewrites are
-          best-effort with per-file failures surfaced in fileWriteFailures[].
-        interacts_with:
-          - defineGlossary
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          defineGlossary op is all-or-nothing per batch and never persists a
-          partial batch. CLI pre-validation runs BEFORE the op and may carve out
-          entries into result.failed[] without ever invoking the op for them.
-      - id: DI-002
-        statement: >-
-          removeGlossary never runs without explicit confirmation (a --yes flag
-          or an accepted TTY prompt).
-      - id: DI-003
-        statement: >-
-          renameGlossary is TWO-STEP (NOT one transaction): the YAML glossary
-          store is written first, then the indexed cache is updated inside a DB
-          transaction. On DB transaction failure the YAML write is reverted.
-          Per-card markdown rewrites are a third best-effort step outside both —
-          failures are reported in fileWriteFailures[] rather than thrown.
   policy:
     - id: R-001
       subject: defineGlossary
@@ -226,11 +169,6 @@ brief:
       reference:
         title: spec cli-surface/command-routing-and-output/commands/glossary-define
         locator: cli-surface/command-routing-and-output/commands/glossary-define
-  compatibility:
-    guarantees:
-      - subject: Glossary store file format
-        version_range: 1.x
-        breaks_if: A new required field is added without a migration path.
   limits:
     - id: KL-001
       statement: >-
@@ -319,4 +257,18 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    The glossary store is a YAML file that is the source of truth; each card
+    keeps its own glossary field, synced into the indexed cache, rather than a
+    copy of the global store. Defining entries is an all-or-nothing batch capped
+    per call and per project, with word and definition length limits; CLI
+    pre-validation may set aside individual entries before the batch runs, but
+    the batch itself never persists partially. Lookup reads entries by word or
+    lists all. Removal is confirmation-gated: it returns the referencing card
+    keys and never mutates them, leaving the operator to update their glossary
+    fields or mark them drifted. Rename is a two-step write — the YAML store
+    first, then the indexed glossary fields of every referencing card in a
+    database transaction, reverting the YAML write if the database step fails —
+    with per-card markdown rewrites as a best-effort third step whose individual
+    failures are reported rather than thrown.
 ---

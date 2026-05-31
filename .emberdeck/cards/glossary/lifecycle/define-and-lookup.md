@@ -52,6 +52,12 @@ spec:
         defineGlossary batches are bounded by the documented per-call cap of 50
         entries, and the project total is bounded by 500 entries.
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        defineGlossary op is all-or-nothing per batch and never persists a
+        partial batch. CLI pre-validation runs before the op and may carve out
+        entries into result.failed[] without ever invoking the op for them.
+      always_holds: per-call
   failures:
     - violation: Batch exceeds the size cap.
       behavior: defineGlossary throws GlossaryValidationError; no entries persisted.

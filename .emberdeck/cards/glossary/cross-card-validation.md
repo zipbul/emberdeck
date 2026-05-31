@@ -58,29 +58,6 @@ brief:
       then: The card surfaces glossary_broken in driftTypes.
       covers:
         - G-002
-  design:
-    overview: >
-      validateCardGlossaryField queries the glossary store for each declared
-      word and returns the unresolved set. The drift detector consumes this
-      output to report glossary_broken per card.
-    components:
-      - name: validateCardGlossaryField
-        responsibility: Per-card validation of declared glossary words against the store.
-        interacts_with:
-          - analysis/drift-detection
-      - name: buildGlossaryMatcher
-        responsibility: >-
-          Build a matcher used by analysis to detect glossary references in card
-          bodies (advisory only).
-        interacts_with: []
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: validateCardGlossaryField never auto-modifies card content.
-      - id: DI-002
-        statement: >-
-          glossary_broken is one of the two driftTypes detected by checkDrift;
-          drift detection itself is read-only and never transitions card status.
   policy:
     - id: R-001
       subject: validateCardGlossaryField
@@ -98,11 +75,6 @@ brief:
       reference:
         title: spec analysis/drift-detection
         locator: analysis/drift-detection
-  compatibility:
-    guarantees:
-      - subject: validateCardGlossaryField return shape
-        version_range: 1.x
-        breaks_if: The broken-reference shape changes incompatibly.
   limits:
     - id: KL-001
       statement: >-
@@ -136,4 +108,12 @@ brief:
       reasoning: Preserves user agency while making stale references visible.
     addresses:
       - KL-001
+  approach: >-
+    Glossary validation is per-card and read-only: for each declared glossary
+    word on a card, the glossary store is queried and the unresolved words are
+    returned, and the validator never modifies card content. The
+    unresolved-reference output feeds drift detection, which reports a
+    glossary_broken signal per card; that drift pass is itself read-only and
+    does not transition card status. A separate matcher supports advisory
+    detection of glossary references in card bodies during analysis.
 ---

@@ -33,6 +33,9 @@ spec:
     - id: INV-001
       statement: Validation is exclusively read-only.
       always_holds: per-call
+    - id: INV-002
+      statement: validateCardGlossaryField never auto-modifies card content.
+      always_holds: per-call
   failures:
     - violation: A glossary entry payload is malformed.
       behavior: validateGlossaryEntry throws GlossaryValidationError.

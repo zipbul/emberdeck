@@ -62,6 +62,19 @@ spec:
         Destructive ops (removeGlossary, resetEmberdeck) require explicit
         confirmation at the CLI layer.
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        removeGlossary never runs without explicit confirmation (a --yes flag or
+        an accepted TTY prompt).
+      always_holds: per-call
+    - id: INV-003
+      statement: >-
+        renameGlossary is two-step (not one transaction): the YAML glossary
+        store is written first, then the indexed cache is updated inside a DB
+        transaction. On DB transaction failure the YAML write is reverted.
+        Per-card markdown rewrites are a third best-effort step outside both —
+        failures are reported in fileWriteFailures[] rather than thrown.
+      always_holds: per-call
   failures:
     - violation: renameGlossary target word already exists.
       behavior: Throws GlossaryValidationError; no rename performed.
