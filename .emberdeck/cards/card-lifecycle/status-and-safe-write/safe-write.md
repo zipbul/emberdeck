@@ -38,6 +38,16 @@ spec:
         compensate is invoked at most once per safeWriteOperation call, and
         never after fileAction resolves.
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        When fileAction throws, compensate is invoked exactly once before the
+        error propagates.
+      always_holds: per-call
+    - id: INV-003
+      statement: >-
+        If compensate itself throws, the propagated error is a CompensationError
+        that carries both the original error and the compensate error.
+      always_holds: per-call
   failures:
     - violation: compensate itself throws while reverting the dbAction side effect.
       behavior: >-

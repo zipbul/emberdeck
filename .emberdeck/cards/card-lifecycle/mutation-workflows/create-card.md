@@ -48,6 +48,12 @@ spec:
     - id: INV-001
       statement: createCard validates input through card-model before any storage call.
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        A failed single-card mutation leaves no partial file or indexed-cache
+        state for that card; safe-write compensates the cache row when the file
+        step fails.
+      always_holds: per-call
   failures:
     - violation: >-
         Input fails validation — including a frontmatter top-level key outside

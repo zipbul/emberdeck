@@ -63,6 +63,13 @@ spec:
         state for that card on failure; bulkCreateCards does not roll back
         successful earlier entries when a later entry fails.
       always_holds: per-call
+    - id: INV-002
+      statement: >-
+        Rename cascade rewrites every reference visible from the indexed cache
+        (parent, relations, cross_domain_dependencies) as separate post-rename
+        writes, surfacing any failure in failedReferenceUpdates[]; source @spec
+        annotations are reconciled by spec-sync separately.
+      always_holds: per-call
   failures:
     - violation: deleteCard or renameCard target key does not exist.
       behavior: Throws CardNotFoundError; no removal or rename performed.

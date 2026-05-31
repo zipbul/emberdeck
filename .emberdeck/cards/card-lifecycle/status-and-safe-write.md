@@ -87,47 +87,6 @@ brief:
         a CompensationError aggregating both is raised.
       covers:
         - G-002
-  design:
-    overview: >
-      updateCardStatus runs a status-transition matrix; the active transition
-      triggers the activation guard, which re-runs schema validation and (for
-      spec cards) source-binding resolution. safeWriteOperation accepts three
-      pieces: a synchronous dbAction (typically a transaction), an asynchronous
-      fileAction, and a single compensate callback. It runs dbAction first, then
-      awaits fileAction; if fileAction throws, compensate is invoked exactly
-      once with the dbAction result so the caller can revert the DB side effect,
-      after which the original error is re-raised. If compensate itself throws,
-      a CompensationError aggregating both errors is raised in place of the
-      original.
-    components:
-      - name: updateCardStatus
-        responsibility: >-
-          Validate the requested transition and run the activation guard when
-          the target status is active.
-        interacts_with:
-          - safeWriteOperation
-      - name: activationGuard
-        responsibility: >-
-          Re-run schema validation for the card and source-binding resolution
-          for spec cards before allowing draft to active.
-        interacts_with:
-          - updateCardStatus
-      - name: safeWriteOperation
-        responsibility: >-
-          Sequence dbAction then fileAction; on fileAction failure, invoke the
-          compensate callback once to revert the DB side effect.
-        interacts_with: []
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          When fileAction throws, compensate is invoked exactly once before the
-          error propagates.
-      - id: DI-002
-        statement: >-
-          If compensate itself throws, the propagated error is a
-          CompensationError that carries both the original error and the
-          compensate error.
   policy:
     - id: R-001
       subject: Status transition to active
@@ -156,13 +115,6 @@ brief:
       reference:
         title: SQLite documentation - Atomic Commit
         locator: https://www.sqlite.org/atomiccommit.html
-  compatibility:
-    guarantees:
-      - subject: updateCardStatus and safeWriteOperation public signatures
-        version_range: 1.x
-        breaks_if: >-
-          The compensate-callback signature changes or fileAction becomes
-          synchronous.
   limits:
     - id: KL-001
       statement: >-
@@ -240,4 +192,14 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Status transitions are governed by a transition matrix, and the transition
+    into the active state triggers an activation guard that re-runs schema
+    validation and, for spec cards, source-binding resolution. Persistence that
+    spans both the database and the filesystem goes through a safe-write
+    boundary: a synchronous database action runs first, then an asynchronous
+    file action; if the file action fails, a single compensation callback
+    reverts the database side effect exactly once and the original error is
+    re-raised. Should the compensation itself fail, a CompensationError carrying
+    both the original and the compensation failure is raised in its place.
 ---

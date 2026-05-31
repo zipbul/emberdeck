@@ -97,70 +97,6 @@ brief:
         successes.
       covers:
         - G-001
-  design:
-    overview: >
-      Each entry point composes validation (card-model), parent resolution
-      (card-storage), the mutation itself (file plus indexed cache), and
-      rollback on failure (safe-write). createCard does NOT write a changelog
-      row; updateCard and renameCard do invoke the changelog repo.
-      bulkCreateCards orders entries topologically so parents land before
-      children, then processes each entry through createCard with independent
-      success/failure accounting; later entries proceed even if earlier ones
-      fail.
-    components:
-      - name: createCard
-        responsibility: >-
-          Validate input, check parent existence, persist file plus indexed
-          cache atomically through the safe-write boundary. createCard does NOT
-          write a changelog row (changelog repo is invoked only by updateCard
-          and renameCard).
-        interacts_with:
-          - updateCard
-          - bulkCreateCards
-      - name: updateCard
-        responsibility: >-
-          Apply field, patch, glossary, and tag updates with replace-namespace
-          semantics on patch; re-run activation guard when activation-critical
-          fields change on an active card. Writes a changelog row via
-          recordUpdateChangelog.
-        interacts_with:
-          - createCard
-      - name: renameCard
-        responsibility: >-
-          Atomic key rename with cascade over the indexed cache (parent,
-          relations, cross_domain_dependencies) and the file move; body wording
-          and source @spec annotations are not cascaded.
-        interacts_with:
-          - updateCard
-      - name: deleteCard
-        responsibility: >-
-          Remove a card; with --force, detach children (parent cleared) and
-          remove cross-domain dependents' references; without --force, refuse
-          when children or cross-domain dependents exist.
-        interacts_with: []
-      - name: bulkCreateCards
-        responsibility: >-
-          Topologically-ordered serial create returning per-entry success in
-          created[] and failure in failed[]; no batch rollback. failed[]
-          captures both phase-1 validation failures and phase-2 relation-update
-          failures. Entries whose card row was created but whose relations did
-          not all resolve are listed in partialKeys[] AND also get a failed[]
-          row (same inputIndex), so the batch exits non-zero.
-        interacts_with:
-          - createCard
-    data_flow: []
-    invariants:
-      - id: DI-001
-        statement: >-
-          A failed single-card mutation leaves no partial file or indexed-cache
-          state for that card; safe-write compensates the cache row when the
-          file step fails.
-      - id: DI-002
-        statement: >-
-          Rename cascade rewrites every reference visible from the indexed cache
-          (parent, relations, cross_domain_dependencies) as separate post-rename
-          writes, surfacing any failure in failedReferenceUpdates[]; source
-          @spec annotations are reconciled by spec-sync separately.
   policy:
     - id: R-001
       subject: Every mutation entry point
@@ -199,13 +135,6 @@ brief:
       reference:
         title: brief card-lifecycle/status-and-safe-write
         locator: card-lifecycle/status-and-safe-write
-  compatibility:
-    guarantees:
-      - subject: >-
-          createCard, updateCard, deleteCard, renameCard, bulkCreateCards public
-          signatures
-        version_range: 1.x
-        breaks_if: A required input field is added without a default.
   limits:
     - id: KL-001
       statement: >-
@@ -287,4 +216,18 @@ brief:
     addresses:
       - KL-001
       - KL-002
+  approach: >-
+    Each mutation entry point composes the same stages — input validation,
+    parent resolution, the file-plus-cache write, and rollback on failure
+    through the safe-write boundary. Creation writes no changelog row; update
+    and rename do. Update applies field, patch, glossary, and tag changes with
+    replace-namespace semantics on a patch and re-runs the activation guard when
+    activation-critical fields change on an active card. Rename performs an
+    atomic key change and cascades over the indexed cache (parent, relations,
+    cross-domain dependencies) and the file move, while body wording and source
+    annotations are reconciled separately. Delete refuses while children or
+    cross-domain dependents remain unless forced, in which case it detaches
+    them. Bulk creation orders entries so parents precede children and accounts
+    for each entry independently, so a later entry still proceeds when an
+    earlier one fails — there is no batch rollback.
 ---
