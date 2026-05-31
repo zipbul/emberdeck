@@ -15,12 +15,11 @@ function makeBriefBody(overrides: Partial<BriefBody> = {}): BriefBody {
       { id: 'S-H-01', kind: 'happy', given: 'a', when: 'b', then: 'c', covers: ['G-001'] },
       { id: 'S-F-01', kind: 'failure', given: 'a', when: 'b', then: 'c', covers: ['G-001'] },
     ],
-    design: { overview: 'o', components: [], data_flow: [], invariants: [] },
+    approach: 'o',
     policy: [
       { id: 'R-001', subject: 's', keyword: 'MUST', predicate: 'p', governs: ['S-H-01', 'S-F-01'] },
     ],
     external: [{ id: 'C-001', statement: 's', reference: { title: 't', locator: 'l' } }],
-    compatibility: { guarantees: [] },
     limits: [{ id: 'KL-001', statement: 'lim' }],
     criteria: [
       { id: 'SC-001', type: 'binary', measure: { predicate: 'p' }, verifies: ['S-H-01', 'S-F-01'] },

@@ -60,10 +60,9 @@ describe('validateSpecRefs', () => {
       context: { problem: '', impact: [] },
       scope: { goals: [], non_goals: [], assumptions: [] },
       flow: [],
-      design: { overview: '', components: [], data_flow: [], invariants: [] },
+      approach: '',
       policy: [{ id: 'R-001', subject: 's', keyword: 'MUST', predicate: 'p', governs: [] }],
       external: [],
-      compatibility: { guarantees: [] },
       limits: [],
       criteria: [],
       rationale: {
@@ -96,10 +95,9 @@ describe('collectSpecDeriveErrors — deck-wide broken-derives surface (§10 P1.
         assumptions: [],
       },
       flow: [{ id: 'S-F-01', kind: 'failure', given: 'g', when: 'w', then: 't', covers: ['G-001'] }],
-      design: { overview: '', components: [], data_flow: [], invariants: [] },
+      approach: '',
       policy: [],
       external: [],
-      compatibility: { guarantees: [] },
       limits: [],
       criteria: [],
       rationale: {

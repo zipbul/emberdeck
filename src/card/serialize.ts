@@ -3,13 +3,8 @@ import { errorMessage } from '../util/error';
 import type {
   BriefAssumption,
   BriefBody,
-  BriefCompatibility,
   BriefContext,
   BriefCriterion,
-  BriefDesign,
-  BriefDesignComponent,
-  BriefDesignDataFlow,
-  BriefDesignInvariant,
   BriefExternal,
   BriefFlow,
   BriefGoal,
@@ -212,7 +207,6 @@ const ID_PATTERNS = {
   non_goal: /^NG-\d{3,}$/,
   assumption: /^A-\d{3,}$/,
   flow: /^S-(H|F)-\d{2,}$/,
-  design_invariant: /^DI-\d{3,}$/,
   policy: /^R-\d{3,}$/,
   external: /^C-\d{3,}$/,
   limit: /^KL-\d{3,}$/,
@@ -291,35 +285,6 @@ function normalizeBriefFlow(value: unknown): BriefFlow[] {
   });
 }
 
-function normalizeBriefDesign(value: unknown): BriefDesign {
-  const o = asObj(value, 'brief.design');
-  const components = asArray(o.components, 'brief.design.components').map((item): BriefDesignComponent => {
-    const c = asObj(item, 'brief.design.components[]');
-    return {
-      name: asString(c.name, 'brief.design.components[].name'),
-      responsibility: asString(c.responsibility, 'brief.design.components[].responsibility'),
-      interacts_with: asStringArray(c.interacts_with, 'brief.design.components[].interacts_with'),
-    };
-  });
-  const data_flow = asArray(o.data_flow, 'brief.design.data_flow').map((item): BriefDesignDataFlow => {
-    const d = asObj(item, 'brief.design.data_flow[]');
-    return {
-      from: asString(d.from, 'brief.design.data_flow[].from'),
-      to: asString(d.to, 'brief.design.data_flow[].to'),
-      payload: asString(d.payload, 'brief.design.data_flow[].payload'),
-      trigger: asString(d.trigger, 'brief.design.data_flow[].trigger'),
-    };
-  });
-  const invariants = asArray(o.invariants, 'brief.design.invariants').map((item): BriefDesignInvariant => {
-    const i = asObj(item, 'brief.design.invariants[]');
-    return {
-      id: asId(i.id, 'brief.design.invariants[].id', ID_PATTERNS.design_invariant),
-      statement: asString(i.statement, 'brief.design.invariants[].statement'),
-    };
-  });
-  return { overview: asString(o.overview, 'brief.design.overview'), components, data_flow, invariants };
-}
-
 const VALID_KEYWORDS = ['MUST', 'MUST NOT', 'SHALL', 'SHALL NOT', 'SHOULD', 'SHOULD NOT', 'MAY'];
 
 function normalizeBriefPolicy(value: unknown): BriefPolicy[] {
@@ -353,21 +318,6 @@ function normalizeBriefExternal(value: unknown): BriefExternal[] {
       },
     };
   });
-}
-
-function normalizeBriefCompatibility(value: unknown): BriefCompatibility {
-  const o = asObj(value, 'brief.compatibility');
-  const guarantees = asArray(o.guarantees, 'brief.compatibility.guarantees').map((item) => {
-    const g = asObj(item, 'brief.compatibility.guarantees[]');
-    return {
-      subject: asString(g.subject, 'brief.compatibility.guarantees[].subject'),
-      version_range: asString(g.version_range, 'brief.compatibility.guarantees[].version_range'),
-      breaks_if: asString(g.breaks_if, 'brief.compatibility.guarantees[].breaks_if'),
-    };
-  });
-  const out: BriefCompatibility = { guarantees };
-  if (o.migration_path != null) out.migration_path = asString(o.migration_path, 'brief.compatibility.migration_path');
-  return out;
 }
 
 function normalizeBriefLimits(value: unknown): BriefLimit[] {
@@ -464,11 +414,8 @@ function normalizeBriefBody(value: unknown): BriefBody {
     limits: normalizeBriefLimits(o.limits),
     criteria: normalizeBriefCriteria(o.criteria),
     rationale: normalizeBriefRationale(o.rationale),
+    approach: asString(o.approach, 'brief.approach'),
   };
-  // [v18] dual-read: design/compatibility optional (being migrated out); approach is the replacement.
-  if (o.design != null) body.design = normalizeBriefDesign(o.design);
-  if (o.compatibility != null) body.compatibility = normalizeBriefCompatibility(o.compatibility);
-  if (o.approach != null) body.approach = asString(o.approach, 'brief.approach');
   return body;
 }
 

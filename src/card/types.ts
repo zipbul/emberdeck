@@ -140,32 +140,6 @@ export interface BriefFlow {
   covers: string[];
 }
 
-export interface BriefDesignComponent {
-  name: string;
-  responsibility: string;
-  interacts_with: string[];
-}
-
-export interface BriefDesignDataFlow {
-  from: string;
-  to: string;
-  payload: string;
-  trigger: string;
-}
-
-export interface BriefDesignInvariant {
-  /** ID format: DI-001 */
-  id: string;
-  statement: string;
-}
-
-export interface BriefDesign {
-  overview: string;
-  components: BriefDesignComponent[];
-  data_flow: BriefDesignDataFlow[];
-  invariants: BriefDesignInvariant[];
-}
-
 export interface BriefPolicy {
   /** ID format: R-001 */
   id: string;
@@ -221,14 +195,10 @@ export interface BriefBody {
   context: BriefContext;
   scope: BriefScope;
   flow: BriefFlow[];
-  /** [v18] optional (dual-read) — being migrated to `approach`; DI move to spec.invariants/principle. */
-  design?: BriefDesign;
-  /** [v18] conceptual design prose — replaces the removed `design.components/data_flow`. */
-  approach?: string;
+  /** Conceptual design prose. Detailed contracts live in child spec cards; design invariants moved to spec.invariants. */
+  approach: string;
   policy: BriefPolicy[];
   external: BriefExternal[];
-  /** [v18] optional (dual-read) — being removed (behavior contract = spec; policy = principle). */
-  compatibility?: BriefCompatibility;
   limits: BriefLimit[];
   criteria: BriefCriterion[];
   rationale: BriefRationale;

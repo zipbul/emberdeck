@@ -22,14 +22,13 @@ function parseDerives(ref: string): { briefKey: string; itemId: string } | null 
 
 /**
  * Collect all referenceable IDs from a brief body.
- * Includes goals, flow, policy, design.invariants — anything a spec might derive from.
+ * Includes goals, flow, policy — anything a spec might derive from.
  */
 function collectBriefRefIds(brief: BriefBody): Set<string> {
   const ids = new Set<string>();
   for (const g of brief.scope.goals) ids.add(g.id);
   for (const f of brief.flow) ids.add(f.id);
   for (const p of brief.policy) ids.add(p.id);
-  for (const di of brief.design?.invariants ?? []) ids.add(di.id);
   return ids;
 }
 

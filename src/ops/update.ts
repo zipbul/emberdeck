@@ -57,8 +57,7 @@ function assertCompleteNamespace(field: 'principle' | 'domain' | 'brief' | 'spec
   const required: Record<typeof field, string[]> = {
     principle: ['statement', 'rationale', 'applies_to', 'enforcement'],
     domain: ['overview', 'scope'],
-    // [v18] design/compatibility are optional (dual-read) — not in the required set; approach is optional too.
-    brief: ['context', 'scope', 'flow', 'policy', 'external', 'limits', 'criteria', 'rationale'],
+    brief: ['context', 'scope', 'flow', 'approach', 'policy', 'external', 'limits', 'criteria', 'rationale'],
     spec: ['preconditions', 'postconditions', 'invariants', 'failures'],
   };
   const obj = value as Record<string, unknown>;
