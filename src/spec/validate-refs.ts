@@ -21,15 +21,19 @@ function parseDerives(ref: string): { briefKey: string; itemId: string } | null 
 }
 
 /**
- * Collect all referenceable IDs from a brief body.
- * Includes goals, flow, policy — anything a spec might derive from.
+ * Section-aware reference targets (§5 type discipline):
+ *  - `preconditions/postconditions.derives` → brief GOAL (G-*) only.
+ *  - `failures.case_of` → brief FAILURE flow (S-F-*) only.
+ *  - `invariants` carry no derives (symbol-local, no 1:1 goal mapping).
+ * A flat merge would let a `derives` resolve to a flow/policy id, or a
+ * `case_of` resolve to a goal/happy-flow id, masking a real mis-wiring.
  */
-function collectBriefRefIds(brief: BriefBody): Set<string> {
-  const ids = new Set<string>();
-  for (const g of brief.scope.goals) ids.add(g.id);
-  for (const f of brief.flow) ids.add(f.id);
-  for (const p of brief.policy) ids.add(p.id);
-  return ids;
+function collectBriefGoalIds(brief: BriefBody): Set<string> {
+  return new Set(brief.scope.goals.map((g) => g.id));
+}
+
+function collectBriefFailureFlowIds(brief: BriefBody): Set<string> {
+  return new Set(brief.flow.filter((f) => f.kind === 'failure').map((f) => f.id));
 }
 
 /**
@@ -55,7 +59,7 @@ export function collectSpecDeriveErrors(
   briefLookup?: (key: string) => BriefBody | null,
 ): string[] {
   const errors: string[] = [];
-  const check = (id: string, ref: string, section: string) => {
+  const check = (id: string, ref: string, section: string, targetKind: 'goal' | 'failure-flow') => {
     const parsed = parseDerives(ref);
     if (!parsed) {
       errors.push(`${section}[${id}] reference "${ref}" must follow format "brief-key#item-id"`);
@@ -67,17 +71,18 @@ export function collectSpecDeriveErrors(
         errors.push(`${section}[${id}] references unknown brief "${parsed.briefKey}"`);
         return;
       }
-      if (!collectBriefRefIds(brief).has(parsed.itemId)) {
-        errors.push(`${section}[${id}] references unknown item "${parsed.itemId}" in brief "${parsed.briefKey}"`);
+      const valid = targetKind === 'goal' ? collectBriefGoalIds(brief) : collectBriefFailureFlowIds(brief);
+      if (!valid.has(parsed.itemId)) {
+        errors.push(`${section}[${id}] references "${parsed.itemId}" which is not a ${targetKind} in brief "${parsed.briefKey}"`);
       }
     }
   };
 
-  for (const p of spec.preconditions) check(p.id, p.derives, 'spec.preconditions');
-  for (const p of spec.postconditions) check(p.id, p.derives, 'spec.postconditions');
-  // [v18] failures.case_of → brief failure-flow (S-F). Optional; only checked when present.
+  // derives → goal (G-*); case_of → failure flow (S-F-*). Type-discriminated.
+  for (const p of spec.preconditions) check(p.id, p.derives, 'spec.preconditions', 'goal');
+  for (const p of spec.postconditions) check(p.id, p.derives, 'spec.postconditions', 'goal');
   for (const f of spec.failures) {
-    if (f.case_of != null) check(f.id ?? 'FAIL-?', f.case_of, 'spec.failures(case_of)');
+    if (f.case_of != null) check(f.id ?? 'FAIL-?', f.case_of, 'spec.failures(case_of)', 'failure-flow');
   }
   return errors;
 }

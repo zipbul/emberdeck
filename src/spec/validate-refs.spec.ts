@@ -6,10 +6,10 @@ import type { BriefBody, SpecBody } from '../card/types';
 function makeSpecBody(overrides: Partial<SpecBody> = {}): SpecBody {
   const base: SpecBody = {
     preconditions: [
-      { id: 'PRE-001', condition: 'cond', derives: 'parent-brief#R-001' },
+      { id: 'PRE-001', condition: 'cond', derives: 'parent-brief#G-001' },
     ],
     postconditions: [
-      { id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent-brief#R-001' },
+      { id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent-brief#G-001' },
     ],
     invariants: [
       { id: 'INV-001', statement: 's', always_holds: 'per-call' },
@@ -58,7 +58,7 @@ describe('validateSpecRefs', () => {
   it('verifies derives target existence via briefLookup', () => {
     const brief: BriefBody = {
       context: { problem: '', impact: [] },
-      scope: { goals: [], non_goals: [], assumptions: [] },
+      scope: { goals: [{ id: 'G-001', statement: 'g' }], non_goals: [], assumptions: [] },
       flow: [],
       approach: '',
       policy: [{ id: 'R-001', subject: 's', keyword: 'MUST', predicate: 'p', governs: [] }],
@@ -117,9 +117,14 @@ describe('collectSpecDeriveErrors — deck-wide broken-derives surface (§10 P1.
     expect(collectSpecDeriveErrors(makeSpecBody(validPrePost), lookup)).toEqual([]);
   });
 
-  it('flags derives to a non-existent brief item', () => {
+  it('flags derives to a non-existent brief goal', () => {
     const spec = makeSpecBody({ ...validPrePost, preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'pb#G-999' }] });
-    expect(collectSpecDeriveErrors(spec, lookup).some((e) => /unknown item "G-999"/.test(e))).toBe(true);
+    expect(collectSpecDeriveErrors(spec, lookup).some((e) => /"G-999" which is not a goal/.test(e))).toBe(true);
+  });
+
+  it('rejects derives pointing at a flow id (type discipline: derives→goal only)', () => {
+    const spec = makeSpecBody({ ...validPrePost, preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'pb#S-F-01' }] });
+    expect(collectSpecDeriveErrors(spec, lookup).some((e) => /"S-F-01" which is not a goal/.test(e))).toBe(true);
   });
 
   it('flags derives to an unknown brief', () => {
@@ -127,11 +132,16 @@ describe('collectSpecDeriveErrors — deck-wide broken-derives surface (§10 P1.
     expect(collectSpecDeriveErrors(spec, lookup).some((e) => /unknown brief/.test(e))).toBe(true);
   });
 
-  it('validates failures.case_of → brief flow (S-F) [v18]', () => {
+  it('validates failures.case_of → brief failure-flow (S-F) [v18]', () => {
     const ok = makeSpecBody({ ...validPrePost, failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b', case_of: 'pb#S-F-01' }] });
     expect(collectSpecDeriveErrors(ok, lookup)).toEqual([]);
     const bad = makeSpecBody({ ...validPrePost, failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b', case_of: 'pb#S-F-99' }] });
-    expect(collectSpecDeriveErrors(bad, lookup).some((e) => /unknown item "S-F-99"/.test(e))).toBe(true);
+    expect(collectSpecDeriveErrors(bad, lookup).some((e) => /"S-F-99" which is not a failure-flow/.test(e))).toBe(true);
+  });
+
+  it('rejects case_of pointing at a goal id (type discipline: case_of→failure-flow only)', () => {
+    const bad = makeSpecBody({ ...validPrePost, failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b', case_of: 'pb#G-001' }] });
+    expect(collectSpecDeriveErrors(bad, lookup).some((e) => /"G-001" which is not a failure-flow/.test(e))).toBe(true);
   });
 
   it('ignores failures without case_of', () => {
