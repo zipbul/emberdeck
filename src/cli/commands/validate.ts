@@ -244,8 +244,12 @@ export async function validateAggregateAction(_opts: unknown, cmd: Command): Pro
   await run(async (rt: CliRuntime) => {
     const cards = await buildCardsShape(rt);
     const links = await buildLinksShape(rt);
-    const failed = cards.summary.total > 0 || links.summary.broken > 0 || links.summary.ioFailed > 0;
-    return { data: { cards, links }, exitCode: failed ? 2 : 0 };
+    // Reuse the cards gate (warning-level codes excluded) so `ed validate` and
+    // `ed validate cards` agree: a deck with only glossary-unused / warning
+    // principle-violations must not fail the aggregate when `cards` passes.
+    const cardsFail = cardsExitCode(cards.summary.byCode) !== EXIT.OK;
+    const failed = cardsFail || links.summary.broken > 0 || links.summary.ioFailed > 0;
+    return { data: { cards, links }, exitCode: failed ? EXIT.VALIDATION_FAILURE : EXIT.OK };
   }, cmd);
 }
 

@@ -7,6 +7,7 @@ import { readCardFile } from '../../fs/reader';
 import { readGlossary } from '../../glossary/io';
 import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces } from '../../card/json-fields';
 import { collectSpecDeriveErrors } from '../../spec/validate-refs';
+import { collectSpecCrossCardErrors, type SpecNode } from '../../spec/validate-cross-card';
 import { evaluateStructuralPrinciples, type StructuralPrincipleRule } from '../../principle/structural-verify';
 import type { CardValidationResult, ValidationWarning } from './types';
 import { listCardFiles } from './sync-in';
@@ -200,6 +201,20 @@ export async function validateCards(
     for (const msg of deriveErrors) {
       warnings.push({ type: 'broken-derives', cardKey: row.key, message: msg });
     }
+  }
+
+  // Deck-wide v18 spec edges (invokes.to / SHP uniqueness / shape-ref /
+  // failures.owner+references) — make the declared edges enforceable, not inert.
+  const cardTypeByKey = new Map<string, CardType>();
+  for (const row of dbRows) cardTypeByKey.set(row.key, row.type as CardType);
+  const specNodes: SpecNode[] = [];
+  for (const row of dbRows) {
+    if (row.type !== 'spec') continue;
+    const spec = parseNamespaces(row.namespacesJson).spec as SpecBody | undefined;
+    if (spec) specNodes.push({ key: row.key, status: row.status, spec });
+  }
+  for (const issue of collectSpecCrossCardErrors(specNodes, cardTypeByKey)) {
+    warnings.push({ type: issue.code, cardKey: issue.cardKey, message: issue.message });
   }
 
   // applies_to '*' deprecation (§10 Phase 3.2): non-gating warning until the
