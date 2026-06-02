@@ -2,7 +2,7 @@ import { relative } from 'node:path';
 
 import type { EmberdeckContext } from '../../config';
 import type { CardRow, RelationRow } from '../../db/repository';
-import type { CardType, SpecBody, BriefBody, PrincipleBody } from '../../card/types';
+import type { CardType, SpecBody, BriefBody, PrincipleBody, DomainBody } from '../../card/types';
 import { readCardFile } from '../../fs/reader';
 import { readGlossary } from '../../glossary/io';
 import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces } from '../../card/json-fields';
@@ -282,13 +282,27 @@ export async function validateCards(
     });
   }
   if (structuralRules.length > 0) {
-    const forwardRelationsBySrc = new Map<string, string[]>();
+    // Union of outgoing coupling edges per card: legacy relations[] +
+    // cross_domain_dependencies + spec invokes — so a boundary principle is not
+    // bypassable by expressing the dependency through a typed v18 edge.
+    const forwardEdgesBySrc = new Map<string, string[]>();
+    const addEdge = (src: string, dst: string): void => {
+      const list = forwardEdgesBySrc.get(src) ?? [];
+      list.push(dst);
+      forwardEdgesBySrc.set(src, list);
+    };
     for (const [src, rels] of relationsBySrc) {
-      const fwd = rels.filter((r) => !r.isReverse).map((r) => r.dstCardKey);
-      if (fwd.length > 0) forwardRelationsBySrc.set(src, fwd);
+      for (const r of rels) if (!r.isReverse) addEdge(src, r.dstCardKey);
+    }
+    for (const row of dbRows) {
+      const ns = parseNamespaces(row.namespacesJson);
+      const domain = ns.domain as DomainBody | undefined;
+      for (const dep of domain?.cross_domain_dependencies ?? []) addEdge(row.key, dep.domain);
+      const spec = ns.spec as SpecBody | undefined;
+      for (const iv of spec?.invokes ?? []) addEdge(row.key, iv.to);
     }
     const nodes = dbRows.map((r) => ({ key: r.key, type: r.type as CardType, status: r.status, parent: r.parent ?? null }));
-    for (const v of evaluateStructuralPrinciples(nodes, forwardRelationsBySrc, structuralRules)) {
+    for (const v of evaluateStructuralPrinciples(nodes, forwardEdgesBySrc, structuralRules)) {
       if (v.enforcement === 'advisory') continue;
       warnings.push({
         type: v.enforcement === 'blocking' ? 'principle-violation' : 'principle-violation-warning',

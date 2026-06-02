@@ -48,70 +48,38 @@ function inScope(cardKey: string, appliesTo: '*' | string[]): boolean {
 }
 
 /**
- * Card types that can be the direct parent of `childType` under the 4-tier rule.
- * requires-child-type only checks cards of these types, so `applies_to:'*' +
- * requires-child-type{brief}` reads naturally as "every domain must have a brief".
- */
-function validParentTypes(childType: CardType): CardType[] {
-  switch (childType) {
-    case 'brief': return ['domain'];
-    case 'spec': return ['brief', 'spec'];
-    default: return []; // vision/principle/domain are roots — nothing parents them
-  }
-}
-
-/**
  * Evaluate every active structural principle against the card graph.
  *
  * Only active principles enforce, and only non-draft in-scope cards are
  * checked (drafts are work-in-progress, mirroring the empty-tree rule).
+ *
+ * `forwardEdgesBySrc` is the union of a card's outgoing coupling edges —
+ * `relations`, `cross_domain_dependencies`, and spec `invokes` targets — so a
+ * boundary principle catches coupling expressed through any of them, not just
+ * the legacy `relations[]` field.
  */
 export function evaluateStructuralPrinciples(
   cards: StructuralCardNode[],
-  forwardRelationsBySrc: Map<string, string[]>,
+  forwardEdgesBySrc: Map<string, string[]>,
   rules: StructuralPrincipleRule[],
 ): StructuralViolation[] {
   const violations: StructuralViolation[] = [];
   if (rules.length === 0) return violations;
-
-  // childTypesByParent: parent key → set of direct child types.
-  const childTypesByParent = new Map<string, Set<CardType>>();
-  for (const c of cards) {
-    if (!c.parent) continue;
-    const set = childTypesByParent.get(c.parent) ?? new Set<CardType>();
-    set.add(c.type);
-    childTypesByParent.set(c.parent, set);
-  }
 
   for (const rule of rules) {
     for (const card of cards) {
       if (card.status === 'draft') continue;
       if (!inScope(card.key, rule.appliesTo)) continue;
 
-      if (rule.predicate.kind === 'requires-child-type') {
-        const want = rule.predicate.childType;
-        // Only cards that could legally parent `want` are subject to this rule.
-        if (!validParentTypes(want).includes(card.type)) continue;
-        const has = childTypesByParent.get(card.key)?.has(want) ?? false;
-        if (!has) {
+      const glob = rule.predicate.targetGlob;
+      for (const dst of forwardEdgesBySrc.get(card.key) ?? []) {
+        if (matchesAnyGlob(dst, [glob])) {
           violations.push({
             principleKey: rule.key,
             cardKey: card.key,
             enforcement: rule.enforcement,
-            message: `${card.type} card "${card.key}" has no direct ${want} child (required by principle "${rule.key}")`,
+            message: `${card.type} card "${card.key}" declares a forbidden edge to "${dst}" matching "${glob}" (principle "${rule.key}")`,
           });
-        }
-      } else {
-        const glob = rule.predicate.targetGlob;
-        for (const dst of forwardRelationsBySrc.get(card.key) ?? []) {
-          if (matchesAnyGlob(dst, [glob])) {
-            violations.push({
-              principleKey: rule.key,
-              cardKey: card.key,
-              enforcement: rule.enforcement,
-              message: `${card.type} card "${card.key}" declares a forbidden relation to "${dst}" matching "${glob}" (principle "${rule.key}")`,
-            });
-          }
         }
       }
     }

@@ -104,14 +104,17 @@ export async function preChangeCheck(
     }
   }
 
-  // Trace-edge dependents (§10 P3.3d): cards whose forward typed trace edge
-  // (invokes / parent / derives / case-of / cross_domain) points at a primary
-  // (directly-changed) card. Captures coupling the code-import graph misses
-  // (e.g. a spec that `invokes` the changed spec). Additive: never removes the
-  // relations-based 'transitive' set above.
+  // Trace-edge dependents (§10 P3.3d): cards whose forward COUPLING edge points
+  // at a primary (directly-changed) card. Only coupling edges propagate impact:
+  // `invokes` (spec→spec per-call), `parent` (sub-spec→parent), `cross_domain`
+  // (domain→domain). The provenance edges `derives`/`case-of` (spec→brief) are
+  // navigation-only (§6.5): they resolve to a brief, never a code-bound primary,
+  // and a brief change is not a code-impact input — so they stay on the trace
+  // surface (context/relations) but do not inflate the affected set here.
+  const PROPAGATION_EDGES = new Set(['invokes', 'parent', 'cross_domain']);
   for (const row of ctx.cardRepo.list()) {
     if (primaryKeys.has(row.key) || transitiveCards.has(row.key)) continue;
-    const hit = cardRowTraceEdges(ctx, row).find((e) => primaryKeys.has(e.to));
+    const hit = cardRowTraceEdges(ctx, row).find((e) => PROPAGATION_EDGES.has(e.type) && primaryKeys.has(e.to));
     if (!hit) continue;
     transitiveCards.add(row.key);
     affectedCards.push({

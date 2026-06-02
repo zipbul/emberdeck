@@ -459,7 +459,7 @@ describe('principle.verify.class (§5 — verify class + integrity rule)', () =>
   }
   const base = { statement: 'X MUST Y', rationale: 'r', applies_to: ['src/**'] };
 
-  const structuralPredicate = { kind: 'requires-child-type', childType: 'brief' };
+  const structuralPredicate = { kind: 'forbids-relation-to', targetGlob: 'other/*' };
 
   it('round-trips verify.class', () => {
     const r = parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'structural', structural: structuralPredicate } }));

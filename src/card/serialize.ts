@@ -155,19 +155,12 @@ function normalizeMetric(value: unknown): PrincipleMetric[] | undefined {
   });
 }
 
-const VALID_STRUCTURAL_KINDS = ['requires-child-type', 'forbids-relation-to'];
+const VALID_STRUCTURAL_KINDS = ['forbids-relation-to'];
 
 function normalizeStructuralPredicate(value: unknown): PrincipleStructuralPredicate {
   const o = asObj(value, 'principle.verify.structural');
   if (typeof o.kind !== 'string' || !VALID_STRUCTURAL_KINDS.includes(o.kind)) {
     throw new CardValidationError(`Invalid principle.verify.structural.kind (expected one of: ${VALID_STRUCTURAL_KINDS.join(', ')})`);
-  }
-  if (o.kind === 'requires-child-type') {
-    const childType = asString(o.childType, 'principle.verify.structural.childType');
-    if (!(CARD_TYPES as readonly string[]).includes(childType)) {
-      throw new CardValidationError(`Invalid principle.verify.structural.childType "${childType}" (expected a card type)`);
-    }
-    return { kind: 'requires-child-type', childType: childType as CardType };
   }
   return { kind: 'forbids-relation-to', targetGlob: asString(o.targetGlob, 'principle.verify.structural.targetGlob') };
 }
