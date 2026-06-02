@@ -5,7 +5,7 @@ import type { CardRow, RelationRow } from '../../db/repository';
 import type { CardType, SpecBody, BriefBody, PrincipleBody, DomainBody } from '../../card/types';
 import { readCardFile } from '../../fs/reader';
 import { readGlossary } from '../../glossary/io';
-import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces } from '../../card/json-fields';
+import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces, serializeNamespaces } from '../../card/json-fields';
 import { collectSpecDeriveErrors } from '../../spec/validate-refs';
 import { collectSpecCrossCardErrors, type SpecNode } from '../../spec/validate-cross-card';
 import { evaluateStructuralPrinciples, type StructuralPrincipleRule } from '../../principle/structural-verify';
@@ -201,6 +201,34 @@ export async function validateCards(
     for (const msg of deriveErrors) {
       warnings.push({ type: 'broken-derives', cardKey: row.key, message: msg });
     }
+    // A spec realizes its OWN brief: every derives/case_of must reference the
+    // spec's ancestor brief (walk the parent chain to the enclosing brief),
+    // not a foreign one. A foreign derive is a mis-wired trace.
+    const ancestorBrief = ((): string | null => {
+      let cur: CardRow | undefined = row;
+      const seen = new Set<string>();
+      while (cur?.parent && !seen.has(cur.key)) {
+        seen.add(cur.key);
+        const p = cardByKey.get(cur.parent);
+        if (!p) return null;
+        if (p.type === 'brief') return p.key;
+        cur = p;
+      }
+      return null;
+    })();
+    if (ancestorBrief) {
+      const refs = [
+        ...spec.preconditions.map((p) => p.derives),
+        ...spec.postconditions.map((p) => p.derives),
+        ...spec.failures.filter((f) => f.case_of != null).map((f) => f.case_of!),
+      ];
+      for (const ref of refs) {
+        const bk = ref.split('#')[0];
+        if (bk && bk !== ancestorBrief) {
+          warnings.push({ type: 'foreign-derive', cardKey: row.key, message: `derives/case_of references brief "${bk}" but the spec's ancestor brief is "${ancestorBrief}"` });
+        }
+      }
+    }
   }
 
   // Deck-wide v18 spec edges (invokes.to / SHP uniqueness / shape-ref /
@@ -329,6 +357,18 @@ export async function validateCards(
           type: 'content-mismatch',
           cardKey: row.key,
           message: `DB summary differs from file summary`,
+        });
+      }
+      // Structured namespace drift: compare CANONICALIZED forms (both through
+      // serializeNamespaces) so key ordering / optional-field normalization
+      // never false-positives — only a genuine body divergence fires.
+      const fileNs = serializeNamespaces(file.frontmatter);
+      const dbNs = serializeNamespaces(parseNamespaces(row.namespacesJson));
+      if (fileNs !== dbNs) {
+        warnings.push({
+          type: 'content-mismatch',
+          cardKey: row.key,
+          message: `DB namespace body differs from file (re-sync needed)`,
         });
       }
     } catch {

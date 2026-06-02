@@ -543,6 +543,49 @@ describe('listCardTraceEdges (§10 P3.3a — navigable typed trace edges)', () =
     const edges = await listCardTraceEdges(tc.ctx, 's3');
     expect(edges.find((e) => e.type === 'invokes' && e.to === 'ghost-spec')?.target).toBeNull();
   });
+
+  it('surfaces a shape-ref edge to the spec that owns the referenced SHP', async () => {
+    tc = await createMockTestContext();
+    await ensure4tierScaffold(tc.ctx); // _dom
+    await createCard(tc.ctx, { key: 'bs', summary: 'bs', type: 'brief', parent: '_dom', brief: makeTestBrief() });
+    await createCard(tc.ctx, {
+      key: 'owner', summary: 'owner', type: 'spec', parent: 'bs',
+      spec: {
+        preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'bs#G-001' }],
+        postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'bs#G-001' }],
+        invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
+        failures: [{ violation: 'v', behavior: 'b' }],
+        shapes: [{ id: 'SHP-001', role: 'output', schema: '{ ok: boolean }' }],
+      },
+    });
+    await createCard(tc.ctx, {
+      key: 'consumer', summary: 'consumer', type: 'spec', parent: 'bs',
+      spec: {
+        preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'bs#G-001' }],
+        postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'bs#G-001', references: 'SHP-001' }],
+        invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
+        failures: [{ violation: 'v', behavior: 'b' }],
+      },
+    });
+    const edges = await listCardTraceEdges(tc.ctx, 'consumer');
+    const sr = edges.find((e) => e.type === 'shape-ref');
+    expect(sr?.to).toBe('owner');
+    expect(sr?.via).toBe('SHP-001');
+    expect(sr?.target?.key).toBe('owner');
+  });
+
+  it('surfaces derived scopes edges from a vision card to every domain', async () => {
+    tc = await createMockTestContext();
+    await createCard(tc.ctx, { key: 'da', summary: 'a', type: 'domain', domain: { overview: 'o', scope: 's' } });
+    await createCard(tc.ctx, { key: 'db', summary: 'b', type: 'domain', domain: { overview: 'o', scope: 's' } });
+    await createCard(tc.ctx, {
+      key: 'vis', summary: 'project vision', type: 'vision',
+      vision: { statement: 's', rationale: 'r', success_direction: 'd' },
+    });
+    const edges = await listCardTraceEdges(tc.ctx, 'vis');
+    const scoped = edges.filter((e) => e.type === 'scopes').map((e) => e.to).sort();
+    expect(scoped).toEqual(['da', 'db']);
+  });
 });
 
 describe('listGoverningPrinciples (§5 — governed_by derived via applies_to card-key globs)', () => {

@@ -1,5 +1,5 @@
 import type { EmberdeckContext } from '../config';
-import type { CardFile, CardFrontmatter, CardStatus, CardType, PrincipleBody } from '../card/types';
+import type { CardFile, CardFrontmatter, CardStatus, CardType, PrincipleBody, SpecBody } from '../card/types';
 import { matchesAnyGlob } from '../util/glob';
 import type { CardRow, CardListFilter, ChangelogRow } from '../db/repository';
 import { parseFullKey, buildCardPath } from '../card/card-key';
@@ -353,7 +353,7 @@ function toCardSummary(row: CardRow): CardSummary {
  * @spec card-storage/queries/get-list-search
  */
 /** [§10 P3.3] Typed trace-edge kinds surfaced from a card's own namespace. */
-export type TraceEdgeType = 'parent' | 'derives' | 'case-of' | 'invokes' | 'cross_domain';
+export type TraceEdgeType = 'parent' | 'derives' | 'case-of' | 'invokes' | 'cross_domain' | 'shape-ref' | 'scopes';
 
 export interface TraceEdge {
   type: TraceEdgeType;
@@ -397,9 +397,27 @@ function deriveTraceEdges(ctx: EmberdeckContext, fm: CardFrontmatter): TraceEdge
     for (const p of fm.spec.postconditions) { const r = parseRefKey(p.derives); if (r) add('derives', r.key, r.item); }
     for (const f of fm.spec.failures) { if (f.case_of) { const r = parseRefKey(f.case_of); if (r) add('case-of', r.key, r.item); } }
     for (const iv of fm.spec.invokes ?? []) add('invokes', iv.to);
+    // shape-ref: postconditions.references → the spec that owns the SHP (deck-global).
+    const shapeRefs = fm.spec.postconditions.filter((p) => p.references).map((p) => p.references!);
+    if (shapeRefs.length > 0) {
+      const ownerByShp = new Map<string, string>();
+      for (const row of ctx.cardRepo.list({ type: 'spec' })) {
+        const s = parseNamespaces(row.namespacesJson).spec as SpecBody | undefined;
+        for (const sh of s?.shapes ?? []) if (!ownerByShp.has(sh.id)) ownerByShp.set(sh.id, row.key);
+      }
+      for (const ref of shapeRefs) {
+        const owner = ownerByShp.get(ref);
+        if (owner) add('shape-ref', owner, ref);
+        else edges.push({ type: 'shape-ref', to: ref, via: ref, target: null });
+      }
+    }
   }
   if (fm.domain?.cross_domain_dependencies) {
     for (const dep of fm.domain.cross_domain_dependencies) add('cross_domain', dep.domain);
+  }
+  // scopes: the single vision → every domain (derived; vision scopes all domains).
+  if (fm.type === 'vision') {
+    for (const row of ctx.cardRepo.list({ type: 'domain' })) add('scopes', row.key);
   }
   return edges;
 }

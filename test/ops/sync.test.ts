@@ -381,6 +381,27 @@ describe('validateCards', () => {
     expect(broken.some((w) => w.cardKey === 'sgood')).toBe(false);
   });
 
+  // A spec must derive from its OWN ancestor brief; deriving from a foreign
+  // brief surfaces a foreign-derive warning.
+  it('should surface foreign-derive for a spec deriving from a non-ancestor brief', async () => {
+    tc = await createMockTestContext();
+    const dom = serializeCard({ key: 'fd-d', summary: 'd', status: 'active', type: 'domain', domain: { overview: 'o', scope: 's' } });
+    const own = serializeCard({ key: 'fd-b', summary: 'b', status: 'active', type: 'brief', parent: 'fd-d', brief: makeTestBrief() });
+    const foreign = serializeCard({ key: 'fd-b2', summary: 'b2', status: 'draft', type: 'brief', parent: 'fd-d', brief: makeTestBrief() });
+    const sForeign = serializeCard({
+      key: 'fd-s', summary: 's', status: 'active', type: 'spec', parent: 'fd-b',
+      spec: { ...makeTestSpec(), preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'fd-b2#G-001' }], postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'fd-b#G-001' }] },
+    });
+    await writeFile(join(tc.cardsDir, 'fd-d.md'), dom, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'fd-b.md'), own, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'fd-b2.md'), foreign, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'fd-s.md'), sForeign, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    const fd = result.warnings.filter((w) => w.type === 'foreign-derive');
+    expect(fd.some((w) => w.cardKey === 'fd-s' && /fd-b2/.test(w.message))).toBe(true);
+  });
+
   // §10 Phase 3.2 — applies_to '*' surfaces a deprecation warning; real-keyed does not.
   it('should surface applies-to-wildcard for a principle using applies_to "*"', async () => {
     tc = await createMockTestContext();

@@ -173,10 +173,6 @@ export interface BriefExternal {
   reference: { title: string; locator: string };
 }
 
-export interface BriefCompatibility {
-  guarantees: Array<{ subject: string; version_range: string; breaks_if: string }>;
-  migration_path?: string;
-}
 
 export interface BriefLimit {
   /** ID format: KL-001 */
