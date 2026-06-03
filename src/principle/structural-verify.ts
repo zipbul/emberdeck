@@ -32,6 +32,8 @@ export interface StructuralPrincipleRule {
   appliesTo: '*' | string[];
   enforcement: 'blocking' | 'warning' | 'advisory';
   predicate: PrincipleStructuralPredicate;
+  /** Card-key globs explicitly exempted from this principle (principle.exemptions[].target). */
+  exemptions?: string[];
 }
 
 export interface StructuralViolation {
@@ -70,6 +72,7 @@ export function evaluateStructuralPrinciples(
     for (const card of cards) {
       if (card.status === 'draft') continue;
       if (!inScope(card.key, rule.appliesTo)) continue;
+      if (rule.exemptions && rule.exemptions.length > 0 && matchesAnyGlob(card.key, rule.exemptions)) continue;
 
       const glob = rule.predicate.targetGlob;
       for (const dst of forwardEdgesBySrc.get(card.key) ?? []) {

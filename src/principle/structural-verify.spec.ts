@@ -45,6 +45,11 @@ describe('forbids-relation-to', () => {
     const draft = [{ key: 'a/x', type: 'brief' as const, status: 'draft', parent: null }];
     expect(evaluateStructuralPrinciples(draft, edges([['a/x', ['b/y']]]), [rule])).toHaveLength(0);
   });
+
+  it('skips exempted cards (principle.exemptions)', () => {
+    const exempted = { ...rule, exemptions: ['a/x'] };
+    expect(evaluateStructuralPrinciples(cards, edges([['a/x', ['b/y']]]), [exempted])).toHaveLength(0);
+  });
 });
 
 it('returns nothing when there are no rules', () => {

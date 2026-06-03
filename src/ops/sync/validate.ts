@@ -56,6 +56,22 @@ export function detectKeyMismatches(
  * orphans, key mismatches, content drift.
  * @spec card-storage/persistence/sync
  */
+/** Stable, key-order-independent JSON (arrays keep order; object keys sorted). */
+function canonicalJson(v: unknown): string {
+  const sort = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(sort);
+    if (x && typeof x === 'object') {
+      return Object.fromEntries(
+        Object.entries(x as Record<string, unknown>)
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+          .map(([k, val]) => [k, sort(val)]),
+      );
+    }
+    return x;
+  };
+  return JSON.stringify(sort(v));
+}
+
 export async function validateCards(
   ctx: EmberdeckContext,
   dirPath?: string,
@@ -307,6 +323,7 @@ export async function validateCards(
       appliesTo: principle.applies_to,
       enforcement: principle.enforcement,
       predicate: principle.verify.structural,
+      ...(principle.exemptions ? { exemptions: principle.exemptions.map((e) => e.target) } : {}),
     });
   }
   if (structuralRules.length > 0) {
@@ -359,11 +376,13 @@ export async function validateCards(
           message: `DB summary differs from file summary`,
         });
       }
-      // Structured namespace drift: compare CANONICALIZED forms (both through
-      // serializeNamespaces) so key ordering / optional-field normalization
-      // never false-positives — only a genuine body divergence fires.
-      const fileNs = serializeNamespaces(file.frontmatter);
-      const dbNs = serializeNamespaces(parseNamespaces(row.namespacesJson));
+      // Structured namespace drift (matters under --read-only, where the entry
+      // sync is skipped). Compare with a key-order-independent canonical form so
+      // YAML key reordering never false-positives — only a genuine body
+      // divergence fires. (serializeNamespaces is bare JSON.stringify = insertion
+      // order, so it alone is NOT canonical.)
+      const fileNs = canonicalJson(parseNamespaces(serializeNamespaces(file.frontmatter)));
+      const dbNs = canonicalJson(parseNamespaces(row.namespacesJson));
       if (fileNs !== dbNs) {
         warnings.push({
           type: 'content-mismatch',

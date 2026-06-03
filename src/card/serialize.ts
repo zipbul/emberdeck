@@ -182,10 +182,12 @@ function normalizePrincipleBody(value: unknown): PrincipleBody {
       throw new CardValidationError(`Invalid principle.verify.class (expected one of: ${VALID_VERIFY_CLASSES.join(', ')})`);
     }
     const cls = v.class as PrincipleVerify['class'];
-    // Integrity (§5): prose / metric (no measurement feed yet) may not be `blocking` —
-    // a non-machine-checkable rule cannot block. Use warning/advisory.
-    if ((cls === 'prose' || cls === 'metric') && body.enforcement === 'blocking') {
-      throw new CardValidationError(`principle.verify.class "${cls}" cannot be enforcement:blocking (not machine-checkable / no fed signal yet — use warning or advisory)`);
+    // Integrity (§5): only `structural` has an evaluation engine, so only it may
+    // be `blocking`. prose (human review), metric (no measurement feed), and
+    // binding (no @principle-evidence engine yet) cannot block on a promise
+    // nothing enforces — use warning/advisory until an engine exists.
+    if (cls !== 'structural' && body.enforcement === 'blocking') {
+      throw new CardValidationError(`principle.verify.class "${cls}" cannot be enforcement:blocking (no evaluation engine for this class yet — use warning or advisory; only structural blocks)`);
     }
     const verify: PrincipleVerify = { class: cls };
     if (cls === 'structural') {

@@ -223,7 +223,7 @@ export interface SpecPrecondition {
   /** ID format: PRE-001 */
   id: string;
   condition: string;
-  /** Reference to brief item, e.g. "brief-key#R-001" */
+  /** Reference to the spec's ancestor-brief GOAL, e.g. "brief-key#G-001" (§5: derives→goal). */
   derives: string;
 }
 
@@ -232,6 +232,7 @@ export interface SpecPostcondition {
   id: string;
   guarantee: string;
   keyword: 'MUST' | 'SHALL';
+  /** Reference to the spec's ancestor-brief GOAL, e.g. "brief-key#G-001" (§5: derives→goal). */
   derives: string;
   /** [v18] shape-ref → spec.shapes[].id (form is owned by shapes, not duplicated in prose). */
   references?: string;

@@ -88,8 +88,22 @@ describe('failures[].owner / references', () => {
 });
 
 describe('draft handling', () => {
-  it('skips draft specs (subject and registry)', () => {
+  it('skips emitting findings on a draft spec', () => {
     const n = [node('a', spec({ invokes: [{ to: 'ghost', kind: 'per-call' }] }), 'draft')];
     expect(collectSpecCrossCardErrors(n, types([['a', 'spec']]))).toEqual([]);
+  });
+
+  it('resolves an active reference into a DRAFT-declared shape (no false broken-shape-ref)', () => {
+    const n = [
+      node('a', spec({ postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'b#G-001', references: 'SHP-001' }] })),
+      node('b', spec({ shapes: [{ id: 'SHP-001', role: 'output', schema: 'x' }] }), 'draft'),
+    ];
+    expect(collectSpecCrossCardErrors(n, types([['a', 'spec'], ['b', 'spec']])).filter((i) => i.code === 'broken-shape-ref')).toEqual([]);
+  });
+
+  it('does not flag a duplicate SHP when one declarer is draft', () => {
+    const sh = { id: 'SHP-001', role: 'output' as const, schema: 'x' };
+    const n = [node('a', spec({ shapes: [sh] })), node('b', spec({ shapes: [sh] }), 'draft')];
+    expect(collectSpecCrossCardErrors(n, types([['a', 'spec'], ['b', 'spec']])).filter((i) => i.code === 'duplicate-shape-id')).toEqual([]);
   });
 });

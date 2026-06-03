@@ -34,23 +34,34 @@ export function collectSpecCrossCardErrors(
 ): SpecCrossCardIssue[] {
   const issues: SpecCrossCardIssue[] = [];
   const active = specs.filter((s) => s.status !== 'draft');
+  const specByKey = new Map(specs.map((s) => [s.key, s]));
 
-  // ── SHP deck-global registry (owner-uniqueness key) ──────────
-  const shpOwners = new Map<string, string[]>();
-  for (const s of active) {
+  // SHP registry over ALL specs (incl. draft) so active referrers can resolve a
+  // reference into a draft-declared shape. Uniqueness, however, is only ENFORCED
+  // among active specs (a draft is WIP and may be deleted/renamed).
+  const shpDeclaredBy = new Map<string, string[]>();
+  for (const s of specs) {
     for (const shape of s.spec.shapes ?? []) {
-      const owners = shpOwners.get(shape.id) ?? [];
+      const owners = shpDeclaredBy.get(shape.id) ?? [];
       owners.push(s.key);
-      shpOwners.set(shape.id, owners);
+      shpDeclaredBy.set(shape.id, owners);
     }
   }
-  for (const [shp, owners] of shpOwners) {
+  const activeShpOwners = new Map<string, string[]>();
+  for (const s of active) {
+    for (const shape of s.spec.shapes ?? []) {
+      const owners = activeShpOwners.get(shape.id) ?? [];
+      owners.push(s.key);
+      activeShpOwners.set(shape.id, owners);
+    }
+  }
+  for (const [shp, owners] of activeShpOwners) {
     if (owners.length > 1) {
       for (const owner of owners) {
         issues.push({
           cardKey: owner,
           code: 'duplicate-shape-id',
-          message: `shape id "${shp}" is declared by ${owners.length} specs (${owners.join(', ')}); SHP ids are deck-global and must be unique`,
+          message: `shape id "${shp}" is declared by ${owners.length} active specs (${owners.join(', ')}); SHP ids are deck-global and must be unique`,
         });
       }
     }
@@ -68,9 +79,9 @@ export function collectSpecCrossCardErrors(
       }
     }
 
-    // ── postconditions[].references → a declared SHP ───────────
+    // ── postconditions[].references → a declared SHP (resolves into drafts) ──
     for (const post of s.spec.postconditions) {
-      if (post.references != null && !shpOwners.has(post.references)) {
+      if (post.references != null && !shpDeclaredBy.has(post.references)) {
         issues.push({ cardKey: s.key, code: 'broken-shape-ref', message: `postconditions[${post.id}] references shape "${post.references}" which no spec declares` });
       }
     }
@@ -89,7 +100,7 @@ export function collectSpecCrossCardErrors(
         if (f.owner == null) {
           issues.push({ cardKey: s.key, code: 'broken-failure-ref', message: `failures[${fid}].references "${f.references}" requires an owner spec to resolve against` });
         } else {
-          const ownerSpec = active.find((x) => x.key === f.owner);
+          const ownerSpec = specByKey.get(f.owner);
           const hasFail = ownerSpec?.spec.failures.some((of) => of.id === f.references) ?? false;
           if (!hasFail) {
             issues.push({ cardKey: s.key, code: 'broken-failure-ref', message: `failures[${fid}].references "${f.references}" not found in owner spec "${f.owner}"` });
