@@ -66,10 +66,11 @@ export interface PrincipleMetric {
 
 /**
  * [§5] How a principle declares it is checked. `class` decides "what is a
- * violation": structural (closed predicate set over the card graph) / binding
- * (@principle annotation evidence) / metric (PrincipleMetric budget) / prose
- * (human review). Enforcement strength = class × enforcement, bounded by
- * integrity rules (prose/metric without feed may not be `blocking`).
+ * violation": structural (closed predicate over the card graph) / binding (the
+ * SPEC cards it governs carry @spec source-binding evidence — code_link presence;
+ * @spec is the only code-binding mechanism per source-as-binding-sot) / metric
+ * (PrincipleMetric budget) / prose (human review). Enforcement strength = class ×
+ * enforcement, bounded by integrity rules (prose/metric may not be `blocking`).
  */
 /**
  * [§5 engine] Closed structural predicate evaluated over a principle's

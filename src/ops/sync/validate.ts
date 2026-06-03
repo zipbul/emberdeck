@@ -9,6 +9,7 @@ import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces, se
 import { collectSpecDeriveErrors } from '../../spec/validate-refs';
 import { collectSpecCrossCardErrors, type SpecNode } from '../../spec/validate-cross-card';
 import { evaluateStructuralPrinciples, type StructuralPrincipleRule } from '../../principle/structural-verify';
+import { evaluateBindingPrinciples, type BindingPrincipleRule } from '../../principle/binding-verify';
 import type { CardValidationResult, ValidationWarning } from './types';
 import { listCardFiles } from './sync-in';
 
@@ -362,6 +363,36 @@ export async function validateCards(
     }
     const nodes = dbRows.map((r) => ({ key: r.key, type: r.type as CardType, status: r.status, parent: r.parent ?? null }));
     for (const v of evaluateStructuralPrinciples(nodes, forwardEdgesBySrc, structuralRules)) {
+      if (v.enforcement === 'advisory') continue;
+      warnings.push({
+        type: v.enforcement === 'blocking' ? 'principle-violation' : 'principle-violation-warning',
+        cardKey: v.cardKey,
+        message: v.message,
+      });
+    }
+  }
+
+  // Binding principle enforcement (§5 verify.class=binding): @spec is the only
+  // code-binding mechanism (source-as-binding-sot), so a binding principle is
+  // verified by the @spec evidence of the SPEC cards it governs — each governed
+  // spec must have ≥1 code_link row.
+  const bindingRules: BindingPrincipleRule[] = [];
+  for (const row of dbRows) {
+    if (row.type !== 'principle' || row.status !== 'active') continue;
+    const principle = parseNamespaces(row.namespacesJson).principle as PrincipleBody | undefined;
+    if (principle?.verify?.class !== 'binding') continue;
+    bindingRules.push({
+      key: row.key,
+      appliesTo: principle.applies_to,
+      enforcement: principle.enforcement,
+      ...(principle.exemptions ? { exemptions: principle.exemptions.map((e) => e.target) } : {}),
+    });
+  }
+  if (bindingRules.length > 0) {
+    const hasBinding = new Set<string>();
+    for (const link of ctx.codeLinkRepo.findAll()) hasBinding.add(link.cardKey);
+    const bindingNodes = dbRows.map((r) => ({ key: r.key, type: r.type as CardType, status: r.status }));
+    for (const v of evaluateBindingPrinciples(bindingNodes, hasBinding, bindingRules)) {
       if (v.enforcement === 'advisory') continue;
       warnings.push({
         type: v.enforcement === 'blocking' ? 'principle-violation' : 'principle-violation-warning',

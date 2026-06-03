@@ -263,7 +263,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | verify.class | 검증 대상 | `blocking`이 막는 것 |
 |---|---|---|
 | **structural** | 카드그래프 닫힌 구조 검사. 임의 DSL 금지 | 구조 술어 실패. 단 deterministic + **explainable** + payload evaluable일 때만. **[v22] 이 9개 범주(shape/required/enum/ref-existence/ref-direction/owner-uniqueness/glob-match/governed_by-consistency/forbidden-edge)는 *구조 검사 분류*이며 대부분 도구-보편 법칙으로 *하드코딩* 강제됨**(ref-existence=broken-derives/invoke/shape-ref, ref-direction=section-aware, owner-uniqueness=SHP 유일성, glob-match=governed_by). **principle이 *선언*하는 structural 엔진 술어는 `forbidden-edge` 1종**(forbids-relation-to) — 나머지는 보편이라 코드에, project-특수 경계규범만 카드에(§5 이중소유 금지) |
-| **binding** | `@principle <key>` 어노테이션 evidence present/missing (`@spec`-family, 이미 추적됨) | **증거 누락만**(내용 옳음은 사람 — false compliance 인정) |
+| **binding** | **[v22 정정]** 코드 결합은 `@spec`뿐(`source-as-binding-sot` — spec만 코드 연결). 따라서 binding principle은 *거버넌스 대상 spec 카드들의 `@spec` 결합 증거(code_link presence)*로 검증 — 각 governed spec이 ≥1 결합을 갖는가. principle/brief/domain은 코드에 안 붙음. **[구현됨]** | **증거 누락만**(내용 옳음은 사람 — false compliance 인정) |
 | **metric** | `PrincipleMetric` budget 선언 | (measurement feed 구현 후) threshold 초과. **feed 전엔 blocking 금지** |
 | **prose** | 사람 리뷰 체크리스트 | **blocking 금지**(schema error) |
 
@@ -400,7 +400,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **vision 타입을 스키마 SoT에 등록** (`SKILL.md <card_fields>` + `src/card/types.ts` 의 CardType 에 `vision` 추가; 현재 4타입만 존재) + **구조 검증 구현**(4필드 비어있지 않음·vision ≤1장·scopes 연결).
 - **필드 목적 가이드의 단일 정의 + `ed card guide <type>`(read-only) 노출** + validate 에러가 필드 목적 인용 (in-band 작성 가이드 — vision부터, 이후 전 타입). MCP wrap은 모델·가이드 안정 후 **별도 표면 트랙**(스키마 reload 마찰 때문에 지금은 CLI).
 - **가상(derived) 엣지 materialization 계약**: `scopes`·`governed_by` 를 *누가/어떤 API·인덱스로* 도출해 그래프 traverse를 보장하는가 (저장 안 하므로 도출 주체·포맷·validate 증명 방식 정의 필요).
-- **principle verify.class 구현**: structural 폐쇄술어 9종 평가 엔진(케이스별 cross-ref 패턴, DSL 금지), binding coverage(@principle), metric measurement feed(가장 비싼 미실현 — feed 전 metric blocking 금지), class별 payload validation + 무결성 메타 검증.
+- **principle verify.class 구현** **[v22: structural·binding 엔진 구현됨]**: structural(forbids-relation-to 술어 평가), **binding = 거버넌스 spec의 `@spec` 결합 증거(code_link presence)** — 코드 결합은 @spec뿐(spec만 코드 연결), metric measurement feed(미실현 — feed 전 metric blocking 금지), 무결성 메타 검증.
 - **impact BFS 순회 알고리즘**(§6.5 이연 — `impact`/`check` spec 구현): phase 조합(상향→횡단→후처리), depth 회계, affected-set 결과구조(linkType enum direct/transitive/parent/scope/governance + invokes/case-of/shape-ref [v18]), governance 후처리 frontier.
 - 확장 노드(model/service/event-contract)는 **방향만 확정(도입 후보)** — 각 **필수 필드 스키마**, 그에 의존하는 엣지(references/emits/consumes/deployed_in)·코드결합, `domain→model` parent는 도입 결정 시 함께 확정.
 - **typed facet 확장 후보**(게이트=FE/BE 모노레포): 시나리오 시뮬레이션(모노레포)이 레이어 직교성 수요를 실증 — `domain.layer` 같은 검증가능 enum tag-축(현 자유 tags는 오타 무검증). **주의: 이건 §3에서 폐기한 facet *노드*가 아니라 domain의 *필드/enum 축***(노드≠필드, 원칙5 — 폐기된 건 노드, 이건 필드). 코어 변경 불요(흐름은 invokes로 이미 닫힘), 수요 실증된 프로젝트에서만 도입.
@@ -437,8 +437,8 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 3. **`context`/`relations` trace surface**(§9 연결성 — `linkType` enum을 direct/transitive/parent/scope/governance + **[v18] invokes/case-of/shape-ref**로 확장 = `RelationGraphNode`/affected-set 타입 변경) + impact BFS 재구현(parent+cross_domain+scope+governance + **invokes(spec→spec per-call)**, golden snapshot + **context/relations 출력 회귀** + gildash 보존, 순회≠강제 명문화). **invokes/case-of/shape-ref가 이 enum·BFS·surface set에 반드시 포함돼야** §머리·§9.1이 약속한 "invokes navigable화"가 실제 닫힌다(누락 시 자기모순).
 
 **Phase 4 — 강제·확장 (게이트 충족 시만)**
-1. `@principle` 코드 어노테이션 심기(현 0개 — binding principle 전제).
-2. verify.class 엔진. **[v22 갱신: structural 평가 엔진(forbids-relation-to 술어, exemptions 적용) + principle-violation 배선 *구현됨*(YAGNI 보류 철회 — 필요하면 만든다). 무결성 규칙은 structural만 blocking 허용(prose/metric/binding은 엔진 없으니 warning/advisory 강제). binding(@principle evidence)·metric(measurement feed) 엔진은 인프라 선결과제라 잔여 — 단 +blocking은 integrity가 차단해 false-promise 방지].**
+1. ~~`@principle` 코드 어노테이션 심기~~ **[v22 폐기: 코드 결합은 `@spec`뿐(spec만 코드 연결). `@brief`/`@principle`/`@domain` 추적(`TRACKED_ANNOTATION_TAGS`)은 *왜곡* — @spec-only로 정리. binding은 거버넌스 spec의 @spec 증거로 검증].**
+2. verify.class 엔진. **[v22: structural(forbids-relation-to 술어, exemptions 적용) + binding(거버넌스 spec의 @spec code_link 증거 present/missing) 엔진 *구현됨* + principle-violation 배선. 무결성: structural·binding은 blocking 허용(엔진 있음), prose(사람)·metric(feed 미실현)은 warning/advisory 강제. metric measurement feed만 잔여].**
 3. model/service/domain.layer — **MSA/모노레포 게이트 실증 시만**(설계 §9 "도입 후보").
 
 **리스크 ranked**: ①brief lossy 변환(14카드+35DI 원자, DI 중복 유일화) ②**`src/ops/update.ts:57` 하드코딩 required-list 누락**(typecheck 사각 — 빠뜨리면 strict 승격 후 정상 brief가 invalid) ③write-free 2-사이트 ④impact BFS 회귀(golden) ⑤relationship/applies_to enum 매핑.

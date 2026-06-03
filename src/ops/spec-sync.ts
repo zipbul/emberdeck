@@ -9,19 +9,15 @@ import { txDb } from '../db/connection';
 import { join, relative, dirname } from 'node:path';
 
 /**
- * Annotation tags scanned by `syncSpecAnnotations`. Originally only `@spec`
- * was tracked; expanding to all 4 tiers means any card type can be referenced
- * from source via the corresponding tag (e.g. `@brief auth/token`). The card
- * key in the annotation value resolves the target — emberdeck does not enforce
- * that the tag matches the card's type, so authors can use whichever tag fits
- * their narrative (a brief annotation linking to a spec card is allowed).
+ * Annotation tags scanned by `syncSpecAnnotations`. ONLY `@spec` binds code to
+ * cards (`source-as-binding-sot`: spec cards are the only code-bound tier;
+ * principle/brief/domain/vision govern the card graph, they do not bind to
+ * source). A previous "@brief/@principle/@domain" multi-tier expansion was a
+ * distortion of that core rule and has been removed.
+ *
+ * Exported so the CLI validate path uses the same single-source tag list.
  */
-/**
- * Card tier names whose source bindings flow through `@spec`-family annotations
- * into the code_link cache. Exported so the CLI validate path can build the same
- * filter without duplicating the literal tuple.
- */
-export const TRACKED_ANNOTATION_TAGS = ['spec', 'brief', 'principle', 'domain'] as const;
+export const TRACKED_ANNOTATION_TAGS = ['spec'] as const;
 
 
 /**

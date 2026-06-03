@@ -185,10 +185,9 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
     }
   }
 
-  // spec-sync tracks @spec/@brief/@principle/@domain annotations into the
-  // code_link cache (all 4 tiers can carry source bindings). validate-links
-  // must check every type, not just spec, or non-spec bindings rot silently.
-  // Reuses TRACKED_ANNOTATION_TAGS from spec-sync to keep the tier list single-sourced.
+  // Only spec cards bind to code (@spec — source-as-binding-sot), so only specs
+  // have links to validate. TRACKED_ANNOTATION_TAGS is single-sourced from
+  // spec-sync (now ['spec']).
   const trackedTypes = new Set<string>(TRACKED_ANNOTATION_TAGS);
   const targets = explicitRow
     ? [explicitRow]

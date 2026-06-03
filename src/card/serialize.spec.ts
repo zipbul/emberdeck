@@ -499,12 +499,8 @@ describe('principle.verify.class (§5 — verify class + integrity rule)', () =>
     expect(r.frontmatter.principle?.verify?.structural).toEqual({ kind: 'forbids-relation-to', targetGlob: 'other/*' });
   });
 
-  it('rejects binding class + blocking enforcement (no binding engine yet)', () => {
-    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'binding' } }))).toThrow(CardValidationError);
-  });
-
-  it('allows binding class with warning enforcement', () => {
-    expect(() => parseCard(pcard({ ...base, enforcement: 'warning', verify: { class: 'binding' } }))).not.toThrow();
+  it('allows binding class + blocking enforcement (binding has an engine: @spec evidence)', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking', verify: { class: 'binding' } }))).not.toThrow();
   });
 
   it('allows prose class with warning enforcement', () => {

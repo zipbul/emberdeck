@@ -46,40 +46,38 @@ describe('analyze — health.codeCycles', () => {
 
 // ── searchAnnotations 4-tier ─────────────────────────────────────────
 
-describe('syncSpecAnnotations — 4-tier annotation tags', () => {
+describe('syncSpecAnnotations — @spec-only binding (source-as-binding-sot)', () => {
   let tc: TestContext;
   afterEach(async () => { await tc?.cleanup(); });
 
-  it('creates code links for @brief/@principle/@domain tags too', async () => {
+  it('binds only @spec; @brief/@principle/@domain tags are not scanned', async () => {
     tc = await createMockTestContext();
     await ensure4tierScaffold(tc.ctx, true);
-    // Use the existing scaffold cards that ensure4tierScaffold creates
-    // Here we just verify the tag-routing: each tag finds a matching card.
+    await createCard(tc.ctx, { key: 'plain-spec', summary: 's', type: 'spec' });
     await createCard(tc.ctx, { key: 'plain-brief', summary: 'b', type: 'brief', parent: '_dom' });
     await createCard(tc.ctx, { key: 'plain-principle', summary: 'p', type: 'principle' });
-    await createCard(tc.ctx, { key: 'plain-domain', summary: 'd', type: 'domain' });
 
     const annotationsByTag: Record<string, any[]> = {
-      spec: [],
+      spec: [{ tag: 'spec', value: 'plain-spec', filePath: 'src/x.ts', symbolName: 'fnS', source: 'line' }],
+      // These would only matter under the removed 4-tier distortion — they must be ignored now.
       brief: [{ tag: 'brief', value: 'plain-brief', filePath: 'src/x.ts', symbolName: 'fnB', source: 'line' }],
       principle: [{ tag: 'principle', value: 'plain-principle', filePath: 'src/x.ts', symbolName: 'fnP', source: 'line' }],
-      domain: [{ tag: 'domain', value: 'plain-domain', filePath: 'src/x.ts', symbolName: 'fnD', source: 'line' }],
     };
 
     tc.ctx.gildash = makeGildash({
       searchAnnotations: (q: { tag: string }) => annotationsByTag[q.tag] ?? [],
       getSymbolsByFile: () => [
+        { name: 'fnS', memberName: null, filePath: 'src/x.ts', kind: 'function' },
         { name: 'fnB', memberName: null, filePath: 'src/x.ts', kind: 'function' },
         { name: 'fnP', memberName: null, filePath: 'src/x.ts', kind: 'function' },
-        { name: 'fnD', memberName: null, filePath: 'src/x.ts', kind: 'function' },
       ],
     });
 
     const result = await syncSpecAnnotations(tc.ctx);
-    expect(result.created).toBe(3);
-    expect(tc.ctx.codeLinkRepo.findByCardKey('plain-brief')).toHaveLength(1);
-    expect(tc.ctx.codeLinkRepo.findByCardKey('plain-principle')).toHaveLength(1);
-    expect(tc.ctx.codeLinkRepo.findByCardKey('plain-domain')).toHaveLength(1);
+    expect(result.created).toBe(1);
+    expect(tc.ctx.codeLinkRepo.findByCardKey('plain-spec')).toHaveLength(1);
+    expect(tc.ctx.codeLinkRepo.findByCardKey('plain-brief')).toHaveLength(0);
+    expect(tc.ctx.codeLinkRepo.findByCardKey('plain-principle')).toHaveLength(0);
   });
 
   it('dedupes when a mock returns the same annotation across tag queries', async () => {
