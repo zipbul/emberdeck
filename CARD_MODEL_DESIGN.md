@@ -262,7 +262,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 | verify.class | 검증 대상 | `blocking`이 막는 것 |
 |---|---|---|
-| **structural** | 카드그래프 **폐쇄 술어 9종**(shape/required/enum/ref-existence/ref-direction/owner-uniqueness/glob-match/governed_by-consistency/forbidden-edge). 임의 DSL 금지 | 구조 술어 실패. 단 deterministic + **explainable**(실패 위치/기대값) + payload 인자 evaluable일 때만 |
+| **structural** | 카드그래프 닫힌 구조 검사. 임의 DSL 금지 | 구조 술어 실패. 단 deterministic + **explainable** + payload evaluable일 때만. **[v22] 이 9개 범주(shape/required/enum/ref-existence/ref-direction/owner-uniqueness/glob-match/governed_by-consistency/forbidden-edge)는 *구조 검사 분류*이며 대부분 도구-보편 법칙으로 *하드코딩* 강제됨**(ref-existence=broken-derives/invoke/shape-ref, ref-direction=section-aware, owner-uniqueness=SHP 유일성, glob-match=governed_by). **principle이 *선언*하는 structural 엔진 술어는 `forbidden-edge` 1종**(forbids-relation-to) — 나머지는 보편이라 코드에, project-특수 경계규범만 카드에(§5 이중소유 금지) |
 | **binding** | `@principle <key>` 어노테이션 evidence present/missing (`@spec`-family, 이미 추적됨) | **증거 누락만**(내용 옳음은 사람 — false compliance 인정) |
 | **metric** | `PrincipleMetric` budget 선언 | (measurement feed 구현 후) threshold 초과. **feed 전엔 blocking 금지** |
 | **prose** | 사람 리뷰 체크리스트 | **blocking 금지**(schema error) |
@@ -295,7 +295,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 ## 6.5 흐름 — 작성·변경 순회 (모델 레이어)
 
-> **표기 주의 — 설계 확정 / 구현 미결 구분:** 아래 흐름은 *목표 설계*다(새 저장/스키마 0, 모든 엣지가 기존 단일 SoT 순회). **현행 `impact`는 `card_relation`(=`relations` 필드)만 순회하고 parent·cross_domain_dependencies는 안 탄다** — 즉 "전부 기존 SoT 순회"는 §9 impact BFS 재구현으로 달성할 타깃이지 현행 동작이 아니다. 아래 표의 "순회하는 SoT"는 *어느 SoT를 순회해야 하는가*(설계)를 뜻한다.
+> **표기 주의 — 설계 확정 / 구현:** 아래 흐름은 *목표 설계*다(새 저장/스키마 0, 모든 엣지가 기존 단일 SoT 순회). **[v22: 구현됨]** — `impact`는 이제 trace 엣지 중 **coupling(`invokes`/`parent`/`cross_domain`)**을 순회하고(navigation 엣지 `derives`/`case-of`는 추적 surface 전용, 전파 아님), `relations[]`도 transitive로 본다. (당시엔 `card_relation`만 순회했음.)
 
 노드를 잇는 end-to-end 흐름. **설계 핵심: 새 저장/스키마 0 — 모든 엣지가 *기존 단일 SoT*를 순회**(캐시 없음 = drift 표면 0).
 
@@ -365,16 +365,16 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 ### 9.1 핵심 결론 — `enforcement-bound` (3라운드 엄격 ground-truth 진단)
 
-> **스키마 설계는 수렴했다. "에이전트가 카드만으로 프로젝트를 완벽 이해 / 카드가 무누락 코드 SSOT"는 스키마만으로 도달 불가능하다.** 엄격 진단 3라운드(실카드 전수 대조)의 **정성 추정**(측정 metric 아님 — 산출식·표본 없는 리뷰어 판단; `ed analyze` 의 coverageRatio=0.2046=125/611 같은 *실측*과 다른 축이니 혼동 금지): 카드-only 이해 "중간 정도"(횡단여정이 도메인-국소보다 현저히 낮음). 스키마 정정(invokes/case_of/shape-ref 추가)은 *표현 가능성*만 올렸고 **navigable surface는 실측상 미실현(전 카드 relations total:0) = 실효 lift ≈ 0**(구현 전제) — 이유는 **이중 천장**:
+> **스키마 설계는 수렴했다. "에이전트가 카드만으로 프로젝트를 완벽 이해 / 카드가 무누락 코드 SSOT"는 스키마만으로 도달 불가능하다.** 엄격 진단 3라운드(실카드 전수 대조)의 **정성 추정**(측정 metric 아님 — 산출식·표본 없는 리뷰어 판단; `ed analyze` 의 coverageRatio=0.2046=125/611 같은 *실측*과 다른 축이니 혼동 금지): 카드-only 이해 "중간 정도"(횡단여정이 도메인-국소보다 현저히 낮음). 스키마 정정(invokes/case_of/shape-ref 추가)은 당시 *표현 가능성*만 올렸다. **[v22 갱신: 아래 "이중 천장" 중 ①구현 이연은 *닫혔다* — trace surface(shape-ref/scopes 포함)·cross-card 강제 validate(invokes.to/SHP 유일성/references/foreign-derive/section-aware)·impact 전파 모두 landed. ②원리적 결정불가(의미 계약 유일성)만 영구 사람/LLM 잔여로 남는다.]** 당시 진단의 **이중 천장**:
 >
-> 1. **구현 이연** — 강제 *가능한* 검사(엣지 타깃 존재: `invokes.to`/`shape-ref`/`derives` 대상)조차 안 만들어짐. 현 `ed validate`는 intra-card, `ed card relations/context`는 모든 카드 `total:0`(trace 엣지가 frontmatter 문자열로만 존재, surface 안 됨). → navigable 엣지를 *스키마로 선언*해도 validate/index를 **구현하기 전엔 0% lift**.
+> 1. ~~**구현 이연**~~ **[v22: 닫힘]** — 강제 가능한 검사(`invokes.to`/`shape-ref`/`derives` 대상)는 이제 cross-card validate가 강제하고, `ed card relations/context`는 typed trace 엣지(parent/derives/case-of/invokes/cross_domain/shape-ref/scopes)를 navigable하게 surface한다. (당시엔 intra-card + frontmatter 문자열뿐이라 0% lift였음.)
 > 2. **원리적 결정불가** — cross-card 의미 계약 중복(같은 거부집합이 cli card-create + lifecycle create-card에 6복제; CardSummary×4·CardFrontmatter×6 산문복제; exit-map 삼중 owner)은 **어떤 validator도 기계적으로 못 잡음**(두 산문이 같은 계약인지 판정 불가 = `card-drift-root-cause`). → cross-card 계약 유일성은 **영구적 사람/LLM 리뷰 잔여**.
 >
 > **이것이 재리뷰마다 새 결함이 나온 근본 이유다** — 모델의 무드리프트/무누락 보장은 종이로 못 닫는다. 닫으려면 **(a) cross-card 강제를 *구현***하고 **(b) 의미 유일성은 사람이 검토**해야 한다.
 >
 > **강제가능 천장을 올리는 3 구조수정**(스키마 차원, [v18] 반영): ① SHP=**덱-전역 레지스트리 key**(owner-uniqueness에 강제가능 key 부여) ② `failures`에 `owner`/`references`(cross-domain 거부 double-home dedup) ③ invokes 예시 정정(changelog 제거). 그 이상의 실측 상승은 **enforcement 구현이 유일한 ceiling-raiser**(§10 Phase 3-3·4).
 >
-> **vision 긴장(미해소):** 4-철학 합성은 vision 노드를 *거부*(실카드 0장, scopes derived=정보0 추가, 프로젝트 한 줄은 root domain summary로 도출)했으나, 이는 **원칙1**("최상위 맥락도 그래프 안에")과 충돌하고 "root domain 7개 중 무엇이 대표인가" under-design 갭을 남긴다. → **미결**: vision을 코어 노드로 둘지(현 §2/§3 서술) vs 거부할지는 도출 계약(scopes materialization) 확정과 함께 결정.
+> ~~**vision 긴장(미해소)**~~ **[v21/v22: 해소 — vision은 코어 노드로 *확정·구현*]**: 타입 등록 + 구조검증(statement/rationale/success_direction, root-only, ≤1 싱글톤) + `scopes`(vision→domain) **도출** trace 엣지까지 landed(§9.1이 거부했던 것은 오판 — 원칙1대로 최상위 맥락이 그래프 안에 들어옴). 실카드는 진짜 필요 시 저작.
 
 **확정:**
 - 코어 = **vision + domain/brief/spec/principle** (5) + glossary 오버레이. *(vision 코어성은 §9.1 긴장 노트 — 미해소.)*
@@ -386,7 +386,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 - **cross_domain_dependencies** = `{domain, relationship, note?}`, depender 단일 저장. `relationship`을 **`invokes`|`consumes` enum 격상**(§4) — free-text는 코드정합성 결함.
 - vision→domain `scopes` = derived(저장 X, 고립 방지) — 도출 계약은 미결(아래).
 - **principle = 횡단 규범 단일 owner** (§5). statement=의도(산문) + **`verify.class`(structural 폐쇄술어9종/binding/metric/prose)로 검증방식 선언** → "무엇이 위반인가"를 verify.class가 정의. 강제=class×enforcement. governs owner=applies_to 단일(카드키 glob), governed_by=lazy 도출. 무결성(prose/metric+blocking 금지, 폐쇄술어, 스키마중복 금지). **[v20] 스키마+무결성+governed_by 구현; structural *엔진*(폐쇄술어 평가+principle-violation 배선)은 YAGNI 보류**(원칙4 — 실 principle은 prose, structural 소비자0+schema 중복; 소비자 등장 시 구현).
-- **흐름 *설계* 확정**(§6.5): 모든 엣지가 기존 단일 SoT 순회(새 저장/스키마 0). 엣지 parent(card.parent)/binding(code_link)/depends-on(namespace 직접)/scope·governance(lazy). calls 제거, conflicts-with 검증전용, derives 메타. `card_relation.type` 불요. **단 impact BFS *구현*은 미결** — 현행은 `card_relation`(relations 필드)만 순회, parent·cross_domain 미순회 → 설계대로 재구현 필요(아래).
+- **흐름 *설계* 확정**(§6.5): 모든 엣지가 기존 단일 SoT 순회(새 저장/스키마 0). 엣지 parent(card.parent)/binding(code_link)/depends-on(namespace 직접)/scope·governance(lazy). calls 제거, conflicts-with 검증전용, derives 메타. `card_relation.type` 불요. ~~단 impact BFS 구현은 미결~~ **[v22: 구현됨 — impact는 coupling 엣지(invokes/parent/cross_domain) 순회].**
 - code-binding/drift 현행 보존(코어 spec). 확장 노드 결합은 노드 도입 시.
 - 비파괴 점진 마이그레이션. design/story/actor/epic/area/calls 거부.
 - **glossary = 어휘 오버레이**(노드 아님 — §3). yaml=정의 단일 SoT, 카드 필드=참조만(drift 없음). 기준 4(③ "load-bearing 용어"로 약화). 운용: 정확사용=field↔yaml 정합+코드심볼 suggest(본문 강제 안 함, NG-002), 추가=outline→4기준→define, **관계=word-set 양방향 조회로 충분(traverse 엣지=과설계, false 의존)**, rename body=수동+affectedCardKeys surface. glossary-broken=error/unused→warning 분리(§9).
@@ -438,7 +438,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 **Phase 4 — 강제·확장 (게이트 충족 시만)**
 1. `@principle` 코드 어노테이션 심기(현 0개 — binding principle 전제).
-2. verify.class 엔진(structural 폐쇄9종/binding/metric/prose + 무결성). **[v20] 무결성 규칙은 구현; structural 평가 엔진 + principle-violation 배선은 YAGNI 보류** — 소비자(심긴 @principle / 비-schema-중복 structural principle / metric feed) 등장 시 구현(원칙4).
+2. verify.class 엔진. **[v22 갱신: structural 평가 엔진(forbids-relation-to 술어, exemptions 적용) + principle-violation 배선 *구현됨*(YAGNI 보류 철회 — 필요하면 만든다). 무결성 규칙은 structural만 blocking 허용(prose/metric/binding은 엔진 없으니 warning/advisory 강제). binding(@principle evidence)·metric(measurement feed) 엔진은 인프라 선결과제라 잔여 — 단 +blocking은 integrity가 차단해 false-promise 방지].**
 3. model/service/domain.layer — **MSA/모노레포 게이트 실증 시만**(설계 §9 "도입 후보").
 
 **리스크 ranked**: ①brief lossy 변환(14카드+35DI 원자, DI 중복 유일화) ②**`src/ops/update.ts:57` 하드코딩 required-list 누락**(typecheck 사각 — 빠뜨리면 strict 승격 후 정상 brief가 invalid) ③write-free 2-사이트 ④impact BFS 회귀(golden) ⑤relationship/applies_to enum 매핑.
