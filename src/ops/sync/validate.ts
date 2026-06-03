@@ -185,7 +185,8 @@ export async function validateCards(
       }
     }
 
-    // Rework dependency: active card depends on draft card
+    // Rework dependency: active card depends on draft card — via relations[]
+    // OR a spec's invokes[] (same WIP-coupling smell, the typed v18 edge).
     if (row.status === 'active') {
       for (const rel of relations) {
         if (!rel.isReverse) {
@@ -195,6 +196,19 @@ export async function validateCards(
               type: 'rework-dependency',
               cardKey: row.key,
               message: `Active card has relation to draft card "${rel.dstCardKey}"`,
+            });
+          }
+        }
+      }
+      if (row.type === 'spec') {
+        const spec = parseNamespaces(row.namespacesJson).spec as SpecBody | undefined;
+        for (const iv of spec?.invokes ?? []) {
+          const target = cardByKey.get(iv.to);
+          if (target && target.status === 'draft') {
+            warnings.push({
+              type: 'rework-dependency',
+              cardKey: row.key,
+              message: `Active spec invokes draft spec "${iv.to}"`,
             });
           }
         }

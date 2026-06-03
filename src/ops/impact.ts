@@ -1,5 +1,5 @@
 import type { EmberdeckContext } from '../config';
-import { getRelationGraph, cardRowTraceEdges } from './query';
+import { getRelationGraph, cardRowTraceEdges, buildShpOwnerIndex } from './query';
 import { checkDrift } from './context';
 import { readGlossary, type GlossaryEntry } from '../glossary/io';
 import { matchesAnyGlob } from '../util/glob';
@@ -112,9 +112,10 @@ export async function preChangeCheck(
   // and a brief change is not a code-impact input — so they stay on the trace
   // surface (context/relations) but do not inflate the affected set here.
   const PROPAGATION_EDGES = new Set(['invokes', 'parent', 'cross_domain']);
+  const shpOwnerIndex = buildShpOwnerIndex(ctx);
   for (const row of ctx.cardRepo.list()) {
     if (primaryKeys.has(row.key) || transitiveCards.has(row.key)) continue;
-    const hit = cardRowTraceEdges(ctx, row).find((e) => PROPAGATION_EDGES.has(e.type) && primaryKeys.has(e.to));
+    const hit = cardRowTraceEdges(ctx, row, shpOwnerIndex).find((e) => PROPAGATION_EDGES.has(e.type) && primaryKeys.has(e.to));
     if (!hit) continue;
     transitiveCards.add(row.key);
     affectedCards.push({

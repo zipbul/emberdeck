@@ -379,8 +379,19 @@ function parseRefKey(ref: string): { key: string; item: string } | null {
  *
  * @spec card-storage/queries/tree-context
  */
+/** SHP id → owning spec key, over all specs. Build once and pass to
+ * deriveTraceEdges to avoid an O(specs) rescan per card in impact's loop. */
+export function buildShpOwnerIndex(ctx: EmberdeckContext): Map<string, string> {
+  const idx = new Map<string, string>();
+  for (const row of ctx.cardRepo.list({ type: 'spec' })) {
+    const s = parseNamespaces(row.namespacesJson).spec as SpecBody | undefined;
+    for (const sh of s?.shapes ?? []) if (!idx.has(sh.id)) idx.set(sh.id, row.key);
+  }
+  return idx;
+}
+
 /** Derive forward trace edges from an already-parsed card frontmatter. */
-function deriveTraceEdges(ctx: EmberdeckContext, fm: CardFrontmatter): TraceEdge[] {
+function deriveTraceEdges(ctx: EmberdeckContext, fm: CardFrontmatter, shpOwnerIndex?: Map<string, string>): TraceEdge[] {
   const edges: TraceEdge[] = [];
   const seen = new Set<string>();
   const add = (type: TraceEdgeType, to: string, via?: string): void => {
@@ -400,11 +411,7 @@ function deriveTraceEdges(ctx: EmberdeckContext, fm: CardFrontmatter): TraceEdge
     // shape-ref: postconditions.references → the spec that owns the SHP (deck-global).
     const shapeRefs = fm.spec.postconditions.filter((p) => p.references).map((p) => p.references!);
     if (shapeRefs.length > 0) {
-      const ownerByShp = new Map<string, string>();
-      for (const row of ctx.cardRepo.list({ type: 'spec' })) {
-        const s = parseNamespaces(row.namespacesJson).spec as SpecBody | undefined;
-        for (const sh of s?.shapes ?? []) if (!ownerByShp.has(sh.id)) ownerByShp.set(sh.id, row.key);
-      }
+      const ownerByShp = shpOwnerIndex ?? buildShpOwnerIndex(ctx);
       for (const ref of shapeRefs) {
         const owner = ownerByShp.get(ref);
         if (owner) add('shape-ref', owner, ref);
@@ -434,7 +441,7 @@ export async function listCardTraceEdges(ctx: EmberdeckContext, fullKey: string)
  * Used by impact analysis to traverse trace dependents without N file reads.
  * @spec card-storage/queries/tree-context
  */
-export function cardRowTraceEdges(ctx: EmberdeckContext, row: CardRow): TraceEdge[] {
+export function cardRowTraceEdges(ctx: EmberdeckContext, row: CardRow, shpOwnerIndex?: Map<string, string>): TraceEdge[] {
   const ns = parseNamespaces(row.namespacesJson);
   const fm = {
     key: row.key,
@@ -444,7 +451,7 @@ export function cardRowTraceEdges(ctx: EmberdeckContext, row: CardRow): TraceEdg
     parent: row.parent ?? undefined,
     ...ns,
   } as CardFrontmatter;
-  return deriveTraceEdges(ctx, fm);
+  return deriveTraceEdges(ctx, fm, shpOwnerIndex);
 }
 
 /** [§5] A principle governing a card (derived governed_by edge). */

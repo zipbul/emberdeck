@@ -402,6 +402,22 @@ describe('validateCards', () => {
     expect(fd.some((w) => w.cardKey === 'fd-s' && /fd-b2/.test(w.message))).toBe(true);
   });
 
+  // An active spec that invokes a DRAFT spec surfaces rework-dependency (same
+  // WIP-coupling smell as the legacy relations[] check).
+  it('should surface rework-dependency for an active spec invoking a draft spec', async () => {
+    tc = await createMockTestContext();
+    const dom = serializeCard({ key: 'rw-d', summary: 'd', status: 'active', type: 'domain', domain: { overview: 'o', scope: 's' } });
+    const br = serializeCard({ key: 'rw-b', summary: 'b', status: 'active', type: 'brief', parent: 'rw-d', brief: makeTestBrief() });
+    const callee = serializeCard({ key: 'rw-callee', summary: 'c', status: 'draft', type: 'spec', parent: 'rw-b', spec: { ...makeTestSpec(), preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'rw-b#G-001' }], postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'rw-b#G-001' }] } });
+    const caller = serializeCard({ key: 'rw-caller', summary: 'r', status: 'active', type: 'spec', parent: 'rw-b', spec: { ...makeTestSpec(), preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'rw-b#G-001' }], postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'rw-b#G-001' }], invokes: [{ to: 'rw-callee', kind: 'per-call' }] } });
+    for (const [n, c] of [['rw-d', dom], ['rw-b', br], ['rw-callee', callee], ['rw-caller', caller]] as const) {
+      await writeFile(join(tc.cardsDir, `${n}.md`), c, 'utf-8');
+    }
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    expect(result.warnings.some((w) => w.type === 'rework-dependency' && w.cardKey === 'rw-caller' && /rw-callee/.test(w.message))).toBe(true);
+  });
+
   // §10 Phase 3.2 — applies_to '*' surfaces a deprecation warning; real-keyed does not.
   it('should surface applies-to-wildcard for a principle using applies_to "*"', async () => {
     tc = await createMockTestContext();
