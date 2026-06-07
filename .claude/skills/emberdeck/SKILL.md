@@ -1,6 +1,6 @@
 ---
 name: emberdeck
-description: emberdeck 4-tier 카드 시스템 (principle/domain/brief/spec + glossary, SSOT). ed CLI 호출, `.emberdeck/cards/` 파일 접근, 카드/spec/brief/domain/glossary 관련 답변·계획·코드 수정 — 어느 의도라도 즉시 진입. 비-카드 작업 후 카드 작업으로 복귀 시 재진입 필수 (세션 내 반복 진입은 정상). ed 의 mutating 명령 (create/update/delete/rename/set-status/bulk/spec sync/glossary 변경/reset) 은 PreToolUse hook (HC-0) 이 marker 없으면 결정론적으로 차단. 미진입 진행은 SSOT 게이트 우회.
+description: emberdeck 5-tier 카드 시스템 (vision/principle/domain/brief/spec + glossary, SSOT; 코드 바인딩은 @spec 으로 spec 만). ed CLI 호출, `.emberdeck/cards/` 파일 접근, 카드/spec/brief/domain/glossary 관련 답변·계획·코드 수정 — 어느 의도라도 즉시 진입. 비-카드 작업 후 카드 작업으로 복귀 시 재진입 필수 (세션 내 반복 진입은 정상). ed 의 mutating 명령 (create/update/delete/rename/set-status/bulk/spec sync/glossary 변경/reset) 은 PreToolUse hook (HC-0) 이 marker 없으면 결정론적으로 차단. 미진입 진행은 SSOT 게이트 우회.
 ---
 
 <hard_constraints>
@@ -56,7 +56,7 @@ PreToolUse hook 두 개가 enforce:
 <rules>
 1. 코드 수정 **전** 관련 카드 읽기. 수정 **후** `ed validate links` 실행.
 2. `glossary.yaml` 에 항목 ≥1 시 신규 카드의 `glossary` 필드 필수 (주요 토픽만).
-3. 4-tier strict: `principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용.
+3. 5-tier strict: `vision`/`principle`/`domain` (root) / `brief` (parent=domain) / `spec` (parent=brief|spec). brief 재귀 금지, spec 재귀 허용. 코드 바인딩은 spec 만(`@spec`).
 4. single-file 테스트: 한 소스 파일만 읽고 발견 가능 → 카드 X. 여러 파일 invariant → 반드시 카드. 단일 파일만 있는 production 모듈은 onboarding step 11 의 ignorePatterns 에 명시 추가 (rule 4 우선).
 5. `--patch` 는 namespace 전체 교체 (merge X). 누락 필수 필드 시 `validation-error` (stderr JSON-line `level:'error'`, exit 2). 또한 patch JSON 의 최상위 키는 `brief` / `spec` / `principle` / `domain` / `summary` / `type` / `status` / `parent` / `tags` / `relations` / `glossary` 중 하나여야 — namespace 내용물 직접 (예: `{preconditions: ..., postconditions: ...}`) 은 `cli-usage-error` (exit 2). 부분 업데이트 안전 흐름: `ed card get KEY` 로 현 frontmatter 조회 → jq 등으로 대상 namespace 만 추출하여 일부 수정 → `ed card update KEY --patch <new.json>` 으로 전체 namespace 재제출. (`.emberdeck/cards/` 안 .md 파일 직접 편집은 HC-1 위반.)
 6. **source ↔ card binding 은 source 가 SoT.** spec 카드의 source 결합은 코드의 `/** @spec card-key */` JSDoc 어노테이션으로만 표현. 카드는 codeLinks/boundary 필드를 갖지 않으며, `ed spec sync` 가 어노테이션을 스캔해 카드 ↔ symbol 결합 인덱스를 갱신한다.
@@ -70,7 +70,7 @@ PreToolUse hook 두 개가 enforce:
 - HC-3 `<self_review>` 항목별 통과? [ ]
 - HC-4 commit 전 `ed validate cards` 통과 확인? [ ]
 - Rule 2 glossary 필드 (해당 시)? [ ]
-- Rule 3 4-tier hierarchy 만족? [ ]
+- Rule 3 5-tier hierarchy 만족? [ ]
 </constraint_check>
 
 <route>
@@ -187,6 +187,20 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 
 <card_fields>
 
+5-tier: **vision** / **principle** / **domain** (root) → **brief** (parent=domain) → **spec** (parent=brief|spec). vision/principle/domain/brief 는 카드 그래프를 거버넌스하고 **코드에 바인딩하지 않음** — `@spec` 어노테이션으로 코드에 묶이는 건 오직 **spec** 뿐.
+
+## vision (root, 코드 바인딩 X, status: draft|active|drifted)
+
+프로젝트가 존재하는 이유·방향. 덱당 1장 권장. KPI 숫자는 여기 X (→ principle.metric).
+
+| 필드 | 필수 | 설명 |
+|------|:---:|------|
+| `key` `type: vision` `status` `summary` | ✓ | |
+| `vision.statement` | ✓ | 방향 한 문장 (기능 나열 X) |
+| `vision.rationale` | ✓ | 모든 하위 결정이 소급되는 근거/배경 |
+| `vision.success_direction` | ✓ | 올바른 방향이라는 정성적 그림 (숫자 KPI X) |
+| `parent` | ✗ | 금지 (root only) |
+
 ## principle (root, 코드 바인딩 X, status: draft|active|drifted)
 
 | 필드 | 필수 | 설명 |
@@ -194,8 +208,9 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 | `key` `type: principle` `status` `summary` | ✓ | |
 | `principle.statement` | ✓ | MUST/SHALL/SHOULD/MAY 한 문장 |
 | `principle.rationale` | ✓ | 배경 |
-| `principle.applies_to` | ✓ | `"*"` 또는 카드 키/glob 배열 |
+| `principle.applies_to` | ✓ | `"*"` 또는 카드 키/glob 배열 (→ governed_by 도출) |
 | `principle.enforcement` | ✓ | `blocking`\|`warning`\|`advisory` |
+| `principle.verify` | | `{class: structural\|binding\|metric\|prose, structural?}`. `class=structural` 일 때만 `structural: {kind: 'forbids-relation-to', targetGlob}` 필수(타 class 는 금지). structural=그래프 술어 엔진(차단 가능), binding=거버넌스 spec 의 `@spec` 증거(차단 가능), metric=측정 피드 필요(엔진 없음, 비차단), prose=사람 리뷰(비차단). **미선언 시 applies-to-wildcard nudge 발생** (그래서 optional). |
 | `principle.metric` | | `[{name, threshold, unit, comparator, kind?: threshold\|budget, window_kind?, distributable?}]` |
 | `principle.exemptions` | | `[{target, reason}]` |
 | `principle.references` | | `[{title, url}]` |
@@ -221,13 +236,12 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 | `brief.scope.non_goals` | ✓ | `[{id: NG-001, statement}]` |
 | `brief.scope.assumptions` | ✓ | `[{id: A-001, statement, verification?, reevaluate_when?}]` |
 | `brief.flow` | ✓ | `[{id: S-H-01\|S-F-01, kind: happy\|failure, given, when, then, covers: [G-id]}]`, ≥1 happy + ≥1 failure |
-| `brief.design` | ✓ | `{overview, components: [{name, responsibility, interacts_with: []}], data_flow: [{from, to, payload, trigger}], invariants: [{id: DI-001, statement}]}`. `interacts_with`/`data_flow` 는 빈 배열 OK |
 | `brief.policy` | ✓ | `[{id: R-001, subject, keyword: MUST\|SHALL\|.., predicate, governs: [S-id]}]` |
-| `brief.external` | ✓ | `[{id: C-001, statement, reference: {title, locator}}]` |
-| `brief.compatibility` | ✓ | `{guarantees: [{subject, version_range, breaks_if}], migration_path?}`. `guarantees` 빈 배열 OK |
-| `brief.limits` | ✓ | `[{id: KL-001, statement}]` |
 | `brief.criteria` | ✓ | `[{id: SC-001, type, measure, verifies: [S-id]}]`. `measure` 는 type 별 다른 객체: `numeric` → `{predicate, value, comparator, unit, reference?}`, `binary` → `{predicate, method?, reference?}`, `verification` → `{method, reference, predicate?, unit?}`. 모두 flow 가 verifies |
 | `brief.rationale` | ✓ | `{alternatives: [≥2개 {option, pros: [], cons: []}], chosen: {option, reasoning}, trade_off?, addresses: []}`. `addresses` 빈 배열이라도 키는 필수 |
+| `brief.approach` | | [opt] 개념 설계 산문 (구 `design` 대체 — 6 req + 3 opt). |
+| `brief.external` | | [opt] 진짜 외부 참조만. `[{id: C-001, statement, reference: {title, locator}}]` |
+| `brief.limits` | | [opt] 알려진 한계. `[{id: KL-001, statement}]` |
 
 cross-ref 자동 검증: `flow.covers→goals`, `policy.governs→flow`, `criteria.verifies→flow`, `rationale.addresses→external\|limits`. 모든 goal 은 flow 가 cover, 모든 flow 는 policy/criteria 양쪽에 매핑.
 
@@ -236,14 +250,16 @@ cross-ref 자동 검증: `flow.covers→goals`, `policy.governs→flow`, `criter
 | 필드 | 필수 | 설명 |
 |------|:---:|------|
 | `key` `type: spec` `parent` `status` `summary` | ✓ | parent 는 brief\|spec |
-| `spec.preconditions` | ✓ | `[{id: PRE-001, condition, derives: "brief-key#item-id"}]`, ≥1 |
-| `spec.postconditions` | ✓ | `[{id: POST-001, guarantee, keyword: MUST\|SHALL, derives}]`, ≥1 |
-| `spec.invariants` | ✓ | `[{id: INV-001, statement, always_holds: per-call\|cross-call\|cross-process}]`, ≥1 |
-| `spec.failures` | ✓ | `[{violation, behavior}]`, ≥1 |
+| `spec.preconditions` | ✓ | `[{id: PRE-001, condition, derives: "brief-key#G-001"}]`, ≥1. `derives`→ 조상 brief 의 **goal** |
+| `spec.postconditions` | ✓ | `[{id: POST-001, guarantee, keyword: MUST\|SHALL, derives: "brief#G-id", references?→SHP}]`, ≥1. `references`=shape-ref (형태는 shapes 소유, 산문 복제 금지) |
+| `spec.invariants` | ✓ | `[{id: INV-001, statement, always_holds: per-call\|cross-call}]`, ≥1. derives 없음(심볼 국소 항상성) |
+| `spec.failures` | ✓ | `[{id: FAIL-001, violation, behavior, case_of?→S-F, owner?, references?}]`, ≥1. **id 필수**. behavior=free-prose. `case_of?`=대응 brief#S-F 있는 failure만. `owner`/`references`=cross-domain 거부 double-home dedup |
 | `spec.state_transitions` | | `[{from, trigger, to}]` |
+| `spec.shapes` | | [v18] IO/에러 형태계약 `[{id: SHP-001(덱-전역), role: output\|error-output, when?, schema}]` |
+| `spec.invokes` | | [v18] 횡단 per-call 의존 `[{to: <spec-key>, kind: per-call\|setup, note?}]` (steps[] 대체) |
 | `relations` | | brief 키 배열. parent 가 이미 brief 면 불필요 |
 
-cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 brief 항목.
+cross-ref 자동(section-aware): `pre/post.derives → 조상 brief 의 goal(G-id)`, `failures.case_of → brief 의 failure-flow(S-F)`, `post.references / shapes 참조 → SHP(덱-전역 unique)`, `invokes.to → spec`. 타입 어긋난 참조는 에러.
 
 **소스 결합**: 카드 자체에는 codeLinks/boundary 필드가 없다. 결합 의도를 표현하려면 소스 코드에 `/** @spec <card-key> */` JSDoc 주석을 함수/클래스/변수 선언 바로 위에 둔다. `ed spec sync` 가 어노테이션을 스캔해 카드 ↔ symbol 결합을 인덱싱한다. 활성화 가드는 인덱스된 파일이 ≥1 일 때 해당 카드를 가리키는 `@spec` 어노테이션이 ≥1 존재하고 모두 resolve 함을 요구한다.
 
@@ -333,7 +349,7 @@ cross-ref 자동: 모든 `derives` 는 `"brief-key#item-id"` 형식 + 실제 bri
 |------|------|
 | orphan-card | `ed card update KEY --field parent=<올바른>` |
 | broken-parent | `ed card update KEY --field parent=<존재>` 또는 parent 생성 |
-| type-hierarchy-violation | 4-tier 에 맞게 parent 재지정 |
+| type-hierarchy-violation | 5-tier 에 맞게 parent 재지정 |
 | broken-relation | `ed card update KEY --patch` 로 dead reference 제거 |
 | broken-cross-domain-dep | 타깃 domain 생성 또는 entry 제거 |
 | glossary-broken | `ed glossary define` 또는 `--glossary <새 목록>` |
@@ -384,7 +400,7 @@ stderr JSON-line `level:'error'` 코드 (명령 실패 시 한 줄, exit 비-0):
 | `fts-syntax-error` | 2 | `ed card search` 의 검색 쿼리 syntax 오류 |
 | `invalid-card-key` | 2 | key 형식 위반 |
 | `validation-error` | 2 | card / op 입력 schema 검증 실패 |
-| `parent-validation-error` | 2 | parent 검증 실패 (parent 미존재 / 4-tier 위반) |
+| `parent-validation-error` | 2 | parent 검증 실패 (parent 미존재 / 5-tier 위반) |
 | `activation-guard-failed` | 2 | `set-status active` 시 가드 미달. `details.unmetConditions` 참조 |
 | `compensation-failed` | 1 | 에러 발생 후 원복 단계 실패. `details.{originalError, compensationError}` 참조 |
 | `glossary-parse-error` | 2 | glossary 파싱 실패 (YAML / 입력 형식) |
