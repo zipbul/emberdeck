@@ -1,8 +1,18 @@
-# Card Model Design (v22)
+# Card Model Design (v23)
 
 emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 설계.
 (*envelope 제거는 `REDESIGN_PLAN.md` — 별개 주제.*)
 
+> v23 = **설계↔코드 충실도 전수 삼자리뷰(구조/정체성/내용/관계/독립성) → 코드-vs-설계 불일치 정정.** 6축 감사가 찾은 결함을 코드를 설계에 맞춰 정정(설계 doc 자기모순도 함께 정리):
+> - **`failures[].id` 필수화** — 단, #66이 누락했던 cli-surface 6장(analyze/reset/init/glossary-remove/glossary-rename/runner-commander-fallback)을 **선(先)백필**한 뒤 promote(검증 없이 "전 spec 완료"라던 #66 주장의 구멍 정정).
+> - **`brief.approach`/`external`/`limits` = optional** (§154 "6 req + 3 opt" — v22의 "approach 필수"가 과강제 오류였음. 정정).
+> - **`failures[].case_of` = optional 확정** — 내부 에러는 brief S-F 대응이 없으니 "전 failure 강제"는 거짓 매핑. 필드표 `case_of?`가 맞고 "전 failure" 산문이 stray.
+> - **`principle.verify` = optional 확정** — applies-to-wildcard nudge/suppress 머신러리 전체가 verify=optional 전제(미분류 → nudge, 분류 → suppress). "verify 필수" 산문이 stray.
+> - **relationship enum(invokes|consumes) → gating error** (덱 마이그레이션 완료 → warning에서 승격).
+> - **`ed card relations`가 trace 엣지 + governed_by surface** (§9 L412 — 전엔 context만).
+> - **잔여(의식적 보류):** `relations` 역방향만 *저장*됨(`is_reverse` 행) — 원칙3 "도출, 미저장" 위반이나 **원자적 기록이라 드리프트 없음**(실결함 아님). 스키마 마이그레이션(FTS 트리거+기존DB 업그레이드) 리스크 > 순수성 이득이라 별도 격리 변경으로 미룸. **카드 데이터 품질**(cli-surface brief 33 자식 분해신호, exit-map ownerless 복제 등)은 §9.1이 인정한 영구 사람-리뷰 잔여 — 모델 결함 아님.
+> - 현 상태: typecheck clean, 1144 테스트 green, 실덱 `ed validate cards` total0/links0.
+>
 > v22 = **3-way 리뷰(나 + 적대적/설계정합 에이전트, Codex 한도) + 시나리오 시뮬레이션으로 전수 발견한 강제/정합 갭을 정공법으로 닫음.** v21이 "section-aware 추적 완료"로 *거짓 기재*한 것을 포함해, 선언만 되고 강제 안 되던 엣지를 전부 강제로 전환:
 > - **section-aware 추적 타입규율 강제**: `collectBriefRefIds` flat-merge → `derives→goal(G-)`/`case_of→failure-flow(S-F-)` 분리 대조(실덱 198/40 부합). v21의 "완료" 거짓을 *참으로* 만듦.
 > - **v18 엣지 강제(이전엔 inert)**: `invokes.to`→spec 존재, SHP **덱-전역 유일성**, `postconditions.references`→SHP 존재, `failures.owner`→spec / `failures.references`→owner의 FAIL-id (§9.1 천장-raiser의 *기계검증 가능한 절반* — 의미적 owner-uniqueness는 영구 사람 잔여).
@@ -195,7 +205,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | preconditions[]{id, condition, derives→G} | req ≥1 | 호출 전제(positive) |
 | postconditions[]{id, guarantee, keyword:MUST\|SHALL, derives→G, **references?:SHP-id**} | req ≥1 | 완료 시점 보장. 형태는 산문 복제 X, `references`로 shapes 가리킴 |
 | invariants[]{id, statement, always_holds:**per-call\|cross-call**} | req ≥1 | 구간적 항상성(post로 환원 불가). **cross-process 제거**(0/56+미구현) |
-| failures[]{**id:FAIL-NNN, violation, behavior**(free-prose), **case_of?→S-F**(전 mode), **owner?\|references?**} | req ≥1 | 에러 완전목록. **behavior=free-prose 유지**(닫힌 mode enum 거부 — idempotent-noop/silent-swallow 강제오분류). `case_of`=전 failure가 brief#S-F 추적(reject 한정 해제). `owner`/`references`=cross-domain 거부 double-home dedup [v18] |
+| failures[]{**id:FAIL-NNN**(req), violation, behavior(free-prose), **case_of?→S-F**, owner?\|references?} | req ≥1 | 에러 완전목록. **id 필수**(FAIL-NNN, 덱 백필 완료). **behavior=free-prose 유지**(닫힌 mode enum 거부 — idempotent-noop/silent-swallow 강제오분류). **`case_of`=optional** — brief#S-F에 대응되는 failure만(내부 에러는 대응 flow 없으니 강제 시 거짓 매핑). `owner`/`references`=cross-domain 거부 double-home dedup [v18] |
 | **shapes[]{id:SHP(덱-전역), role:output\|error-output, when?, schema:단일 fenced block}** | **req≥0 [v18]** | IO/에러 **형태 계약**(필드명/타입/exit). spec 단일 owner지만 **SHP id=덱-전역 레지스트리 key**(owner-uniqueness 강제 가능); 공유형태는 한 owner + 타 spec이 `references`로 참조. schema=단일 블록 고정(무한깊이 트리 금지) |
 | state_transitions[]{from,trigger,to} | **opt 유지** | 현 0/56(single-process라 FSM 부재), stateful 도메인용 비용0 |
 
