@@ -30,8 +30,8 @@ describe('cardsExitCode — glossary-unused warning split (§10 P1.2)', () => {
     expect(cardsExitCode({ 'applies-to-wildcard': 4, 'broken-parent': 1 })).toBe(2);
   });
 
-  // §10 Phase 2.2 — free-text relationship is a deprecation warning until enum-mapped.
-  it('treats relationship-free-text as warning-level (non-gating)', () => {
-    expect(cardsExitCode({ 'relationship-free-text': 13 })).toBe(0);
+  // §10 Phase 2.2 — relationship enum is now enforced as an ERROR (deck migrated).
+  it('gates on relationship-free-text (enum now enforced)', () => {
+    expect(cardsExitCode({ 'relationship-free-text': 1 })).toBe(2);
   });
 });

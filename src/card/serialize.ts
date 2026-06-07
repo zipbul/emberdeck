@@ -443,12 +443,13 @@ function normalizeBriefBody(value: unknown): BriefBody {
     scope: normalizeBriefScope(o.scope),
     flow: normalizeBriefFlow(o.flow),
     policy: normalizeBriefPolicy(o.policy),
-    external: normalizeBriefExternal(o.external),
-    limits: normalizeBriefLimits(o.limits),
     criteria: normalizeBriefCriteria(o.criteria),
     rationale: normalizeBriefRationale(o.rationale),
-    approach: asString(o.approach, 'brief.approach'),
   };
+  // [opt — design §154] approach / external / limits are optional.
+  if (o.approach != null) body.approach = asString(o.approach, 'brief.approach');
+  if (o.external != null) body.external = normalizeBriefExternal(o.external);
+  if (o.limits != null) body.limits = normalizeBriefLimits(o.limits);
   return body;
 }
 

@@ -20,8 +20,8 @@ function collectIds(body: BriefBody): RefSets {
   return {
     goalIds: new Set(body.scope.goals.map((g) => g.id)),
     flowIds: new Set(body.flow.map((f) => f.id)),
-    externalIds: new Set(body.external.map((e) => e.id)),
-    limitIds: new Set(body.limits.map((l) => l.id)),
+    externalIds: new Set((body.external ?? []).map((e) => e.id)),
+    limitIds: new Set((body.limits ?? []).map((l) => l.id)),
   };
 }
 

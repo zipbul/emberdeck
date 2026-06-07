@@ -55,12 +55,12 @@ export function buildSearchableText(fm: CardFrontmatter): string {
 
     for (const f of b.flow) parts.push(f.id, f.given, f.when, f.then);
 
-    parts.push(b.approach);
+    if (b.approach) parts.push(b.approach);
 
     for (const p of b.policy) parts.push(p.id, p.subject, p.predicate);
-    for (const e of b.external) parts.push(e.id, e.statement, e.reference.title, e.reference.locator);
+    for (const e of b.external ?? []) parts.push(e.id, e.statement, e.reference.title, e.reference.locator);
 
-    for (const l of b.limits) parts.push(l.id, l.statement);
+    for (const l of b.limits ?? []) parts.push(l.id, l.statement);
 
     for (const c of b.criteria) {
       parts.push(c.id);

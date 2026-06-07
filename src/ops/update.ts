@@ -59,7 +59,7 @@ function assertCompleteNamespace(field: 'vision' | 'principle' | 'domain' | 'bri
     vision: ['statement', 'rationale', 'success_direction'],
     principle: ['statement', 'rationale', 'applies_to', 'enforcement'],
     domain: ['overview', 'scope'],
-    brief: ['context', 'scope', 'flow', 'approach', 'policy', 'external', 'limits', 'criteria', 'rationale'],
+    brief: ['context', 'scope', 'flow', 'policy', 'criteria', 'rationale'],
     spec: ['preconditions', 'postconditions', 'invariants', 'failures'],
   };
   const obj = value as Record<string, unknown>;

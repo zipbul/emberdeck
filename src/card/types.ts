@@ -208,13 +208,15 @@ export interface BriefBody {
   context: BriefContext;
   scope: BriefScope;
   flow: BriefFlow[];
-  /** Conceptual design prose. Detailed contracts live in child spec cards; design invariants moved to spec.invariants. */
-  approach: string;
   policy: BriefPolicy[];
-  external: BriefExternal[];
-  limits: BriefLimit[];
   criteria: BriefCriterion[];
   rationale: BriefRationale;
+  /** [opt — design §154 "6 req + 3 opt"] Conceptual design prose. */
+  approach?: string;
+  /** [opt] genuine external references only. */
+  external?: BriefExternal[];
+  /** [opt] known limitations. */
+  limits?: BriefLimit[];
 }
 
 // ── Spec structured body ──────────────────────────────────────

@@ -446,8 +446,9 @@ describe('brief: approach required, design/compatibility removed (§10 P2.1③ s
     expect(r.frontmatter.brief?.approach).toBe('conceptual design prose');
   });
 
-  it('rejects a brief missing approach', () => {
-    expect(() => parseCard(briefCard({ ...common }))).toThrow();
+  it('accepts a brief missing approach (optional — design §154 "6 req + 3 opt")', () => {
+    const r = parseCard(briefCard({ ...common }));
+    expect(r.frontmatter.brief?.approach).toBeUndefined();
   });
 
   it('ignores legacy design/compatibility keys (no longer surfaced)', () => {

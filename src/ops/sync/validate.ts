@@ -160,14 +160,13 @@ export async function validateCards(
               message: `cross_domain_dependencies["${dep.domain}"] is a self-reference`,
             });
           }
-          // §10 Phase 2.2: relationship should narrow to the invokes|consumes enum;
-          // free-text is a (non-gating) deprecation warning until mapped. Original
-          // wording is preserved via `note?`.
+          // §10 Phase 2.2: relationship is the invokes|consumes enum (deck migrated).
+          // Free-text is now a gating error; preserve original wording via `note?`.
           if (dep.relationship != null && dep.relationship !== 'invokes' && dep.relationship !== 'consumes') {
             warnings.push({
               type: 'relationship-free-text',
               cardKey: row.key,
-              message: `cross_domain_dependencies["${dep.domain}"].relationship "${dep.relationship}" is free-text (deprecated — use invokes|consumes + note?)`,
+              message: `cross_domain_dependencies["${dep.domain}"].relationship "${dep.relationship}" must be invokes|consumes (free-text goes in note?)`,
             });
           }
         }
