@@ -78,7 +78,7 @@ describe('preChangeCheck', () => {
       preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'br#G-001' }],
       postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST' as const, derives: 'br#G-001' }],
       invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' as const }],
-      failures: [{ violation: 'v', behavior: 'b' }],
+      failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
     };
     await createCard(tc.ctx, { key: 'callee', summary: 'Callee', type: 'spec', parent: 'br', spec: baseSpec });
     setCardCodeLinks(tc.ctx, 'callee', [{ kind: 'function', file: 'src/callee.ts', symbol: 'calleeFn' }]);

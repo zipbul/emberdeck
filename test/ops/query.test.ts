@@ -505,7 +505,7 @@ describe('listCardTraceEdges (§10 P3.3a — navigable typed trace edges)', () =
         preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'b#G-001' }],
         postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'b#G-001' }],
         invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
-        failures: [{ violation: 'v', behavior: 'b' }],
+        failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
         invokes: [{ to: 's-other', kind: 'per-call' }],
       },
     });
@@ -536,7 +536,7 @@ describe('listCardTraceEdges (§10 P3.3a — navigable typed trace edges)', () =
         preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'bd#G-001' }],
         postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'bd#G-001' }],
         invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
-        failures: [{ violation: 'v', behavior: 'b' }],
+        failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
         invokes: [{ to: 'ghost-spec', kind: 'per-call' }],
       },
     });
@@ -554,7 +554,7 @@ describe('listCardTraceEdges (§10 P3.3a — navigable typed trace edges)', () =
         preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'bs#G-001' }],
         postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'bs#G-001' }],
         invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
-        failures: [{ violation: 'v', behavior: 'b' }],
+        failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
         shapes: [{ id: 'SHP-001', role: 'output', schema: '{ ok: boolean }' }],
       },
     });
@@ -564,7 +564,7 @@ describe('listCardTraceEdges (§10 P3.3a — navigable typed trace edges)', () =
         preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'bs#G-001' }],
         postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'bs#G-001', references: 'SHP-001' }],
         invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
-        failures: [{ violation: 'v', behavior: 'b' }],
+        failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
       },
     });
     const edges = await listCardTraceEdges(tc.ctx, 'consumer');

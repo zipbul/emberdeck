@@ -248,10 +248,10 @@ export interface SpecInvariant {
 }
 
 export interface SpecFailure {
+  /** ID format: FAIL-001 (required — deck fully backfilled). */
+  id: string;
   violation: string;
   behavior: string;
-  /** [v18] ID format: FAIL-001 */
-  id?: string;
   /** [v18] trace → brief#S-F (any failure mode that maps to a user-rejection flow). */
   case_of?: string;
   /** [v18] canonical owner spec-key for a cross-domain-replicated failure (dedup). */

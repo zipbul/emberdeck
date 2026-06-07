@@ -230,6 +230,7 @@ const ID_PATTERNS = {
   non_goal: /^NG-\d{3,}$/,
   assumption: /^A-\d{3,}$/,
   flow: /^S-(H|F)-\d{2,}$/,
+  failure: /^FAIL-\d{3,}$/,
   policy: /^R-\d{3,}$/,
   external: /^C-\d{3,}$/,
   limit: /^KL-\d{3,}$/,
@@ -520,10 +521,10 @@ function normalizeSpecBody(value: unknown): SpecBody {
   const failures = asArray(o.failures, 'spec.failures').map((item): SpecFailure => {
     const f = asObj(item, 'spec.failures[]');
     const out: SpecFailure = {
+      id: asId(f.id, 'spec.failures[].id', ID_PATTERNS.failure),
       violation: asString(f.violation, 'spec.failures[].violation'),
       behavior: asString(f.behavior, 'spec.failures[].behavior'),
     };
-    if (f.id != null) out.id = asString(f.id, 'spec.failures[].id');
     if (f.case_of != null) out.case_of = asString(f.case_of, 'spec.failures[].case_of');
     if (f.owner != null) out.owner = asString(f.owner, 'spec.failures[].owner');
     if (f.references != null) out.references = asString(f.references, 'spec.failures[].references');

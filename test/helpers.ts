@@ -173,7 +173,7 @@ export function makeTestSpec(_file?: string, _symbol?: string): SpecBody {
       { id: 'INV-001', statement: 's', always_holds: 'per-call' },
     ],
     failures: [
-      { violation: 'v', behavior: 'b' },
+      { id: 'FAIL-001', violation: 'v', behavior: 'b' },
     ],
   };
 }

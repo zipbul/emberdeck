@@ -14,7 +14,7 @@ function makeSpecBody(overrides: Partial<SpecBody> = {}): SpecBody {
     invariants: [
       { id: 'INV-001', statement: 's', always_holds: 'per-call' },
     ],
-    failures: [{ violation: 'v', behavior: 'b' }],
+    failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
   };
   return { ...base, ...overrides };
 }

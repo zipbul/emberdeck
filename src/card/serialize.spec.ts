@@ -326,7 +326,7 @@ describe('spec.invariants always_holds enum (v19 / §10 Phase 1.5)', () => {
         preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'parent#R-001' }],
         postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent#R-001' }],
         invariants: [{ id: 'INV-001', statement: 's', always_holds: alwaysHolds }],
-        failures: [{ violation: 'v', behavior: 'b' }],
+        failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
       },
     });
   }
@@ -397,18 +397,29 @@ describe('v18 spec schema: shapes[]/invokes[]/failures{id,case_of,owner,referenc
     expect(r.frontmatter.domain?.cross_domain_dependencies?.[0]).toEqual({ domain: 'other', relationship: 'invokes', note: 'calls subcommands' });
   });
 
-  it('omits absent v18 optionals (backward compat — dual-read)', () => {
+  it('omits absent v18 optionals (shapes/invokes/case_of/owner/references); failures.id is required', () => {
     const minimal = {
+      preconditions: fullSpec.preconditions,
+      postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent#G-001' }],
+      invariants: fullSpec.invariants,
+      failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
+    };
+    const r = parseCard(v18SpecCard(minimal));
+    expect(r.frontmatter.spec?.shapes).toBeUndefined();
+    expect(r.frontmatter.spec?.invokes).toBeUndefined();
+    expect(r.frontmatter.spec?.failures[0]?.id).toBe('FAIL-001');
+    expect(r.frontmatter.spec?.failures[0]?.case_of).toBeUndefined();
+    expect(r.frontmatter.spec?.postconditions[0]?.references).toBeUndefined();
+  });
+
+  it('rejects a failure with no id (failures.id required)', () => {
+    const noId = {
       preconditions: fullSpec.preconditions,
       postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'parent#G-001' }],
       invariants: fullSpec.invariants,
       failures: [{ violation: 'v', behavior: 'b' }],
     };
-    const r = parseCard(v18SpecCard(minimal));
-    expect(r.frontmatter.spec?.shapes).toBeUndefined();
-    expect(r.frontmatter.spec?.invokes).toBeUndefined();
-    expect(r.frontmatter.spec?.failures[0]?.id).toBeUndefined();
-    expect(r.frontmatter.spec?.postconditions[0]?.references).toBeUndefined();
+    expect(() => parseCard(v18SpecCard(noId))).toThrow();
   });
 });
 

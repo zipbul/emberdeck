@@ -304,7 +304,7 @@ describe('getCardContext traceEdges (§10 P3.3b)', () => {
         preconditions: [{ id: 'PRE-001', condition: 'c', derives: 'te-b#G-001' }],
         postconditions: [{ id: 'POST-001', guarantee: 'g', keyword: 'MUST', derives: 'te-b#G-001' }],
         invariants: [{ id: 'INV-001', statement: 'x', always_holds: 'per-call' }],
-        failures: [{ violation: 'v', behavior: 'b' }],
+        failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b' }],
         invokes: [{ to: 'te-other', kind: 'per-call' }],
       },
     });
