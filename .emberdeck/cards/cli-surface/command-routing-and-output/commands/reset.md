@@ -66,8 +66,12 @@ spec:
       behavior: >-
         confirmDestructive throws CliUsageError → stderr `{code:cli-usage-error,
         message}` and exit 2. resetEmberdeck is NOT invoked.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-02
     - violation: >-
         --yes flag is omitted but TTY available; user types anything other than
         'yes' at the prompt.
       behavior: confirmDestructive throws CliUsageError. resetEmberdeck is NOT invoked.
+      id: FAIL-002
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

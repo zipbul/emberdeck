@@ -76,10 +76,13 @@ spec:
       behavior: >-
         commander rejects upstream taking the runner-commander-fallback path:
         stderr `{level:'error', code:'cli-usage-error', ...}` and exit 2.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-02
     - violation: ensureReindexed fails to initialize or refresh the code index.
       behavior: >-
         The op throws (GildashInitError or downstream class); toCliError maps
         the class to a kebab code and the runner emits a single stderr
         level:error line and exits (6 for gildash-init-failed, 1 for
         internal-error).
+      id: FAIL-002
 ---

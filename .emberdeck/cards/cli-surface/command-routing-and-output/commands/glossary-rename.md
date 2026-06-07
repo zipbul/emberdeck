@@ -63,12 +63,15 @@ spec:
       behavior: >-
         stderr emits `{level:'error', code:'glossary-validation-error',
         message}` and the process exits 2.
+      id: FAIL-001
     - violation: One or more referencing-card markdown rewrites failed.
       behavior: >-
         The offending file paths are recorded in fileWriteFailures; stdout still
         emits the data shape; the process exits 2.
+      id: FAIL-002
     - violation: oldWord does not exist in the glossary store.
       behavior: >-
         GlossaryNotFoundError → stderr `{code:'glossary-not-found', message}`
         and the process exits 3.
+      id: FAIL-003
 ---

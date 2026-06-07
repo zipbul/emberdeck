@@ -51,4 +51,6 @@ spec:
         stderr emits a single `{level:'error', code:'cli-usage-error',
         message:<commander message>}` JSON-line and the process exits 2
         (VALIDATION_FAILURE); stdout is empty.
+      id: FAIL-001
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

@@ -56,12 +56,14 @@ spec:
       behavior: >-
         stderr emits `{level:'error', code:'glossary-not-found', message}` and
         the process exits 3.
+      id: FAIL-001
     - violation: >-
         The word argument fails op-level validation (empty string, exceeding
         length, etc).
       behavior: >-
         GlossaryValidationError → stderr `{code:'glossary-validation-error',
         message}` and the process exits 2.
+      id: FAIL-002
     - violation: >-
         Destructive confirmation is absent (no --yes and non-TTY, or the
         interactive prompt is declined).
@@ -69,4 +71,6 @@ spec:
         confirmDestructive throws CliUsageError → stderr
         `{code:'cli-usage-error', message}` and the process exits 2; no word is
         removed.
+      id: FAIL-003
+      case_of: cli-surface/command-routing-and-output#S-F-02
 ---

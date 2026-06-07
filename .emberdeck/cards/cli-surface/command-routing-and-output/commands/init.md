@@ -70,4 +70,5 @@ spec:
         details:{class}}` and the process exits 1 (the node fs error falls
         through to the toCliError default branch). A dedicated IO error class
         would let this map to exit 5 (permission / io-error).
+      id: FAIL-001
 ---
