@@ -12,6 +12,8 @@ import {
   listCards,
   searchCards,
   listCardRelations,
+  listCardTraceEdges,
+  listGoverningPrinciples,
   getCardTree,
   getCardContext,
 } from '../../ops/query';
@@ -507,12 +509,19 @@ export async function cardRelationsAction(
 ): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const relations = listCardRelations(rt.ctx, key);
+    // §9 L412: relations must also surface the navigable typed trace edges
+    // (derives/case-of/invokes/cross_domain/shape-ref/scopes) + governed_by,
+    // not only the legacy untyped relations[] field.
+    const traceEdges = await listCardTraceEdges(rt.ctx, key);
+    const governedBy = listGoverningPrinciples(rt.ctx, key);
     return {
       data: {
         key,
         forward: relations.forward,
         reverse: relations.reverse,
         total: relations.forward.length + relations.reverse.length,
+        traceEdges,
+        governedBy,
       },
     };
   }, cmd);
