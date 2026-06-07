@@ -99,12 +99,17 @@ export async function validateCards(
   const cardByKey = new Map<string, CardRow>();
   for (const row of dbRows) cardByKey.set(row.key, row);
 
-  // Pre-load all relations once to defeat the N+1 findByCardKey loop below.
+  // Pre-load all (forward) relations once to defeat the N+1 findByCardKey loop
+  // below. Reverse is derived: index the same forward rows on dstCardKey.
   const relationsBySrc = new Map<string, RelationRow[]>();
+  const reverseSrcByDst = new Map<string, string[]>();
   for (const rel of ctx.relationRepo.findAll()) {
     const list = relationsBySrc.get(rel.srcCardKey) ?? [];
     list.push(rel);
     relationsBySrc.set(rel.srcCardKey, list);
+    const back = reverseSrcByDst.get(rel.dstCardKey) ?? [];
+    back.push(rel.srcCardKey);
+    reverseSrcByDst.set(rel.dstCardKey, back);
   }
 
   for (const row of dbRows) {
@@ -492,9 +497,8 @@ export async function validateCards(
   // Broken chain: spec card with no relation or parent link to any brief card.
   for (const row of dbRows) {
     if (row.type === 'spec') {
-      const relations = relationsBySrc.get(row.key) ?? [];
-      const forwardTargets = relations.filter((r) => !r.isReverse).map((r) => r.dstCardKey);
-      const reverseTargets = relations.filter((r) => r.isReverse).map((r) => r.dstCardKey);
+      const forwardTargets = (relationsBySrc.get(row.key) ?? []).map((r) => r.dstCardKey);
+      const reverseTargets = reverseSrcByDst.get(row.key) ?? [];
       const allRelated = [...forwardTargets, ...reverseTargets];
       const hasBriefRelation = allRelated.some((targetKey) => {
         const target = cardByKey.get(targetKey);

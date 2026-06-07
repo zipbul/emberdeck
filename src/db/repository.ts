@@ -73,10 +73,11 @@ export interface CardRepository {
 }
 
 export interface RelationRepository {
-  /** Replace all relations for a card. Automatically handles bidirectional isReverse entries. Returns keys of targets that failed (FK violation). */
+  /** Replace a card's FORWARD relations (reverse is derived, not stored). Returns keys of targets that failed (FK violation). */
   replaceForCard(cardKey: string, relations: string[]): string[];
+  /** Forward edges declared by the card + reverse edges (other cards pointing here) synthesized with isReverse=true. */
   findByCardKey(cardKey: string): RelationRow[];
-  /** Bulk read — returns every row in the relation table. Used to avoid N+1 in validateCards. */
+  /** Bulk read — every stored (forward) edge. Reverse callers index these on dstCardKey. Avoids N+1 in validateCards. */
   findAll(): RelationRow[];
   deleteByCardKey(cardKey: string): void;
 }

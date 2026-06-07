@@ -9,20 +9,17 @@ export class DrizzleRelationRepository implements RelationRepository {
   constructor(private readonly db: EmberdeckDb) {}
 
   replaceForCard(cardKey: string, relations: string[]): string[] {
-    // Delete only the relations owned by this card:
-    //   - forward (isReverse=false): relations declared by this card
-    //   - reverse mirror (isReverse=true, dstCardKey=cardKey): auto-reverse of this card's declarations
-    // Forward relations declared by other cards (dstCardKey=cardKey, isReverse=false) are left untouched
-    this.db
-      .delete(cardRelation)
-      .where(and(eq(cardRelation.srcCardKey, cardKey), eq(cardRelation.isReverse, false)))
-      .run();
+    // Store FORWARD edges only — reverse is derived on read (design Principle 3:
+    // expose, don't store). The `is_reverse` column is vestigial (always false on
+    // stored rows); the DB is a disposable cache rebuilt from card files, so no
+    // migration is needed. We also defensively purge any legacy reverse rows that
+    // touch this card so an upgraded-in-place DB converges to forward-only.
+    this.db.delete(cardRelation).where(eq(cardRelation.srcCardKey, cardKey)).run();
     this.db
       .delete(cardRelation)
       .where(and(eq(cardRelation.dstCardKey, cardKey), eq(cardRelation.isReverse, true)))
       .run();
 
-    // Insert new relations (forward + reverse)
     const failedTargets: string[] = [];
     for (const target of relations) {
       try {
@@ -32,15 +29,6 @@ export class DrizzleRelationRepository implements RelationRepository {
             srcCardKey: cardKey,
             dstCardKey: target,
             isReverse: false,
-          })
-          .run();
-
-        this.db
-          .insert(cardRelation)
-          .values({
-            srcCardKey: target,
-            dstCardKey: cardKey,
-            isReverse: true,
           })
           .run();
       } catch (e) {
@@ -53,15 +41,36 @@ export class DrizzleRelationRepository implements RelationRepository {
   }
 
   findByCardKey(cardKey: string): RelationRow[] {
-    return this.db
+    // Forward = edges this card declared. Reverse = other cards' forward edges
+    // pointing here, synthesized as {src: cardKey, dst: <other>, isReverse: true}
+    // so consumers read the same shape they did when reverse rows were stored.
+    const forward = this.db
       .select()
       .from(cardRelation)
-      .where(eq(cardRelation.srcCardKey, cardKey))
+      .where(and(eq(cardRelation.srcCardKey, cardKey), eq(cardRelation.isReverse, false)))
       .all() as RelationRow[];
+    const incoming = this.db
+      .select()
+      .from(cardRelation)
+      .where(and(eq(cardRelation.dstCardKey, cardKey), eq(cardRelation.isReverse, false)))
+      .all() as RelationRow[];
+    const reverse: RelationRow[] = incoming.map((r) => ({
+      id: -1, // derived row — no stored identity (never consumed)
+      srcCardKey: cardKey,
+      dstCardKey: r.srcCardKey,
+      isReverse: true,
+    }));
+    return [...forward, ...reverse];
   }
 
   findAll(): RelationRow[] {
-    return this.db.select().from(cardRelation).all() as RelationRow[];
+    // Real stored edges only (forward). Reverse is never stored — callers that
+    // need reverse derive it by indexing these rows on dstCardKey.
+    return this.db
+      .select()
+      .from(cardRelation)
+      .where(eq(cardRelation.isReverse, false))
+      .all() as RelationRow[];
   }
 
   deleteByCardKey(cardKey: string): void {

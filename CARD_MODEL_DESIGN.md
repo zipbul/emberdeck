@@ -10,7 +10,8 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 > - **`principle.verify` = optional 확정** — applies-to-wildcard nudge/suppress 머신러리 전체가 verify=optional 전제(미분류 → nudge, 분류 → suppress). "verify 필수" 산문이 stray.
 > - **relationship enum(invokes|consumes) → gating error** (덱 마이그레이션 완료 → warning에서 승격).
 > - **`ed card relations`가 trace 엣지 + governed_by surface** (§9 L412 — 전엔 context만).
-> - **잔여(의식적 보류):** `relations` 역방향만 *저장*됨(`is_reverse` 행) — 원칙3 "도출, 미저장" 위반이나 **원자적 기록이라 드리프트 없음**(실결함 아님). 스키마 마이그레이션(FTS 트리거+기존DB 업그레이드) 리스크 > 순수성 이득이라 별도 격리 변경으로 미룸. **카드 데이터 품질**(cli-surface brief 33 자식 분해신호, exit-map ownerless 복제 등)은 §9.1이 인정한 영구 사람-리뷰 잔여 — 모델 결함 아님.
+> - **`relations` 역방향 = 저장→도출 전환 완료** (원칙3 "expose, don't store"). forward 엣지만 저장하고 reverse 는 read 시 dstCardKey 인덱스로 합성. `is_reverse` 컬럼은 vestigial 로 잔존(항상 false) — `.emberdeck/data.db` 는 gitignore 된 **일회성 캐시**(SSOT=카드파일)라 스키마/데이터 마이그레이션 불요(캐시 재생성으로 수렴). 검증: 1144 테스트 green, reverse 도출 end-to-end 확인, validate cards/links 0.
+> - **카드 데이터 품질 잔여**(cli-surface brief 33 자식 분해신호, exit-map ownerless 복제 등)은 §9.1이 인정한 영구 사람-리뷰 잔여 — 모델 결함 아님(스코프 밖).
 > - 현 상태: typecheck clean, 1144 테스트 green, 실덱 `ed validate cards` total0/links0.
 >
 > v22 = **3-way 리뷰(나 + 적대적/설계정합 에이전트, Codex 한도) + 시나리오 시뮬레이션으로 전수 발견한 강제/정합 갭을 정공법으로 닫음.** v21이 "section-aware 추적 완료"로 *거짓 기재*한 것을 포함해, 선언만 되고 강제 안 되던 엣지를 전부 강제로 전환:
