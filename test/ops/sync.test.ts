@@ -15,7 +15,7 @@ import {
   CardKeyError,
   CardNotFoundError,
 } from '../../index';
-import { createMockTestContext, makeTestSpec, makeTestBrief, makeTestPrinciple, type TestContext } from '../helpers';
+import { createMockTestContext, makeTestSpec, makeTestBrief, type TestContext } from '../helpers';
 
 async function writeTestCardFile(cardsDir: string, slug: string, summary: string) {
   const content = serializeCard(
@@ -416,30 +416,6 @@ describe('validateCards', () => {
     await bulkSyncCards(tc.ctx);
     const result = await validateCards(tc.ctx);
     expect(result.warnings.some((w) => w.type === 'rework-dependency' && w.cardKey === 'rw-caller' && /rw-callee/.test(w.message))).toBe(true);
-  });
-
-  // §10 Phase 3.2 — applies_to '*' surfaces a deprecation warning; real-keyed does not.
-  it('should surface applies-to-wildcard for a principle using applies_to "*"', async () => {
-    tc = await createMockTestContext();
-    const wild = serializeCard({ key: 'p-wild', summary: 'pw', status: 'active', type: 'principle', principle: makeTestPrinciple() });
-    const keyed = serializeCard({ key: 'p-keyed', summary: 'pk', status: 'active', type: 'principle', principle: { ...makeTestPrinciple(), applies_to: ['src/auth/**'], enforcement: 'warning' } });
-    await writeFile(join(tc.cardsDir, 'p-wild.md'), wild, 'utf-8');
-    await writeFile(join(tc.cardsDir, 'p-keyed.md'), keyed, 'utf-8');
-    await bulkSyncCards(tc.ctx);
-    const result = await validateCards(tc.ctx);
-    const wildcards = result.warnings.filter((w) => w.type === 'applies-to-wildcard');
-    expect(wildcards.some((w) => w.cardKey === 'p-wild')).toBe(true);
-    expect(wildcards.some((w) => w.cardKey === 'p-keyed')).toBe(false);
-  });
-
-  // §5: a classified principle ('*' + verify.class) is intentional-universal → no applies-to-wildcard warning.
-  it('should NOT warn applies-to-wildcard when the "*" principle declares verify.class', async () => {
-    tc = await createMockTestContext();
-    const classified = serializeCard({ key: 'p-classified', summary: 'pc', status: 'active', type: 'principle', principle: { ...makeTestPrinciple(), enforcement: 'warning', verify: { class: 'prose' } } });
-    await writeFile(join(tc.cardsDir, 'p-classified.md'), classified, 'utf-8');
-    await bulkSyncCards(tc.ctx);
-    const result = await validateCards(tc.ctx);
-    expect(result.warnings.some((w) => w.type === 'applies-to-wildcard' && w.cardKey === 'p-classified')).toBe(false);
   });
 
   // §10 Phase 2.2 — free-text cross_domain relationship surfaces a deprecation warning;

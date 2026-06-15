@@ -101,8 +101,10 @@ export interface PrincipleBody {
   applies_to: '*' | string[];
   /** How violations are handled. */
   enforcement: 'blocking' | 'warning' | 'advisory';
-  /** [§5] declared verification method. */
-  verify?: PrincipleVerify;
+  /** [§5] declared verification method. Required — every principle must state
+   * how it is enforced (structural|binding|metric|prose); absence = silent
+   * hollow principle. */
+  verify: PrincipleVerify;
   metric?: PrincipleMetric[];
   exemptions?: Array<{ target: string; reason: string }>;
   references?: Array<{ title: string; url: string }>;

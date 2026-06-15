@@ -54,6 +54,8 @@ ${rel}principle:
   applies_to:
     - ${key}
   enforcement: advisory
+  verify:
+    class: prose
 ---
 
 ## Notes

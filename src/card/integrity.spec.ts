@@ -313,7 +313,7 @@ describe('validateActivationGuard', () => {
       validateActivationGuard(ctx, {
         type: 'principle',
         parent: 'any-parent',
-        principle: { statement: 's', rationale: 'r', applies_to: '*', enforcement: 'blocking' },
+        principle: { statement: 's', rationale: 'r', applies_to: '*', enforcement: 'blocking', verify: { class: 'binding' } },
       }),
       ActivationGuardError,
     );

@@ -5,6 +5,7 @@ import { DrizzleRelationRepository } from './relation-repo';
 import { DrizzleClassificationRepository } from './classification-repo';
 import type { EmberdeckDb } from './connection';
 import { makeCardRow as makeCard } from '../../test/fixtures/card-row';
+import { FtsSyntaxError } from '../card/errors';
 
 let db: EmberdeckDb;
 let cardRepo: DrizzleCardRepository;
@@ -315,6 +316,19 @@ describe('CardRepository', () => {
     // match by summary content
     const bySummary = cardRepo.search('authentication');
     expect(bySummary.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('search: a column-filter-shaped query (FTS5 "no such column") is reported as FtsSyntaxError, not a generic error', () => {
+    // Arrange — a card whose content contains the bare term that the query's
+    // suffix collides with as a column name.
+    cardRepo.upsert(makeCard({ key: 'hierarchy-card', summary: 'four-tier hierarchy and tier rules' }));
+
+    // Act / Assert — FTS5 parses '4-tier' as the column filter `tier:` and
+    // raises "no such column: tier". This is a query-syntax failure and the
+    // card-search contract (POST-002) requires it to surface as
+    // fts-syntax-error (exit 2), i.e. an FtsSyntaxError — not a generic error
+    // that the CLI maps to internal-error/exit 1.
+    expect(() => cardRepo.search('4-tier')).toThrow(FtsSyntaxError);
   });
 });
 

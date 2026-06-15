@@ -38,6 +38,27 @@ import { parseJsonInput } from '../parse-input';
 
 // ── helpers ──
 
+/**
+ * Root keys accepted in a `--patch` JSON object — every `UpdateCardFields`
+ * namespace plus the scalar fields. A patch that supplies any other top-level
+ * key is a usage error (the patch replaces a whole namespace, so an unknown
+ * key is almost always a typo or a namespace-contents-by-mistake).
+ */
+export const PATCH_ROOT_KEYS: ReadonlySet<keyof UpdateCardFields> = new Set([
+  'summary', 'type', 'status', 'parent', 'tags', 'relations', 'glossary',
+  'vision', 'principle', 'domain', 'brief', 'spec',
+]);
+
+/** Throws CliUsageError if the patch object carries any non-UpdateCardFields root key. */
+export function assertPatchRootKeys(parsed: Record<string, unknown>): void {
+  const unknown = Object.keys(parsed).filter((k) => !PATCH_ROOT_KEYS.has(k as keyof UpdateCardFields));
+  if (unknown.length > 0) {
+    throw new CliUsageError(
+      `--patch root keys must be UpdateCardFields names (${[...PATCH_ROOT_KEYS].join('/')}). Got unknown keys: ${unknown.join(', ')}.`,
+    );
+  }
+}
+
 function validateCardType(value: string): CardType {
   if (!isCardType(value)) {
     throw new CliUsageError(`invalid --type '${value}'. Allowed: ${CARD_TYPES.join('|')}`);
@@ -277,16 +298,7 @@ export async function cardUpdateAction(
       if (!parsedRaw || typeof parsedRaw !== 'object' || Array.isArray(parsedRaw)) {
         throw new CliUsageError('--patch must be a JSON object (got non-object root)');
       }
-      const allowed = new Set<keyof UpdateCardFields>([
-        'summary', 'type', 'status', 'parent', 'tags', 'relations', 'glossary',
-        'principle', 'domain', 'brief', 'spec',
-      ]);
-      const unknown = Object.keys(parsedRaw as object).filter((k) => !allowed.has(k as keyof UpdateCardFields));
-      if (unknown.length > 0) {
-        throw new CliUsageError(
-          `--patch root keys must be UpdateCardFields names (${[...allowed].join('/')}). Got unknown keys: ${unknown.join(', ')}.`,
-        );
-      }
+      assertPatchRootKeys(parsedRaw as Record<string, unknown>);
       Object.assign(fields, parsedRaw as UpdateCardFields);
     }
     const fieldMap = parseFields(opts.field);

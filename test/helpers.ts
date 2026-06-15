@@ -119,6 +119,7 @@ export function makeTestPrinciple(): PrincipleBody {
     rationale: 'Test rationale explaining why X is required.',
     applies_to: '*',
     enforcement: 'blocking',
+    verify: { class: 'binding' },
   };
 }
 

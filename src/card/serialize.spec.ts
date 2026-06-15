@@ -520,8 +520,7 @@ describe('principle.verify.class (§5 — verify class + integrity rule)', () =>
     expect(r.frontmatter.principle?.verify?.class).toBe('prose');
   });
 
-  it('omits verify when absent (backward compat — existing principle cards)', () => {
-    const r = parseCard(pcard({ ...base, enforcement: 'blocking' }));
-    expect(r.frontmatter.principle?.verify).toBeUndefined();
+  it('rejects a principle without verify (§5: verify required — no silent hollow principle)', () => {
+    expect(() => parseCard(pcard({ ...base, enforcement: 'blocking' }))).toThrow(CardValidationError);
   });
 });

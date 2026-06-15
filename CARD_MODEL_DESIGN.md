@@ -7,7 +7,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 > - **`failures[].id` 필수화** — 단, #66이 누락했던 cli-surface 6장(analyze/reset/init/glossary-remove/glossary-rename/runner-commander-fallback)을 **선(先)백필**한 뒤 promote(검증 없이 "전 spec 완료"라던 #66 주장의 구멍 정정).
 > - **`brief.approach`/`external`/`limits` = optional** (§154 "6 req + 3 opt" — v22의 "approach 필수"가 과강제 오류였음. 정정).
 > - **`failures[].case_of` = optional 확정** — 내부 에러는 brief S-F 대응이 없으니 "전 failure 강제"는 거짓 매핑. 필드표 `case_of?`가 맞고 "전 failure" 산문이 stray.
-> - **`principle.verify` = optional 확정** — applies-to-wildcard nudge/suppress 머신러리 전체가 verify=optional 전제(미분류 → nudge, 분류 → suppress). "verify 필수" 산문이 stray.
+> - **`principle.verify` = required 확정** — 모든 principle 은 강제 방식(structural/binding/metric/prose)을 *명시 선언*해야 한다. 미선언 = silent hollow principle(거버넌스처럼 보이나 아무것도 강제 안 함) → parse 거부. prose 도 유효하나 "prose 라고 명시"해야지 *부재*는 금지. (이로써 applies-to-wildcard nudge 는 불필요·제거 — 모든 principle 이 분류되므로 '*'는 항상 의도적 보편 scope.)
 > - **relationship enum(invokes|consumes) → gating error** (덱 마이그레이션 완료 → warning에서 승격).
 > - **`ed card relations`가 trace 엣지 + governed_by surface** (§9 L412 — 전엔 context만).
 > - **`relations` 역방향 = 저장→도출 전환 완료** (원칙3 "expose, don't store"). forward 엣지만 저장하고 reverse 는 read 시 dstCardKey 인덱스로 합성. `is_reverse` 컬럼은 vestigial 로 잔존(항상 false) — `.emberdeck/data.db` 는 gitignore 된 **일회성 캐시**(SSOT=카드파일)라 스키마/데이터 마이그레이션 불요(캐시 재생성으로 수렴). 검증: 1144 테스트 green, reverse 도출 end-to-end 확인, validate cards/links 0.
@@ -33,7 +33,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 >
 > v20 = **구현 착수 결과를 문서에 동기화 (§10 로드맵 다수 landed on main).** 코드 17 유닛 + 카드데이터 2 배치 완료, `ed validate cards` exit0/total0(실덱 clean). 구현하며 내린 설계 결정(모두 본인이 §5/§10 owner로 결정):
 > - **applies_to glob = *카드 키* 매칭**(소스경로 아님). `governed_by` lazy 도출(`listGoverningPrinciples`/`getCardContext.governedBy`) — 저장0, `matchesAnyGlob(cardKey, applies_to)`. 거버넌스는 카드그래프 위; 소스 결합 증거는 별개 `binding` class.
-> - **applies-to-wildcard 경고는 verify.class 선언 시 suppress** — 분류된 '*'는 의도적 보편(card-as-ssot 등 시스템 전역 규범은 정당하게 '*'). 미분류 '*'만 nudge.
+> - **applies-to-wildcard 경고 제거됨** — verify 가 required 가 되면서 모든 principle 이 분류됨 → '*'는 항상 의도적 보편 scope(card-as-ssot 등 시스템 전역 규범은 정당하게 '*'). 미분류 '*' 자체가 불가능하므로 nudge 는 unreachable·obsolete.
 > - **verify.class: 스키마+무결성만 구현**(prose/metric+blocking=schema error). ~~structural 엔진 YAGNI 보류~~ **[v21: 엔진 구현 완료 — 순환논리였음, 위 참조].** spec `shapes[]`/`invokes[]`/`failures{id,case_of,owner,references}` 추가.
 > - **brief dual-read**: `approach` 추가 + `design`/`compatibility` optional. **[v21: strict 전환 완료 — dual-read 해체, approach 필수].** **cross-process enum 제거**.
 > - **trace surface**: `listCardTraceEdges`(parent/derives/case-of/invokes/cross_domain navigable) + `getCardContext` + impact `linkType:'trace'`. write-free `--read-only` validate.
@@ -166,8 +166,8 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 | 필드 | 상태 | 목적 |
 |---|---|---|
-| `context{problem}` | req | 왜 이 기능이 필요한가(동기). `impact`는 opt |
-| `scope{goals, non_goals}` | req | 무엇을/경계. `assumptions`는 opt |
+| `context{problem, impact}` | req | 왜 이 기능이 필요한가(동기). `impact`도 키 필수(빈 배열 허용; 항목 내 `metric`만 opt) |
+| `scope{goals, non_goals, assumptions}` | req | 무엇을/경계. `assumptions`도 키 필수(빈 배열 허용) |
 | `flow[]` | req | given/when/then 검증가능 시나리오, covers:goals (명세 핵심) |
 | `policy[]` | req(국소규칙 시) | 기능 국소 규칙, governs:flow (principle=횡단과 분리) |
 | `criteria[]` | req | 합격기준, verifies:flow |
@@ -210,7 +210,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 | **shapes[]{id:SHP(덱-전역), role:output\|error-output, when?, schema:단일 fenced block}** | **req≥0 [v18]** | IO/에러 **형태 계약**(필드명/타입/exit). spec 단일 owner지만 **SHP id=덱-전역 레지스트리 key**(owner-uniqueness 강제 가능); 공유형태는 한 owner + 타 spec이 `references`로 참조. schema=단일 블록 고정(무한깊이 트리 금지) |
 | state_transitions[]{from,trigger,to} | **opt 유지** | 현 0/56(single-process라 FSM 부재), stateful 도메인용 비용0 |
 
-- **required 근거**: spec 될 자격(cross-file invariant)인 심볼은 pre/post/inv/failures 4관점이 의미. **단 total(순수) 함수는 `failures: [{violation: "없음", behavior: "입력 타입 외 실패 경로 없음"}]` 명시적 null-failure 기재**(허위 강제 방지). `shapes`는 IO/에러 형태가 있을 때만(순수 내부 계산은 0).
+- **required 근거**: spec 될 자격(cross-file invariant)인 심볼은 pre/post/inv/failures 4관점이 의미. **단 total(순수) 함수는 `failures: [{id: "FAIL-001", violation: "없음", behavior: "입력 타입 외 실패 경로 없음"}]` 명시적 null-failure 기재**(허위 강제 방지 — `id`는 위 표대로 필수). `shapes`는 IO/에러 형태가 있을 때만(순수 내부 계산은 0).
 - **derives/추적 타입 규칙**: pre/post→`goal(G-ID)`, failures→`failure flow(S-F)`(`case_of`, 전 mode). **invariants는 derives 없음**(심볼 국소 항상성, goal 1:1 부적합 — 스키마도 미보유). (**v22: section-aware 강제 구현됨**.)
 - **형태(shapes) vs 행동(post) 경계**: *필드명/타입/exit*=`shapes`, *그 형태가 언제 성립하나*=`postconditions`(references로 연결). card-get POST-001의 산문 보장에 임베드된 ```jsonc``` 펜스(형태)를 shapes로 분리·흡수(산문 보장은 post에 남고 references로 연결).
 - **`invokes[]{to:spec-key, kind:per-call\|setup, note?}` [v18]**: spec-level **횡단 의존** 엣지(§4). 한 spec이 호출/의존하는 타 도메인 spec을 navigable하게 declare. 예: runner-and-output `invokes ensureCardsSynced(card-storage, setup)`; createCard `invokes {validate(card-model, per-call), persist(card-storage, per-call)}`(**changelog 아님** — createCard는 changelog 미호출, changelog는 updateCard·card-storage 소관). 순서있는 여정 노드(`steps[]`)는 **거부**(과설계 — §9.1).
@@ -280,7 +280,7 @@ emberdeck 카드 모델(노드 타입 · 계층 · 관계 · 흐름)의 확정 �
 
 **거버넌스 관계 (전부 기존 SoT 순회, 저장 0):**
 - `governs` owner = `principle.applies_to`(glob) **한 곳**. `governed_by`는 *저장 안 함* — validate/impact가 `matchesAnyGlob(cardKey, applies_to)`로 **lazy 도출**(구현됨: `listGoverningPrinciples`/`getCardContext.governedBy`). **[결정 v20] glob은 *카드 키*에 매칭**(소스경로 아님 — 거버넌스는 카드그래프 위; 소스 결합 증거는 별개 `binding` class).
-- `applies_to` `*`는 **미분류 시 deprecation 경고**(narrow 권고). 단 **verify.class 선언 시 `*`는 의도적 보편 scope로 인정**(suppress) — card-as-ssot/single-process류 시스템 전역 규범은 정당하게 `*`(구현됨). `*`→error 강제 승격은 미도입(보편 규범 정당성 때문).
+- `applies_to` `*`는 **항상 의도적 보편 scope로 인정** — verify 가 required 라 모든 principle 이 분류되므로 미분류-`*` 자체가 불가능(과거 applies-to-wildcard nudge 는 제거됨). card-as-ssot/single-process류 시스템 전역 규범은 정당하게 `*`. `*`→error 강제 승격은 미도입(보편 규범 정당성 때문).
 
 **무결성 규칙 (패배주의·과기계화 양쪽 차단):**
 - `prose`/`metric(feed 전)` + `enforcement:blocking` = **schema error**(거짓 강제 금지).

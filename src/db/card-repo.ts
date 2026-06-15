@@ -125,13 +125,16 @@ export class DrizzleCardRepository implements CardRepository {
     } catch (e) {
       // FTS5 syntax errors → throw FtsSyntaxError so CLI shows a usage-style
       // message instead of silently returning [] (which previously masked
-      // user typos like unmatched quotes).
+      // user typos like unmatched quotes). "no such column" covers queries
+      // FTS5 parses as a column filter (e.g. `4-tier` → `tier:`, `tier:foo`):
+      // these are query-syntax failures, not internal errors.
       if (
         e instanceof Error &&
         (e.message.includes('fts5') ||
           e.message.includes('unterminated') ||
           e.message.includes('unknown special query') ||
-          e.message.includes('parse error'))
+          e.message.includes('parse error') ||
+          e.message.includes('no such column'))
       ) {
         throw new FtsSyntaxError(query, e.message);
       }

@@ -203,6 +203,19 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 
 ## principle (root, 코드 바인딩 X, status: draft|active|drifted)
 
+**정체성 — 언제 principle 을 쓰나 (작성 전 필수 판단):** principle 은 **카드 그래프 전반에 걸쳐 *기계가 검증*하는 횡단 불변 규범**이다 (cross-cutting *enforceable graph predicate*). 다음을 모두 만족할 때만 principle:
+- **횡단**: 한 domain/brief subtree 로 안 잘리고 여러 카드/타입에 걸친다 (단일 스코프면 → 그 domain/brief 의 정책으로).
+- **기계검증 가능**: `verify.class = structural`(그래프 술어) 또는 `binding`(거버넌스 spec 의 @spec 증거). 이게 principle 의 본령.
+- **프로젝트 고유**: emberdeck 일반 규칙(계층/cycle/orphan 등)은 엔진 built-in 이라 카드로 안 만든다.
+
+**principle 이 아닌 것 (오용 차단):**
+- **방향·가치·열망**(예 "카드가 SoT 다", "단순하게 유지") → **vision** 의 statement/rationale. principle 로 쓰면 vision 을 normativize 한 hollow 가 된다.
+- **기능 국소 규칙** → 그 **brief.policy**.
+- **자기 행동 계약** → 그 **spec** 의 invariants/postconditions.
+- `verify.class=prose`(사람 리뷰) 는 *진짜 사람 검증이 필요한 횡단 규범*에만 — **열망을 prose principle 로 위장 금지**. prose+advisory+`*` 조합이 보이면 거의 vision 행이다.
+
+> ⚠ 빈/얕은 덱(거버넌스할 domain/spec 이 없음)에선 **principle 이 시기상조** — cross-cut 할 그래프가 없으면 어떤 principle 도 hollow 로 전락한다. 그럴 땐 principle 을 만들지 말 것.
+
 | 필드 | 필수 | 설명 |
 |------|:---:|------|
 | `key` `type: principle` `status` `summary` | ✓ | |
@@ -210,7 +223,7 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 | `principle.rationale` | ✓ | 배경 |
 | `principle.applies_to` | ✓ | `"*"` 또는 카드 키/glob 배열 (→ governed_by 도출) |
 | `principle.enforcement` | ✓ | `blocking`\|`warning`\|`advisory` |
-| `principle.verify` | | `{class: structural\|binding\|metric\|prose, structural?}`. `class=structural` 일 때만 `structural: {kind: 'forbids-relation-to', targetGlob}` 필수(타 class 는 금지). structural=그래프 술어 엔진(차단 가능), binding=거버넌스 spec 의 `@spec` 증거(차단 가능), metric=측정 피드 필요(엔진 없음, 비차단), prose=사람 리뷰(비차단). **미선언 시 applies-to-wildcard nudge 발생** (그래서 optional). |
+| `principle.verify` | ✓ | `{class: structural\|binding\|metric\|prose, structural?}`. **required** — 모든 principle 은 강제 방식을 명시해야 한다(미선언 = silent hollow principle → parse 거부). `class=structural` 일 때만 `structural: {kind: 'forbids-relation-to', targetGlob}` 필수(타 class 는 금지). structural=그래프 술어 엔진(차단 가능), binding=거버넌스 spec 의 `@spec` 증거(차단 가능), metric=측정 피드 필요(엔진 없음, 비차단), prose=사람 리뷰(비차단). prose/metric + `blocking` 은 schema error. |
 | `principle.metric` | | `[{name, threshold, unit, comparator, kind?: threshold\|budget, window_kind?, distributable?}]` |
 | `principle.exemptions` | | `[{target, reason}]` |
 | `principle.references` | | `[{title, url}]` |
@@ -223,7 +236,7 @@ exit code: 0=ok, 1=generic, 2=validation/usage, 3=not_found, 4=conflict, 5=permi
 | `key` `type: domain` `status` `summary` | ✓ | |
 | `domain.overview` | ✓ | 비-empty 산문 |
 | `domain.scope` | ✓ | 비-empty 산문, IN/OUT 명시 |
-| `domain.cross_domain_dependencies` | | `[{domain: <다른-domain-키>, relationship}]`. 타깃 type 반드시 `domain` |
+| `domain.cross_domain_dependencies` | | `[{domain: <다른-domain-키>, relationship, note?}]`. 타깃 type 반드시 `domain`. **`relationship` 은 enum `invokes\|consumes` 만** — free-text 는 `relationship-free-text` 로 `ed validate cards` exit 2 (gating). 원래 자유 서술은 `note?` 에. |
 | `parent` | ✗ | 금지 |
 
 ## brief (parent=domain, status: draft|active|drifted)
@@ -385,7 +398,11 @@ stdout 의 validate 결과 안 *file-level / per-link 진단* (stdout data shape
 | 동 | `stale-db-row` | 파일 사라진 인덱스 엔트리 | `ed bulk sync` 또는 `ed card delete KEY` |
 | 동 | `key-mismatch` | frontmatter key ≠ 경로 슬러그 | 파일 이름 또는 frontmatter key 정정 |
 | 동 | `unknown-field` | frontmatter 에 closed CardFrontmatter set 밖 top-level 키 (legacy `codeLinks`/`boundary` 또는 오타). `details.unknownKeys` 참조 | 해당 키 제거 (`ed card update KEY --patch` 로 namespace 재제출) — codeLinks/boundary 는 source `@spec` 어노테이션으로만 표현 |
-| `validate cards data.items[].issues[].code` | `orphan-card` / `broken-parent` / `type-hierarchy-violation` / `broken-cross-domain-dep` / `broken-relation` / `rework-dependency` / `empty-tree` / `content-mismatch` / `glossary-broken` / `glossary-unused` / `broken-chain` | per-card 검증 위반 — 각자 `<error_recovery>` 표 (위) 참조 | 해당 표 |
+| `validate cards data.items[].issues[].code` | `orphan-card` / `broken-parent` / `type-hierarchy-violation` / `broken-cross-domain-dep` / `broken-relation` / `rework-dependency` / `empty-tree` / `content-mismatch` / `glossary-broken` / `glossary-unused` / `broken-chain` / `broken-derives` / `foreign-derive` / `relationship-free-text` / `vision-singleton` / `principle-violation` / `principle-violation-warning` | per-card 검증 위반 — 각자 `<error_recovery>` 표 (위) 참조. **비-gating (exit 0): `glossary-unused`, `principle-violation-warning` 둘뿐**; 나머지(`broken-derives`/`foreign-derive`/`relationship-free-text`/`vision-singleton`/`principle-violation` 포함) 전부 gating exit 2 | 해당 표 |
+| 동 | `broken-derives` / `foreign-derive` | spec `pre/post.derives` 또는 `failures.case_of` 가 조상 brief 의 goal/failure-flow 에 resolve 안 됨(`broken-derives`) 또는 조상 아닌 brief 를 가리킴(`foreign-derive`) | `--patch` 로 derives 타깃을 올바른 조상 brief#G/#S-F 로 정정 |
+| 동 | `relationship-free-text` | `cross_domain_dependencies[].relationship` 가 `invokes\|consumes` 아님 | enum 으로 교체, 원문은 `note?` 로 |
+| 동 | `vision-singleton` | vision 카드가 2장 이상 | 덱당 vision 1장 — 잉여 카드 삭제/강등 |
+| 동 | `principle-violation` / `principle-violation-warning` | structural/binding verify.class 위반 — enforcement `blocking` 은 gating(`-violation`), `warning` 은 비-gating(`-violation-warning`) | 위반 엣지 제거 또는 거버넌스 spec 에 `@spec` 결합 추가 |
 | `validate links data.items[].brokenLinks[].reason` | `gildash-unavailable` / `symbol-not-found` | per-link 검증 — gildash 인덱스 미가용 또는 symbol 없음 | gildash reindex 또는 source `@spec` 위치 갱신 |
 | `validate links data.items[].skipped.reason` | `key-mismatch` | 카드 fan-out 중 key 슬러그 불일치로 skip (나머지는 정상) | frontmatter key 또는 파일명 정정 |
 | `validate links data.items[].ioError.message` | (free-form) | 한 카드 link 검증 중 I/O / 파싱 에러 (주로 sync 직후 파일 권한 변경 / 삭제 race) | 파일 권한/존재 복구 후 재실행 |

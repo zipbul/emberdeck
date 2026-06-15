@@ -170,36 +170,40 @@ function normalizePrincipleBody(value: unknown): PrincipleBody {
   if (typeof o.enforcement !== 'string' || !VALID_ENFORCEMENT.includes(o.enforcement)) {
     throw new CardValidationError(`Invalid principle.enforcement (expected one of: ${VALID_ENFORCEMENT.join(', ')})`);
   }
+  const enforcement = o.enforcement as PrincipleBody['enforcement'];
+  // [§5] verify is REQUIRED — a principle must declare how it is enforced, else
+  // it is a silent hollow principle (looks like governance, enforces nothing).
+  if (o.verify == null) {
+    throw new CardValidationError('principle.verify is required — declare verify.class (structural|binding|metric|prose) so the principle states how it is enforced (no silent hollow principle, §5)');
+  }
+  const v = asObj(o.verify, 'principle.verify');
+  if (typeof v.class !== 'string' || !VALID_VERIFY_CLASSES.includes(v.class)) {
+    throw new CardValidationError(`Invalid principle.verify.class (expected one of: ${VALID_VERIFY_CLASSES.join(', ')})`);
+  }
+  const cls = v.class as PrincipleVerify['class'];
+  // Integrity (§5): a class may be `blocking` only if it has an evaluation
+  // engine. structural (graph predicate) and binding (@spec source-binding
+  // evidence of governed specs) do; prose (human review) and metric (no
+  // measurement feed yet) do not — they must be warning/advisory.
+  if ((cls === 'prose' || cls === 'metric') && enforcement === 'blocking') {
+    throw new CardValidationError(`principle.verify.class "${cls}" cannot be enforcement:blocking (no evaluation engine — prose is human-reviewed, metric needs a measurement feed; use warning or advisory)`);
+  }
+  const verify: PrincipleVerify = { class: cls };
+  if (cls === 'structural') {
+    if (v.structural == null) {
+      throw new CardValidationError('principle.verify.class "structural" requires a `structural` predicate');
+    }
+    verify.structural = normalizeStructuralPredicate(v.structural);
+  } else if (v.structural != null) {
+    throw new CardValidationError(`principle.verify.structural is only valid when class="structural" (got class="${cls}")`);
+  }
   const body: PrincipleBody = {
     statement: asString(o.statement, 'principle.statement'),
     rationale: asString(o.rationale, 'principle.rationale'),
     applies_to: normalizeAppliesTo(o.applies_to),
-    enforcement: o.enforcement as PrincipleBody['enforcement'],
+    enforcement,
+    verify,
   };
-  if (o.verify != null) {
-    const v = asObj(o.verify, 'principle.verify');
-    if (typeof v.class !== 'string' || !VALID_VERIFY_CLASSES.includes(v.class)) {
-      throw new CardValidationError(`Invalid principle.verify.class (expected one of: ${VALID_VERIFY_CLASSES.join(', ')})`);
-    }
-    const cls = v.class as PrincipleVerify['class'];
-    // Integrity (§5): a class may be `blocking` only if it has an evaluation
-    // engine. structural (graph predicate) and binding (@spec source-binding
-    // evidence of governed specs) do; prose (human review) and metric (no
-    // measurement feed yet) do not — they must be warning/advisory.
-    if ((cls === 'prose' || cls === 'metric') && body.enforcement === 'blocking') {
-      throw new CardValidationError(`principle.verify.class "${cls}" cannot be enforcement:blocking (no evaluation engine — prose is human-reviewed, metric needs a measurement feed; use warning or advisory)`);
-    }
-    const verify: PrincipleVerify = { class: cls };
-    if (cls === 'structural') {
-      if (v.structural == null) {
-        throw new CardValidationError('principle.verify.class "structural" requires a `structural` predicate');
-      }
-      verify.structural = normalizeStructuralPredicate(v.structural);
-    } else if (v.structural != null) {
-      throw new CardValidationError(`principle.verify.structural is only valid when class="structural" (got class="${cls}")`);
-    }
-    body.verify = verify;
-  }
   const metric = normalizeMetric(o.metric);
   if (metric !== undefined) body.metric = metric;
   if (o.exemptions != null) {

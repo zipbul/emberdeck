@@ -9,6 +9,7 @@ function body(overrides: Partial<PrincipleBody> = {}): PrincipleBody {
     rationale: 'because Z',
     applies_to: '*',
     enforcement: 'blocking',
+    verify: { class: 'binding' },
     ...overrides,
   };
 }

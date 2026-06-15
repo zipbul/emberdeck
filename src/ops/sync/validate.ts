@@ -280,24 +280,9 @@ export async function validateCards(
     warnings.push({ type: issue.code, cardKey: issue.cardKey, message: issue.message });
   }
 
-  // applies_to '*' deprecation (§10 Phase 3.2): non-gating warning until the
-  // principle cards are narrowed to real keys/globs; later promoted to error.
-  for (const row of dbRows) {
-    if (row.type !== 'principle') continue;
-    const principle = parseNamespaces(row.namespacesJson).principle as PrincipleBody | undefined;
-    if (!principle) continue;
-    // [§5] A classified principle (verify.class declared) treats '*' as a deliberate
-    // universal scope, not lazy authoring — don't nudge it to narrow.
-    if (principle.verify) continue;
-    const a = principle.applies_to;
-    if (a === '*' || (Array.isArray(a) && a.includes('*'))) {
-      warnings.push({
-        type: 'applies-to-wildcard',
-        cardKey: row.key,
-        message: 'principle.applies_to is "*" (deprecated — narrow to real card keys/globs)',
-      });
-    }
-  }
+  // (applies_to '*' deprecation removed: verify is now required, so every
+  // principle is classified and §5 treats a classified '*' as a deliberate
+  // universal scope — the bare-'*' nudge is unreachable and obsolete.)
 
   // Empty tree: brief or domain card with no children (skip draft).
   const hasChildren = new Set<string>();

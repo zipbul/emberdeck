@@ -432,6 +432,7 @@ export async function updateCardStatus(
         await validateActivationGuard(ctx, {
           type: current.frontmatter.type,
           parent: current.frontmatter.parent ?? null,
+          vision: current.frontmatter.vision,
           principle: current.frontmatter.principle,
           domain: current.frontmatter.domain,
           brief: current.frontmatter.brief,
