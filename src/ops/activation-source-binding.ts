@@ -18,7 +18,7 @@ import {
  *     nor try to resolve, matching drift-detection elsewhere.
  *   - A non-empty index requires every cached binding for the card key to
  *     resolve in the index, and at least one binding must exist.
- *  @spec card-lifecycle/status-and-safe-write
+ *  @spec card-lifecycle/status-and-safe-write/update-card-status
  */
 export async function validateSpecSourceBindings(
   ctx: EmberdeckContext,

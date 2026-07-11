@@ -69,7 +69,7 @@ interface ValidateLinksShape {
 }
 
 /** Codes reported in output but excluded from the exit gate (warning-level). §10 Phase 1.2 / 3.2 */
-const CARDS_WARNING_CODES = new Set(['glossary-unused', 'principle-violation-warning']);
+const CARDS_WARNING_CODES = new Set(['glossary-unused', 'principle-violation-warning', 'bidirectional-cross-domain-dep']);
 
 /**
  * Exit code for `ed validate cards`: 2 if any *gating* (non-warning) issue exists, else 0.

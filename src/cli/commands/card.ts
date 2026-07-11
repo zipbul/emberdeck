@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
 import { run } from '../runner';
+import { emitResult, buildOutputContext } from '../output';
 import type { CliRuntime } from '../context';
 import { CARD_TYPES, CARD_STATUSES, isCardType, isCardStatus, type CardType, type CardStatus } from '../../card/types';
 import {
@@ -26,7 +27,7 @@ import {
 import { deleteCard } from '../../ops/delete';
 import { renameCard } from '../../ops/rename';
 import { exportCardToFile, buildCardFromDb } from '../../ops/sync';
-import { serializeCard } from '../../card/serialize';
+import { serializeCard, describeCardBody } from '../../card/serialize';
 import { findCardsBySymbol } from '../../ops/link';
 import { findCardsByGlossaryWord } from '../../ops/glossary';
 import { parsePositiveInt, collectCsv, collectRepeated } from '../parsers';
@@ -149,6 +150,17 @@ export async function cardGetAction(
     }
     return { data };
   }, cmd);
+}
+
+/** Deck-independent: prints a card type's body shape + fillable skeleton. */
+export async function cardSchemaAction(
+  type: string,
+  opts: { json?: boolean },
+  _cmd: Command,
+): Promise<void> {
+  const t = validateCardType(type);
+  const schema = describeCardBody(t);
+  await emitResult(opts.json ? schema.skeleton : schema, buildOutputContext({}));
 }
 
 /** @spec cli-surface/command-routing-and-output/commands/card-list */
@@ -549,7 +561,7 @@ export function registerCard(program: Command): void {
     .action(cardGetAction);
 
   card.command('list').description('list cards')
-    .option('--type <type>', 'filter by type (principle|domain|brief|spec)')
+    .option('--type <type>', `filter by type (${CARD_TYPES.join('|')})`)
     .option('--status <status>', 'filter by status (draft|active|drifted)')
     .option('--parent <key>', 'filter by parent card key')
     .option('--tag <tag>', 'filter by tag')
@@ -560,8 +572,12 @@ export function registerCard(program: Command): void {
     .option('--offset <n>', 'page offset (default 0)', parsePositiveInt('--offset'))
     .action(cardListAction);
 
+  card.command('schema <type>').description('per-type body field shape + fillable skeleton (vision|principle|domain|brief|spec)')
+    .option('--json', 'skeleton only (fillable body JSON)')
+    .action(cardSchemaAction);
+
   card.command('create <key>').description('create a new card')
-    .requiredOption('--type <type>', 'card type (principle|domain|brief|spec)')
+    .requiredOption('--type <type>', `card type (${CARD_TYPES.join('|')})`)
     .option('--summary <s>', 'one-line summary')
     .option('--from <file>', 'read frontmatter from JSON file (- for STDIN)')
     .option('--status <status>', 'initial status (default: draft)')

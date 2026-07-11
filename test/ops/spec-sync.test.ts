@@ -90,6 +90,27 @@ describe('syncSpecAnnotations', () => {
     expect(result.unmatched[0]!.cardKey).toBe('nonexistent');
   });
 
+  it('should report nonSpecTargets and create no link when annotation names a non-spec card', async () => {
+    tc = await createMockTestContext();
+    await createCard(tc.ctx, { key: 'checkout-brief', summary: 'A brief', type: 'brief' as const });
+    tc.ctx.gildash = createMockGildash({
+      searchAnnotations: () => [
+        { tag: 'spec', value: 'checkout-brief', filePath: 'src/checkout.ts', symbolName: 'placeOrder', source: 'line' },
+      ],
+      searchSymbols: () => [
+        { name: 'placeOrder', filePath: 'src/checkout.ts', kind: 'function' },
+      ],
+    });
+
+    const result = await syncSpecAnnotations(tc.ctx);
+    expect(result.created).toBe(0);
+    expect(result.unmatched).toHaveLength(0);
+    expect(result.nonSpecTargets).toHaveLength(1);
+    expect(result.nonSpecTargets[0]!.cardKey).toBe('checkout-brief');
+    expect(result.nonSpecTargets[0]!.cardType).toBe('brief');
+    expect(tc.ctx.codeLinkRepo.findByCardKey('checkout-brief')).toHaveLength(0);
+  });
+
   // ── ED: Edge ──
 
   it('should skip annotation with empty value', async () => {

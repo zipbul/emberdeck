@@ -8,7 +8,7 @@ import { setupEmberdeck, teardownEmberdeck } from '../setup';
 import { loadConfig, loadConfigFromPath, mergeCliArgs, ConfigLoadError } from '../config-file';
 import type { EmberdeckContext } from '../config';
 import type { OutputContext } from './output';
-import { buildOutputContext } from './output';
+import { buildOutputContext, emitWarning } from './output';
 
 export interface GlobalFlags {
   config?: string;
@@ -57,6 +57,10 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     regressionThreshold: merged.regressionThreshold,
     readonly: flags.readonly,
   });
+  // Inject the cli-surface diagnostic sink so ops can surface non-fatal
+  // warnings without importing the cli-surface domain (keeps card-lifecycle ⊀
+  // cli-surface — the dependency points inward via this abstraction).
+  ctx.emitWarning = emitWarning;
 
   return {
     ctx,

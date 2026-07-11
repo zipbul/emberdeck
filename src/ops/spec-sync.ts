@@ -56,6 +56,11 @@ export interface SpecSyncResult {
   alreadyLinked: number;
   /** Annotations that could not be linked (no card found for the spec key). */
   unmatched: Array<{ cardKey: string; file: string; symbol: string }>;
+  /**
+   * Annotations naming an existing card of a non-spec type. Only spec cards
+   * bind to code (@spec), so these are surfaced as violations and never linked.
+   */
+  nonSpecTargets: Array<{ cardKey: string; cardType: string; file: string; symbol: string }>;
   /** Code links that exist but have no corresponding @\spec annotation in source. */
   markerMissing: Array<{ cardKey: string; file: string; symbol: string }>;
   /** Annotations found but code link not registered (subset of created, informational). */
@@ -82,6 +87,7 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
   let created = 0;
   let alreadyLinked = 0;
   const unmatched: SpecSyncResult['unmatched'] = [];
+  const nonSpecTargets: SpecSyncResult['nonSpecTargets'] = [];
   const linkMissing: SpecSyncResult['linkMissing'] = [];
 
   // Build a set of annotation keys for marker-missing detection
@@ -110,6 +116,18 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
       for (const ann of anns) {
         if (ann.symbolName) {
           unmatched.push({ cardKey, file: ann.filePath, symbol: ann.symbolName });
+        }
+      }
+      continue;
+    }
+    // Doctrine gate: only spec cards bind to code. An annotation resolving to
+    // any other card type is surfaced as a violation and never linked —
+    // otherwise the link would attach to a non-spec card and stay invisible
+    // to `validate links` (which iterates spec cards only) forever.
+    if (card.type !== 'spec') {
+      for (const ann of anns) {
+        if (ann.symbolName) {
+          nonSpecTargets.push({ cardKey, cardType: card.type, file: ann.filePath, symbol: ann.symbolName });
         }
       }
       continue;
@@ -164,7 +182,7 @@ export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSy
     }
   }
 
-  return { created, alreadyLinked, unmatched, markerMissing, linkMissing };
+  return { created, alreadyLinked, unmatched, nonSpecTargets, markerMissing, linkMissing };
 }
 
 // ── Symbol rename/move sync ──

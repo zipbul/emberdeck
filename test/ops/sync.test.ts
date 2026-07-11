@@ -433,6 +433,20 @@ describe('validateCards', () => {
     expect(ft.some((w) => w.cardKey === 'db')).toBe(false);
   });
 
+  // Bidirectional cross_domain_dependencies (A→B and B→A) are a decomposition
+  // smell / likely a misattributed edge direction — non-gating warning, once per pair.
+  it('should surface bidirectional-cross-domain-dep when two domains depend on each other', async () => {
+    tc = await createMockTestContext();
+    const x = serializeCard({ key: 'dx', summary: 'x', status: 'active', type: 'domain', domain: { overview: 'o', scope: 's', cross_domain_dependencies: [{ domain: 'dy', relationship: 'invokes' }] } });
+    const y = serializeCard({ key: 'dy', summary: 'y', status: 'active', type: 'domain', domain: { overview: 'o', scope: 's', cross_domain_dependencies: [{ domain: 'dx', relationship: 'consumes' }] } });
+    await writeFile(join(tc.cardsDir, 'dx.md'), x, 'utf-8');
+    await writeFile(join(tc.cardsDir, 'dy.md'), y, 'utf-8');
+    await bulkSyncCards(tc.ctx);
+    const result = await validateCards(tc.ctx);
+    const bi = result.warnings.filter((w) => w.type === 'bidirectional-cross-domain-dep');
+    expect(bi.length).toBe(1);
+  });
+
   it('should report no orphans after bulkSyncCards resolves the orphan files', async () => {
     tc = await createMockTestContext();
     await writeTestCardFile(tc.cardsDir, 'st-orphan', 'Orphan');

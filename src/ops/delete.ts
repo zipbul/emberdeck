@@ -10,7 +10,6 @@ import { txDb } from '../db/connection';
 import { safeWriteOperation } from './safe';
 import { syncCardFromFile } from './sync';
 import { errorMessage } from '../util/error';
-import { emitWarning } from '../cli/output';
 
 export interface DeleteCardOptions {
   /** If true, delete even when children exist (children's parent is set to null). */
@@ -242,7 +241,7 @@ export async function deleteCard(
             }
           }
           if (compensationFailures.length > 0) {
-            emitWarning({
+            ctx.emitWarning?.({
               code: 'compensation-partial',
               message: `deleteCard rollback could not re-sync ${compensationFailures.length} cascaded card(s); operator must reconcile`,
               details: { failures: compensationFailures },

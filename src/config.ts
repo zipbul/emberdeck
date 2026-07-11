@@ -42,4 +42,11 @@ export interface EmberdeckContext {
   regressionThreshold: number;
   /** Gildash instance. Always initialized (setupEmberdeck throws if Gildash.open fails). */
   gildash: Gildash;
+  /**
+   * Optional diagnostic sink, injected by the CLI surface. Ops use this to
+   * surface a non-fatal warning without depending on the cli-surface domain
+   * (e.g. a best-effort rollback that partially failed). Undefined outside the
+   * CLI (tests/embedding) — callers must treat it as optional (no-op).
+   */
+  emitWarning?: (obj: { code: string; message: string; details?: Record<string, unknown> }) => void;
 }

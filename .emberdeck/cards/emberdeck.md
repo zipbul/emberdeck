@@ -1,31 +1,18 @@
 ---
 key: emberdeck
-summary: >-
-  Emberdeck makes cards the single source of truth for a project's entire design
-  knowledge, so any software project can be expressed and regenerated from cards
-  alone.
+summary: 카드로 프로젝트의 모든 설계 지식을 표현하고, 카드를 source of truth로 코드를 derive하는 시스템
 status: draft
 type: vision
 vision:
   statement: >-
-    Express a project's complete design knowledge as cards that are the source
-    of truth, so that the system can be understood and its code regenerated from
-    the cards alone.
+    프로젝트의 모든 설계 지식을, 검증 가능하게 코드와 묶인 단일 source of truth인 카드에 담아 표현하고, 코드는 카드에서
+    재생성되는 파생물로 두는 방향으로 간다. 사용자가 emberdeck을 다른 소프트웨어 프로젝트에 적용하여, 카드만으로 시스템 전체를
+    표현하고 카드로부터 코드를 재생성할 수 있게 한다.
   rationale: >-
-    Design knowledge that lives only in code, scattered docs, and people's heads
-    drifts apart and is lost, making large refactors and onboarding expensive
-    and unreliable. When cards are authoritative and code derives from them,
-    every decision has one stable, inspectable home; understanding and
-    regeneration flow from the cards rather than from reverse-engineering the
-    code. Anchoring this direction at the root means every domain, brief, spec,
-    and principle decision can be traced back to one shared why, and any attempt
-    to let code become the source of truth is recognizable as a deviation from
-    it.
+    AI가 코드를 쓰는 시대에 설계 지식은 프롬프트와 머릿속에서 증발하고, 코드는 왜를 대변하지 못하며, 바인딩 없는 문서는 코드와 어긋나
+    거짓말한다.
   success_direction: >-
-    Emberdeck is succeeding when a newcomer can understand a project from its
-    cards without first reading the code, when contributors reach for the cards
-    as the authoritative description of intended behavior, when the code visibly
-    follows from the cards instead of contradicting them, and when the same
-    approach carries naturally from a single tool to larger and more varied
-    software projects.
+    소스 없이 카드만 읽고 시스템 전체를 파악할 수 있게 되어 가고, 카드로부터 코드를 재생성해도 시스템이 성립한다. 설계 지식이 프롬프트와
+    머릿속에서 증발하거나 코드에만 남는 일이 사라져 가고, 카드가 코드와 어긋나면 검증으로 드러난다. 그리고 emberdeck이 적용된 다른
+    소프트웨어 프로젝트에서도 같은 것이 성립한다.
 ---

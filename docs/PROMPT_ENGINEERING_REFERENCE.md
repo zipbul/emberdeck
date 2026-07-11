@@ -16,6 +16,8 @@ LLM은 입력의 **시작과 끝에 더 높은 주의(attention)를 할당**하�
 
 > 출처: Liu et al., "Lost in the Middle: How Language Models Use Long Contexts" (2023); "Found in the Middle: Calibrating Positional Attention Bias" ([arxiv 2406.16008](https://arxiv.org/abs/2406.16008))
 
+> ⚠️ **2026-06-27 정정**: "U자형 위치 어텐션 편향이 lost-in-the-middle의 *기계론적 단일 원인*"이라는 단정은 적대검증에서 기각됨(1-2 투표). **현상(중간 정보 회상 저하)은 확증되나**, RoPE 감쇠/U자형 어텐션을 *유일 원인*으로 단정하는 것은 과대 해석이다. 완화책(시작·끝 배치, 쿼리 말미)은 유효하되 "최대 30% 개선"은 *최적 케이스 상한*이며 평균 효과는 훨씬 작다(Found-in-the-Middle 평균 1.5~2.7%p). 상세는 Part J5.
+
 **스킬 작성 시사점**: 핵심 지시(Phase 완료 조건, 절대 건너뛰면 안 되는 단계)는 프롬프트 **시작 또는 끝**에 배치. 중간에 매몰되면 누락 확률 상승.
 
 ---
@@ -700,3 +702,162 @@ Choose the position with stronger evidence and adopt it as the synthesis directi
 | [16] | Zheng et al., "From Prompts to Templates" | [arxiv 2504.02052](https://arxiv.org/abs/2504.02052), 2025 |
 | [17] | Anthropic Skill Authoring Best Practices | [platform.claude.com](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) |
 | [18] | Claude Code Hooks Quality Gates | [Dev Genius](https://blog.devgenius.io/claude-code-use-hooks-to-enforce-end-of-turn-quality-gates-5bed84e89a0d) |
+
+---
+
+## Part J — 2026-06-27 갱신: reasoning 모델 시대 (전수조사·적대검증 통과분)
+
+> 2026-06-27 추가. provider 무관 전수조사 후 **3-vote 적대검증 통과분만**(25개 중 24 confirmed / 1 기각) 수록. Part A~I의 2024 수치는 *historical*로 강등하고, reasoning 모델(2025H2~2026) 운용을 추가한다. 각 항목: 정의 / 언제 / 근거·출처 / 유효성.
+>
+> **수렴 3흐름:** ① reasoning 모델 — CoT를 직접 지시하지 말고 effort/thinking 파라미터로 사고량 조절, 과추론은 역효과. ② 지시 준수는 2026에도 구조적으로 취약(특히 *순서·위치*). ③ 프롬프트 엔지니어링 → 컨텍스트 엔지니어링으로 진화.
+
+### J1. Reasoning 모델: CoT를 "지시"하지 말고 effort로 조절
+
+- **정의/언제**: 추론 내장 모델에서는 "단계별로 생각하라"를 손으로 지시하기보다, provider의 effort/thinking 파라미터로 사고량을 조절하고 *모델이 적응적으로 결정*하게 한다. 사고가 답 품질을 유의미하게 개선할 때만 켠다.
+- **provider별 (충돌 지점 — 파라미터 형태가 다름):**
+  - **OpenAI GPT-5**: `reasoning_effort`(기본 `medium`, 신규 `minimal`=최저지연). 사고 강도 + 툴 호출 적극성을 *동시* 제어 — 낮을수록 탐색↓·latency↓. 5.4/5.5는 `xhigh` 추가, **툴 사용 시 `none`/`minimal`보다 `low` 권장**.
+  - **Anthropic**: `budget_tokens` → **adaptive thinking으로 전환**. Opus 4.7+/Fable 5/Mythos 5는 `budget_tokens` 설정 시 **400 에러**(대신 effort+`max_tokens`). budget은 `max_tokens`보다 작아야 하고 full thinking 토큰에 적용, **~32k 초과 시 수확체감**. 모델이 사고 시점·양을 자율 결정.
+  - **Google Gemini 3**: 수치형 `thinking_budget` → 범주형 **`thinking_level`(minimal/low/medium/high)**, dynamic thinking 기본. `thinking_level`+레거시 `thinking_budget` 동시 사용 시 400.
+  - **합의**: 세 provider 모두 *범주형 effort 힌트 + 모델 자율 결정*으로 수렴. 명칭·세분도만 다르다.
+- **유효성**: ⚠️ 모델 버전마다 빠르게 변동 — **인용 시 모델 버전 명시 필수**.
+- **출처**: [GPT-5 prompting guide](https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide); [Anthropic extended-thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking); [Gemini 3 docs](https://ai.google.dev/gemini-api/docs/gemini-3). (검증 3-0)
+
+### J2. 과추론은 역효과 (over-reasoning penalty)
+
+- **정의/언제**: 고-effort는 과탐색으로 thinking 토큰·latency를 부풀린다. Anthropic은 추론 제약·effort 하향을 권고하며 *"extended thinking은 답 품질을 유의미하게 개선할 때만; 의심되면 직접 응답하라"*. GPT-5는 **모순·모호 지시가 다른 모델보다 치명적**(충돌 해소에 reasoning 토큰을 소모) → 충돌 지시 제거 + 명시적 위계가 필수.
+- **유효성**: 현행(Opus 4.6 과탐색 경향 명시, GPT-5 동일). 3-0.
+- **출처**: [Anthropic best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices); [GPT-5 guide](https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide).
+
+### J3. 지시 준수: 순서·위치가 성능을 지배 (스케일로 해결 안 됨)
+
+- **정의/근거**: 내용이 동일해도 **순차→비순차(jumping) 재배열 시 정확도 최대 72% 하락**(RIFT, 2026.01, 6개 오픈모델 1만 평가). 최강 오픈모델 **gpt-oss-120b조차 linear 55.14% → jumping 13.9%로 붕괴**. SIFo(순차 지시)·IFEval++(GPT-5도 rephrasing 시 18.3% 하락)가 *"파라미터 스케일만으론 해결 안 됨"*을 재확인.
+- **언제/시사**: 핵심 지시는 **위치(시작·끝) + 반복**으로 보강. 다단계는 *선형 순서*를 깨지 마라.
+- **유효성**: ⚠️ RIFT/RIFT-류는 **2026.01 preprint(미peer-review), 오픈모델 대상** — frontier closed(Opus 4.8/GPT-5.x/Gemini 3) 일반화는 *미검증*(openQuestion). SIFo ~50% 상한은 2024 모델 기준.
+- **출처**: [RIFT arxiv 2601.18924](https://arxiv.org/html/2601.18924); [SIFo arxiv 2406.19999](https://arxiv.org/abs/2406.19999); IFEval++ [arxiv 2511.03508](https://arxiv.org/abs/2511.03508). (3-0 / 2-1)
+
+### J4. Instruction Hierarchy (개념 유효, 수치는 historical)
+
+- **정의**: system > user > 제3자/툴(Priority System=0, User=10, image/audio=20, tool/web/retrieved=30). 가드레일·탈옥저항의 표준 위계.
+- **유효성**: 개념은 2026 기반 원리로 유효. ⚠️ **추출저항 +63%, jailbreak +30%(미학습 일반화)는 GPT-3.5(2024.04) 실험치 — historical로 인용**. 실제 enforcement는 불완전(문서화된 jailbreak 존재).
+- **출처**: [arxiv 2404.13208](https://arxiv.org/html/2404.13208v1); [OpenAI: The Instruction Hierarchy](https://openai.com/index/the-instruction-hierarchy/). (3-0)
+
+### J5. Long-context 배치 ('up to'는 상한, 평균은 작음)
+
+- **정의/언제**: (a) 20k+ 토큰 시 **장문 문서를 상단(쿼리/지시 위)**에, **쿼리는 말미**에 → 최대 30% 향상(복잡 다문서에서). (b) 위치편향 보정(Found-in-the-Middle): 위치 아닌 *관련성* 기반 attend → RAG 최대 15%p.
+- **유효성**: ⚠️ "30%", "15%p"는 **최적 케이스 상한**. Found-in-the-Middle 평균은 **1.5~2.7%p**. (A1의 U자형 *단일 인과* 단정은 기각됨 — 위 정정 참조.)
+- **출처**: [Anthropic best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices); [arxiv 2406.16008](https://arxiv.org/abs/2406.16008). (3-0)
+
+### J6. 구조화·출력: XML + name every output + 3~5 examples
+
+- **정의/언제**: 지시/컨텍스트/예시/입력이 섞인 프롬프트는 **유형별 서술적 XML 태그**(`<instructions>`/`<context>`/`<input>`)로 감싸 오해를 줄인다. few-shot은 **3~5개**를 `<example>`로. 시스템 프롬프트는 XML/Markdown 헤더로 구별 섹션(background/tool guidance/output) 구성. 출력은 **필드명+설명까지 명세**("name every output").
+- **유효성**: 현행. ⚠️ 단 **포매팅 중요도는 모델 발전으로 점차 감소** — 과도한 구조 강제는 불필요.
+- **출처**: [Anthropic best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices); [Anthropic: effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents). (3-0)
+
+### J7. 시스템/에이전트 프롬프트: 적정 고도(altitude)
+
+- **정의**: 행동을 안내할 만큼 **구체적**이되, 강한 휴리스틱으로 작동할 만큼 **유연**하게. 두 실패모드를 모두 회피 — ① *취약한 하드코딩 로직* ② *모호한 고수준 지침*.
+- **언제**: 서브에이전트 role/scope 설계의 핵심 원리. (cf. 서브에이전트 2026 BP: 한 가지 일 + 명확한 Definition-of-Done + 짧게.)
+- **출처**: [Anthropic: effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents). (3-0)
+
+### J8. 에이전트 자율성(eagerness) 양방향 튜닝 (GPT-5)
+
+- **낮추기**: `reasoning_effort` 하향 + **명시적 툴호출 예산**(예: 최대 2회) + **escape hatch**("불확실해도 진행 허용").
+- **높이기**: `reasoning_effort` 상향 + **persistence 프롬프트**("keep going until the query is completely resolved before ending your turn"; 불확실 시 묻지 말고 합리적 가정으로 진행).
+- **유효성**: GPT-5/5.1 동일 프레이밍. 3-0.
+- **출처**: [GPT-5 prompting guide](https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide).
+
+### J9. PE → 컨텍스트 엔지니어링 + context rot + 장기과제 3기법
+
+- **정의(Anthropic)**: 컨텍스트 엔지니어링 = 추론 중 *최적 토큰 집합을 큐레이션·유지*하는 전략 일체(system/tools/MCP/외부데이터/히스토리 관리). PE의 자연스러운 후속 패러다임.
+- **context rot**: 컨텍스트 토큰이 늘수록 회상 정확도 저하(transformer n² 어텐션이 유한 attention budget 잠식). Chroma 2025(18개 frontier 모델)·Stanford가 독립 확증. → 압축·offloading의 동기.
+- **장기 과제 3기법**: ① **compaction**(요약 후 새 윈도우 재시작, 아키텍처 결정·미해결 버그 보존, 중복 툴출력 폐기) ② **structured note-taking**(컨텍스트 밖 외부 메모리 영속) ③ **sub-agent 아키텍처**(깨끗한 컨텍스트의 전문 서브에이전트를 main agent가 조정).
+- **출처**: [Anthropic: effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents); [arxiv 2406.16008](https://arxiv.org/abs/2406.16008). (3-0)
+
+### J10. 이번 패스에서 *미확정*(별도 조사 필요)
+
+다음은 확정 claim을 못 얻었으므로 **이 문서에 단정으로 쓰지 말 것** (openQuestions):
+- **자동 프롬프트 최적화**(DSPy/APE/eval-driven/프롬프트 압축)의 2025~2026 정량 효과 및 reasoning 모델 유효성.
+- **코어 기법**(self-consistency, Tree/Graph-of-Thoughts, ReAct, reflexion)이 adaptive/reasoning 시대에도 net-positive인지 — 내장 추론과 중복되어 과추론 역효과를 낼 가능성.
+- provider 간 instruction-following/위계 **enforcement 견고성의 정량 비교**(prompt injection·충돌 지시 최강 모델).
+- RIFT의 비순차 붕괴가 **frontier closed 모델에서도 재현되는지**.
+
+### Part J 출처 색인
+
+| ID | 자료 | 출처 | 검증 |
+|----|------|------|------|
+| [J1] | The Prompt Report (58+40 기법 택소노미) | [arxiv 2406.06608](https://arxiv.org/abs/2406.06608) | 3-0 |
+| [J2] | RIFT — 비순차 지시 재배열 붕괴(최대 72%) | [arxiv 2601.18924](https://arxiv.org/html/2601.18924) | 3-0 |
+| [J3] | IFEval++ — GPT-5 rephrasing 18.3% 하락 | [arxiv 2511.03508](https://arxiv.org/abs/2511.03508) | 2-1 |
+| [J4] | OpenAI GPT-5 prompting guide | [developers.openai.com](https://developers.openai.com/cookbook/examples/gpt-5/gpt-5_prompting_guide) | 3-0 |
+| [J5] | Anthropic extended thinking (adaptive) | [platform.claude.com](https://platform.claude.com/docs/en/build-with-claude/extended-thinking) | 3-0 |
+| [J6] | Anthropic prompting best practices | [platform.claude.com](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) | 3-0 |
+| [J7] | Anthropic — effective context engineering | [anthropic.com](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) | 3-0 |
+| [J8] | Google Gemini 3 docs (thinking_level) | [ai.google.dev](https://ai.google.dev/gemini-api/docs/gemini-3) | 3-0 |
+| [J9] | Instruction Hierarchy (수치 historical) | [arxiv 2404.13208](https://arxiv.org/html/2404.13208v1) / [OpenAI](https://openai.com/index/the-instruction-hierarchy/) | 3-0 |
+
+> **방법론 주의**: 본 Part는 5각도 fan-out 검색 → 15개 1차 소스 fetch → claim당 3-vote 적대검증(2/3 refute 시 기각) 파이프라인 산출물. 24/25 confirmed. 기각 1건: "U자형 어텐션 = lost-in-middle의 단일 기계론적 원인"(1-2). vendor 자기보고(adaptive>extended, 30% 향상)와 preprint(RIFT) 수치는 위 본문에 명시적으로 강등 표기됨.
+
+---
+
+## Part K — 2026-07-08 갱신: 서브에이전트(도메인 특화) 프롬프트 작성 표준
+
+> 짧은 **도메인-특화 Claude Code 서브에이전트**(`.claude/agents/*.md`, `plugin/agents/*.md`) 작성 기준. 현시점 공식 소스 5각도 리서치 종합. Part D(시스템 프롬프트 패턴)·H(스킬 작성)를 서브에이전트 관점으로 구체화·갱신. 소스 recency: platform.claude.com 프롬프트 가이드는 **docs.anthropic.com → platform.claude.com 301 이전**, 최신 모델(Opus 4.8/Sonnet 5/Fable 5/Mythos 5) 반영 living 문서.
+
+### K1. 파일 템플릿 (순서가 신호다)
+
+**Frontmatter**: `name`(고유 lowercase-hyphen; 파일명 아닌 이 필드가 정체성. 트리 전체서 유일 **권장** — 충돌해도 조용히 로드 실패가 아니라 우선순위(상위 스코프·CWD 근접 정의)로 하나만 **결정적 로드**되고 `/doctor`(v2.1.196+)가 중복을 보고) · `description`(1~2문장 라우팅 트리거) · `tools`(least-privilege allowlist) · `model`(`inherit` 기본) · `skills`(공유 워크플로우 프리로드, 선택) · (선택) `disallowedTools`/PreToolUse 훅.
+
+**Body**(= 시스템 프롬프트): ① 역할 1문장 → ② `## 배경/맥락`(격리 컨텍스트라 핵심 repo 규칙 재진술) → ③ `## When invoked`(짧은 번호 워크플로우; 공유 기계는 skill로 위임) → ④ `## 판단 기준`(적정 고도 휴리스틱) → ⑤ `## 그라운딩·행동자세` → ⑥ `## 출력 형식`(반환할 compact summary 명시) → ⑦ (선택) `<examples>` 3~5개 — **출력이 드리프트할 때만 반사적으로**.
+
+**"Minimal ≠ short"**: 신뢰 준수에 필요한 만큼, filler 0. 저신호 토큰은 attention budget을 희석.
+[C1][H5]
+
+### K2. `description`은 라우팅 트리거 (라벨 아님)
+
+'card-model 변경을 커밋 전 검토' 같은 **WHEN to delegate** + 짧은 capability + 'proactively/즉시 X 후' nudge. **워크플로우·체크리스트·출력은 body로.** 서브에이전트 description엔 예시 블록 넣지 마라(스킬 description 가이드와 다름). 라벨('a card-model expert')은 자동 라우팅이 안정적으로 안 걸림.
+[K-cc][K-blog]
+
+### K3. 공유 워크플로우는 스킬로 프리로드 (`skills:` frontmatter)
+
+여러 에이전트 공통 절차(ed 호출·schema·validate·readback)는 **각 에이전트에 복붙 금지** → 스킬 하나에 두고 `skills:`가 startup에 **전문 주입**(`tools`에 `Skill` 넣는 것과 다름). 에이전트엔 역할+도메인 판단만 남김.
+⚠ 서브에이전트는 **대화 이력·이전 파일 읽기·메인에서 호출된 스킬을 못 봄** → 반드시 닿아야 할 규칙은 body에 재진술. (단 custom 서브에이전트는 CLAUDE.md+git status 로드; `skills:` 프리로드분은 주입됨.)
+[K-cc]
+
+### K4. 긍정 프레이밍 + 이유 동반
+
+'하지 마라'보다 '하라'. 불가피한 부정은 **긍정 대안과 페어링**('테이블 쓰지 마' → '우선순위별 프로스로'). 제약엔 **왜**를 붙여 모델이 의도를 미지 케이스로 일반화하게('참조 카드를 먼저 읽어라 — 판단이 거기 근거해야 하므로'). [C1][K-anthropic]
+
+### K5. 기계적 제약은 프롬프트가 아니라 도구/훅 (poka-yoke)
+
+'절대경로 써라'·'파일 편집 금지' 같은 기계적 실수는 **tool allowlist·PreToolUse 훅**으로 강제(잊힐 수 없는 구조적 제약). 프롬프트 '기억해서…'는 중간에 잊힘. Part E2(훅=유일 결정적 강제)와 연결. [E2][K-cc]
+
+### K6. 현시점 deprecated (하드 에러 — 쓰면 400)
+
+- **assistant-message prefilling** 으로 형식·preamble 제어: **Claude 4.6 / Mythos Preview+ → 400**. 대신 직접 출력지시·Structured Outputs·tool/enum.
+- **`budget_tokens`** 확장사고 설정: **Opus 4.7+/Fable/Mythos 5 → 400**. adaptive thinking + `effort`.
+- **CAPS·"CRITICAL: You MUST"** 긴급어 스택: **응답성 높은 현행 모델(Opus 4.5/4.6+)의 마이그레이션 효과로 도구·스킬 과트리거** → 평문('Use this when…')으로. ⚠ 보편법칙 아님(2-1 강등): 스킬 description은 오히려 **under-trigger 경향**이라 구체·단정 권장이고, all-caps MUST/ALWAYS가 나쁜 진짜 이유는 **이유를 빠뜨려 일반화가 약한 것**(K4의 별개 근거). [K-anthropic][K-skills]
+
+### K7. 포매팅 (Markdown vs XML — contested, 화해됨)
+
+body 기본 = **Markdown 헤더**; 지시/데이터/예시 경계가 모호할 때만 경량 XML(`<instructions>`/`<context>`/`<example>`). Anthropic=XML 선호(학습됨) vs OpenAI GPT-4.1=Markdown 우선 — 짧은 서브에이전트 body는 Markdown 실용 기본, 둘 다 '명시·일관 구분자, 다문서 wrapping에 JSON 금지'엔 합의. **프롬프트 스타일 = 원하는 출력 스타일**(프로스 원하면 프로스로). 순서: 역할→배경→워크플로우→판단→출력→예시(끝). 20k+ 참조데이터만 최상단·질의 최하단. [K-anthropic][K-openai]
+
+### K8. 안티패턴
+
+description을 라벨로 / 워크플로우·출력을 description에 크래밍 / 제네릭 역할·이름 / CAPS 긴급어(응답성 현행 모델 한정 과트리거) / 이유 없는 부정제약 / **공유 워크플로우를 에이전트마다 복붙** / 서브에이전트가 대화이력을 본다 가정 / prefill·budget_tokens / 하드코딩 if-else 결정트리 / **미관찰 실패에 선제 규칙(투기적 패딩)** / 출력형식 미명시(verbose raw 반환) / 카드·코드 쓰는 에이전트 과설계 / least-privilege 없이 all-tools 상속 / 짧은 특화에이전트에 ToT·Self-Consistency·ReAct·Reflexion·RAG 스캐폴딩(내장 적응추론과 중복 — J10 미확정 항목을 **특화-에이전트 문맥 한정으로** 부분 해소). [K-anthropic][K-context][K-cc]
+
+### K9. 이 프로젝트 적용 (card 에이전트)
+
+vision/domain-card 감사 결과 주요 레버 부합: 공유 절차 → `card-agent` 스킬, 에이전트엔 역할+타입 판단만, 긍정 프레이밍, least-privilege(Write/Edit 없음). **anti-overengineering 한 줄('요청 안 한 카드·필드 만들지 마')은 개별 에이전트가 아니라 `card-agent` 스킬 한 곳**에 두는 게 K3·K8 준수. iterative dev: 관찰된 실패에만 규칙 추가(투기 금지).
+
+### Part K 출처 색인
+
+| ID | 자료 | 출처 | recency |
+|----|------|------|---------|
+| [K-anthropic] | Anthropic prompt engineering best practices | [platform.claude.com](https://platform.claude.com/docs/en/docs/build-with-claude/prompt-engineering/claude-4-best-practices) | mid-2026 living |
+| [K-cc] | Claude Code sub-agents 공식 문서 | [code.claude.com/docs](https://code.claude.com/docs/en/sub-agents) | 현행 |
+| [K-blog] | Subagents in Claude Code | [claude.com/blog](https://claude.com/blog/subagents-in-claude-code) | 현행 |
+| [K-context] | Effective context engineering for AI agents | [anthropic.com](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) | 2025 |
+| [K-openai] | GPT-4.1 prompting guide (Markdown 우선 대조점) | [developers.openai.com](https://developers.openai.com/cookbook/examples/gpt4-1_prompting_guide) | 현행 |
+| [K-skills] | Agent Skills best practices (under-trigger 근거) | [platform.claude.com](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) | 현행 |
+
+> **방법론 주의**: 본 Part는 5각도 fan-out 웹 리서치 → 종합 후, 핵심 claim 10개(C1~C10)에 **Part J식 3-vote 적대검증(웹 반증, 2/3 refute 시 기각) 적용**(2026-07-08). 결과: **8건 confirmed(3-0)**, C7 **contested(2-1 강등)** — CAPS 과트리거는 현행 모델 마이그레이션 한정, C1 **rejected(1-2 수정반영)** — 중복 `name`은 조용한 로드실패가 아니라 우선순위 결정적 로드. confirmed 항목(C2~C6,C8~C10: skills 프리로드·컨텍스트 격리·prefill/budget_tokens 400·least-privilege·XML/MD contested·long-context 배치)은 공식 1차 소스 직접 인용으로 confidence 高. 검증 산출물: workflow `wf_7f0b7bbd-0b9`.

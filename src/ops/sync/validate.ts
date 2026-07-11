@@ -221,6 +221,33 @@ export async function validateCards(
     }
   }
 
+  // Bidirectional cross_domain_dependencies: A→B and B→A both declared = mutual
+  // coupling — a domain-decomposition smell or (more often) a misattributed edge
+  // direction. Decidable graph check; non-gating warning, reported once per pair.
+  {
+    const cdEdges = new Set<string>();
+    for (const row of dbRows) {
+      if (row.type !== 'domain') continue;
+      for (const dep of parseCrossDomainDependencies(row.namespacesJson)) {
+        const t = cardByKey.get(dep.domain);
+        if (t && t.type === 'domain' && dep.domain !== row.key) cdEdges.add(`${row.key} ${dep.domain}`);
+      }
+    }
+    const reportedPairs = new Set<string>();
+    for (const edge of cdEdges) {
+      const [a, b] = edge.split(' ') as [string, string];
+      if (!cdEdges.has(`${b} ${a}`)) continue;
+      const pairKey = [a, b].sort().join(' ');
+      if (reportedPairs.has(pairKey)) continue;
+      reportedPairs.add(pairKey);
+      warnings.push({
+        type: 'bidirectional-cross-domain-dep',
+        cardKey: a,
+        message: `cross_domain_dependencies between "${a}" and "${b}" are bidirectional (mutual coupling — likely a domain-decomposition smell or a misattributed edge direction)`,
+      });
+    }
+  }
+
   // Broken derives: spec pre/post `derives` → brief#goal and failures `case_of`
   // → brief#flow must resolve to an existing brief item. Skip draft (deep check,
   // mirrors the draft-bypasses-deep-validation gate). §10 Phase 1.4b

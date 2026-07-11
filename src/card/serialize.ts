@@ -578,6 +578,94 @@ function normalizeSpecBody(value: unknown): SpecBody {
   return body;
 }
 
+// ── Card body schema view (source for `ed card schema <type>`) ──
+// Forward SHAPE of each type's body namespace, colocated with the normalizers
+// so it references the SAME private consts they enforce (VALID_*) — enum values
+// cannot drift. Deep per-element constraints (conditional/cross-field/min-count)
+// are NOT mirrored here; the author gets them from the live normalizer error by
+// submitting the body through `ed card create/update`.
+
+export interface BodyFieldDesc {
+  name: string;
+  required: boolean;
+  kind: 'string' | 'enum' | 'union' | 'object' | 'array';
+  values?: readonly string[];
+  note?: string;
+}
+
+export interface CardBodySchema {
+  type: CardType;
+  namespace: string;
+  fields: BodyFieldDesc[];
+  /** Fillable skeleton: required fields only, empty placeholders. */
+  skeleton: Record<string, unknown>;
+}
+
+const BODY_FIELDS: Record<CardType, BodyFieldDesc[]> = {
+  vision: [
+    { name: 'statement', required: true, kind: 'string', note: '왜 존재하고 어디로 가는가 — 방향(기능 나열 아님)' },
+    { name: 'rationale', required: true, kind: 'string', note: '그 방향을 정당화하는 배경/문제' },
+    { name: 'success_direction', required: true, kind: 'string', note: '옳게 가는지의 정성적 그림(수치 아님 — 수치는 principle.metric)' },
+  ],
+  principle: [
+    { name: 'statement', required: true, kind: 'string' },
+    { name: 'rationale', required: true, kind: 'string' },
+    { name: 'applies_to', required: true, kind: 'union', note: `'*' 또는 string[]` },
+    { name: 'enforcement', required: true, kind: 'enum', values: VALID_ENFORCEMENT },
+    { name: 'verify', required: true, kind: 'object', note: `{ class: ${VALID_VERIFY_CLASSES.join('|')}, structural? } — class=structural이면 structural 필수, 그 외 금지; prose/metric은 enforcement:blocking 불가` },
+    { name: 'metric', required: false, kind: 'array' },
+    { name: 'exemptions', required: false, kind: 'array' },
+    { name: 'references', required: false, kind: 'array' },
+  ],
+  domain: [
+    { name: 'overview', required: true, kind: 'string', note: '이 주제영역이 무엇인지' },
+    { name: 'scope', required: true, kind: 'string', note: 'IN/OUT 경계' },
+    { name: 'cross_domain_dependencies', required: false, kind: 'array', note: '{ domain, relationship, note? }[] — domain은 존재하는 domain 카드 키' },
+  ],
+  brief: [
+    { name: 'context', required: true, kind: 'object' },
+    { name: 'scope', required: true, kind: 'object' },
+    { name: 'flow', required: true, kind: 'array', note: '≥1 happy + ≥1 failure' },
+    { name: 'policy', required: true, kind: 'array' },
+    { name: 'criteria', required: true, kind: 'array', note: 'measure는 type(numeric|binary|verification)에 따라 필드가 다름' },
+    { name: 'rationale', required: true, kind: 'object', note: 'alternatives ≥2' },
+    { name: 'approach', required: false, kind: 'string' },
+    { name: 'external', required: false, kind: 'array' },
+    { name: 'limits', required: false, kind: 'array' },
+  ],
+  spec: [
+    { name: 'preconditions', required: true, kind: 'array', note: '≥1; 각 { id, condition, derives(brief#goal) }' },
+    { name: 'postconditions', required: true, kind: 'array', note: `≥1; keyword ${VALID_SPEC_KEYWORDS.join('|')}` },
+    { name: 'invariants', required: true, kind: 'array', note: `≥1; always_holds ${VALID_ALWAYS_HOLDS.join('|')}` },
+    { name: 'failures', required: true, kind: 'array', note: '≥1' },
+    { name: 'shapes', required: false, kind: 'array', note: `role ${VALID_SHAPE_ROLES.join('|')}` },
+    { name: 'invokes', required: false, kind: 'array', note: `kind ${VALID_INVOKE_KINDS.join('|')}` },
+    { name: 'state_transitions', required: false, kind: 'array' },
+  ],
+};
+
+function skeletonValue(f: BodyFieldDesc): unknown {
+  switch (f.kind) {
+    case 'array': return [];
+    case 'object': return {};
+    case 'union': return [];
+    default: return '';
+  }
+}
+
+/**
+ * Forward shape + fillable skeleton for a card type's body namespace.
+ * Backs `ed card schema <type>`. Enum values are the live normalizer consts.
+ */
+export function describeCardBody(type: CardType): CardBodySchema {
+  const fields = BODY_FIELDS[type];
+  const skeleton: Record<string, unknown> = {};
+  for (const f of fields) {
+    if (f.required) skeleton[f.name] = skeletonValue(f);
+  }
+  return { type, namespace: type, fields, skeleton: { [type]: skeleton } };
+}
+
 // ── Coerce frontmatter ────────────────────────────────────────
 
 function coerceFrontmatter(doc: unknown): CardFrontmatter {

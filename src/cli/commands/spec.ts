@@ -19,6 +19,7 @@ export async function specSyncAction(_opts: unknown, cmd: Command): Promise<void
         alreadyLinked: result.alreadyLinked,
         linkMissing: result.linkMissing,
         unmatched: result.unmatched,
+        nonSpecTargets: result.nonSpecTargets,
         markerMissing: result.markerMissing,
       },
     };
