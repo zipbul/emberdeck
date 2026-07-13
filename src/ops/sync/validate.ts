@@ -35,7 +35,6 @@ function typeHierarchyViolationMessage(
  * cards whose frontmatter key differs from the path-derived slug. Used by
  * `ed validate links` to skip mismatched cards without paying the full
  * validateCards cost (content-mismatch reads, relation walks, glossary).
- * @spec card-storage/persistence/sync
  */
 export function detectKeyMismatches(
   ctx: EmberdeckContext,
@@ -55,7 +54,6 @@ export function detectKeyMismatches(
  * Validate consistency between the on-disk card file list and indexed rows.
  * Performs read-only structural validation: hierarchy, relations, glossary,
  * orphans, key mismatches, content drift.
- * @spec card-storage/persistence/sync
  */
 /** Stable, key-order-independent JSON (arrays keep order; object keys sorted). */
 function canonicalJson(v: unknown): string {
@@ -389,7 +387,7 @@ export async function validateCards(
   }
 
   // Binding principle enforcement (§5 verify.class=binding): @spec is the only
-  // code-binding mechanism (source-as-binding-sot), so a binding principle is
+  // card-to-code binding mechanism (source-as-binding-sot), so a binding principle is
   // verified by the @spec evidence of the SPEC cards it governs — each governed
   // spec must have ≥1 code_link row.
   const bindingRules: BindingPrincipleRule[] = [];
