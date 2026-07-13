@@ -10,7 +10,6 @@
  *
  * Re-exporting keeps every existing caller's import path stable while letting
  * each concern live in its own ~250-line module.
- * @spec card-storage/persistence/sync
  */
 export type {
   BulkSyncResult,

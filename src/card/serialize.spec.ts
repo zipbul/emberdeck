@@ -356,7 +356,7 @@ describe('v18 spec schema: shapes[]/invokes[]/failures{id,case_of,owner,referenc
     invariants: [{ id: 'INV-001', statement: 's', always_holds: 'per-call' }],
     failures: [{ id: 'FAIL-001', violation: 'v', behavior: 'b', case_of: 'parent#S-F-01', owner: 'other/spec', references: 'FAIL-002' }],
     shapes: [{ id: 'SHP-001', role: 'output' as const, when: 'success', schema: '{ key: string }' }],
-    invokes: [{ to: 'card-model/x', kind: 'per-call' as const, note: 'validate' }],
+    invokes: [{ to: 'alpha/x', kind: 'per-call' as const, note: 'validate' }],
   };
 
   it('round-trips spec.shapes', () => {

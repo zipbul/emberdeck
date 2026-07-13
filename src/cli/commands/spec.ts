@@ -10,7 +10,6 @@ import { CliUsageError } from '../usage-error';
 import { errorMessage } from '../../util/error';
 import { DrizzleSystemMetadataRepository } from '../../db/system-metadata-repo';
 
-/** @spec cli-surface/command-routing-and-output/commands/spec-sync */
 export async function specSyncAction(_opts: unknown, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const result = await syncSpecAnnotations(rt.ctx);
@@ -26,7 +25,6 @@ export async function specSyncAction(_opts: unknown, cmd: Command): Promise<void
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/spec-sync-symbols */
 export async function specSyncSymbolsAction(opts: { since?: string }, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const META_KEY = 'last_symbol_sync_at';

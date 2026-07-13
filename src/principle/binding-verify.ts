@@ -1,7 +1,7 @@
 /**
  * Binding verify engine (§5 — verify.class=binding).
  *
- * source-as-binding-sot: the ONLY code-binding mechanism is the
+ * source-as-binding-sot: the ONLY card-to-code binding mechanism is the
  * `/** @spec <card-key> *​/` annotation on SPEC cards (→ code_link cache).
  * principle/brief/domain/vision do NOT bind to code. So a `binding` principle —
  * verified by source-binding evidence — is satisfied by the @spec evidence of

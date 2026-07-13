@@ -42,7 +42,6 @@ async function loadEntriesFromFile(value: string): Promise<Array<{ word: string;
   });
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/glossary-define */
 export async function glossaryDefineAction(
   pairs: string[],
   opts: { from?: string },
@@ -90,7 +89,6 @@ export async function glossaryDefineAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/glossary-lookup */
 export async function glossaryLookupAction(
   word: string | undefined,
   _opts: unknown,
@@ -108,7 +106,6 @@ export async function glossaryLookupAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/glossary-remove */
 export async function glossaryRemoveAction(
   word: string,
   opts: { yes?: boolean },
@@ -125,7 +122,6 @@ export async function glossaryRemoveAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/glossary-rename */
 export async function glossaryRenameAction(
   oldWord: string,
   newWord: string,

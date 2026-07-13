@@ -69,7 +69,6 @@ function topologicalSort(inputs: IndexedInput[]): IndexedInput[] {
  * the first wins, the second fails with `inputIndex` preserving its original
  * position (D13: inputIndex never collapses duplicates).
  *
- * @spec card-lifecycle/mutation-workflows/delete-rename-bulk
  */
 export async function bulkCreateCards(
   ctx: EmberdeckContext,

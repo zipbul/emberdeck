@@ -57,9 +57,9 @@ export async function buildRuntime(flags: GlobalFlags): Promise<CliRuntime> {
     regressionThreshold: merged.regressionThreshold,
     readonly: flags.readonly,
   });
-  // Inject the cli-surface diagnostic sink so ops can surface non-fatal
-  // warnings without importing the cli-surface domain (keeps card-lifecycle ⊀
-  // cli-surface — the dependency points inward via this abstraction).
+  // Inject the CLI diagnostic sink so ops can surface non-fatal
+  // warnings without importing the CLI layer (the dependency points
+  // inward via this abstraction).
   ctx.emitWarning = emitWarning;
 
   return {

@@ -44,7 +44,6 @@ const cardsSyncedContexts = new WeakMap<EmberdeckContext, CardSyncFailure[]>();
  *
  * Per-file failures are captured and returned so the CLI runner can surface
  * them as JSON-line warnings; they do not abort the remaining files.
- * @spec card-storage/persistence/sync
  */
 export async function ensureCardsSynced(ctx: EmberdeckContext): Promise<CardSyncFailure[]> {
   const cached = cardsSyncedContexts.get(ctx);
@@ -82,7 +81,6 @@ export async function ensureCardsSynced(ctx: EmberdeckContext): Promise<CardSync
  *
  * Yields one entry per failed file (read failure or upsert failure); per-file
  * failures do not abort the loop.
- * @spec card-storage/persistence/sync
  */
 async function* upsertCardsInTierOrder(
   ctx: EmberdeckContext,
@@ -182,7 +180,6 @@ async function* upsertCardsInTierOrder(
  *
  * Returns relation targets that failed to persist (FK violation under
  * concurrent contention); empty array on a clean sync.
- * @spec card-storage/persistence/sync
  */
 export async function syncCardFromFile(
   ctx: EmberdeckContext,
@@ -229,7 +226,6 @@ export async function syncCardFromFile(
  * Scan the entire cardsDir (or dirPath) and bulk-sync every `.md` card file
  * into the indexed cache. Duplicate keys across files are reported as errors
  * (data-loss prevention).
- * @spec card-storage/persistence/sync
  */
 export async function bulkSyncCards(
   ctx: EmberdeckContext,

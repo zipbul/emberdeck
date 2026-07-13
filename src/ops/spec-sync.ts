@@ -76,7 +76,6 @@ export interface SpecSyncResult {
  * Also detects:
  * - markerMissing: code links that have no @spec annotation in source
  * - linkMissing: @spec annotations that were just created as new links
- * @spec code-binding/annotation-roundtrip/annotate-and-sync
  */
 export async function syncSpecAnnotations(ctx: EmberdeckContext): Promise<SpecSyncResult> {
 
@@ -215,7 +214,6 @@ export interface SymbolSyncResult {
  * - Renamed symbols: update the symbol name in code links.
  * - Moved symbols: update the file path in code links.
  * - Deleted symbols: no auto-delete — reported for manual review.
- * @spec code-binding/annotation-roundtrip/annotate-and-sync
  */
 export async function syncSymbolChanges(
   ctx: EmberdeckContext,
@@ -329,7 +327,6 @@ export interface LinkCoverageResult {
  * Checks how many declared links resolve in gildash, and finds
  * unreferenced symbols in the same files. Applies ignorePatterns
  * patterns to exclude symbols from unreferenced list.
- * @spec code-binding/link-and-coverage/coverage
  */
 export async function getLinkCoverage(
   ctx: EmberdeckContext,
@@ -416,7 +413,6 @@ export interface GetUncoveredSymbolsOptions {
  * Returns all gildash-indexed symbols that are not covered by any card's
  * codeLinks (populated from source `@spec` annotations). Applies
  * ignorePatterns + excludePatterns to filter out files.
- * @spec code-binding/link-and-coverage/coverage
  */
 export async function getUncoveredSymbols(
   ctx: EmberdeckContext,
@@ -538,7 +534,6 @@ export interface SuggestCardScopeOptions {
  *   - single-file scope                  → spec
  *   - directory + domain ancestor        → brief (parent=domain)
  *   - directory + no domain ancestor     → domain (new root-level bounded context)
- * @spec code-binding/link-and-coverage/coverage
  */
 export async function suggestCardScope(
   ctx: EmberdeckContext,

@@ -56,7 +56,6 @@ function validateBulkInput(items: unknown[]): ValidatedBulk {
   return out;
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/bulk-create */
 export async function bulkCreateAction(opts: { from: string }, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const text = opts.from === '-' ? await Bun.stdin.text() : await readFile(opts.from, 'utf-8');
@@ -96,7 +95,6 @@ export async function bulkCreateAction(opts: { from: string }, cmd: Command): Pr
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/bulk-sync */
 export async function bulkSyncAction(
   path: string | undefined,
   _opts: unknown,

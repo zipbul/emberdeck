@@ -18,7 +18,6 @@ import { CardValidationError } from '../card/errors';
  * is already known.
  *
  * @throws {CardValidationError} when the namespace is missing or invalid.
- * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validatePrincipleCard(principle: PrincipleBody | undefined): void {
   if (!principle) {

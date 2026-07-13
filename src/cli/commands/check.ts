@@ -10,7 +10,6 @@ import { checkDrift, checkInteractions } from '../../ops/context';
 import { preChangeCheck, regressionGuard } from '../../ops/impact';
 import { CliUsageError } from '../usage-error';
 
-/** @spec cli-surface/command-routing-and-output/commands/check-drift */
 export async function checkDriftAction(
   key: string | undefined,
   _opts: unknown,
@@ -22,7 +21,6 @@ export async function checkDriftAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/check-coverage */
 export async function checkCoverageAction(
   key: string | undefined,
   opts: { uncovered?: boolean; suggest?: boolean },
@@ -76,7 +74,6 @@ export async function checkCoverageAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/check-impact */
 export async function checkImpactAction(
   files: string[],
   opts: { symbol?: string[] },
@@ -98,7 +95,6 @@ export async function checkImpactAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/check-regression */
 export async function checkRegressionAction(
   files: string[],
   _opts: unknown,
@@ -116,7 +112,6 @@ export async function checkRegressionAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/check-interactions */
 export async function checkInteractionsAction(
   keys: string[],
   _opts: unknown,

@@ -77,7 +77,6 @@ const SIMPLE_ERROR_CODES: Array<[new (...args: never[]) => Error, string]> = [
   [GlossaryValidationError, 'glossary-validation-error'],
 ];
 
-/** @spec cli-surface/command-routing-and-output/runner-and-output */
 export function toCliError(e: unknown): CliErrorLine {
   // Errors that carry structured details first.
   if (e instanceof ConfigLoadError) {

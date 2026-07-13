@@ -1,6 +1,6 @@
 ---
 name: card-vision
-description: emberdeck의 단일 root vision 카드를 만들거나 수정·검증할 때 따르는 판단 — 프로젝트의 방향·미션·north star·정성적 성공. 공통 절차는 card-agent 규율을 함께 따른다.
+description: emberdeck의 단일 root vision 카드를 만들거나 수정·검증할 때 따르는 판단 — 프로젝트가 이루려는 모습, 그 자체로 성립하는 정성적 방향. 공통 절차는 card-agent 규율을 함께 따른다.
 ---
 
 # vision 카드 판단

@@ -28,7 +28,7 @@ describe('vision card end-to-end', () => {
   it('validates a single vision card clean', async () => {
     const { tmp, cleanup } = setupTmpProject();
     try {
-      writeFileSync(join(tmp, '.emberdeck/cards/project-vision.md'), visionCard('project-vision'));
+      writeFileSync(join(tmp, '.emberdeck/cards/my-vision.md'), visionCard('my-vision'));
       const r = await runEd(['validate', 'cards'], tmp);
       expect(r.exitCode).toBe(0);
       const data = JSON.parse(r.stdout);
@@ -41,7 +41,7 @@ describe('vision card end-to-end', () => {
   it('rejects a second vision card (singleton ≤1)', async () => {
     const { tmp, cleanup } = setupTmpProject();
     try {
-      writeFileSync(join(tmp, '.emberdeck/cards/project-vision.md'), visionCard('project-vision'));
+      writeFileSync(join(tmp, '.emberdeck/cards/my-vision.md'), visionCard('my-vision'));
       writeFileSync(join(tmp, '.emberdeck/cards/other-vision.md'), visionCard('other-vision'));
       const r = await runEd(['validate', 'cards'], tmp);
       expect(r.exitCode).not.toBe(0);
@@ -55,9 +55,9 @@ describe('vision card end-to-end', () => {
   it('exposes a vision card through card get', async () => {
     const { tmp, cleanup } = setupTmpProject();
     try {
-      writeFileSync(join(tmp, '.emberdeck/cards/project-vision.md'), visionCard('project-vision'));
+      writeFileSync(join(tmp, '.emberdeck/cards/my-vision.md'), visionCard('my-vision'));
       await runEd(['validate', 'cards'], tmp); // triggers sync
-      const r = await runEd(['card', 'get', 'project-vision'], tmp);
+      const r = await runEd(['card', 'get', 'my-vision'], tmp);
       expect(r.exitCode).toBe(0);
       const data = JSON.parse(r.stdout);
       expect(data.vision?.statement).toContain('source of truth');

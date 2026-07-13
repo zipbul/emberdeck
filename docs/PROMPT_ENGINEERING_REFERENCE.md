@@ -814,7 +814,7 @@ Choose the position with stronger evidence and adopt it as the synthesis directi
 
 ### K2. `description`은 라우팅 트리거 (라벨 아님)
 
-'card-model 변경을 커밋 전 검토' 같은 **WHEN to delegate** + 짧은 capability + 'proactively/즉시 X 후' nudge. **워크플로우·체크리스트·출력은 body로.** 서브에이전트 description엔 예시 블록 넣지 마라(스킬 description 가이드와 다름). 라벨('a card-model expert')은 자동 라우팅이 안정적으로 안 걸림.
+'«key» 변경을 커밋 전 검토' 같은 **WHEN to delegate** + 짧은 capability + 'proactively/즉시 X 후' nudge. **워크플로우·체크리스트·출력은 body로.** 서브에이전트 description엔 예시 블록 넣지 마라(스킬 description 가이드와 다름). 라벨('a «key» expert')은 자동 라우팅이 안정적으로 안 걸림.
 [K-cc][K-blog]
 
 ### K3. 공유 워크플로우는 스킬로 프리로드 (`skills:` frontmatter)

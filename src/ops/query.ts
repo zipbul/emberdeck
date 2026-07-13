@@ -23,7 +23,6 @@ export interface RelationGraphOptions {
   direction?: 'forward' | 'backward' | 'both';
 }
 
-/** @spec card-storage/queries/tree-context */
 export function getRelationGraph(
   ctx: EmberdeckContext,
   fullKey: string,
@@ -97,7 +96,6 @@ export interface GetCardContextOptions {
   depth?: number;
 }
 
-/** @spec card-storage/queries/tree-context */
 export async function getCardContext(
   ctx: EmberdeckContext,
   fullKey: string,
@@ -183,7 +181,6 @@ export interface GetCardResult {
  * @param options - Optional: includeHistory to get changelog.
  * @returns The complete frontmatter + body, optionally with history.
  * @throws {CardNotFoundError} When the file does not exist.
- * @spec card-storage/queries/get-list-search
  */
 export async function getCard(
   ctx: EmberdeckContext,
@@ -217,7 +214,6 @@ export interface GetCardsResult {
  * @param fullKeys - Array of card keys to retrieve.
  * @param options - Optional: includeHistory to get changelog for each card.
  * @returns Cards that were found and a list of keys that were not found.
- * @spec card-storage/queries/get-list-search
  */
 export async function getCards(
   ctx: EmberdeckContext,
@@ -247,7 +243,6 @@ export async function getCards(
  */
 export type CardSummaryRow = Omit<CardRow, 'body'>;
 
-/** @spec card-storage/queries/get-list-search */
 export function listCards(ctx: EmberdeckContext, filter?: CardListFilter): CardSummaryRow[] {
   return ctx.cardRepo.list(filter).map(({ body, ...rest }) => rest);
 }
@@ -278,7 +273,6 @@ export interface SearchCardMatch extends CardSummaryRow {
  * @param query - Search query text. Returns an empty array if the query is empty.
  * @param options - Optional type and status filters.
  * @returns Array of match rows with `snippet` and `rank` for each hit.
- * @spec card-storage/queries/get-list-search
  */
 export function searchCards(
   ctx: EmberdeckContext,
@@ -350,7 +344,6 @@ function toCardSummary(row: CardRow): CardSummary {
  * grouped by direction. Dead links (the relation row references a card that
  * no longer exists) are silently dropped — `ed validate cards` surfaces them.
  *
- * @spec card-storage/queries/get-list-search
  */
 /** [§10 P3.3] Typed trace-edge kinds surfaced from a card's own namespace. */
 export type TraceEdgeType = 'parent' | 'derives' | 'case-of' | 'invokes' | 'cross_domain' | 'shape-ref' | 'scopes';
@@ -377,7 +370,6 @@ function parseRefKey(ref: string): { key: string; item: string } | null {
  * (expose-don't-store). Makes "what does this card connect to" navigable beyond
  * the legacy `relations` field. §10 Phase 3.3
  *
- * @spec card-storage/queries/tree-context
  */
 /** SHP id → owning spec key, over all specs. Build once and pass to
  * deriveTraceEdges to avoid an O(specs) rescan per card in impact's loop. */
@@ -439,7 +431,6 @@ export async function listCardTraceEdges(ctx: EmberdeckContext, fullKey: string)
  * Forward trace edges for a DB card row (no file read) — reconstructs the
  * frontmatter shape deriveTraceEdges needs from the row's namespacesJson + parent.
  * Used by impact analysis to traverse trace dependents without N file reads.
- * @spec card-storage/queries/tree-context
  */
 export function cardRowTraceEdges(ctx: EmberdeckContext, row: CardRow, shpOwnerIndex?: Map<string, string>): TraceEdge[] {
   const ns = parseNamespaces(row.namespacesJson);
@@ -468,7 +459,6 @@ export interface GoverningPrinciple {
  * here via card-key glob match — no stored reverse. `applies_to` globs match
  * CARD KEYS (governance is over the card graph; source-annotation evidence is
  * the separate `binding` verify.class's concern). '*' governs every card.
- * @spec card-storage/queries/tree-context
  */
 export function listGoverningPrinciples(ctx: EmberdeckContext, fullKey: string): GoverningPrinciple[] {
   const cardKey = parseFullKey(fullKey);
@@ -524,7 +514,6 @@ export interface CardTreeNode {
  * @param maxDepth - Maximum tree depth (default 10, capped at 20).
  * @returns Recursive tree structure.
  * @throws {CardNotFoundError} When the root card does not exist.
- * @spec card-storage/queries/tree-context
  */
 export function getCardTree(
   ctx: EmberdeckContext,

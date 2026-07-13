@@ -10,7 +10,6 @@ const CARD_SLUG_RE =
  * @example
  * normalizeSlug(''); // throws CardKeyError
  * normalizeSlug('../evil'); // throws CardKeyError
- * @spec card-model/schema-and-validation/card-key
  */
 export class CardKeyError extends Error {
   constructor(message: string) {
@@ -32,7 +31,6 @@ function assertValidSlug(slug: string): void {
  * @param slug - Input slug. Throws CardKeyError if empty.
  * @returns The normalized slug string.
  * @throws {CardKeyError} When the slug is invalid.
- * @spec card-model/schema-and-validation/card-key
  */
 export function normalizeSlug(slug: string): string {
   const normalized = slug.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
@@ -47,7 +45,6 @@ export function normalizeSlug(slug: string): string {
  * @param fullKey - Card identifier string.
  * @returns The normalized slug.
  * @throws {CardKeyError} When fullKey is empty or invalid.
- * @spec card-model/schema-and-validation/card-key
  */
 export function parseFullKey(fullKey: string): string {
   if (typeof fullKey !== 'string' || fullKey.length === 0) {
@@ -62,7 +59,6 @@ export function parseFullKey(fullKey: string): string {
  * @example
  * buildCardPath('/data/cards', 'auth-token')
  * // → '/data/cards/auth-token.md'
- * @spec card-model/schema-and-validation/card-key
  */
 export function buildCardPath(cardsDir: string, slug: string): string {
   return join(cardsDir, `${slug}.md`);

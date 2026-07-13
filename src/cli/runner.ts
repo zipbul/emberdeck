@@ -5,7 +5,6 @@
  * Per-command actions return `{ data?, exitCode? }`; runner owns lifecycle
  * (cleanup, signal traps, stdout drain, exit).
  *
- * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 
 import type { Command } from 'commander';
@@ -22,7 +21,6 @@ export type CommandFn = (rt: CliRuntime) => Promise<CommandReturn>;
 /**
  * Execute a command with full lifecycle: build runtime, run, emit, exit.
  *
- * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export async function run(fn: CommandFn, cmd: Command): Promise<void> {
   const globalFlags = extractGlobalFlags(cmd.optsWithGlobals());

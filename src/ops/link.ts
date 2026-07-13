@@ -22,7 +22,6 @@ export const GILDASH_ANNOTATION_LIMIT = 10000;
  * owns the file, and routes the call. Subsequent lookups hit the cache.
  *
  * Callers create a fresh instance per operation.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export class SymbolFileCache {
   private readonly cache = new Map<string, SymbolSearchResult[]>();
@@ -83,7 +82,6 @@ export class SymbolFileCache {
 /**
  * Build a `SymbolFileCache` configured with all gildash project names.
  * Use at every site that constructs the cache so monorepos work transparently.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export function makeSymbolFileCache(ctx: EmberdeckContext): SymbolFileCache {
   return new SymbolFileCache(ctx.gildash, gildashProjectNames(ctx));
@@ -132,7 +130,6 @@ async function readCard(ctx: EmberdeckContext, fullKey: string) {
  */
 const reindexedContexts = new WeakSet<EmberdeckContext>();
 
-/** @spec code-binding/link-and-coverage/resolve-and-validate */
 export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
   if (reindexedContexts.has(ctx)) return;
   reindexedContexts.add(ctx);
@@ -148,7 +145,6 @@ export async function ensureReindexed(ctx: EmberdeckContext): Promise<void> {
  * accessors (`listIndexedFiles()`, `getStats()`, `getCyclePaths()` without
  * `project` arg) only see one project's data — usually the alphabetically-first
  * sample app. Iterating all projects is the only way to cover the whole repo.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export function gildashProjectNames(ctx: EmberdeckContext): Array<string | undefined> {
   if (!Array.isArray(ctx.gildash.projects)) return [undefined];
@@ -162,7 +158,6 @@ export function gildashProjectNames(ctx: EmberdeckContext): Array<string | undef
  * first project — in monorepos that misses most of the code. Returning project
  * names lets callers route per-file queries (`getSymbolsByFile`) to the right
  * project. Dedupes by filePath — gildash project boundaries can overlap.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export function listAllIndexedFilesWithProject(
   ctx: EmberdeckContext,
@@ -185,7 +180,6 @@ export function listAllIndexedFilesWithProject(
 
 /**
  * Resolves a card's codeLinks by looking them up in the gildash symbol index.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function resolveCardCodeLinks(
   ctx: EmberdeckContext,
@@ -224,7 +218,6 @@ export interface SymbolMatchResult {
  * Returns the list of cards bound (via `@spec` source annotations populated
  * into code_link) to the given symbol name. Optional file filter narrows the
  * match. Source bindings are the only SoT — boundary globs no longer exist.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function findCardsBySymbol(
   ctx: EmberdeckContext,
@@ -253,7 +246,6 @@ export async function findCardsBySymbol(
  *
  * Returns the original list when gildash is not configured or the call fails.
  * The returned list is deduplicated and contains the original input.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function expandAffectedFiles(
   ctx: EmberdeckContext,
@@ -280,7 +272,6 @@ export async function expandAffectedFiles(
  *
  * Read-only: detects broken links but never mutates card status. Use
  * `ed card set-status <key> drifted` to transition explicitly.
- * @spec code-binding/link-and-coverage/resolve-and-validate
  */
 export async function validateCodeLinks(
   ctx: EmberdeckContext,

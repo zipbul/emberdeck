@@ -124,7 +124,6 @@ const KNOWN_TOP_KEYS = new Set([
 /**
  * Validates the raw parsed result and converts it to `EmberdeckFileConfig`.
  * Collects all unknown keys, type errors, and range errors, then reports them at once.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export function validateRawConfig(
   raw: unknown,
@@ -210,7 +209,6 @@ export function validateRawConfig(
 
 /**
  * Reads, parses, and validates the config file at the specified path.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export async function loadConfigFromPath(
   filePath: string,
@@ -254,7 +252,6 @@ export async function loadConfigFromPath(
 /**
  * Automatically searches for `.emberdeck.jsonc` or `.emberdeck.json` from CWD.
  * If found, loads and validates it; if not found, creates a config with defaults.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export async function loadConfig(
   cwd?: string,
@@ -276,7 +273,6 @@ export async function loadConfig(
 /**
  * Overrides config with CLI args.
  * Args that are undefined are ignored.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export function mergeCliArgs(
   config: EmberdeckFileConfig,
@@ -296,7 +292,6 @@ export function mergeCliArgs(
 
 /**
  * Creates a config using only defaults. Used when no config file exists.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export function buildDefaultConfig(baseDir: string): EmberdeckFileConfig {
   return {

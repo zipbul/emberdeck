@@ -14,7 +14,7 @@
     "src/card/json-fields.ts",
     "src/card/searchable-text.ts",
     // CLI command actions are now individually bound to per-command spec cards
-    // (cli-surface/command-routing-and-output/commands/<key>) via @spec JSDoc on
+    // (one spec card per command) via @spec JSDoc on
     // exported action functions (Phase 2.0). Do NOT ignore src/cli/commands/** or
     // src/cli/index.ts here — gildash must index them so `ed spec sync` can resolve
     // the bindings and `ed card set-status active` can pass the activation guard.
@@ -24,7 +24,7 @@
     "src/cli/parsers.ts",
     "src/cli/confirm.ts",
     "src/cli/context.ts",
-    // DB repository implementations are single-file and covered by card-storage/persistence
+    // DB repository implementations are single-file and covered by persistence spec cards
     "src/db/card-repo.ts",
     "src/db/changelog-repo.ts",
     "src/db/classification-repo.ts",

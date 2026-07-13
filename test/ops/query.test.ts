@@ -594,12 +594,12 @@ describe('listGoverningPrinciples (§5 — governed_by derived via applies_to ca
 
   it('matches a card under a card-key glob, not under an unrelated glob', async () => {
     tc = await createMockTestContext();
-    await createCard(tc.ctx, { key: 'gov-store', summary: 'p', type: 'principle', principle: { ...makeTestPrinciple(), applies_to: ['card-storage/**'], enforcement: 'warning' } });
+    await createCard(tc.ctx, { key: 'gov-store', summary: 'p', type: 'principle', principle: { ...makeTestPrinciple(), applies_to: ['alpha/**'], enforcement: 'warning' } });
     await createCard(tc.ctx, { key: 'gov-other', summary: 'p', type: 'principle', principle: { ...makeTestPrinciple(), applies_to: ['analysis/**'], enforcement: 'warning' } });
     await ensure4tierScaffold(tc.ctx); // _dom
-    await createCard(tc.ctx, { key: 'card-storage/persistence', summary: 's', type: 'spec' });
+    await createCard(tc.ctx, { key: 'alpha/persistence', summary: 's', type: 'spec' });
 
-    const govs = listGoverningPrinciples(tc.ctx, 'card-storage/persistence');
+    const govs = listGoverningPrinciples(tc.ctx, 'alpha/persistence');
     expect(govs.some((g) => g.key === 'gov-store')).toBe(true);
     expect(govs.some((g) => g.key === 'gov-other')).toBe(false);
   });

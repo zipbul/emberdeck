@@ -49,7 +49,6 @@ export interface CheckDriftOptions {
  * Read-only: reports detected drift via `driftType` / `driftTypes` but never
  * mutates card status. Use `ed card set-status <key> drifted` to transition.
  * Draft cards are excluded from drift analysis.
- * @spec analysis/drift-detection/check-drift
  */
 export async function checkDrift(
   ctx: EmberdeckContext,
@@ -205,7 +204,6 @@ export interface InteractionResult {
  * Analyze interactions between a set of cards.
  * Detects shared code symbols, shared files, import dependencies,
  * existing relations, and potential conflicts.
- * @spec analysis/impact-and-aggregate/interactions-and-analyze
  */
 export async function checkInteractions(
   ctx: EmberdeckContext,

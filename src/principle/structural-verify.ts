@@ -14,7 +14,6 @@
  *
  * Pure (no ctx / no IO): callers pass the card graph + forward relations.
  *
- * @spec card-storage/persistence/sync
  */
 
 import type { CardType, PrincipleStructuralPredicate } from '../card/types';

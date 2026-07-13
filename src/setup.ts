@@ -12,7 +12,6 @@ import type { EmberdeckContext, EmberdeckOptions } from './config';
 /**
  * Thrown when `setupEmberdeck` cannot initialize gildash (missing projectRoot,
  * unindexable source tree, etc.). Surfaced as a config-class error to callers.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export class GildashInitError extends Error {
   constructor(message: string) {
@@ -28,7 +27,6 @@ export class GildashInitError extends Error {
  * 2. Initializes gildash against `projectRoot`. Failure is fatal — emberdeck
  *    is a card-to-code binding system and gildash is the binding.
  * 3. Creates repository instances.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export async function setupEmberdeck(options: EmberdeckOptions): Promise<EmberdeckContext> {
   const db = createEmberdeckDb(options.dbPath, { readonly: options.readonly });
@@ -75,7 +73,6 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
  *
  * Closes the gildash index and the SQLite DB connection.
  * Should be called before process exit or when recreating the context.
- * @spec cli-surface/project-setup/setup-config-root
  */
 export async function teardownEmberdeck(ctx: EmberdeckContext): Promise<void> {
   try {

@@ -98,7 +98,6 @@ const UNLINKED_SYMBOLS_LIMIT = 20;
  *
  * Combines check_drift and getUncoveredSymbols into a single report.
  * Always operates on the entire project (no file/symbol params).
- * @spec analysis/impact-and-aggregate/interactions-and-analyze
  */
 export async function analyze(
   ctx: EmberdeckContext,

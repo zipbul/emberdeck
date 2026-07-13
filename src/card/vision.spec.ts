@@ -11,7 +11,7 @@ import { validateVisionCard } from '../vision/validate';
 import { CardValidationError } from './errors';
 
 const VISION_CARD = `---
-key: project-vision
+key: my-vision
 summary: A system that expresses all project design knowledge as cards.
 status: active
 type: vision

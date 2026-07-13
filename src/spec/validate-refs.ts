@@ -43,7 +43,6 @@ function collectBriefFailureFlowIds(brief: BriefBody): Set<string> {
  * @param briefLookup - optional: function to fetch parent brief body by key.
  *   When provided, derives references are resolved against the brief.
  *   When omitted, derives format is validated but target existence is not checked.
- * @spec card-model/schema-and-validation/validate-card-input
  */
 /**
  * Collect derives/case_of reference errors for a spec body WITHOUT throwing.
@@ -52,7 +51,6 @@ function collectBriefFailureFlowIds(brief: BriefBody): Set<string> {
  *
  * Checks: pre/post `derives` → brief#goal, failures `case_of` (v18) → brief#flow.
  * Format is always validated; target existence only when `briefLookup` is given.
- * @spec card-model/schema-and-validation/validate-card-input
  */
 export function collectSpecDeriveErrors(
   spec: SpecBody,

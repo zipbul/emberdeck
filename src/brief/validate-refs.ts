@@ -41,7 +41,6 @@ function collectIds(body: BriefBody): RefSets {
  * @throws {CardValidationError} after accumulating every violation found in the body. The error
  *   message joins each unresolved reference with the offending field path so callers see the
  *   complete list instead of one-at-a-time fast-fail output.
- * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateBriefRefs(body: BriefBody): void {
   const errors: string[] = [];

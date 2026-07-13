@@ -22,7 +22,6 @@ import { CardValidationError } from '../card/errors';
  *
  * @throws {CardValidationError} when the namespace is missing, empty, or
  *   references the card's own key in cross_domain_dependencies.
- * @spec card-model/schema-and-validation/validate-card-input
  */
 export function validateDomainCard(
   domain: DomainBody | undefined,

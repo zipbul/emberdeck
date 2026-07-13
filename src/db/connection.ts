@@ -34,7 +34,6 @@ function configurePragmas(db: EmberdeckDb, readonly = false): void {
  * `opts.readonly` (§10 Phase 1.1) opens the existing DB read-only for write-free
  * validation: no directory creation, no migration, no WAL write. The DB must
  * already exist and be migrated; writes raise SQLITE_READONLY.
- * @spec card-storage/persistence/db-connection
  */
 export function createEmberdeckDb(path: string, opts?: { readonly?: boolean }): EmberdeckDb {
   const readonly = opts?.readonly ?? false;
@@ -55,13 +54,11 @@ export function createEmberdeckDb(path: string, opts?: { readonly?: boolean }): 
 
 /**
  * Run only emberdeck migrations on an existing DB (for CLI integration).
- * @spec card-storage/persistence/db-connection
  */
 export function migrateEmberdeck(db: EmberdeckDb): void {
   migrate(db, { migrationsFolder: getMigrationsFolder() });
 }
 
-/** @spec card-storage/persistence/db-connection */
 export function closeDb(db: EmberdeckDb): void {
   db.$client.close();
 }
@@ -70,7 +67,6 @@ export function closeDb(db: EmberdeckDb): void {
  * Helper to cast a transaction object to EmberdeckDb.
  * drizzle-orm's transaction type does not exactly match EmberdeckDb,
  * requiring the `as unknown as EmberdeckDb` pattern — this function centralizes that cast.
- * @spec card-storage/persistence/db-connection
  */
 export function txDb(tx: unknown): EmberdeckDb {
   return tx as EmberdeckDb;

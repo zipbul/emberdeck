@@ -44,7 +44,7 @@ export interface EmberdeckContext {
   gildash: Gildash;
   /**
    * Optional diagnostic sink, injected by the CLI surface. Ops use this to
-   * surface a non-fatal warning without depending on the cli-surface domain
+   * surface a non-fatal warning without depending on the CLI layer
    * (e.g. a best-effort rollback that partially failed). Undefined outside the
    * CLI (tests/embedding) — callers must treat it as optional (no-op).
    */

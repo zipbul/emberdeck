@@ -722,7 +722,6 @@ function coerceFrontmatter(doc: unknown): CardFrontmatter {
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
 
-/** @spec card-model/round-trip/parse-and-serialize */
 export function parseCard(text: string): CardFile {
   const m = FRONTMATTER_RE.exec(text);
   if (!m) {
@@ -753,7 +752,6 @@ export function parseCard(text: string): CardFile {
  * common fields, then type-specific namespaces. Two equal CardFrontmatter
  * objects always serialize to identical bytes.
  *
- * @spec card-model/round-trip/parse-and-serialize
  */
 const SERIALIZE_KEY_ORDER: ReadonlyArray<keyof CardFrontmatter> = [
   'key', 'summary', 'status', 'type',
@@ -761,7 +759,6 @@ const SERIALIZE_KEY_ORDER: ReadonlyArray<keyof CardFrontmatter> = [
   'vision', 'principle', 'domain', 'brief', 'spec',
 ];
 
-/** @spec card-model/round-trip/parse-and-serialize */
 export function serializeCard(frontmatter: CardFrontmatter): string {
   const ordered: Record<string, unknown> = {};
   for (const k of SERIALIZE_KEY_ORDER) {

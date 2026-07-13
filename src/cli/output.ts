@@ -8,7 +8,6 @@
  * `--quiet` does NOT change shape — only formatting (compact JSON) and
  * suppression of warning/verbose stderr lines.
  *
- * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 
 import { errorMessage } from '../util/error';
@@ -25,7 +24,6 @@ export function buildOutputContext(flags: { quiet?: boolean }): OutputContext {
  * Emit the command's data value to stdout as JSON, then drain the write so a
  * subsequent process.exit doesn't truncate large payloads. EPIPE is silenced
  * per UNIX convention; other write errors propagate to the runner's catch.
- * @spec cli-surface/command-routing-and-output/runner-and-output
  */
 export async function emitResult(data: unknown, ctx: OutputContext): Promise<void> {
   let payload: string;
@@ -47,17 +45,14 @@ export async function emitResult(data: unknown, ctx: OutputContext): Promise<voi
   });
 }
 
-/** @spec cli-surface/command-routing-and-output/runner-and-output */
 export function emitWarning(obj: { code: string; message: string; details?: Record<string, unknown> }): void {
   emitLine({ level: 'warning', ...obj });
 }
 
-/** @spec cli-surface/command-routing-and-output/runner-and-output */
 export function emitError(obj: { code: string; message: string; details?: Record<string, unknown> }): void {
   emitLine({ level: 'error', ...obj });
 }
 
-/** @spec cli-surface/command-routing-and-output/runner-and-output */
 export function emitVerbose(message: string, details?: Record<string, unknown>): void {
   emitLine({ level: 'verbose', code: 'runtime', message, ...(details ? { details } : {}) });
 }

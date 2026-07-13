@@ -110,7 +110,6 @@ function rowToSummary(row: {
 
 // ── actions ──
 
-/** @spec cli-surface/command-routing-and-output/commands/card-get */
 export async function cardGetAction(
   key: string,
   opts: { history?: boolean },
@@ -163,7 +162,6 @@ export async function cardSchemaAction(
   await emitResult(opts.json ? schema.skeleton : schema, buildOutputContext({}));
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-list */
 export async function cardListAction(
   opts: {
     type?: string; status?: string; parent?: string; tag?: string; symbol?: string;
@@ -231,7 +229,6 @@ export async function cardListAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-create */
 export async function cardCreateAction(
   key: string,
   opts: {
@@ -295,7 +292,6 @@ export async function cardCreateAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-update */
 export async function cardUpdateAction(
   key: string,
   opts: { patch?: string; field?: string[]; summary?: string; glossary?: string[]; tag?: string[] },
@@ -336,7 +332,6 @@ export async function cardUpdateAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-delete */
 export async function cardDeleteAction(
   key: string,
   opts: { force?: boolean; yes?: boolean },
@@ -368,7 +363,6 @@ export async function cardDeleteAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-rename */
 export async function cardRenameAction(
   oldKey: string,
   newKey: string,
@@ -389,7 +383,6 @@ export async function cardRenameAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-search */
 export async function cardSearchAction(
   query: string,
   opts: { type?: string; status?: string; limit?: number; offset?: number },
@@ -424,7 +417,6 @@ export async function cardSearchAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-export */
 export async function cardExportAction(
   key: string,
   opts: { out?: string; inPlace?: boolean },
@@ -446,7 +438,6 @@ export async function cardExportAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-set-status */
 export async function cardSetStatusAction(
   key: string,
   status: string,
@@ -468,7 +459,6 @@ export async function cardSetStatusAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-tree */
 export async function cardTreeAction(
   key: string,
   opts: { depth?: number },
@@ -480,7 +470,6 @@ export async function cardTreeAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-context */
 export async function cardContextAction(
   key: string,
   opts: { depth?: number },
@@ -525,7 +514,6 @@ export async function cardContextAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/card-relations */
 export async function cardRelationsAction(
   key: string,
   _opts: unknown,

@@ -16,7 +16,6 @@ async function pathExists(p: string): Promise<boolean> {
   try { await stat(p); return true; } catch { return false; }
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/init */
 export async function initAction(
   opts: { projectRoot?: string; cardsDir?: string; gitignore?: boolean; force?: boolean },
   cmd: Command,
@@ -106,7 +105,6 @@ export async function initAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/analyze */
 export async function analyzeAction(
   opts: { driftedLimit?: number; driftedOffset?: number },
   cmd: Command,
@@ -136,7 +134,6 @@ export async function analyzeAction(
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/reset */
 export async function resetAction(opts: { yes?: boolean }, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     await confirmDestructive({

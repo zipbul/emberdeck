@@ -10,7 +10,6 @@
  * singleton (≤1 per project) and root-only rules are enforced cross-card in
  * ops/sync/validate.ts and at write time in card/validation.ts respectively.
  *
- * @spec card-model/schema-and-validation/validate-card-input
  */
 
 import type { VisionBody } from '../card/types';

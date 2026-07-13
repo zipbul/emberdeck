@@ -59,7 +59,6 @@ export function buildProgram(): Command {
  * commander parse failures (invalid args, unknown options, missing positionals,
  * --help/--version) before any subcommand action runs.
  *
- * @spec cli-surface/command-routing-and-output/commands/runner-commander-fallback
  */
 export async function main(argv: string[] = process.argv): Promise<void> {
   const program = buildProgram();

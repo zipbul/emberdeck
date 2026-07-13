@@ -76,7 +76,6 @@ const CARDS_WARNING_CODES = new Set(['glossary-unused', 'principle-violation-war
  * `glossary-unused` is warning-level — still counted in byCode/output but non-gating
  * (protects the "define glossary term first, reference later" backfill workflow);
  * `glossary-broken` stays an error.
- * @spec cli-surface/command-routing-and-output/commands/validate
  */
 export function cardsExitCode(byCode: Record<string, number>): ExitCode {
   const gating = Object.entries(byCode)
@@ -238,7 +237,6 @@ async function buildLinksShape(rt: CliRuntime, key?: string): Promise<ValidateLi
   };
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/validate-aggregate */
 export async function validateAggregateAction(_opts: unknown, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const cards = await buildCardsShape(rt);
@@ -252,7 +250,6 @@ export async function validateAggregateAction(_opts: unknown, cmd: Command): Pro
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/validate-cards */
 export async function validateCardsAction(_opts: unknown, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const data = await buildCardsShape(rt);
@@ -260,7 +257,6 @@ export async function validateCardsAction(_opts: unknown, cmd: Command): Promise
   }, cmd);
 }
 
-/** @spec cli-surface/command-routing-and-output/commands/validate-links */
 export async function validateLinksAction(
   key: string | undefined,
   _opts: unknown,

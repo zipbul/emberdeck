@@ -12,7 +12,6 @@ import { parseStringArrayJson, parseNamespaces } from '../../card/json-fields';
  * Build a CardFile from the indexed row plus auxiliary tables. Pure — does NOT
  * touch the filesystem. Used by both exportCardToFile (which writes to disk)
  * and CLI `card export` (which can render to STDOUT instead).
- * @spec card-storage/persistence/sync
  */
 export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFile {
   const key = parseFullKey(fullKey);
@@ -51,7 +50,6 @@ export function buildCardFromDb(ctx: EmberdeckContext, fullKey: string): CardFil
 /**
  * Regenerate a card file from the indexed row (reverse sync). Throws when the
  * row was somehow persisted without a filePath (schema NOT NULL invariant).
- * @spec card-storage/persistence/sync
  */
 export async function exportCardToFile(
   ctx: EmberdeckContext,
@@ -70,7 +68,6 @@ export async function exportCardToFile(
 /**
  * Remove an indexed card row whose file has been externally deleted. Invoked
  * by CLI sync commands when a tracked card file is missing.
- * @spec card-storage/persistence/sync
  */
 export function removeCardByFile(ctx: EmberdeckContext, filePath: string): void {
   const existing = ctx.cardRepo.findByFilePath(filePath);
