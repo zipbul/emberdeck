@@ -1,5 +1,0 @@
-{
-  "name": "emberdeck",
-  "description": "Card-based design-knowledge SSOT for Claude Code. Authors and maintains vision/principle/domain/brief/spec cards via the ed CLI; code derives from cards.",
-  "version": "0.1.0"
-}
