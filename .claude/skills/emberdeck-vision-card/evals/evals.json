@@ -1,0 +1,33 @@
+{
+  "skill_name": "emberdeck-vision-card",
+  "evals": [
+    {
+      "id": 0,
+      "name": "create-from-scratch",
+      "prompt": "우리 프로젝트 vision 카드를 emberdeck에 만들어줘. 프로젝트는 '작은 로컬 카페들이 배달앱 수수료 없이 단골 손님에게 직접 주문받게 해주는 서비스'야. 단골이 앱을 열면 그 카페 메뉴가 바로 뜨고, 카페는 중간 수수료 없이 주문을 받아. 아직 카드가 하나도 없는 빈 덱이야.",
+      "expected_output": "A single vision card created in .emberdeck/cards/ via `ed card create --type vision`. vision.statement reads as direction (cafe-customer relationship without delivery-app middlemen), NOT a feature list. rationale names the real problem (delivery-app commissions/loss of direct customer relationship). success_direction is qualitative, no KPI numbers. `ed validate cards` returns total 0, no vision-singleton.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "fix-feature-list-vision",
+      "prompt": "우리 vision 카드 좀 봐줘. statement가 그냥 기능 나열 같고 success_direction은 숫자 목표만 있는데, emberdeck 취지(방향을 담고, 수치는 principle로)에 맞게 제대로 고쳐줘.",
+      "expected_output": "The existing vision card is updated in place (read-modify-write via `ed card update --patch`, all three fields sent). statement is rewritten from a feature list into a direction. success_direction is rewritten from KPI numbers into a qualitative signal (numbers removed / noted as belonging to principle.metric). Card is NOT deleted-and-recreated. `ed validate cards` clean.",
+      "files": ["fixtures/feature-list-vision.md"]
+    },
+    {
+      "id": 2,
+      "name": "update-one-field-only",
+      "prompt": "vision의 success_direction만 좀 더 정성적인 표현으로 다듬어줘. statement랑 rationale은 손대지 말고 그대로 둬.",
+      "expected_output": "Only success_direction changes; statement and rationale are byte-for-byte preserved. Because --patch replaces the whole namespace, the correct behavior is read-modify-write: `ed card get` first, then send all three fields with just success_direction edited. An incomplete patch (only success_direction) would error, so failing to include all three is a failure mode to catch.",
+      "files": ["fixtures/decent-vision.md"]
+    },
+    {
+      "id": 3,
+      "name": "singleton-redirect",
+      "prompt": "결제 도메인용 vision 카드도 하나 추가로 만들어줘. 결제가 워낙 중요하니까 별도 비전이 있으면 좋겠어.",
+      "expected_output": "Does NOT create a second vision card (would trip the singleton rule). Recognizes vision is ≤1 per project and the apex is singular. Redirects: what the user wants is a domain or brief card for payments, or a refinement of the single vision — and says so, rather than silently creating a second vision or blindly running a command that fails validation.",
+      "files": ["fixtures/decent-vision.md"]
+    }
+  ]
+}
