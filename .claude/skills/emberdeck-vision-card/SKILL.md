@@ -41,10 +41,11 @@ describe *this* project (not an "empower everyone to…" mad-lib), in the deck's
 
 ## CLI
 
-Invoke as `ed` if it's on `PATH`; inside the emberdeck source repo use `bun cli.ts` from
-the repo root; in a dependent project `bunx ed`. Examples use `ed` and pass JSON on STDIN
-(`--from -` / `--patch -`) to avoid temp files. After any on-disk change, run
-`ed validate cards` (see **Verify**).
+Invoke as `ed` if emberdeck's `ed` is on `PATH` — check with `ed --version` (bare semver
+like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU Ed`). Inside the
+emberdeck source repo use `bun cli.ts` from the repo root; in a dependent project
+`bunx ed`. Examples use `ed` and pass JSON on STDIN (`--from -` / `--patch -`) to avoid
+temp files. After any on-disk change, run `ed validate cards` (see **Verify**).
 
 ### Create
 

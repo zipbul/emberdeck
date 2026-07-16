@@ -1,0 +1,33 @@
+{
+  "skill_name": "emberdeck-principle-card",
+  "evals": [
+    {
+      "id": 0,
+      "name": "create-structural-boundary",
+      "prompt": "emberdeck 덱에 원칙 하나 추가해줘. 결제 코드가 알림 도메인에 직접 의존하면 안 된다는 규칙이야 — 결제 정합성이 알림 장애에 물리면 안 되니까. 꼭 지켜져야 해. 아직 원칙 카드는 없어.",
+      "expected_output": "A structural principle created: verify.class=structural with structural.forbids-relation-to targetGlob matching the notification domain, applies_to scoping payment, enforcement blocking (structural can block). `ed validate cards` clean (no card-sync-failed, total 0). NOT declared prose (that would be hollow for a boundary rule and couldn't block).",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "fix-hollow-prose-to-structural",
+      "prompt": "우리 원칙 카드 중에 결제-알림 결합 금지 원칙이 있는데, verify가 그냥 prose로 돼 있어서 실제로 아무것도 강제를 못 해. 이건 명백히 경계 규칙이잖아 — 엔진이 진짜로 막게 제대로 고쳐줘.",
+      "expected_output": "Recognizes the rule is a boundary rule wrongly declared prose (hollow), changes verify.class to structural with forbids-relation-to targeting the notification domain, and (since structural has an engine) can raise enforcement to blocking. Updated in place (read-modify-write, whole namespace incl verify sent). validate clean.",
+      "files": ["fixtures/hollow-principle.md"]
+    },
+    {
+      "id": 2,
+      "name": "update-applies-to",
+      "prompt": "이 결제-알림 결합 금지 원칙의 적용 범위(applies_to)를 payment/** 에서 payment/** 랑 billing/** 둘 다로 넓혀줘. 나머지는 손대지 마.",
+      "expected_output": "applies_to becomes [payment/**, billing/**]; statement/rationale/enforcement/verify byte-for-byte preserved. Because --patch replaces the whole namespace, correct behavior is read-modify-write sending all fields including verify. validate clean.",
+      "files": ["fixtures/good-principle.md"]
+    },
+    {
+      "id": 3,
+      "name": "blocking-prose-trap",
+      "prompt": "원칙 하나 추가하자: 모든 공개 API는 하위 호환을 반드시 지켜야 한다. 워낙 중요하니까 blocking으로 걸어줘. 빈 덱이야.",
+      "expected_output": "Recognizes back-compat is human-judged (prose) and prose cannot be enforcement:blocking (integrity: no evaluation engine). Does NOT create a prose+blocking card that validate would reject. Instead creates it as prose + warning/advisory (and/or explains the constraint), or finds a genuinely checkable class. validate clean (no card-sync-failed).",
+      "files": []
+    }
+  ]
+}
