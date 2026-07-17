@@ -11,9 +11,10 @@ description: >-
 
 # emberdeck vision card
 
-vision is the single root of the 5-tier deck (**vision · principle · domain · brief ·
-spec**) — it states, as *direction*, where the project is going, and everything below
-traces up to it.
+vision is the singleton apex of the 5-tier deck (**vision · principle · domain · brief ·
+spec**) — it states, as *direction*, where the project is going, and every card's intent
+ultimately traces back to it. That trace is doctrine, not a parent edge: principle and
+domain cards are also root-level; nothing parents to vision.
 
 ## The card
 
@@ -33,16 +34,17 @@ describe *this* project (not an "empower everyone to…" mad-lib), in the deck's
 
 - **Singleton** — at most one vision per project; a second trips `vision-singleton` at
   validate. "A vision for feature X" wants a *brief* or *domain*, not a second vision.
-- **Root-only** — no parent; `--parent` is a usage error.
+- **Root-only** — no parent; `--parent` is rejected (`parent-validation-error`).
 - **Status** `draft` → `active`; activating requires all three fields non-empty
-  (activation guard). There is no `drifted` (vision isn't bound to code).
+  (activation guard). `drifted` is meant for code-bound cards (brief/spec); the CLI
+  will accept it on a vision, but don't set it.
 - **`--patch` replaces the whole `vision` namespace** — not a field merge. To change one
   field, send all three (read-modify-write); omit one and the patch is rejected.
 
 ## CLI
 
 Invoke as `ed` if emberdeck's `ed` is on `PATH` — check with `ed --version` (bare semver
-like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU Ed`). Inside the
+like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU ed`). Inside the
 emberdeck source repo use `bun cli.ts` from the repo root; in a dependent project
 `bunx ed`. Examples use `ed` and pass JSON on STDIN (`--from -` / `--patch -`) to avoid
 temp files. After any on-disk change, run `ed validate cards` (see **Verify**).
@@ -68,7 +70,7 @@ The `key` (`vision` here) is the filename and how you address the card later.
 ed card get <key>                         # full card JSON incl. the vision namespace
 ed card list --type vision                # find it when you don't know the key
 ed card search "keyword" --type vision    # full-text search
-ed card context <key>                     # the vision + what traces to it
+ed card context <key>                     # the vision + related cards
 ```
 
 ### Update
