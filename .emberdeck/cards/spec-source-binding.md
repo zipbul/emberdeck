@@ -1,16 +1,15 @@
 ---
 key: spec-source-binding
-summary: 모든 active spec은 @spec으로 소스에 바인딩되어야 한다
+summary: draft가 아닌 spec 카드는 소스의 @spec 주석으로 코드에 바인딩되어야 한다
 status: active
 type: principle
 principle:
   statement: >-
-    모든 active spec 카드는 소스 코드에 @spec 주석으로 바인딩되어야 한다(MUST). @spec은 카드와 코드를 잇는 유일한
-    바인딩 메커니즘이다.
+    draft가 아닌(active·drifted) 모든 spec 카드는 소스 코드의 @spec <card-key> 주석으로 바인딩되어야
+    하며(MUST), spec sync가 수집한 code_link 증거가 카드당 1건 이상 존재해야 한다.
   rationale: >-
-    카드가 source of truth로 성립하려면 코드와 검증 가능하게 묶여야 한다. 바인딩 없는 spec은 코드를 대변한다고 주장하지만
-    실제로는 어긋나 거짓말하는 문서가 된다 — 그 결합을 증거(@spec code link)로 강제해야 카드에서 코드를 재생성한다는 명제가
-    지켜진다.
+    spec은 5-tier 중 유일하게 코드와 연결되는 카드다. 바인딩 없는 spec은 어떤 코드가 그 기준을 구현하는지 가리킬 수 없어
+    검증 불가능한 문서로 남고, 카드에서 코드를 재생성한다는 emberdeck의 전제가 그 지점에서 끊어진다.
   applies_to: '*'
   enforcement: blocking
   verify:
