@@ -45,10 +45,13 @@ required** namespaces + three optional:
 | `limits?` | `[{ id, statement }]` — known limitations |
 
 **ID formats are machine-enforced at parse** (regex): goals `G-001`, non-goals
-`NG-001`, assumptions `A-001`, flows `S-H-01`/`S-F-01` (happy/failure), policies
-`R-001`, criteria `SC-001`, external `C-001`, limits `KL-001`. A wrong-format id (or
+`NG-001`, assumptions `A-001`, flows `S-H-01`/`S-F-01`, policies `R-001`, criteria
+`SC-001`, external `C-001`, limits `KL-001`. Format only — id **uniqueness is not
+checked** (never reuse an id), and the flow H/F letter is **not** tied to `kind`
+(only `kind` feeds the ≥1-failure rule) — keep them consistent by convention. A wrong-format id (or
 `alternatives` < 2, or a bad `keyword`) is not caught at create — it surfaces as a
-stderr `card-sync-failed` on the next read and blocks every later CLI read of the card.
+stderr `card-sync-failed` on the next read and blocks the reads that parse the file
+(`get`/`update`/`set-status`); `card list` still serves the stale DB row.
 
 ## The coverage web (checked at activation)
 
@@ -69,11 +72,17 @@ criterion's `verifies` — otherwise the next activation fails.
 ### Rules you cannot break
 
 - **Parent must be a domain.** `--parent <non-domain>` is rejected at create
-  (`parent-validation-error`); a parentless brief can exist as draft but activation
-  rejects it (`brief card must have parent=domain to activate`).
+  (`parent-validation-error`). A parentless brief can be *created* as draft, but
+  activation rejects it (`brief card must have parent=domain to activate`) and
+  `validate` immediately flags it as gating `orphan-card` — parent it before
+  expecting a clean deck.
 - **Active briefs need children.** A non-draft brief with no child spec cards is
   flagged `empty-tree` by `ed validate cards` (gating, exit ≠ 0); only draft is
-  exempt — keep the brief `draft` until its first spec lands.
+  exempt. The activation guard does NOT check this — activation succeeds and the
+  deck fails afterward. So when asked to activate a spec-less brief, don't stop at
+  a successful set-status: end with the deck clean — return the brief to draft
+  (explaining the missing spec) or add its first spec; explaining while leaving
+  validate failing is not done.
 - **Status** `draft` → `active`; `drifted` marks a brief whose code has diverged.
   Nothing sets it automatically — drift analysis (`ed analyze`) only detects and
   reports; the status changes via `set-status` alone. Set it when analysis shows

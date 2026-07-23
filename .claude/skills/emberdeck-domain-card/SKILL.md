@@ -43,11 +43,11 @@ Cross-dependency shape:
   `empty-tree` by `ed validate cards` (findings gate: exit ≠ 0). Only draft domains are
   exempt — so keep a domain `draft` until its first brief lands, or add the brief in
   the same change.
-- **Deps must resolve — at every status.** A dep whose target card doesn't exist is
-  flagged `broken-cross-domain-dep` by `validate` (gating), draft or not — create the
-  target domain first, always. Activation additionally requires non-empty
-  `overview`/`scope` and each target to be a **domain** card. Note create/update accept
-  a free-text `relationship`; only `validate` flags the enum.
+- **Deps must resolve — at every status.** A dep whose target doesn't exist **or isn't
+  a domain card** is flagged `broken-cross-domain-dep` by `validate` (gating), draft or
+  not — create the target domain first, always. Activation re-checks the same target
+  rules and additionally requires non-empty `overview`/`scope`. Note create/update
+  accept a free-text `relationship`; only `validate` flags the enum.
 - **Status** `draft` → `active`. `drifted` is meant for code-bound cards (brief/spec);
   the CLI will accept it on a domain, but don't set it.
 - **`--patch` replaces the whole `domain` namespace** — not a field merge. To change one

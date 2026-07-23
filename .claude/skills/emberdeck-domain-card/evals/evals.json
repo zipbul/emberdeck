@@ -12,22 +12,31 @@
       "id": 1,
       "name": "fix-free-text-relationship",
       "prompt": "ed validate cards 돌렸더니 billing 카드에서 relationship-free-text 가 나와. 뭐가 문제인지 보고 제대로 고쳐줘.",
-      "expected_output": "Recognizes relationship must be the enum invokes|consumes; rewrites the dep as relationship='consumes' (matching '이벤트를 구독한다') with the original prose moved to note. In-place update via read-modify-write (whole domain namespace resent, overview/scope preserved). validate clean afterward.",
-      "files": ["fixtures/free-text-dep.md", "fixtures/notification-domain.md"]
+      "expected_output": "Recognizes relationship must be the enum invokes|consumes; rewrites the dep as relationship='consumes' (matching '이벤트를 구독한다') with the original prose preserved in note (verbatim or lightly rephrased, meaning intact). In-place update via read-modify-write (whole domain namespace resent, overview/scope preserved). validate clean afterward.",
+      "files": [
+        "fixtures/free-text-dep.md",
+        "fixtures/notification-domain.md"
+      ]
     },
     {
       "id": 2,
       "name": "update-scope-only",
       "prompt": "payment 도메인의 scope에 '구독 결제(빌링키 관리)'도 IN으로 추가해줘. overview랑 cross_domain_dependencies는 절대 건드리지 마.",
       "expected_output": "scope gains the subscription-billing IN item; overview byte-for-byte preserved; cross_domain_dependencies preserved exactly (patch must resend them — omitting the optional array would silently drop it). validate clean.",
-      "files": ["fixtures/payment-domain.md", "fixtures/notification-domain.md"]
+      "files": [
+        "fixtures/payment-domain.md",
+        "fixtures/notification-domain.md"
+      ]
     },
     {
       "id": 3,
       "name": "activate-empty-domain-trap",
       "prompt": "payment 도메인 이제 내용 확정됐으니까 active로 올려줘.",
       "expected_output": "Knows an active domain with no child cards is flagged empty-tree by validate (findings gate, exit != 0). Does not leave the deck failing: either keeps/returns the domain to draft and explains it needs its first brief child before activation, or activates it together with a legitimate first brief. Final `ed validate cards` total 0, and the child requirement is explained.",
-      "files": ["fixtures/payment-domain.md", "fixtures/notification-domain.md"]
+      "files": [
+        "fixtures/payment-domain.md",
+        "fixtures/notification-domain.md"
+      ]
     }
   ]
 }

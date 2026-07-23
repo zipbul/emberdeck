@@ -36,9 +36,12 @@ brief:
         - S-H-01
   criteria:
     - id: SC-001
-      type: binary
+      type: numeric
       measure:
-        predicate: 보정 후 오프셋이 허용 범위 안이다
+        predicate: 보정 후 자막 오프셋
+        value: 200
+        comparator: '<='
+        unit: ms
       verifies:
         - S-H-01
   rationale:

@@ -1,0 +1,33 @@
+{
+  "skill_name": "emberdeck-spec-card",
+  "evals": [
+    {
+      "id": 0,
+      "name": "create-bind-activate-loop",
+      "prompt": "warehouse/pick-route 기획은 이미 있어. src/pick.ts의 computePickRoute 함수 계약을 spec 카드로 만들고, 코드에 바인딩해서 활성화까지 마무리해줘.",
+      "expected_output": "Spec card under warehouse/pick-route with all 4 required arrays (>=1 each), derives pointing at real brief goals (warehouse/pick-route#G-001) and case_of at S-F-01. The full binding loop executed in order: /** @spec <key> */ added to computePickRoute in src/pick.ts, `ed spec sync`, then set-status active succeeds. validate total 0, stderr quiet.",
+      "files": ["fixtures/warehouse-domain.md", "fixtures/pick-route-brief.md", "fixtures/pick.ts"]
+    },
+    {
+      "id": 1,
+      "name": "fix-broken-derives",
+      "prompt": "ed validate cards 돌리면 ledger/close-month/run에서 broken-derives가 떠. 원인 보고 제대로 고쳐줘.",
+      "expected_output": "Diagnoses that PRE-001.derives points at nonexistent G-999 (target-existence is validate-time, not activation-time). Fixes it to the real goal (ledger/close-month#G-001) in place via read-modify-write (all 4 arrays resent). validate total 0 afterward; card stays active.",
+      "files": ["fixtures/ledger-domain.md", "fixtures/close-month-brief.md", "fixtures/close-month-spec-broken.md"]
+    },
+    {
+      "id": 2,
+      "name": "add-shape-with-reference",
+      "prompt": "warehouse/pick-route/compute spec에 출력 형태를 SHP shape로 선언하고, POST-001이 그 shape를 참조하게 바꿔줘. 나머지는 건드리지 마.",
+      "expected_output": "A shapes[] entry added (SHP id, role output, schema describing PickStep[] form) and POST-001.references set to that SHP id. All other entries byte-preserved; the optional array added without dropping required ones (read-modify-write, whole namespace). validate total 0 (a wrong ref would be broken-shape-ref).",
+      "files": ["fixtures/warehouse-domain.md", "fixtures/pick-route-brief.md", "fixtures/pick-route-spec-good.md"]
+    },
+    {
+      "id": 3,
+      "name": "activate-unbound-trap",
+      "prompt": "geo/route-eta/estimate spec 이제 내용 확정됐으니 active로 올려줘.",
+      "expected_output": "Activation is rejected: the code index is non-empty (src/eta.ts) but the card has no @spec binding. Correct resolution: add /** @spec geo/route-eta/estimate */ to estimateEta in src/eta.ts, run `ed spec sync`, then activate — not hand-editing status in the file or giving up. Final validate total 0, card active with a resolved binding.",
+      "files": ["fixtures/geo-domain.md", "fixtures/route-eta-brief.md", "fixtures/route-eta-spec-draft.md", "fixtures/eta.ts"]
+    }
+  ]
+}

@@ -82,8 +82,10 @@ Three engine facts to get right:
   only — a `draft` (or `drifted`) principle enforces nothing. Activate it before
   expecting violations.
 - **Glob semantics**: `foo/**` matches keys *under* `foo` but not `foo` itself. To cover
-  a domain card and its subtree, write `["foo", "foo/**"]` in `applies_to`, or
-  `{foo,foo/**}` (brace form) in `targetGlob`.
+  a domain card and its subtree, write `["foo", "foo/**"]` in `applies_to`. The
+  single-string `targetGlob` needs `{foo,foo/**/*}` — NOT `{foo,foo/**}`: a trailing
+  `**` inside braces silently stops matching below depth 1, so spec-level `invokes`
+  edges (depth 2) would slip through a blocking boundary.
 - **Only non-draft cards are evaluated**: in-scope `active` and `drifted` cards are
   checked; `draft` ones are skipped — while everything in scope is still `draft`, even a
   `blocking` principle is dormant.
@@ -98,9 +100,12 @@ emberdeck source repo use `bun cli.ts` from the repo root; in a dependent projec
 **`card create` does not deeply validate the principle body — the parser does, on the
 next read.** Integrity errors (missing `verify`, `prose`/`metric` marked `blocking`, a
 `structural` class with no predicate) surface as **stderr** `card-sync-failed` warnings
-when any later command syncs the file — they never enter `validate`'s JSON, `total`, or
-exit code, and `-q` hides them. So after create/update, run `ed validate cards`, watch
-stderr, and treat a `card-sync-failed` on a principle as a real failure to fix.
+when any later command syncs the file. For a card the CLI itself created (it has a DB
+row), they never enter `validate`'s JSON, `total`, or exit code — and `-q` hides them;
+worse, `create --status active` still mints an **active** DB row that `list` serves as
+healthy. A malformed file with **no** DB row (e.g. hand-dropped) instead gates
+`validate` as `orphan-file` (exit ≠ 0). So after create/update, run `ed validate cards`,
+watch stderr, and treat a `card-sync-failed` on a principle as a real failure to fix.
 
 ## Create
 
@@ -109,12 +114,12 @@ stderr, and treat a `card-sync-failed` on a principle as a real failure to fix.
 
 ```bash
 echo '{ "principle": {
-  "statement": "Payment code MUST NOT depend on the notification domain.",
+  "statement": "The payment domain MUST NOT depend on the notification domain.",
   "rationale": "Coupling payment to notification exposes payment integrity to notification outages.",
   "applies_to": ["payment", "payment/**"],
   "enforcement": "blocking",
   "verify": { "class": "structural",
-              "structural": { "kind": "forbids-relation-to", "targetGlob": "{notification,notification/**}" } }
+              "structural": { "kind": "forbids-relation-to", "targetGlob": "{notification,notification/**/*}" } }
 } }' | ed card create no-payment-notif-coupling --type principle \
         --summary "payment must not couple to notification" --from -
 

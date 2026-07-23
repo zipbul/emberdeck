@@ -19,7 +19,7 @@
       "id": 2,
       "name": "update-applies-to",
       "prompt": "이 결제-알림 결합 금지 원칙의 적용 범위(applies_to)를 payment/** 에서 payment/** 랑 billing/** 둘 다로 넓혀줘. 나머지는 손대지 마.",
-      "expected_output": "applies_to becomes [payment/**, billing/**]; statement/rationale/enforcement/verify byte-for-byte preserved. Because --patch replaces the whole namespace, correct behavior is read-modify-write sending all fields including verify. validate clean.",
+      "expected_output": "applies_to widened to cover both payment and billing scopes — per glob semantics the complete form is [payment, payment/**, billing, billing/**] (bare keys included so the domain cards themselves stay covered); statement/rationale/enforcement/verify byte-for-byte preserved. Because --patch replaces the whole namespace, correct behavior is read-modify-write sending all fields including verify. validate clean.",
       "files": ["fixtures/good-principle.md"]
     },
     {
