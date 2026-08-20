@@ -48,6 +48,11 @@ export async function glossaryDefineAction(
   cmd: Command,
 ): Promise<void> {
   await run(async (rt: CliRuntime) => {
+    // These commands write glossary.yaml; --read-only must not mutate the
+    // project, so refuse rather than write and report success.
+    if (rt.ctx.readonly) {
+      throw new CliUsageError('glossary define writes glossary.yaml and cannot run with --read-only');
+    }
     let entries: Array<{ word: string; definition: string }> = [];
     if (opts.from) entries = await loadEntriesFromFile(opts.from);
     for (const arg of pairs) entries.push(parseDefinitionPair(arg));
@@ -112,6 +117,11 @@ export async function glossaryRemoveAction(
   cmd: Command,
 ): Promise<void> {
   await run(async (rt: CliRuntime) => {
+    // These commands write glossary.yaml; --read-only must not mutate the
+    // project, so refuse rather than write and report success.
+    if (rt.ctx.readonly) {
+      throw new CliUsageError('glossary remove writes glossary.yaml and cannot run with --read-only');
+    }
     await confirmDestructive({
       yes: !!opts.yes,
       opName: 'glossary remove',
@@ -129,6 +139,11 @@ export async function glossaryRenameAction(
   cmd: Command,
 ): Promise<void> {
   await run(async (rt: CliRuntime) => {
+    // These commands write glossary.yaml; --read-only must not mutate the
+    // project, so refuse rather than write and report success.
+    if (rt.ctx.readonly) {
+      throw new CliUsageError('glossary rename writes glossary.yaml and cannot run with --read-only');
+    }
     const result = await renameGlossary(rt.ctx, oldWord, newWord, opts.def);
     const data: {
       oldWord: string;

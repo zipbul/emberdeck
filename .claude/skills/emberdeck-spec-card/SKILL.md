@@ -64,6 +64,12 @@ or not the target exists, stacking with `broken-derives` when it doesn't), and
 
 ## Source binding (the point of spec)
 
+**A binding is a conformance claim, not mere linkage** — `@spec` on a symbol declares
+"this code implements this contract," and nothing machine-checks that the claim is true.
+Writing the spec ahead of the code? Keep the card **draft** and do not annotate until the
+implementation actually conforms; binding and activating against a known-nonconforming
+symbol makes the deck assert a falsehood.
+
 - **When the code index is empty** (no `projectRoot`, or nothing indexed yet),
   activation treats it as "no information" and demands nothing.
 - **When the index is non-empty**, activation requires ≥1 cached binding for this card
@@ -91,7 +97,12 @@ The cache is **additive**: sync adds newly discovered links but never deletes ro
 removed annotation is only *reported* under `markerMissing` in the sync output — the
 stale row remains and keeps satisfying activation and binding principles. So after any
 annotation change, read the sync output: a non-empty `markerMissing` means the card's
-declared binding no longer exists in source even though everything still passes.
+declared binding no longer exists in source even though everything still passes. For a
+source **symbol rename or file move**, run `ed spec sync-symbols` (then `spec sync`) —
+ordinary sync only adds, never repairs moved links. A **card rename** (`ed card rename`)
+rewrites neither inbound `invokes`/failure-`owner` references nor `@spec` marker text in
+source — rewrite those, sync, and check `unmatched`/`markerMissing` before calling the
+rename done.
 
 ### Rules you cannot break
 
@@ -133,10 +144,13 @@ Invoke as `ed` if emberdeck's `ed` is on `PATH` — check with `ed --version` (b
 like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU ed`). Inside the
 emberdeck source repo use `bun cli.ts` from the repo root; in a dependent project
 `bunx ed`. Examples use `ed` and pass JSON on STDIN (`--from -` / `--patch -`).
+In a deck with a `glossary.yaml`, every `card create` additionally requires
+`--glossary <existing-word>` — without it create fails (`glossary field is required
+when project glossary exists`).
 
 ## Create
 
-`ed card schema spec` shows the shape. The parent brief must exist first. Default
+`ed card schema spec` shows the shape. A top-level spec's parent brief must exist first; a sub-spec's parent spec must exist first. Default
 `draft` is right: activate only after the @spec annotation is in the source and
 `ed spec sync` has cached it.
 

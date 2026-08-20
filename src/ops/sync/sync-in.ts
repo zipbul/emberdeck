@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import type { EmberdeckContext } from '../../config';
 import type { CardRow } from '../../db/repository';
 import type { CardFile } from '../../card/types';
@@ -61,9 +62,14 @@ export async function ensureCardsSynced(ctx: EmberdeckContext): Promise<CardSync
   }
   const fileSet = new Set(cardFiles);
 
-  for (const row of ctx.cardRepo.list()) {
-    if (!fileSet.has(row.filePath)) {
-      ctx.cardRepo.deleteByKey(row.key);
+  // Read-only mode must not write: skip absorbing deletions. The divergence is
+  // still reported — `validate cards` sees the row without a file as a
+  // stale-db-row finding.
+  if (!ctx.readonly) {
+    for (const row of ctx.cardRepo.list()) {
+      if (!fileSet.has(row.filePath)) {
+        ctx.cardRepo.deleteByKey(row.key);
+      }
     }
   }
 
@@ -86,25 +92,51 @@ async function* upsertCardsInTierOrder(
   ctx: EmberdeckContext,
   cardFiles: string[],
   prereadFiles?: ReadonlyMap<string, CardFile>,
+  baseDir?: string,
 ): AsyncGenerator<{ filePath: string; error: string }> {
   type Parsed = { key: string; parent: string | null };
   const parsed = new Map<string, Parsed>();
   const toRead = prereadFiles
     ? cardFiles.filter((f) => !prereadFiles.has(f))
     : cardFiles;
+  // Key ↔ path consistency is a file-level defect. It is checked here rather
+  // than left to the DB's UNIQUE(file_path) constraint — that only fires when a
+  // write happens, so a read-only run would certify the file as clean — and it
+  // must cover BOTH the preread and the freshly-read branch, or a caller that
+  // supplies prereadFiles (bulk sync) writes a phantom row.
+  const keyPathError = (filePath: string, declaredKey: string): string | null => {
+    const pathKey = relative(baseDir ?? ctx.cardsDir, filePath).replace(/\.md$/, '');
+    return declaredKey === pathKey
+      ? null
+      : `card key "${declaredKey}" does not match its path-derived key "${pathKey}"`;
+  };
+  const keyPathFailures: Array<{ filePath: string; error: string }> = [];
   if (prereadFiles) {
     for (const f of cardFiles) {
       const pre = prereadFiles.get(f);
-      if (pre) parsed.set(f, { key: pre.frontmatter.key, parent: pre.frontmatter.parent ?? null });
+      if (!pre) continue;
+      const err = keyPathError(f, pre.frontmatter.key);
+      if (err) {
+        keyPathFailures.push({ filePath: f, error: err });
+        continue;
+      }
+      parsed.set(f, { key: pre.frontmatter.key, parent: pre.frontmatter.parent ?? null });
     }
   }
+  for (const f of keyPathFailures) yield f;
   for await (const { item: filePath, result } of batchedAllSettled(toRead, 20, readCardFile)) {
     if (result.status === 'rejected') {
       yield { filePath, error: errorMessage(result.reason) };
       continue;
     }
+    const declaredKey = result.value.frontmatter.key;
+    const kpErr = keyPathError(filePath, declaredKey);
+    if (kpErr) {
+      yield { filePath, error: kpErr };
+      continue;
+    }
     parsed.set(filePath, {
-      key: result.value.frontmatter.key,
+      key: declaredKey,
       parent: result.value.frontmatter.parent ?? null,
     });
   }
@@ -147,6 +179,12 @@ async function* upsertCardsInTierOrder(
       yield { filePath, error: `parent card "${missingParent}" not found (neither in the indexed cache nor in the current sync batch)` };
     }
   }
+
+  // Read-only mode: every content-derived failure (unreadable file, missing
+  // parent, parent cycle) has already been yielded above without touching the
+  // DB. Only the upsert remains, and it cannot run — skipping it keeps those
+  // real findings while emitting no write-failure noise.
+  if (ctx.readonly) return;
 
   // Wave-by-wave upsert; within a wave there are no parent dependencies so
   // bounded parallelism is safe.
@@ -273,7 +311,7 @@ export async function bulkSyncCards(
   const safeFiles = cardFiles.filter((f) => !duplicateFiles.has(f) && !readFailures.has(f));
   const failedFiles = new Set<string>();
 
-  for await (const { filePath, error } of upsertCardsInTierOrder(ctx, safeFiles, prereadFiles)) {
+  for await (const { filePath, error } of upsertCardsInTierOrder(ctx, safeFiles, prereadFiles, targetDir)) {
     errors.push({ filePath, error: new Error(error) });
     failedFiles.add(filePath);
   }

@@ -1,3 +1,4 @@
+import { assertReadableFrontmatter } from '../card/serialize';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -145,20 +146,6 @@ export async function createCard(
         validateCardGlossaryField(input.glossary, glossaryEntries);
       }
 
-      // Activation guard (namespace-based — body is free-form, no section check)
-      if (status === 'active') {
-        await validateActivationGuard(ctx, {
-          type: input.type,
-          parent: input.parent ?? null,
-          vision: input.vision,
-          principle: input.principle,
-          domain: input.domain,
-          brief: input.brief,
-          spec: input.spec,
-          key: fullKey,
-        }, validateSpecSourceBindings);
-      }
-
       const frontmatter = {
         key: fullKey,
         summary: input.summary,
@@ -174,6 +161,25 @@ export async function createCard(
         ...(input.brief ? { brief: input.brief } : {}),
         ...(input.spec ? { spec: input.spec } : {}),
       };
+
+      // Readability first: a body the reader rejects must surface as a
+      // validation error, never as a checker crash leaking out of the
+      // activation guard (which assumes normalized shapes).
+      assertReadableFrontmatter(frontmatter);
+
+      // Activation guard (namespace-based — body is free-form, no section check)
+      if (status === 'active') {
+        await validateActivationGuard(ctx, {
+          type: input.type,
+          parent: input.parent ?? null,
+          vision: input.vision,
+          principle: input.principle,
+          domain: input.domain,
+          brief: input.brief,
+          spec: input.spec,
+          key: fullKey,
+        }, validateSpecSourceBindings);
+      }
 
       const card: CardFile = { filePath, frontmatter };
       // Searchable namespace text for FTS5 indexing.

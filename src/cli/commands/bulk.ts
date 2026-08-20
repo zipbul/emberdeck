@@ -101,6 +101,11 @@ export async function bulkSyncAction(
   cmd: Command,
 ): Promise<void> {
   await run(async (rt: CliRuntime) => {
+    // `sync` exists to write the index. Under --read-only it cannot, and
+    // silently reporting a synced count would be a fabricated success.
+    if (rt.ctx.readonly) {
+      throw new CliUsageError('bulk sync writes the index and cannot run with --read-only');
+    }
     if (path) {
       let s;
       try {

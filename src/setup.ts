@@ -64,6 +64,7 @@ export async function setupEmberdeck(options: EmberdeckOptions): Promise<Emberde
     changelogRepo: new DrizzleChangelogRepository(db),
     ignorePatterns: options.ignorePatterns ?? [],
     regressionThreshold: options.regressionThreshold ?? 0,
+    readonly: options.readonly ?? false,
     gildash,
   };
 }

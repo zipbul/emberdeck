@@ -4,7 +4,10 @@ import type { EmberdeckContext } from '../../config';
 import type { CardRow, RelationRow } from '../../db/repository';
 import type { CardType, SpecBody, BriefBody, PrincipleBody, DomainBody } from '../../card/types';
 import { readCardFile } from '../../fs/reader';
+import { errorMessage } from '../../util/error';
 import { readGlossary } from '../../glossary/io';
+import { validateActivationGuard } from '../../card/validation';
+import { ActivationGuardError } from '../../card/errors';
 import { parseStringArrayJson, parseCrossDomainDependencies, parseNamespaces, serializeNamespaces } from '../../card/json-fields';
 import { collectSpecDeriveErrors } from '../../spec/validate-refs';
 import { collectSpecCrossCardErrors, type SpecNode } from '../../spec/validate-cross-card';
@@ -76,7 +79,19 @@ export async function validateCards(
   dirPath?: string,
 ): Promise<CardValidationResult> {
   const targetDir = dirPath ?? ctx.cardsDir;
-  const cardFiles = await listCardFiles(targetDir);
+  // cardsDir may not exist yet during `ed init` or after `ed reset` — an
+  // unmaterialized directory is an empty deck, not a crash. Mirrors
+  // ensureCardsSynced, which already treats it that way.
+  let cardFiles: string[];
+  try {
+    cardFiles = await listCardFiles(targetDir);
+  } catch (e) {
+    // ENOENT only: an unmaterialized directory is an empty deck. Any other
+    // enumeration failure (ENOTDIR, EACCES, …) is a real I/O/configuration
+    // fault and must not be certified as a clean empty deck.
+    if ((e as NodeJS.ErrnoException)?.code !== 'ENOENT') throw e;
+    cardFiles = [];
+  }
 
   const fileSet = new Set(cardFiles);
   const dbRows = ctx.cardRepo.list();
@@ -320,7 +335,7 @@ export async function validateCards(
       warnings.push({
         type: 'empty-tree',
         cardKey: row.key,
-        message: `Active ${row.type} card has no child cards`,
+        message: `${row.status} ${row.type} card has no child cards`,
       });
     }
   }
@@ -449,8 +464,71 @@ export async function validateCards(
           message: `DB namespace body differs from file (re-sync needed)`,
         });
       }
+      // The projection must be faithful in identity too, not only in the
+      // namespace body. Every graph check below reads the indexed row, so a
+      // file whose parent/type/status/summary diverged is judged as the stale
+      // row says — the deck's own hierarchy could be violated in the file and
+      // invisible here. Compare them explicitly.
+      // status and summary are already compared above; parent and type were
+      // not, and they are exactly the fields every graph check below depends on.
+      const identity: Array<[string, unknown, unknown]> = [
+        ['parent', file.frontmatter.parent ?? null, row.parent ?? null],
+        ['type', file.frontmatter.type, row.type],
+      ];
+      for (const [field, fileValue, dbValue] of identity) {
+        if (fileValue !== dbValue) {
+          warnings.push({
+            type: 'content-mismatch',
+            cardKey: row.key,
+            message: `DB ${field} differs from file (file: ${String(fileValue)}, index: ${String(dbValue)}) — re-sync needed`,
+          });
+        }
+      }
+    } catch (e) {
+      // The file backing an indexed row does not parse. It is neither an
+      // orphan file nor a stale row, so nothing else reports it — without
+      // this the deck is corrupt while validate says it is clean.
+      warnings.push({
+        type: 'unreadable-card',
+        cardKey: row.key,
+        message: `Card file does not parse: ${errorMessage(e)}`,
+      });
+    }
+  }
+
+  // Non-draft body integrity: a card claiming to be in effect must still
+  // satisfy the conditions activation would demand. Activation only runs at
+  // set-status, so a hand-edited file can otherwise sit `active` while being
+  // exactly what activation would refuse. Source-binding resolution is
+  // deliberately omitted (that is `validate links`' object, not this one).
+  for (const row of dbRows) {
+    let fm;
+    try {
+      const parsed = await readCardFile(row.filePath);
+      if (!parsed) continue;
+      fm = parsed.frontmatter;
     } catch {
-      // File unreadable — already surfaced by orphanFiles / staleDbRows.
+      continue; // unreadable — already reported above
+    }
+    // Files are authoritative: judge the status the file declares, not the
+    // possibly-stale indexed one.
+    if (fm.status === 'draft') continue;
+    try {
+      await validateActivationGuard(ctx, {
+        type: fm.type,
+        parent: fm.parent ?? null,
+        vision: fm.vision,
+        principle: fm.principle,
+        domain: fm.domain,
+        brief: fm.brief,
+        spec: fm.spec,
+        key: fm.key,
+      });
+    } catch (e) {
+      const unmets = e instanceof ActivationGuardError ? e.unmetConditions : [errorMessage(e)];
+      for (const unmet of unmets) {
+        warnings.push({ type: 'active-body-invalid', cardKey: row.key, message: unmet });
+      }
     }
   }
 

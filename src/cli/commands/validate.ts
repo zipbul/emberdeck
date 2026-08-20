@@ -27,7 +27,7 @@ interface CardsItem {
 }
 
 interface FileLevelIssue {
-  code: 'orphan-file' | 'stale-db-row' | 'key-mismatch';
+  code: 'orphan-file' | 'stale-db-row' | 'key-mismatch' | 'card-sync-failed';
   message: string;
   filePath: string;
   key?: string;
@@ -126,6 +126,28 @@ async function buildCardsShape(rt: CliRuntime): Promise<ValidateCardsShape> {
       filePath: orphan,
     });
     bump('orphan-file');
+  }
+  // A sync failure on a file that is NOT an orphan (it still has an indexed
+  // row) is otherwise reported only as a stderr warning — invisible in the
+  // structured result, erased by -q, and exit 0. The file and the index have
+  // diverged and nothing else names it, so it gates here.
+  const unreadablePaths = new Set(
+    result.warnings.filter((w) => w.type === 'unreadable-card')
+      .map((w) => rt.ctx.cardRepo.findByKey(w.cardKey)?.filePath)
+      .filter((p): p is string => Boolean(p)),
+  );
+  const orphanSet = new Set(result.orphanFiles);
+  for (const [filePath, error] of syncFailuresByPath) {
+    if (orphanSet.has(filePath)) continue;
+    // A file that already surfaced as unreadable is not reported twice — the
+    // parse failure is the more specific finding.
+    if (unreadablePaths.has(filePath)) continue;
+    fileLevelIssues.push({
+      code: 'card-sync-failed',
+      message: `file could not be synced into the index: ${filePath} — ${error}`,
+      filePath,
+    });
+    bump('card-sync-failed');
   }
   for (const km of result.keyMismatches) {
     fileLevelIssues.push({
@@ -250,6 +272,7 @@ export async function validateAggregateAction(_opts: unknown, cmd: Command): Pro
   }, cmd);
 }
 
+/** @spec validation/card-integrity/validate-cards */
 export async function validateCardsAction(_opts: unknown, cmd: Command): Promise<void> {
   await run(async (rt: CliRuntime) => {
     const data = await buildCardsShape(rt);

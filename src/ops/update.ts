@@ -29,6 +29,7 @@ import { validateCardGlossaryField } from '../glossary/validation';
 // Body section validation removed — namespace is canonical, body is free-form.
 
 import { readCardFileOrThrow } from '../fs/reader';
+import { assertReadableFrontmatter } from '../card/serialize';
 import { writeCardFile } from '../fs/writer';
 import { DrizzleCardRepository } from '../db/card-repo';
 import { DrizzleRelationRepository } from '../db/relation-repo';
@@ -328,6 +329,11 @@ export async function updateCard(
       // Critical fields = anything the guard inspects: type / parent /
       // principle / domain / brief / spec namespaces. Source bindings are
       // refreshed by `ed spec sync`, not by card update.
+      // The patch must produce a card the reader can read. Runs before the
+      // activation guard so an unreadable body is reported as a validation
+      // error rather than reaching the write (or crashing the FTS indexer).
+      assertReadableFrontmatter(next);
+
       const activationFieldsChanged =
         prev.status === 'active' &&
         fields.status === undefined &&

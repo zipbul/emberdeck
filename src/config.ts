@@ -40,6 +40,8 @@ export interface EmberdeckContext {
   ignorePatterns: string[];
   /** Regression guard threshold (0-1). 0 = any drifted card fails */
   regressionThreshold: number;
+  /** True when the DB was opened read-only (`--read-only`): no write is possible. */
+  readonly: boolean;
   /** Gildash instance. Always initialized (setupEmberdeck throws if Gildash.open fails). */
   gildash: Gildash;
   /**

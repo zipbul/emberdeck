@@ -74,6 +74,9 @@ Invoke as `ed` if emberdeck's `ed` is on `PATH` — check with `ed --version` (b
 like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU ed`). Inside the
 emberdeck source repo use `bun cli.ts` from the repo root; in a dependent project
 `bunx ed`. Examples use `ed` and pass JSON on STDIN (`--from -` / `--patch -`).
+In a deck with a `glossary.yaml`, every `card create` additionally requires
+`--glossary <existing-word>` — without it create fails (`glossary field is required
+when project glossary exists`).
 
 ## Create
 
@@ -120,7 +123,16 @@ echo '{ "domain": { "overview": "…unchanged…", "scope": "…edited…",
 
 ed card update <key> --summary "…"            # summary only
 ed card set-status <key> active --reason "…"  # re-runs the activation guard
+ed card rename <old> <new>                    # moves the file, rewrites incoming deps and
+                                              # children's parent pointers — but NOT child
+                                              # keys (rename each child too) and NOT
+                                              # principle scopes (see the principle skill)
 ```
+
+To split or merge domains, move each brief with a parent-only patch
+(`echo '{"parent":"<dest-domain>"}' | ed card update <brief> --patch -`) — don't
+`--force`-delete the source first (that detaches its briefs into gating orphans). Empty
+the source, then draft or delete it.
 
 ## Delete
 
@@ -147,5 +159,8 @@ After every create/update/delete, run `ed validate cards` and read the findings:
   it counts in `summary.total` but doesn't gate the exit code); it usually means the
   boundary is cut wrong — merge or re-cut (see **Carving**).
 
-Fix and re-run until `summary.total` is `0`. Don't report the task done without a clean
-validate.
+Also watch **stderr**: a `card-sync-failed` warning means the domain file no longer
+parses while the JSON stays `total 0` — repair the `.md` by hand or delete + recreate.
+
+Fix and re-run until `summary.total` is `0` and stderr is quiet. Don't report the task
+done without both.

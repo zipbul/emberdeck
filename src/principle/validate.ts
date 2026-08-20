@@ -8,6 +8,7 @@
 
 import type { PrincipleBody } from '../card/types';
 import { CardValidationError } from '../card/errors';
+import { assertReadablePrincipleBody } from '../card/serialize';
 
 /**
  * Validate that a principle card has a usable structured body.
@@ -30,4 +31,9 @@ export function validatePrincipleCard(principle: PrincipleBody | undefined): voi
       'principle.applies_to must be "*" or non-empty array',
     );
   }
+  // Integrity rules (verify required, prose/metric cannot block, structural
+  // needs a predicate) live in the parser. Re-run them here so activation is
+  // never weaker than a read: an unreadable card must not be able to hold
+  // `active`.
+  assertReadablePrincipleBody(principle);
 }

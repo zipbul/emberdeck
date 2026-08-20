@@ -759,6 +759,32 @@ const SERIALIZE_KEY_ORDER: ReadonlyArray<keyof CardFrontmatter> = [
   'vision', 'principle', 'domain', 'brief', 'spec',
 ];
 
+/**
+ * Assert that a principle body satisfies the reader's integrity rules (verify
+ * required; prose/metric cannot be `blocking`; structural needs a predicate).
+ * Exported so the activation guard enforces exactly the parser's contract.
+ *
+ * @throws {CardValidationError} with the reader's own message.
+ */
+export function assertReadablePrincipleBody(principle: unknown): void {
+  normalizePrincipleBody(principle);
+}
+
+/**
+ * Assert that `frontmatter` is readable: run it through the very normalizers
+ * `parseCard` applies on read. Write paths call this before persisting so a
+ * card can never be written in a shape the reader would later reject (which
+ * would leave a file the CLI itself cannot `get`/`update`/`set-status`).
+ *
+ * Delegates to the parser rather than duplicating rules, so the write gate can
+ * never drift from the read contract.
+ *
+ * @throws {CardValidationError} with the reader's own message.
+ */
+export function assertReadableFrontmatter(frontmatter: CardFrontmatter): void {
+  parseCard(serializeCard(frontmatter));
+}
+
 export function serializeCard(frontmatter: CardFrontmatter): string {
   const ordered: Record<string, unknown> = {};
   for (const k of SERIALIZE_KEY_ORDER) {

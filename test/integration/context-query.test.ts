@@ -316,7 +316,7 @@ describe('getCardContext traceEdges (§10 P3.3b)', () => {
 
   it('includes governedBy (derived from a principle applies_to glob) [§5]', async () => {
     tc = await createTestContext();
-    await createCard(tc.ctx, { key: 'gb-p', summary: 'p', type: 'principle', principle: { statement: 'X MUST Y', rationale: 'r', applies_to: ['gbq/**'], enforcement: 'warning', verify: { class: 'structural' } } });
+    await createCard(tc.ctx, { key: 'gb-p', summary: 'p', type: 'principle', principle: { statement: 'X MUST Y', rationale: 'r', applies_to: ['gbq/**'], enforcement: 'warning', verify: { class: 'structural', structural: { kind: 'forbids-relation-to', targetGlob: 'nope/**' } } } });
     await createCard(tc.ctx, { key: 'gbq/spec', summary: 's', type: 'spec' });
     const result = await getCardContext(tc.ctx, 'gbq/spec');
     expect(result.governedBy.some((g) => g.key === 'gb-p' && g.verifyClass === 'structural')).toBe(true);

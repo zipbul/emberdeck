@@ -27,13 +27,13 @@ export function validateVisionCard(vision: VisionBody | undefined): void {
       'Vision card is missing required `vision` namespace in frontmatter',
     );
   }
-  if (!vision.statement || !vision.statement.trim()) {
+  if (typeof vision.statement !== 'string' || !vision.statement.trim()) {
     throw new CardValidationError('vision.statement must be non-empty');
   }
-  if (!vision.rationale || !vision.rationale.trim()) {
+  if (typeof vision.rationale !== 'string' || !vision.rationale.trim()) {
     throw new CardValidationError('vision.rationale must be non-empty');
   }
-  if (!vision.success_direction || !vision.success_direction.trim()) {
+  if (typeof vision.success_direction !== 'string' || !vision.success_direction.trim()) {
     throw new CardValidationError('vision.success_direction must be non-empty');
   }
 }

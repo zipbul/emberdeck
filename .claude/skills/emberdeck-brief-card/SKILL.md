@@ -51,7 +51,8 @@ checked** (never reuse an id), and the flow H/F letter is **not** tied to `kind`
 (only `kind` feeds the ≥1-failure rule) — keep them consistent by convention. A wrong-format id (or
 `alternatives` < 2, or a bad `keyword`) is not caught at create — it surfaces as a
 stderr `card-sync-failed` on the next read and blocks the reads that parse the file
-(`get`/`update`/`set-status`); `card list` still serves the stale DB row.
+(`get`/`update`/`set-status`); `card list` still serves the stale DB row. Recover by
+hand-editing the `.md` or `card delete --yes` + recreate.
 
 ## The coverage web (checked at activation)
 
@@ -117,6 +118,9 @@ Invoke as `ed` if emberdeck's `ed` is on `PATH` — check with `ed --version` (b
 like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU ed`). Inside the
 emberdeck source repo use `bun cli.ts` from the repo root; in a dependent project
 `bunx ed`. Examples use `ed` and pass JSON on STDIN (`--from -` / `--patch -`).
+In a deck with a `glossary.yaml`, every `card create` additionally requires
+`--glossary <existing-word>` — without it create fails (`glossary field is required
+when project glossary exists`).
 
 ## Create
 
@@ -193,6 +197,14 @@ broken refs/coverage gaps at once in `unmetConditions`.
 ```bash
 ed card delete <key> --yes          # child specs? --force detaches them (not deleted)
 ```
+
+`--force` detachment is not retirement — detached specs gate as `orphan-card` +
+`broken-chain`. Re-parent or delete the child specs first. To move a brief to another
+domain, patch the parent only (`echo '{"parent":"<domain>"}' | ed card update <key>
+--patch -`). And **renaming a brief breaks its children's wiring**: `ed card rename`
+rewrites child parent pointers but NOT their `derives`/`case_of` strings — every
+descendant spec instantly gates `broken-derives` + `foreign-derive`; rewrite those
+derives (and re-key children, which keep the old prefix) before calling the rename done.
 
 ## Verify
 

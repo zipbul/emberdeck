@@ -281,6 +281,7 @@ export async function createMockTestContext(): Promise<TestContext> {
     ignorePatterns: [],
     regressionThreshold: 0,
     gildash: mockGildash({}),
+    readonly: false,
   };
 
   return {

@@ -48,6 +48,9 @@ like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU ed`). Insi
 emberdeck source repo use `bun cli.ts` from the repo root; in a dependent project
 `bunx ed`. Examples use `ed` and pass JSON on STDIN (`--from -` / `--patch -`) to avoid
 temp files. After any on-disk change, run `ed validate cards` (see **Verify**).
+In a deck with a `glossary.yaml`, every `card create` additionally requires
+`--glossary <existing-word>` — without it create fails (`glossary field is required
+when project glossary exists`).
 
 ### Create
 
@@ -84,6 +87,8 @@ echo '{ "vision": { "statement": "…edited…", "rationale": "…unchanged…",
 
 ed card update <key> --summary "…"            # summary only
 ed card set-status <key> active --reason "…"  # also re-runs the activation guard
+ed card rename <old> <new>                    # key change only — never delete+recreate
+                                              # (that would leave the deck rootless mid-way)
 ```
 
 ### Delete
@@ -97,7 +102,9 @@ rewrite, prefer updating in place (preserves changelog history).
 
 ## Verify
 
-After every create/update/delete, run `ed validate cards`. `summary.total` must be `0`.
-A `vision-singleton` in `byCode` means two vision cards exist — find them with
-`ed card list --type vision`, remove the extra, and re-run until `total` is `0`. Don't
-report the task done without a clean validate.
+After every create/update/delete, run `ed validate cards` and watch both channels.
+`summary.total` must be `0` — a `vision-singleton` in `byCode` means two vision cards
+exist (find them with `ed card list --type vision`, remove the extra). And **stderr**
+must be quiet: a `card-sync-failed` warning means the card file no longer parses while
+the JSON stays `total 0` — repair the `.md` by hand or delete + recreate, then re-run.
+Don't report the task done without both.

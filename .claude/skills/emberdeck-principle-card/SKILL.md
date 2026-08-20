@@ -36,7 +36,7 @@ A `.md` under `.emberdeck/cards/`; the frontmatter's `principle:` namespace hold
 | `applies_to` | scope: `"*"` (every card) or a list of card keys / boundary globs (e.g. `["payment/**"]`) |
 | `enforcement` | `blocking` (gates `validate`) · `warning` (in findings, non-gating) · `advisory` (not emitted by `validate` at all) |
 | `verify` | **required** — how the rule is checked: `{ class, structural? }`. See **Choosing verify.class** |
-| `metric` / `exemptions` / `references` | optional arrays — a `metric` item is `{ name, threshold, unit, comparator (< <= = >= >), kind?, window_kind?, distributable? }` |
+| `metric` / `exemptions` / `references` | optional arrays — a `metric` item is `{ name, threshold, unit, comparator (< <= = >= >), kind?, window_kind?, distributable? }`; an `exemptions` item is `{ target: <card-key-or-glob>, reason }` — a scoped temporary exception (narrower than weakening `enforcement`); remove it when the migration ends |
 
 ### Rules you cannot break
 
@@ -96,6 +96,9 @@ Invoke as `ed` if emberdeck's `ed` is on `PATH` — check with `ed --version` (b
 like `0.3.0`; the Unix line editor is also named `ed` and prints `GNU ed`). Inside the
 emberdeck source repo use `bun cli.ts` from the repo root; in a dependent project
 `bunx ed`. Examples use `ed` and pass JSON on STDIN (`--from -` / `--patch -`).
+In a deck with a `glossary.yaml`, every `card create` additionally requires
+`--glossary <existing-word>` — without it create fails (`glossary field is required
+when project glossary exists`).
 
 **`card create` does not deeply validate the principle body — the parser does, on the
 next read.** Integrity errors (missing `verify`, `prose`/`metric` marked `blocking`, a
@@ -157,6 +160,11 @@ ed card set-status <key> active --reason "…"  # activates
 To lift a hollow `prose` principle into a real one, change `verify.class` to the class
 that matches how it's actually checked (often `structural` for boundary rules) and, if it
 now has an engine, raise `enforcement` to `blocking`.
+
+**Renames silently un-govern.** `ed card rename` on a governed card rewrites nothing in
+any principle — the old key in `applies_to`, `exemptions[].target`, or `targetGlob` just
+stops matching and a blocking violation disappears without a trace. After renaming a
+governed card, rewrite every affected principle scope, then validate.
 
 ## Delete
 
